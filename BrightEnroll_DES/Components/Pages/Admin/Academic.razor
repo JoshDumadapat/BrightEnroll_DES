@@ -6,25 +6,27 @@
 <div>
 
     <!-- Tabs -->
-    <div class="mb-5 flex space-x-8 border-b border-gray-200">
+    <div class="mb-6 flex items-center gap-6">
         <button @onclick='() => SetActiveTab("sections")'
-                class="@GetTabClass("sections", "bg-blue-600 text-white", "text-gray-600") rounded-md px-5 py-2 font-medium transition-all">
+                class="@GetTabClasses("sections")">
             Sections
         </button>
         <button @onclick='() => SetActiveTab("subjects")'
-                class="@GetTabClass("subjects", "text-indigo-600 border-b-2 border-indigo-600", "text-gray-600") font-medium pb-2">
+                class="@GetTabClasses("subjects")">
             Subjects
         </button>
         <button @onclick='() => SetActiveTab("teachers")'
-                class="@GetTabClass("teachers", "text-green-600 border-b-2 border-green-600", "text-gray-600") font-medium pb-2">
+                class="@GetTabClasses("teachers")">
             Teacher Assignment
         </button>
     </div>
 
-    <!-- SECTIONS TAB -->
-    @if (ActiveTab == "sections")
-    {
-        <div class="space-y-5">
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- SECTIONS TAB -->
+        @if (ActiveTab == "sections")
+        {
+            <div class="space-y-5">
             <!-- Filters -->
             <div>
                 <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
@@ -133,23 +135,20 @@
                 </div>
             </div>
         </div>
-    }
-
-    <!-- SUBJECTS TAB -->
-    @if (ActiveTab == "subjects")
-    {
-        <div class="rounded-xl bg-white p-6 text-gray-600 shadow-sm">
-            <p class="text-center text-sm text-gray-400">Subjects tab content coming soon...</p>
-        </div>
-    }
-
-    <!-- TEACHER TAB -->
-    @if (ActiveTab == "teachers")
-    {
-        <div class="rounded-xl bg-white p-6 text-gray-600 shadow-sm">
-            <p class="text-center text-sm text-gray-400">Teacher assignment tab content coming soon...</p>
-        </div>
-    }
+        }
+        else if (ActiveTab == "subjects")
+        {
+            <div class="p-6 text-gray-600">
+                <p class="text-center text-sm text-gray-400">Subjects tab content coming soon...</p>
+            </div>
+        }
+        else if (ActiveTab == "teachers")
+        {
+            <div class="p-6 text-gray-600">
+                <p class="text-center text-sm text-gray-400">Teacher assignment tab content coming soon...</p>
+            </div>
+        }
+    </div>
 </div>
 
 @code {
@@ -160,8 +159,22 @@
         ActiveTab = tab;
     }
 
-    private string GetTabClass(string tab, string activeClass, string inactiveClass)
+    private string GetTabClasses(string tab)
     {
-        return ActiveTab == tab ? activeClass : inactiveClass;
+        bool isSelected = ActiveTab == tab;
+        
+        return tab switch
+        {
+            "sections" => isSelected
+                ? "rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow"
+                : "border-b-2 border-blue-600 px-3 py-2 text-sm font-semibold text-blue-600 transition-transform duration-300 ease-in-out hover:scale-105",
+            "subjects" => isSelected
+                ? "rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white shadow"
+                : "border-b-2 border-purple-600 px-3 py-2 text-sm font-semibold text-purple-600 transition-transform duration-300 ease-in-out hover:scale-105",
+            "teachers" => isSelected
+                ? "rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow"
+                : "border-b-2 border-green-600 px-3 py-2 text-sm font-semibold text-green-600 transition-transform duration-300 ease-in-out hover:scale-105",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
     }
 }

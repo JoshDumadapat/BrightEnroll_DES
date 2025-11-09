@@ -2,17 +2,30 @@
 @inject NavigationManager Navigation
 
 <div class="page paddin-0">
-    <div class="sidebar">
-        <NavMenu />
+    <!-- Mobile Overlay -->
+    @if (isSidebarOpen)
+    {
+        <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
+    }
+
+    <!-- Sidebar -->
+    <div class="sidebar @(isSidebarOpen ? "sidebar-open" : "sidebar-closed")">
+        <NavMenu OnNavigate="@CloseSidebarOnNavigate" />
     </div>
 
     <main>
         <div class="flex flex-1 flex-col overflow-hidden">
             <!-- Top Bar with Rounded Card -->
             <div class="p-4">
-                <div class="rounded-xl border border-gray-200 bg-white px-8 py-2 shadow-sm">
+                <div class="rounded-xl border border-gray-200 bg-white px-4 md:px-8 py-2 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <h1 class="text-lg font-bold text-gray-800">@GetPageTitle()</h1>
+                        <!-- Burger Menu Button (Mobile Only) -->
+                        <button @onclick="ToggleSidebar" class="md:hidden mr-2 p-2 text-gray-600 hover:text-gray-800 focus:outline-none">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                        </button>
+                        <h1 class="text-base md:text-lg font-bold text-gray-800">@GetPageTitle()</h1>
 
                         <!-- User Profile Dropdown -->
                         <div class="relative flex items-center gap-3">
@@ -77,6 +90,23 @@
 
 @code {
     private bool isDropdownOpen = false;
+    private bool isSidebarOpen = false;
+
+    private void ToggleSidebar()
+    {
+        isSidebarOpen = !isSidebarOpen;
+        StateHasChanged();
+    }
+
+    private void CloseSidebarOnNavigate()
+    {
+        // Close sidebar on mobile when navigation occurs
+        if (isSidebarOpen)
+        {
+            isSidebarOpen = false;
+            StateHasChanged();
+        }
+    }
 
     private void ToggleDropdown()
     {

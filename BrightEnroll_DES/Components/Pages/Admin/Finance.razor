@@ -5,18 +5,29 @@
 
 <div class="text-gray-800">
     <!-- Tabs -->
-    <div class="mb-6 flex gap-8">
-        <button @onclick='() => SetActiveTab("FeeSetup")' class='@GetTabClass("FeeSetup", "blue")'>Fee Setup</button>
-        <button @onclick='() => SetActiveTab("Payments")' class='@GetTabClass("Payments", "green")'>Payments</button>
-        <button @onclick='() => SetActiveTab("Records")' class='@GetTabClass("Records", "blue-light")'>Records</button>
+    <div class="mb-6 flex items-center gap-6">
+        <button @onclick='() => SetActiveTab("FeeSetup")' 
+                class="@GetTabClasses("FeeSetup")"
+                style="@GetFeeSetupStyle()">
+            Fee Setup
+        </button>
+        <button @onclick='() => SetActiveTab("Payments")' 
+                class="@GetTabClasses("Payments")">
+            Payments
+        </button>
+        <button @onclick='() => SetActiveTab("Records")' 
+                class="@GetTabClasses("Records")">
+            Records
+        </button>
     </div>
 
-    <!-- Fee Setup Tab -->
-    @if (activeTab == "FeeSetup")
-    {
-        <div>
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- Fee Setup Tab -->
+        @if (activeTab == "FeeSetup")
+        {
             <!-- Search + Grade Filter + Add Fee -->
-            <div class="mb-4">
+            <div class="border-b border-gray-200 px-6 py-4">
                 <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
@@ -30,14 +41,14 @@
                     </select>
                     </div>
 
-                    <button class="rounded-lg bg-blue-900 px-5 py-2 text-sm font-medium text-white shadow hover:bg-blue-800">
+                    <button @onclick="OpenAddFeeModal" class="rounded-lg bg-blue-900 px-5 py-2 text-sm font-medium text-white shadow hover:bg-blue-800">
                         + Add Fee
                     </button>
                 </div>
             </div>
 
             <!-- Table -->
-            <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div>
                 <table class="min-w-full text-sm">
                     <thead class="bg-gray-100 font-semibold text-gray-600">
                         <tr>
@@ -60,7 +71,7 @@
                                 <td class="px-4 py-3 font-medium">Php @fee.TotalFee.ToString("N2")</td>
                                 <td class="flex gap-2 px-4 py-3">
                                     <!-- Edit Button -->
-                                    <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
+                                    <button @onclick="() => OpenEditFeeModal(fee)" class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                         </svg>
@@ -77,40 +88,335 @@
                     </tbody>
                 </table>
             </div>
+        }
+        else if (activeTab == "Payments")
+        {
+            <div class="p-6 text-gray-600">
+                <p>Payments page content goes here.</p>
+            </div>
+        }
+        else if (activeTab == "Records")
+        {
+            <div class="p-6 text-gray-600">
+                <p>Records page content goes here.</p>
+            </div>
+        }
+    </div>
+
+    <!-- Add Fee Modal -->
+    @if (ShowAddFeeModal)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddFeeModal">
+            <div class="w-full max-w-md rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between rounded-t-lg bg-blue-600 px-6 py-4">
+                    <h3 class="text-lg font-semibold text-white">Add Fee</h3>
+                    <button @onclick="CloseAddFeeModal" class="text-white hover:text-gray-200">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="px-6 py-4">
+                    <form @onsubmit="HandleAddFee" @onsubmit:preventDefault="true">
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="FeeFormData.GradeLevel" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                                <option value="">Select Grade Level</option>
+                                <option value="Kinder">Kinder</option>
+                                <option value="Grade 1">Grade 1</option>
+                                <option value="Grade 2">Grade 2</option>
+                                <option value="Grade 3">Grade 3</option>
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Tuition Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="FeeFormData.TuitionFeeString" @bind:after="CalculateTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Misc Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="FeeFormData.MiscFeeString" @bind:after="CalculateTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Other Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="FeeFormData.OtherFeeString" @bind:after="CalculateTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-6">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+                                Php @TotalFee.ToString("N2")
+                            </div>
+                        </div>
+
+                        <!-- Modal Footer -->
+                        <div class="flex justify-end gap-3">
+                            <button type="button" @onclick="CloseAddFeeModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                Add
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     }
-    else if (activeTab == "Payments")
+
+    <!-- Edit Fee Modal -->
+    @if (ShowEditFeeModal)
     {
-        <div class="rounded-2xl bg-white p-6 text-gray-600 shadow">
-            <p>Payments page content goes here.</p>
-        </div>
-    }
-    else if (activeTab == "Records")
-    {
-        <div class="rounded-2xl bg-white p-6 text-gray-600 shadow">
-            <p>Records page content goes here.</p>
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEditFeeModal">
+            <div class="w-full max-w-md rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between rounded-t-lg bg-blue-600 px-6 py-4">
+                    <h3 class="text-lg font-semibold text-white">Edit Fee</h3>
+                    <button @onclick="CloseEditFeeModal" class="text-white hover:text-gray-200">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="px-6 py-4">
+                    <form @onsubmit="HandleEditFee" @onsubmit:preventDefault="true">
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditFeeFormData.GradeLevel" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                                <option value="">Select Grade Level</option>
+                                <option value="Kinder">Kinder</option>
+                                <option value="Grade 1">Grade 1</option>
+                                <option value="Grade 2">Grade 2</option>
+                                <option value="Grade 3">Grade 3</option>
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Tuition Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditFeeFormData.TuitionFeeString" @bind:after="CalculateEditTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Misc Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditFeeFormData.MiscFeeString" @bind:after="CalculateEditTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Other Fee <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditFeeFormData.OtherFeeString" @bind:after="CalculateEditTotal" required
+                                   placeholder="Php 0.00"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        </div>
+
+                        <div class="mb-6">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+                                Php @EditTotalFee.ToString("N2")
+                            </div>
+                        </div>
+
+                        <!-- Modal Footer -->
+                        <div class="flex justify-end gap-3">
+                            <button type="button" @onclick="CloseEditFeeModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                Update
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     }
 </div>
 
 @code {
     private string activeTab = "FeeSetup";
+    private bool ShowAddFeeModal { get; set; } = false;
+    private bool ShowEditFeeModal { get; set; } = false;
+    private FeeFormData FeeFormData { get; set; } = new();
+    private FeeFormData EditFeeFormData { get; set; } = new();
+    private FeeItem? EditingFeeItem { get; set; }
+    private decimal TotalFee { get; set; } = 0;
+    private decimal EditTotalFee { get; set; } = 0;
 
     private void SetActiveTab(string tab)
     {
         activeTab = tab;
     }
 
-    private string GetTabClass(string tab, string color) =>
-        "font-medium text-sm px-3 py-2 transition-all " +
-        (activeTab == tab
-            ? color switch
-            {
-                "green" => "text-green-600 border-b-2 border-green-600",
-                "blue-light" => "text-blue-400 border-b-2 border-blue-400",
-                _ => "text-white bg-blue-900 px-4 rounded-lg shadow"
-            }
-            : "text-gray-500 hover:text-gray-700");
+    private string GetFeeSetupStyle()
+    {
+        bool isSelected = activeTab == "FeeSetup";
+        if (isSelected)
+        {
+            return "background-color: #0E335D; color: white;";
+        }
+        else
+        {
+            return "color: #0E335D; border-bottom-color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = activeTab == tab;
+        
+        return tab switch
+        {
+            "FeeSetup" => isSelected
+                ? "rounded-lg px-3 py-2 text-sm font-semibold shadow"
+                : "border-b-2 px-3 py-2 text-sm font-semibold transition-transform duration-300 ease-in-out hover:scale-105",
+            "Payments" => isSelected
+                ? "rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow"
+                : "border-b-2 border-green-600 px-3 py-2 text-sm font-semibold text-green-600 transition-transform duration-300 ease-in-out hover:scale-105",
+            "Records" => isSelected
+                ? "rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow"
+                : "border-b-2 border-blue-600 px-3 py-2 text-sm font-semibold text-blue-600 transition-transform duration-300 ease-in-out hover:scale-105",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private void OpenAddFeeModal()
+    {
+        FeeFormData = new FeeFormData();
+        TotalFee = 0;
+        ShowAddFeeModal = true;
+    }
+
+    private void CloseAddFeeModal()
+    {
+        ShowAddFeeModal = false;
+        FeeFormData = new FeeFormData();
+        TotalFee = 0;
+    }
+
+    private void OpenEditFeeModal(FeeItem fee)
+    {
+        EditingFeeItem = fee;
+        EditFeeFormData = new FeeFormData
+        {
+            GradeLevel = fee.GradeLevel,
+            TuitionFeeString = $"Php {fee.TuitionFee:N2}",
+            MiscFeeString = $"Php {fee.MiscFee:N2}",
+            OtherFeeString = $"Php {fee.OtherFee:N2}"
+        };
+        EditTotalFee = fee.TotalFee;
+        ShowEditFeeModal = true;
+    }
+
+    private void CloseEditFeeModal()
+    {
+        ShowEditFeeModal = false;
+        EditingFeeItem = null;
+        EditFeeFormData = new FeeFormData();
+        EditTotalFee = 0;
+    }
+
+    private void CalculateTotal()
+    {
+        var tuition = ParseCurrency(FeeFormData.TuitionFeeString);
+        var misc = ParseCurrency(FeeFormData.MiscFeeString);
+        var other = ParseCurrency(FeeFormData.OtherFeeString);
+        TotalFee = tuition + misc + other;
+    }
+
+    private void CalculateEditTotal()
+    {
+        var tuition = ParseCurrency(EditFeeFormData.TuitionFeeString);
+        var misc = ParseCurrency(EditFeeFormData.MiscFeeString);
+        var other = ParseCurrency(EditFeeFormData.OtherFeeString);
+        EditTotalFee = tuition + misc + other;
+    }
+
+    private decimal ParseCurrency(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return 0;
+
+        // Remove "Php", spaces, and commas
+        var cleaned = value.Replace("Php", "").Replace(" ", "").Replace(",", "").Trim();
+        if (decimal.TryParse(cleaned, out var result))
+            return result;
+        return 0;
+    }
+
+    private void HandleAddFee()
+    {
+        var tuition = ParseCurrency(FeeFormData.TuitionFeeString);
+        var misc = ParseCurrency(FeeFormData.MiscFeeString);
+        var other = ParseCurrency(FeeFormData.OtherFeeString);
+
+        var newFee = new FeeItem
+        {
+            GradeLevel = FeeFormData.GradeLevel,
+            TuitionFee = tuition,
+            MiscFee = misc,
+            OtherFee = other
+        };
+
+        FeeList.Add(newFee);
+        CloseAddFeeModal();
+    }
+
+    private void HandleEditFee()
+    {
+        if (EditingFeeItem == null)
+            return;
+
+        var tuition = ParseCurrency(EditFeeFormData.TuitionFeeString);
+        var misc = ParseCurrency(EditFeeFormData.MiscFeeString);
+        var other = ParseCurrency(EditFeeFormData.OtherFeeString);
+
+        EditingFeeItem.GradeLevel = EditFeeFormData.GradeLevel;
+        EditingFeeItem.TuitionFee = tuition;
+        EditingFeeItem.MiscFee = misc;
+        EditingFeeItem.OtherFee = other;
+
+        CloseEditFeeModal();
+    }
 
     private List<FeeItem> FeeList = new()
     {
@@ -125,5 +431,13 @@
         public decimal MiscFee { get; set; }
         public decimal OtherFee { get; set; }
         public decimal TotalFee => TuitionFee + MiscFee + OtherFee;
+    }
+
+    public class FeeFormData
+    {
+        public string GradeLevel { get; set; } = "";
+        public string TuitionFeeString { get; set; } = "";
+        public string MiscFeeString { get; set; } = "";
+        public string OtherFeeString { get; set; } = "";
     }
 }
