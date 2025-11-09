@@ -1,0 +1,159 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.EnrollmentComponents
+@* Re-enrollment Component with Filters *@
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-6 py-4">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex items-center gap-4">
+        <div class="relative flex w-1/4 items-center">
+            <span class="absolute left-4 flex items-center justify-center">
+                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </span>
+            <input type="text" placeholder="Search here..." @bind="SearchText"
+                   class="w-full rounded border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <select @bind="TypeFilter" class="rounded border px-3 py-2 text-sm text-gray-600">
+            <option value="">Type</option>
+            <option value="Eligible">Eligible</option>
+            <option value="New">New</option>
+            <option value="Transferee">Transferee</option>
+        </select>
+        <select @bind="GradeFilter" class="rounded border px-3 py-2 text-sm text-gray-600">
+            <option value="">Grade</option>
+            <option value="Kinder">Kinder</option>
+            <option value="G1">G1</option>
+            <option value="G2">G2</option>
+            <option value="G3">G3</option>
+            <option value="G4">G4</option>
+            <option value="G5">G5</option>
+            <option value="G6">G6</option>
+        </select>
+        <select @bind="StatusFilter" class="rounded border px-3 py-2 text-sm text-gray-600">
+            <option value="">Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+        </select>
+        <button @onclick="ClearFilters" class="flex items-center gap-2 rounded-full bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            Clear
+        </button>
+        <button @onclick="ExportPDF" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg" style="font-size: 13px;">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export
+        </button>
+    </div>
+</div>
+
+<!-- Table -->
+<table class="min-w-full text-sm">
+    <thead class="bg-gray-100 font-semibold text-gray-600">
+        <tr>
+            <th class="px-4 py-3 text-left">ID</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">LRN</th>
+            <th class="px-4 py-3 text-left">Date</th>
+            <th class="px-4 py-3 text-left">Type</th>
+            <th class="px-4 py-3 text-left">Grade Level</th>
+            <th class="px-4 py-3 text-left">Documents</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Actions</th>
+        </tr>
+    </thead>
+    <tbody class="divide-y">
+        @if (Students != null && Students.Any())
+        {
+            @foreach (var student in Students)
+            {
+                <tr class="transition hover:bg-gray-50">
+                    <td class="px-4 py-3">@student.Id</td>
+                    <td class="px-4 py-3">@student.Name</td>
+                    <td class="px-4 py-3 text-blue-600">@student.LRN</td>
+                    <td class="px-4 py-3">@student.Date</td>
+                    <td class="px-4 py-3">
+                        <span class="text-green-600">@student.Type</span>
+                    </td>
+                    <td class="px-4 py-3">@student.GradeLevel</td>
+                    <td class="px-4 py-3">
+                        <span class="text-blue-600">@student.Documents</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="rounded-md bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">@student.Status</span>
+                    </td>
+                    <td class="flex items-center gap-2 px-4 py-3">
+                        <!-- Edit Button -->
+                        <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                        </button>
+                        <!-- Delete Button -->
+                        <button class="flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition hover:bg-red-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="9" class="px-4 py-8 text-center text-gray-500">No re-enrollment records found</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Footer -->
+<div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+    <span>@($"{Students?.Count ?? 0} of {(Students?.Count ?? 0)} re-enrollment students")</span>
+    <div class="flex items-center gap-2">
+        <button class="rounded-md bg-blue-900 px-3 py-1 text-xs text-white">1</button>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+        <span>...</span>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+        <span class="ml-4">Show</span>
+        <select @bind="RowsPerPage" class="rounded-md border px-2 py-1 text-xs text-gray-600">
+            <option value="5">5 rows</option>
+            <option value="10">10 rows</option>
+            <option value="20">20 rows</option>
+        </select>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<ReEnrollmentStudent>? Students { get; set; }
+
+    [Parameter]
+    public int RowsPerPage { get; set; } = 5;
+
+    // Filter properties
+    private string SearchText { get; set; } = "";
+    private string TypeFilter { get; set; } = "";
+    private string GradeFilter { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        TypeFilter = "";
+        GradeFilter = "";
+        StatusFilter = "";
+    }
+
+    private void ExportPDF()
+    {
+        // Export PDF logic will be implemented here
+    }
+}

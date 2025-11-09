@@ -4,136 +4,167 @@
 <PageTitle>Dashboard</PageTitle>
 
 <!-- Date Filters -->
-<div class="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-    <label class="mb-3 block text-sm font-bold text-gray-700">Filter:</label>
-    <div class="flex items-center gap-4">
-        <!-- Year Filter -->
-        <select value="@SelectedYear" @onchange="OnYearChanged" class="rounded-lg border px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="">Year</option>
-            @foreach (var year in AvailableYears)
-            {
-                <option value="@year.ToString()">@year</option>
-            }
-        </select>
+<div class="mb-4 rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:mb-6 md:p-4">
+    <!-- Header -->
+    <div class="mb-3">
+        <h2 class="text-sm font-bold text-gray-800 md:text-base">Dashboard Filters</h2>
+    </div>
 
-        <!-- From Date Filter -->
-        <input type="date" value="@(FromDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnFromDateChanged"
-               class="rounded-lg border px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400" />
+    <!-- Responsive Layout -->
+    <div class="flex flex-col-reverse gap-4 md:grid md:grid-cols-2 md:items-center md:gap-4">
+        <!-- Left: Current View (on desktop), but moves below filters on small screens -->
+        <div class="flex justify-start md:items-center md:justify-start">
+            <div class="text-left">
+                <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
+                <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
+            </div>
+        </div>
 
-        <!-- To Date Filter -->
-        <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
-               class="rounded-lg border px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400" />
-        
-        <!-- Clear Button -->
-        <button @onclick="ClearFilters" class="flex items-center gap-2 rounded-full bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            Clear
-        </button>
+        <!-- Right: Filters and Buttons -->
+        <div class="flex flex-wrap justify-start gap-3 sm:flex-nowrap sm:justify-end">
+            <!-- From Date -->
+            <div class="flex w-full flex-col gap-1 sm:w-auto">
+                <label class="text-xs font-medium text-gray-600">From Date:</label>
+                <input type="date" value="@(FromDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnFromDateChanged"
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm" />
+            </div>
+
+            <!-- To Date -->
+            <div class="flex w-full flex-col gap-1 sm:w-auto">
+                <label class="text-xs font-medium text-gray-600">To Date:</label>
+                <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm" />
+            </div>
+
+            <!-- Quick Select -->
+            <div class="flex w-full flex-col gap-1 sm:w-auto">
+                <label class="text-xs font-medium text-gray-600">Quick Select:</label>
+                <select value="@QuickSelect" @onchange="OnQuickSelectChanged"
+                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm">
+                    <option value="">Select Range</option>
+                    <option value="today">This Day</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+            </div>
+
+            <!-- Apply Filter -->
+            <div class="flex w-full items-end justify-start sm:w-auto sm:justify-end">
+                <button @onclick="ApplyFilters"
+                        class="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-3 py-1.5 font-semibold text-white text-[11px] shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:text-[12px] md:gap-2 md:px-4 md:py-2">
+                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    Apply Filter
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
+
 <!-- Stats Cards -->
-<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:mb-8 md:gap-6 lg:grid-cols-4">
     <!-- Total Enrolled -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-        <div class="mb-4 flex items-start justify-between">
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
-                <p class="mb-1 text-sm font-medium text-gray-500">Total Enrolled</p>
-                <h3 class="text-3xl font-bold text-gray-800">40,689</h3>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Enrolled</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">40,689</h3>
             </div>
-            <div class="rounded-xl bg-blue-100 p-3">
-                <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="rounded-xl bg-blue-100 p-2 md:p-3">
+                <svg class="h-5 w-5 text-blue-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-12 w-full" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,40 40,35 80,30 120,25 160,30 200,35" fill="none" stroke="#3b82f6" stroke-width="2" />
         </svg>
     </div>
 
     <!-- Total Employees -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-        <div class="mb-4 flex items-start justify-between">
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
-                <p class="mb-1 text-sm font-medium text-gray-500">Total Employees</p>
-                <h3 class="text-3xl font-bold text-gray-800">1,204</h3>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Employees</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">1,204</h3>
             </div>
-            <div class="rounded-xl bg-purple-100 p-3">
-                <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="rounded-xl bg-purple-100 p-2 md:p-3">
+                <svg class="h-5 w-5 text-purple-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                 </svg>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-12 w-full" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,35 40,30 80,28 120,32 160,29 200,33" fill="none" stroke="#9333ea" stroke-width="2" />
         </svg>
     </div>
 
     <!-- Pending Applications -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-        <div class="mb-4 flex items-start justify-between">
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
-                <p class="mb-1 text-sm font-medium text-gray-500">Pending Applications</p>
-                <h3 class="text-3xl font-bold text-gray-800">2,040</h3>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Pending Applications</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">2,040</h3>
             </div>
-            <div class="rounded-xl bg-yellow-100 p-3">
-                <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="rounded-xl bg-yellow-100 p-2 md:p-3">
+                <svg class="h-5 w-5 text-yellow-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-12 w-full" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,30 40,25 80,35 120,28 160,32 200,30" fill="none" stroke="#ca8a04" stroke-width="2" />
         </svg>
     </div>
 
     <!-- Total Tuition Collected -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-        <div class="mb-4 flex items-start justify-between">
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
-                <p class="mb-1 text-sm font-medium text-gray-500">Total Tuition Collected</p>
-                <h3 class="text-3xl font-bold text-gray-800">₱89,000</h3>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Tuition Collected</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">₱89,000</h3>
             </div>
-            <div class="rounded-xl bg-green-100 p-3">
-                <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="rounded-xl bg-green-100 p-2 md:p-3">
+                <svg class="h-5 w-5 text-green-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                 </svg>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-12 w-full" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,45 40,40 80,35 120,30 160,32 200,28" fill="none" stroke="#16a34a" stroke-width="2" />
         </svg>
     </div>
 </div>
 
 <!-- Charts Section -->
-<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+<div class="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
     <!-- Total Income Chart -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div class="mb-6">
-            <p class="mb-1 text-sm font-medium text-gray-500">Statistics</p>
-            <h3 class="mb-4 text-xl font-bold text-gray-800">Total income</h3>
-            <div class="flex gap-6">
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Statistics</p>
+            <h3 class="mb-3 text-lg font-bold text-gray-800 md:mb-4 md:text-xl">Total income</h3>
+            <div class="flex flex-wrap gap-4 md:gap-6">
                 <div class="flex items-center gap-2">
-                    <div class="h-3 w-3 rounded-full bg-pink-500"></div>
-                    <span class="text-sm text-gray-600">Product</span>
+                    <div class="h-2.5 w-2.5 rounded-full bg-pink-500 md:h-3 md:w-3"></div>
+                    <span class="text-xs text-gray-600 md:text-sm">Product</span>
                 </div>
                 <div class="flex items-center gap-2">
-                    <div class="h-3 w-3 rounded-full bg-blue-500"></div>
-                    <span class="text-sm text-gray-600">Subscriptions</span>
+                    <div class="h-2.5 w-2.5 rounded-full bg-blue-500 md:h-3 md:w-3"></div>
+                    <span class="text-xs text-gray-600 md:text-sm">Subscriptions</span>
                 </div>
             </div>
         </div>
   
         <!-- Chart Placeholder -->
-        <div class="relative h-64">
+        <div class="relative h-48 md:h-64">
             <svg class="h-full w-full" viewBox="0 0 600 250">
                 <!-- Y-axis labels -->
                 <text x="30" y="30" class="fill-gray-400 text-xs">500k</text>
@@ -169,16 +200,16 @@
     </div>
 
     <!-- Total Students by Type -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-        <div class="mb-6">
-            <p class="mb-1 text-sm font-medium text-gray-500">Statistics</p>
-            <h3 class="text-xl font-bold text-gray-800">Total student each type</h3>
+    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Statistics</p>
+            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Total student each type</h3>
         </div>
 
         <!-- Donut Chart -->
-        <div class="mb-6 flex items-center justify-center">
+        <div class="mb-4 flex items-center justify-center md:mb-6">
             <div class="relative">
-                <svg class="h-64 w-64" viewBox="0 0 200 200">
+                <svg class="h-48 w-48 md:h-64 md:w-64" viewBox="0 0 200 200">
                     <!-- Background circle -->
                     <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e7eb" stroke-width="25"/>
                     
@@ -195,25 +226,25 @@
                         stroke-dasharray="45 502" stroke-dashoffset="-456" transform="rotate(-90 100 100)"/>
                     
                     <!-- Center text -->
-                    <text x="100" y="90" text-anchor="middle" class="fill-gray-400 text-sm">Total Count</text>
-                    <text x="100" y="115" text-anchor="middle" class="fill-gray-800 text-3xl font-bold">1,375</text>
+                    <text x="100" y="90" text-anchor="middle" class="fill-gray-400 text-xs md:text-sm">Total Count</text>
+                    <text x="100" y="115" text-anchor="middle" class="fill-gray-800 text-2xl font-bold md:text-3xl">1,375</text>
                 </svg>
             </div>
         </div>
         
         <!-- Legend -->
-        <div class="flex justify-center gap-8">
-            <div class="flex items-center gap-2">
-                <div class="h-3 w-3 rounded-full bg-blue-600"></div>
-                <span class="text-sm text-gray-600">New <span class="font-semibold">513</span></span>
+        <div class="flex flex-wrap justify-center gap-4 md:gap-8">
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-blue-600 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">New <span class="font-semibold">513</span></span>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="h-3 w-3 rounded-full bg-gray-400"></div>
-                <span class="text-sm text-gray-600">Transferee <span class="font-semibold">741</span></span>
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-gray-400 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">Transferee <span class="font-semibold">741</span></span>
             </div>
-            <div class="flex items-center gap-2">
-                <div class="h-3 w-3 rounded-full bg-blue-400"></div>
-                <span class="text-sm text-gray-600">Returnee <span class="font-semibold">121</span></span>
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-blue-400 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">Returnee <span class="font-semibold">121</span></span>
             </div>
         </div>
     </div>
@@ -221,32 +252,70 @@
 
 @code {
     // Filter properties
-    private string? SelectedYear { get; set; }
     private DateTime? FromDate { get; set; }
     private DateTime? ToDate { get; set; }
-
-    // Available years (current year and 5 years back)
-    private List<int> AvailableYears { get; set; } = new();
+    private string? QuickSelect { get; set; }
 
     protected override void OnInitialized()
     {
-        // Initialize filters
-        InitializeFilters();
+        // Initialize filters if needed
     }
 
-    private void InitializeFilters()
+    private string GetCurrentViewText()
     {
-        // Generate years from current year going back 5 years
-        var currentYear = DateTime.Now.Year;
-        for (int i = 0; i <= 5; i++)
+        if (!string.IsNullOrEmpty(QuickSelect))
         {
-            AvailableYears.Add(currentYear - i);
+            return QuickSelect switch
+            {
+                "today" => "Today",
+                "week" => "This Week",
+                "month" => "This Month",
+                "year" => "This Year",
+                _ => "Custom Range"
+            };
         }
+        
+        if (FromDate.HasValue && ToDate.HasValue)
+        {
+            if (FromDate.Value.Date == ToDate.Value.Date)
+            {
+                return "Single Day";
+            }
+            return "Custom Range";
+        }
+        
+        return "All Time";
     }
 
-    private void OnYearChanged(ChangeEventArgs e)
+    private void OnQuickSelectChanged(ChangeEventArgs e)
     {
-        SelectedYear = e.Value?.ToString();
+        QuickSelect = e.Value?.ToString();
+        var today = DateTime.Now;
+        
+        switch (QuickSelect)
+        {
+            case "today":
+                FromDate = today;
+                ToDate = today;
+                break;
+            case "week":
+                var startOfWeek = today.AddDays(-(int)today.DayOfWeek);
+                FromDate = startOfWeek;
+                ToDate = today;
+                break;
+            case "month":
+                FromDate = new DateTime(today.Year, today.Month, 1);
+                ToDate = today;
+                break;
+            case "year":
+                FromDate = new DateTime(today.Year, 1, 1);
+                ToDate = today;
+                break;
+            default:
+                break;
+        }
+        
+        StateHasChanged();
     }
 
     private void OnFromDateChanged(ChangeEventArgs e)
@@ -259,6 +328,8 @@
         {
             FromDate = null;
         }
+        // Clear quick select when manually changing dates
+        QuickSelect = null;
     }
 
     private void OnToDateChanged(ChangeEventArgs e)
@@ -271,12 +342,22 @@
         {
             ToDate = null;
         }
+        // Clear quick select when manually changing dates
+        QuickSelect = null;
+    }
+
+    private void ApplyFilters()
+    {
+        // Apply filter logic will be implemented here
+        // For now, this is a placeholder
+        // You can add API calls or data filtering logic here
     }
 
     private void ClearFilters()
     {
-        SelectedYear = null;
         FromDate = null;
         ToDate = null;
+        QuickSelect = null;
+        StateHasChanged();
     }
 }

@@ -1,11 +1,10 @@
 ﻿@page "/enrollment"
 @layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.EnrollmentComponents
 
 <PageTitle>Enrollment</PageTitle>
 
-
 <div class="text-gray-800">
-
     <!-- Tabs -->
     <div class="mb-6 flex items-center gap-6">
         <button @onclick="() => SelectedTab = TabType.NewApplicants" 
@@ -27,112 +26,24 @@
         </button>
     </div>
 
-    <!-- Card with Filters and Table -->
+    <!-- Card Container -->
     <div class="overflow-hidden rounded-xl bg-white shadow">
-        <!-- Filters -->
-        <div class="border-b border-gray-200 px-6 py-4">
-            <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-            <div class="flex items-center gap-4">
-                <div class="relative flex w-1/4 items-center">
-                    <span class="absolute left-4 flex items-center justify-center">
-                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                    </span>
-                    <input type="text" placeholder="Search here..."
-                           class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-transparent focus:ring-2 focus:ring-blue-400" />
-                </div>
-
-                <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
-                    <option>Type</option>
-                </select>
-                <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
-                    <option>Grade</option>
-                </select>
-                <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
-                    <option>Status</option>
-                </select>
-                <button @onclick="ClearFilters" class="flex items-center gap-2 rounded-full bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Clear
-                </button>
-                <button @onclick="ExportPDF" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg" style="font-size: 13px;">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export
-                </button>
-            </div>
-        </div>
-
-        <!-- Table -->
-        <table class="min-w-full text-sm">
-            <thead class="bg-gray-100 font-semibold text-gray-600">
-                <tr>
-                    <th class="px-4 py-3 text-left">ID</th>
-                    <th class="px-4 py-3 text-left">Name</th>
-                    <th class="px-4 py-3 text-left">LRN</th>
-                    <th class="px-4 py-3 text-left">Date</th>
-                    <th class="px-4 py-3 text-left">Type</th>
-                    <th class="px-4 py-3 text-left">Grade Level</th>
-                    <th class="px-4 py-3 text-left">Documents</th>
-                    <th class="px-4 py-3 text-left">Status</th>
-                    <th class="px-4 py-3 text-left">Actions</th>
-                </tr>
-            </thead>
-            <tbody class="divide-y">
-                @foreach (var student in Applicants)
-                {
-                    <tr class="transition hover:bg-gray-50">
-                        <td class="px-4 py-3">@student.Id</td>
-                        <td class="px-4 py-3">@student.Name</td>
-                        <td class="px-4 py-3 text-blue-600">@student.LRN</td>
-                        <td class="px-4 py-3">@student.Date</td>
-                        <td class="px-4 py-3">@student.Type</td>
-                        <td class="px-4 py-3">@student.GradeLevel</td>
-                        <td class="px-4 py-3 text-yellow-500">Not verified</td>
-                        <td class="px-4 py-3">
-                            <span class="rounded-md bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@student.Status</span>
-                        </td>
-                        <td class="flex items-center gap-2 px-4 py-3">
-                            <!-- Edit Button -->
-                            <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                </svg>
-                            </button>
-                            <!-- Delete Button -->
-                            <button class="flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition hover:bg-red-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                </svg>
-                            </button>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-
-        <!-- Footer -->
-        <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            <span>@($"{Applicants.Count} of 456 pre-registered students")</span>
-            <div class="flex items-center gap-2">
-                <button class="rounded-md bg-blue-900 px-3 py-1 text-xs text-white">1</button>
-                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
-                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
-                <span>...</span>
-                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
-                <span class="ml-4">Show</span>
-                <select @bind="RowsPerPage" class="rounded-md border px-2 py-1 text-xs text-gray-600">
-                    <option value="5">5 rows</option>
-                    <option value="10">10 rows</option>
-                    <option value="20">20 rows</option>
-                </select>
-            </div>
-        </div>
+        @if (SelectedTab == TabType.NewApplicants)
+        {
+            <NewApplicant Students="Applicants" RowsPerPage="RowsPerPage" />
+        }
+        else if (SelectedTab == TabType.ForEnrollment)
+        {
+            <ForEnrollment Students="ForEnrollmentStudents" RowsPerPage="RowsPerPage" />
+        }
+        else if (SelectedTab == TabType.ReEnrollment)
+        {
+            <ReEnrollment Students="ReEnrollmentStudents" RowsPerPage="RowsPerPage" />
+        }
+        else if (SelectedTab == TabType.EnrolledStudent)
+        {
+            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" />
+        }
     </div>
 </div>
 
@@ -184,7 +95,7 @@
 
     private int RowsPerPage { get; set; } = 5;
 
-    private List<Student> Applicants = new()
+    private List<NewApplicant.Student> Applicants = new()
     {
         new() { Id = "00001", Name = "Christine Brooks", LRN = "Pending", Date = "04 Sep 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
         new() { Id = "00002", Name = "Rosie Pearson", LRN = "Pending", Date = "28 May 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
@@ -197,26 +108,42 @@
         new() { Id = "00009", Name = "Dollie Hines", LRN = "Pending", Date = "09 Jan 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" }
     };
 
-    private void ClearFilters()
+    private List<ForEnrollment.ForEnrollmentStudent> ForEnrollmentStudents = new()
     {
-        // Clear filter logic will be implemented here
-        // For now, this is a placeholder
-    }
+        new() { Id = "00010", Name = "John Smith", LRN = "129706182738", Date = "10 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00011", Name = "Jane Doe", LRN = "129706182739", Date = "11 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00012", Name = "Mike Johnson", LRN = "129706182740", Date = "12 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false },
+        new() { Id = "00013", Name = "Sarah Williams", LRN = "129706182741", Date = "13 Sep 2025", Type = "Transferee", GradeLevel = "G4", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00014", Name = "David Brown", LRN = "129706182742", Date = "14 Sep 2025", Type = "New", GradeLevel = "G5", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00015", Name = "Emily Davis", LRN = "129706182743", Date = "15 Sep 2025", Type = "Transferee", GradeLevel = "G6", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = false },
+        new() { Id = "00016", Name = "Robert Miller", LRN = "129706182744", Date = "16 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00017", Name = "Lisa Wilson", LRN = "129706182745", Date = "17 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00018", Name = "James Moore", LRN = "129706182746", Date = "18 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false }
+    };
 
-    private void ExportPDF()
+    private List<ReEnrollmentStudent> ReEnrollmentStudents = new()
     {
-        // Export PDF logic will be implemented here
-        // For now, this is a placeholder
-    }
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "129706182734", Date = "04 Sep 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "129706182712", Date = "28 May 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "129706182715", Date = "05 Feb 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706182748", Date = "29 Jul 2025", Type = "Eligible", GradeLevel = "G4", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "129706182719", Date = "15 Aug 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706182733", Date = "21 Dec 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706182732", Date = "30 Apr 2025", Type = "Eligible", GradeLevel = "G5", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2025", Type = "Eligible", GradeLevel = "G3", Documents = "Verified", Status = "Pending" }
+    };
 
-    public class Student
+    private List<EnrolledStudent> EnrolledStudents = new()
     {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string LRN { get; set; } = "";
-        public string Date { get; set; } = "";
-        public string Type { get; set; } = "";
-        public string GradeLevel { get; set; } = "";
-        public string Status { get; set; } = "";
-    }
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "Pending", Date = "04 Sep 2025", GradeLevel = "Kinder", Section = "Saturn", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "Pending", Date = "28 May 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", GradeLevel = "G1", Section = "Sun", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "Pending", Date = "05 Feb 2025", GradeLevel = "Kinder", Section = "Laurel", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706263748", Date = "29 Jul 2025", GradeLevel = "G4", Section = "Jupiter", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "Pending", Date = "15 Aug 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706263433", Date = "21 Dec 2025", GradeLevel = "G1", Section = "Uranus", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706261232", Date = "30 Apr 2025", GradeLevel = "G5", Section = "Saturn", Documents = "Verified", Status = "Enrolled" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "Pending", Date = "09 Jan 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" }
+    };
 }
