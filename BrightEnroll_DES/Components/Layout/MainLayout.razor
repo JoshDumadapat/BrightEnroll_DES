@@ -1,0 +1,122 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<div class="page paddin-0">
+    <div class="sidebar">
+        <NavMenu />
+    </div>
+
+    <main>
+        <div class="flex flex-1 flex-col overflow-hidden">
+            <!-- Top Bar with Rounded Card -->
+            <div class="p-4">
+                <div class="rounded-xl border border-gray-200 bg-white px-8 py-2 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <h1 class="text-lg font-bold text-gray-800">@GetPageTitle()</h1>
+
+                        <!-- User Profile Dropdown -->
+                        <div class="relative flex items-center gap-3">
+                            <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 rounded-full object-cover" />
+                            <div class="text-left">
+                                <p class="text-sm font-semibold text-gray-800">Moni Roy</p>
+                                <p class="text-xs text-gray-500">Admin</p>
+                            </div>
+                            <button type="button" @onclick="ToggleDropdown" class="cursor-pointer text-gray-400 transition-colors hover:text-gray-500 focus:outline-none">
+                                <svg class="h-4 w-4 transition-transform duration-200 @(isDropdownOpen ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Dropdown Menu -->
+                            @if (isDropdownOpen)
+                            {
+                                <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl">
+                                    <!-- Profile Option -->
+                                    <a href="/profile" @onclick="CloseDropdown" class="flex h-10 items-center gap-4 px-4 text-gray-700 transition-colors hover:bg-gray-100">
+                                        <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                        <span class="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">My Profile</span>
+                                    </a>
+
+                                    <!-- Settings Option -->
+                                    <a href="/settings" @onclick="CloseDropdown" class="flex h-10 items-center gap-3 px-4 text-gray-700 transition-colors hover:bg-gray-100">
+                                        <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                        </svg>
+                                        <span class="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">Settings</span>
+                                    </a>
+
+                                    <!-- Divider -->
+                                    <div class="my-1 border-t border-gray-200"></div>
+
+                                    <!-- Logout Option -->
+                                    <button type="button" @onclick="Logout" class="flex h-10 w-full items-center gap-3 px-4 text-left text-red-600 transition-colors hover:bg-gray-100 hover:text-red-700">
+                                        <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                        </svg>
+                                        <span class="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">Logout</span>
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page Content -->
+            <div class="flex-1 overflow-auto">
+                <div class="px-8 pb-8">
+                    @Body
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+@code {
+    private bool isDropdownOpen = false;
+
+    private void ToggleDropdown()
+    {
+        isDropdownOpen = !isDropdownOpen;
+        StateHasChanged();
+    }
+
+    private void CloseDropdown()
+    {
+        isDropdownOpen = false;
+        StateHasChanged();
+    }
+
+    private void CloseDropdownIfOpen()
+    {
+        if (isDropdownOpen)
+        {
+            CloseDropdown();
+        }
+    }
+
+    private void Logout()
+    {
+        CloseDropdown();
+        Navigation.NavigateTo("/logout");
+    }
+
+    private string GetPageTitle()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var path = uri.AbsolutePath.TrimStart('/');
+        
+        if (string.IsNullOrEmpty(path) || path == "/")
+            return "Dashboard";
+        
+        // Capitalize first letter and replace hyphens with spaces
+        var title = path.Split('/')[0];
+        title = title.Replace("-", " ");
+        title = char.ToUpper(title[0]) + title.Substring(1);
+        
+        return title;
+    }
+}

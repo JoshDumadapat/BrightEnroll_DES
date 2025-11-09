@@ -1,0 +1,35 @@
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Subscribe to navigation events
+        Navigation.LocationChanged += OnLocationChanged;
+        
+        // Check initial location
+        CheckAndRedirect();
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        CheckAndRedirect();
+    }
+
+    private void CheckAndRedirect()
+    {
+        // If user is logged in and tries to navigate to login page, redirect to dashboard
+        if (AuthService.IsAuthenticated && Navigation.Uri.Contains("/login"))
+        {
+            Navigation.NavigateTo("/admin/dashboard", forceLoad: true);
+        }
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+}
+

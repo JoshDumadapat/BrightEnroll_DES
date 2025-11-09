@@ -1,0 +1,124 @@
+﻿@page "/student-record"
+@layout Components.Layout.MainLayout
+
+<PageTitle>Student Record</PageTitle>
+
+<div class="text-gray-800">
+
+    <!-- Filters -->
+    <div class="mb-4">
+        <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+        <div class="flex items-center gap-4">
+        <input type="text" placeholder="Search here..."
+               class="w-1/4 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+        <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
+            <option>LRN Status</option>
+        </select>
+        <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
+            <option>Document Status</option>
+        </select>
+        <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
+            <option>Grade Level</option>
+        </select>
+        <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
+            <option>Section</option>
+        </select>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 font-semibold text-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left">ID</th>
+                    <th class="px-4 py-3 text-left">Name</th>
+                    <th class="px-4 py-3 text-left">LRN</th>
+                    <th class="px-4 py-3 text-left">Grade Level</th>
+                    <th class="px-4 py-3 text-left">Section</th>
+                    <th class="px-4 py-3 text-left">Documents</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                @foreach (var student in StudentRecords)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">@student.Id</td>
+                        <td class="px-4 py-3">@student.Name</td>
+
+                        @if (student.LRN == "Pending")
+                        {
+                            <td class="px-4 py-3 font-medium text-yellow-500">@student.LRN</td>
+                        }
+                        else
+                        {
+                            <td class="px-4 py-3">@student.LRN</td>
+                        }
+
+                        <td class="px-4 py-3">@student.GradeLevel</td>
+                        <td class="px-4 py-3">@student.Section</td>
+
+                        <td class="cursor-pointer px-4 py-3 text-blue-600 hover:underline">Verified</td>
+
+                        <td class="px-4 py-3">
+                            <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Enrolled</span>
+                        </td>
+
+                        <td class="px-4 py-3">
+                            <!-- View Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-400 transition hover:bg-blue-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            <span>@($"{StudentRecords.Count} of 456 pre-registered students")</span>
+            <div class="flex items-center gap-2">
+                <button class="rounded-md bg-blue-900 px-3 py-1 text-xs text-white">1</button>
+                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+                <span>...</span>
+                <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+                <span class="ml-4">Show</span>
+                <select class="rounded-md border px-2 py-1 text-xs text-gray-600">
+                    <option>9 rows</option>
+                    <option>20 rows</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Student> StudentRecords = new()
+    {
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "Pending", GradeLevel = "Kinder", Section = "Saturn" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "Pending", GradeLevel = "Kinder", Section = "Rizal" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", GradeLevel = "G1", Section = "Sun" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "Pending", GradeLevel = "Kinder", Section = "Laurel" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706263748", GradeLevel = "G4", Section = "Jupiter" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "Pending", GradeLevel = "Kinder", Section = "Rizal" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706263433", GradeLevel = "G1", Section = "Uranus" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706261232", GradeLevel = "G5", Section = "Saturn" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "Pending", GradeLevel = "Kinder", Section = "Rizal" }
+    };
+
+    public class Student
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string LRN { get; set; } = "";
+        public string GradeLevel { get; set; } = "";
+        public string Section { get; set; } = "";
+    }
+}
