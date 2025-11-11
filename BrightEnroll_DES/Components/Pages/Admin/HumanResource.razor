@@ -5,31 +5,41 @@
 <PageTitle>Human Resource</PageTitle>
 
 <div class="text-gray-800">
-    <!-- Search + Filters + Add Button -->
-    <div class="mb-4">
-        <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <input type="text" placeholder="Search here..."
-                       class="w-60 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
-
-                <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
-                    <option>Role</option>
-                </select>
-
-                <select class="rounded-lg border px-3 py-2 text-sm text-gray-600">
-                    <option>Status</option>
-                </select>
-            </div>
-
-            <button @onclick="NavigateToAddEmployee" class="rounded-lg bg-blue-900 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800">
-                + Add Employee
-            </button>
-        </div>
-    </div>
-
-    <!-- Table -->
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Human Resource</h1>
+    <!-- Filter, Table, and Pagination Card -->
     <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- Filters -->
+        <div class="border-b border-gray-200 px-6 py-4">
+            <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="relative flex items-center">
+                        <span class="absolute left-3 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..."
+                               class="w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Role</option>
+                    </select>
+
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Status</option>
+                    </select>
+                </div>
+
+                <button @onclick="NavigateToAddEmployee" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    + Add Employee
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
                 <thead class="bg-gray-100 font-semibold text-gray-600">
@@ -41,7 +51,7 @@
                         <th class="px-4 py-3 text-left">Email</th>
                         <th class="px-4 py-3 text-left">Role</th>
                         <th class="px-4 py-3 text-left">Status</th>
-                        <th class="px-4 py-3 text-left">Actions</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
@@ -57,14 +67,18 @@
                             <td class="px-4 py-3">
                                 @if (emp.Status == "Active")
                                 {
-                                    <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Active</span>
+                                    <button @onclick="() => OpenInactiveModal(emp)" class="cursor-pointer rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200">
+                                        Active
+                                    </button>
                                 }
                                 else
                                 {
-                                    <span class="rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Inactive</span>
+                                    <button @onclick="() => SetEmployeeActive(emp)" class="cursor-pointer rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                                        Inactive
+                                    </button>
                                 }
                             </td>
-                            <td class="px-4 py-3">
+                            <td class="flex items-center justify-center px-4 py-3">
                                 <!-- View Button -->
                                 <button class="flex items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-400 transition hover:bg-blue-100">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -79,17 +93,17 @@
             </table>
         </div>
 
-        <!-- Footer -->
-        <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        <!-- Footer with Pagination -->
+        <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
             <span>@($"{Employees.Count} of 456 pre-registered employees")</span>
             <div class="flex items-center gap-2">
-                <button class="rounded-md bg-blue-900 px-3 py-1 text-xs text-white">1</button>
+                <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
                 <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
                 <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
                 <span>...</span>
                 <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
                 <span class="ml-4">Show</span>
-                <select class="rounded-md border px-2 py-1 text-xs text-gray-600">
+                <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                     <option>9 rows</option>
                     <option>20 rows</option>
                 </select>
@@ -97,6 +111,54 @@
         </div>
     </div>
 </div>
+
+<!-- Inactive Reason Modal -->
+@if (ShowInactiveModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseInactiveModal">
+        <div class="w-full max-w-md rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg bg-red-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Make Employee Inactive</h3>
+                <button @onclick="CloseInactiveModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <div class="mb-4">
+                    <p class="text-sm text-gray-700 mb-2">
+                        You are about to make <span class="font-semibold">@SelectedEmployee?.Name</span> inactive.
+                    </p>
+                    <p class="text-sm text-gray-600 mb-4">Please provide a reason for this action:</p>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="InactiveReason" 
+                             rows="4"
+                             placeholder="Enter the reason for making this employee inactive..."
+                             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-400"
+                             required></textarea>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                <button type="button" @onclick="CloseInactiveModal" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" @onclick="ConfirmInactive" 
+                        disabled="@(string.IsNullOrWhiteSpace(InactiveReason))"
+                        class="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private List<Employee> Employees = new()
@@ -112,9 +174,47 @@
         new() { Id = "00009", Name = "Dollie Hines", Address = "90 Walnut Ave.", Contact = "09123456782", Email = "m.delacruz@email.com", Role = "Registrar", Status = "Active" }
     };
 
+    private bool ShowInactiveModal { get; set; } = false;
+    private Employee? SelectedEmployee { get; set; }
+    private string InactiveReason { get; set; } = string.Empty;
+
     private void NavigateToAddEmployee()
     {
         NavigationManager.NavigateTo("/human-resource/add-employee");
+    }
+
+    private void OpenInactiveModal(Employee employee)
+    {
+        SelectedEmployee = employee;
+        InactiveReason = string.Empty;
+        ShowInactiveModal = true;
+    }
+
+    private void CloseInactiveModal()
+    {
+        ShowInactiveModal = false;
+        SelectedEmployee = null;
+        InactiveReason = string.Empty;
+    }
+
+    private void ConfirmInactive()
+    {
+        if (SelectedEmployee != null && !string.IsNullOrWhiteSpace(InactiveReason))
+        {
+            // TODO: Save the inactive reason to the database
+            SelectedEmployee.Status = "Inactive";
+            // TODO: Log the reason: SelectedEmployee.InactiveReason = InactiveReason;
+            CloseInactiveModal();
+            StateHasChanged();
+        }
+    }
+
+    private void SetEmployeeActive(Employee employee)
+    {
+        // Directly set to active without modal
+        employee.Status = "Active";
+        // TODO: Clear inactive reason if stored
+        StateHasChanged();
     }
 
     public class Employee

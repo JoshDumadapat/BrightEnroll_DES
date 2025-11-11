@@ -17,33 +17,60 @@
         <div class="flex flex-1 flex-col overflow-hidden">
             <!-- Top Bar with Rounded Card -->
             <div class="p-4">
-                <div class="rounded-xl border border-gray-200 bg-white px-4 md:px-8 py-2 shadow-sm">
+                <div class="rounded-xl border border-gray-200 bg-white px-4 md:px-8 py-3 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <!-- Burger Menu Button (Mobile Only) -->
-                        <button @onclick="ToggleSidebar" class="md:hidden mr-2 p-2 text-gray-600 hover:text-gray-800 focus:outline-none">
-                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                            </svg>
-                        </button>
-                        <h1 class="text-base md:text-lg font-bold text-gray-800">@GetPageTitle()</h1>
-
-                        <!-- User Profile Dropdown -->
-                        <div class="relative flex items-center gap-3">
-                            <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 rounded-full object-cover" />
-                            <div class="text-left">
-                                <p class="text-sm font-semibold text-gray-800">Moni Roy</p>
-                                <p class="text-xs text-gray-500">Admin</p>
-                            </div>
-                            <button type="button" @onclick="ToggleDropdown" class="cursor-pointer text-gray-400 transition-colors hover:text-gray-500 focus:outline-none">
-                                <svg class="h-4 w-4 transition-transform duration-200 @(isDropdownOpen ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                        <!-- Left Side: Burger Menu (Mobile) + User Profile Dropdown -->
+                        <div class="flex items-center gap-3 md:gap-4">
+                            <button @onclick="ToggleSidebar" class="md:hidden p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none">
+                                <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                                 </svg>
                             </button>
 
-                            <!-- Dropdown Menu -->
-                            @if (isDropdownOpen)
-                            {
-                                <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl">
+                            <!-- User Profile -->
+                            <div class="flex items-center gap-3 md:gap-4">
+                                <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-gray-200 hover:ring-blue-400 transition-all duration-200" />
+                                <div class="text-left">
+                                    <p class="text-sm md:text-base font-semibold text-gray-800">Moni Roy</p>
+                                    <p class="text-xs md:text-sm text-gray-500">Admin</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Side: Icons + Dropdown -->
+                        <div class="flex items-center gap-3 md:gap-4">
+                            <!-- Help/Support Icon -->
+                            <button type="button" @onclick="HandleHelp" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Notification Icon with Badge -->
+                            <button type="button" @onclick="HandleNotifications" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                @if (notificationCount > 0)
+                                {
+                                    <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                        @(notificationCount > 9 ? "9+" : notificationCount.ToString())
+                                    </span>
+                                }
+                            </button>
+
+                            <!-- Dropdown Icon -->
+                            <div class="relative">
+                                <button type="button" @onclick="ToggleDropdown" class="cursor-pointer p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                    <svg class="h-5 w-5 md:h-6 md:w-6 transition-transform duration-200 @(isDropdownOpen ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+
+                                <!-- Dropdown Menu -->
+                                @if (isDropdownOpen)
+                                {
+                                    <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl">
                                     <!-- Profile Option -->
                                     <a href="/profile" @onclick="CloseDropdown" class="flex h-10 items-center gap-4 px-4 text-gray-700 transition-colors hover:bg-gray-100">
                                         <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,8 +98,9 @@
                                         </svg>
                                         <span class="text-sm font-medium whitespace-nowrap overflow-hidden text-ellipsis">Logout</span>
                                     </button>
-                                </div>
-                            }
+                                    </div>
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -91,6 +119,7 @@
 @code {
     private bool isDropdownOpen = false;
     private bool isSidebarOpen = false;
+    private int notificationCount = 3; // Example: You can bind this to actual notification data
 
     private void ToggleSidebar()
     {
@@ -132,6 +161,20 @@
     {
         CloseDropdown();
         Navigation.NavigateTo("/logout");
+    }
+
+    private void HandleHelp()
+    {
+        // TODO: Implement help/support functionality
+        // You can navigate to a help page or open a help modal
+        CloseDropdown();
+    }
+
+    private void HandleNotifications()
+    {
+        // TODO: Implement notification functionality
+        // You can navigate to a notifications page or open a notification panel
+        CloseDropdown();
     }
 
     private string GetPageTitle()

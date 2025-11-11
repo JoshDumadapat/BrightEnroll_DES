@@ -173,7 +173,7 @@
             
             <!-- Modal Footer -->
             <div class="bg-gray-50 px-6 py-4 flex justify-end border-t border-gray-200">
-                <button @onclick="Close" 
+                <button @onclick="HandleUnderstand" 
                     class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-full transition-colors">
                     I Understand
                 </button>
@@ -189,9 +189,23 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private void Close()
+    [Parameter]
+    public EventCallback OnUnderstand { get; set; }
+
+    private async Task HandleUnderstand()
     {
-        OnClose.InvokeAsync();
+        // Call the OnUnderstand callback to check the checkbox
+        if (OnUnderstand.HasDelegate)
+        {
+            await OnUnderstand.InvokeAsync();
+        }
+        // Then close the modal
+        await Close();
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
     }
 }
 

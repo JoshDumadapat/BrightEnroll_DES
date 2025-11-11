@@ -1,121 +1,455 @@
-@page "/human-resource/add-employee"
+﻿@page "/human-resource/add-employee"
 @layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.HRComponents
+@using BrightEnroll_DES.Services
+@using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
 @inject NavigationManager NavigationManager
+@inject AddressService AddressService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
 
 <PageTitle>Add Employee</PageTitle>
 
 <div class="text-gray-800">
-    <div class="mb-6">
-        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Back
-        </button>
-    </div>
-
-    <div class="overflow-hidden rounded-xl bg-white shadow">
-        <div class="px-6 py-6">
-            <h2 class="mb-6 text-2xl font-bold text-gray-800">Add Employee</h2>
-
-            <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
-                <!-- Personal Information Section -->
-                <div class="mb-6">
-                    <h3 class="mb-4 text-lg font-bold text-gray-800">Personal Information</h3>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Add Employee</h1>
+    <div class="mx-auto max-w-5xl">
+        <div class="mb-6 flex justify-start">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+        <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+            <!-- Personal Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Personal Information</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">First Name</label>
-                            <input type="text" @bind="EmployeeData.FirstName" required
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                First Name <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.FirstName" 
+                                       @bind-Value:after="FormatFirstName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="e.g. Juan" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Middle Name</label>
-                            <input type="text" @bind="EmployeeData.MiddleName"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                            <InputText @bind-Value="EmployeeData.MiddleName" 
+                                       @bind-Value:after="FormatMiddleName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="e.g. Dela Cruz" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Last Name</label>
-                            <input type="text" @bind="EmployeeData.LastName" required
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Last Name <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.LastName" 
+                                       @bind-Value:after="FormatLastName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="e.g. Santos" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Birth Date</label>
-                            <input type="text" @bind="EmployeeData.BirthDate"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
+                            <InputSelect @bind-Value="EmployeeData.Suffix" 
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">N/A</option>
+                                <option value="Jr.">Jr.</option>
+                                <option value="Sr.">Sr.</option>
+                                <option value="II">II</option>
+                                <option value="III">III</option>
+                                <option value="IV">IV</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Birth Date <span class="text-red-500">*</span>
+                            </label>
+                            <InputDate @bind-Value="birthDate" @bind-Value:after="CalculateAge"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Gender</label>
-                            <input type="text" @bind="EmployeeData.Gender"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Gender <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="EmployeeData.Gender" 
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Age</label>
-                            <input type="text" @bind="EmployeeData.Age"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Age <span class="text-red-500">*</span>
+                            </label>
+                            <InputNumber @bind-Value="age" 
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                placeholder="e.g. 30" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Contact Number</label>
-                            <input type="tel" @bind="EmployeeData.ContactNumber"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Contact Number <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.ContactNumber" 
+                                      @bind-Value:after="FormatContactNumber"
+                                      maxlength="11"
+                                      onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. 09123456789" />
                         </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Email</label>
-                            <input type="email" @bind="EmployeeData.Email" required
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.Email" 
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. juan.santos@email.com" />
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Address Section -->
-                <div class="mb-6">
-                    <h3 class="mb-4 text-lg font-bold text-gray-800">Address</h3>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Address -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Address</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">House No./Street</label>
-                            <input type="text" @bind="EmployeeData.HouseNo"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">House No./Street</label>
+                            <InputText @bind-Value="EmployeeData.HouseNo" 
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. 123" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Street Name</label>
-                            <input type="text" @bind="EmployeeData.StreetName"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Street Name</label>
+                            <InputText @bind-Value="EmployeeData.StreetName" 
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. Main Street" />
+                        </div>
+                    </div>
+
+                    <!-- Province -->
+                    <div class="mb-3 sm:mb-4">
+                        <div class="relative">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Province <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div @onclick="() => addressHandler?.ToggleProvinceDropdown()" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="province"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                    <span class="@(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "Select Province" : EmployeeData.Province)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (addressHandler?.ShowProvinceDropdown == true)
+                                {
+                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="province">
+                                        <div class="border-b border-gray-200 p-2">
+                                            <input type="text" 
+                                                   @bind="addressHandler.ProvinceSearchText" 
+                                                   @bind:after="FilterProvinces"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search province..."
+                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (addressHandler.FilteredProvinces.Any())
+                                            {
+                                                @foreach (var province in addressHandler.FilteredProvinces)
+                                                {
+                                                    <div @onclick="() => SelectProvince(province)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(EmployeeData.Province == province ? "bg-blue-100" : "")">
+                                                        @province
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- City -->
+                    <div class="mb-3 sm:mb-4">
+                        <div class="relative">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Municipality/City <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div @onclick="() => addressHandler?.ToggleCityDropdown()" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="city"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "opacity-50 cursor-not-allowed" : "")"
+                                     style="@(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "pointer-events: none;" : "")">
+                                    <span class="@(string.IsNullOrWhiteSpace(EmployeeData.City) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(EmployeeData.City) ? "Select City" : EmployeeData.City)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (addressHandler?.ShowCityDropdown == true && !string.IsNullOrWhiteSpace(EmployeeData.Province))
+                                {
+                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="city">
+                                        <div class="border-b border-gray-200 p-2">
+                                            <input type="text" 
+                                                   @bind="addressHandler.CitySearchText" 
+                                                   @bind:after="FilterCities"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search city..."
+                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (addressHandler.FilteredCities.Any())
+                                            {
+                                                @foreach (var city in addressHandler.FilteredCities)
+                                                {
+                                                    <div @onclick="() => SelectCity(city)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(EmployeeData.City == city ? "bg-blue-100" : "")">
+                                                        @city
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Barangay -->
+                    <div class="mb-3 sm:mb-4">
+                        <div class="relative">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Barangay <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div @onclick="() => addressHandler?.ToggleBarangayDropdown()" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="barangay"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(string.IsNullOrWhiteSpace(EmployeeData.City) ? "opacity-50 cursor-not-allowed" : "")"
+                                     style="@(string.IsNullOrWhiteSpace(EmployeeData.City) ? "pointer-events: none;" : "")">
+                                    <span class="@(string.IsNullOrWhiteSpace(EmployeeData.Barangay) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(EmployeeData.Barangay) ? "Select Barangay" : EmployeeData.Barangay)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (addressHandler?.ShowBarangayDropdown == true && !string.IsNullOrWhiteSpace(EmployeeData.City))
+                                {
+                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="barangay">
+                                        <div class="border-b border-gray-200 p-2">
+                                            <input type="text" 
+                                                   @bind="addressHandler.BarangaySearchText" 
+                                                   @bind:after="FilterBarangays"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search barangay..."
+                                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (addressHandler.FilteredBarangays.Any())
+                                            {
+                                                @foreach (var barangay in addressHandler.FilteredBarangays)
+                                                {
+                                                    <div @onclick="() => SelectBarangay(barangay)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(EmployeeData.Barangay == barangay ? "bg-blue-100" : "")">
+                                                        @barangay
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Country</label>
+                            <InputText @bind-Value="EmployeeData.Country" 
+                                      @bind-Value:after="HandleCountryChange"
+                                      class="@GetCountryClass()"
+                                      placeholder="e.g. Philippines" />
                         </div>
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Barangay</label>
-                            <input type="text" @bind="EmployeeData.Barangay"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Municipality/City</label>
-                            <input type="text" @bind="EmployeeData.City"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Province</label>
-                            <input type="text" @bind="EmployeeData.Province"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Country</label>
-                            <input type="text" @bind="EmployeeData.Country"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">ZIP Code</label>
-                            <input type="text" @bind="EmployeeData.ZipCode"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">ZIP Code</label>
+                            <InputText @bind-Value="EmployeeData.ZipCode" 
+                                      class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="Auto-filled"
+                                      readonly />
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Role and Account Information Section -->
-                <div class="mb-6">
-                    <h3 class="mb-4 text-lg font-bold text-gray-800">Role and Account Information</h3>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <!-- Emergency Contact -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Emergency Contact</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
                         <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Role <span class="text-red-500">*</span></label>
-                            <select @bind="EmployeeData.Role" @bind:after="OnRoleChanged" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                First Name <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.EmergencyContactFirstName" 
+                                      @bind-Value:after="FormatEmergencyContactFirstName"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. Maria" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                            <InputText @bind-Value="EmployeeData.EmergencyContactMiddleName" 
+                                      @bind-Value:after="FormatEmergencyContactMiddleName"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. Dela Cruz" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Last Name <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.EmergencyContactLastName" 
+                                      @bind-Value:after="FormatEmergencyContactLastName"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. Santos" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Relationship <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="EmployeeData.EmergencyContactRelationship" 
+                                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select Relationship</option>
+                                <option value="Spouse">Spouse</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Sibling">Sibling</option>
+                                <option value="Child">Child</option>
+                                <option value="Relative">Relative</option>
+                                <option value="Friend">Friend</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Contact Number <span class="text-red-500">*</span>
+                            </label>
+                            <InputText @bind-Value="EmployeeData.EmergencyContactNumber" 
+                                      @bind-Value:after="FormatEmergencyContactNumber"
+                                      maxlength="11"
+                                      onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. 09123456789" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Address</label>
+                            <InputText @bind-Value="EmployeeData.EmergencyContactAddress" 
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="e.g. 123 Main Street, City" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Salary Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Salary Information</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Base Salary <span class="text-red-500">*</span>
+                            </label>
+                            <InputNumber @bind-Value="EmployeeData.BaseSalary" 
+                                        @bind-Value:after="CalculateTotalSalary"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                        placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Allowance</label>
+                            <InputNumber @bind-Value="EmployeeData.Allowance" 
+                                        @bind-Value:after="CalculateTotalSalary"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                        placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Bonus</label>
+                            <InputNumber @bind-Value="EmployeeData.Bonus" 
+                                        @bind-Value:after="CalculateTotalSalary"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                        placeholder="0.00" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Deductions</label>
+                            <InputNumber @bind-Value="EmployeeData.Deductions" 
+                                        @bind-Value:after="CalculateTotalSalary"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                        placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Salary</label>
+                            <InputNumber @bind-Value="EmployeeData.TotalSalary" 
+                                        class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                        placeholder="0.00"
+                                        readonly />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role and Account Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Role and Account Information</h2>
+                    
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Role <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="EmployeeData.Role" @bind-Value:after="OnRoleChanged" 
+                                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="">Select Role</option>
                                 <option value="Registrar">Registrar</option>
                                 <option value="Cashier">Cashier</option>
@@ -124,55 +458,223 @@
                                 <option value="System Admin">System Admin</option>
                                 <option value="Janitor">Janitor</option>
                                 <option value="Other">Other</option>
-                            </select>
+                            </InputSelect>
                         </div>
                         @if (ShowPasswordFields)
                         {
                             <div>
-                                <label class="mb-2 block text-sm font-medium text-gray-700">Default Password</label>
-                                <input type="text" @bind="EmployeeData.DefaultPassword" readonly
-                                       class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Default Password</label>
+                                <InputText @bind-Value="EmployeeData.DefaultPassword" 
+                                          class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                          readonly />
                                 <p class="mt-1 text-xs text-gray-500">Default password is automatically generated</p>
                             </div>
                             <div>
-                                <label class="mb-2 block text-sm font-medium text-gray-700">System ID</label>
-                                <input type="text" @bind="EmployeeData.SystemId" readonly
-                                       class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">System ID</label>
+                                <InputText @bind-Value="EmployeeData.SystemId" 
+                                          class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                          readonly />
                                 <p class="mt-1 text-xs text-gray-500">System ID is automatically assigned</p>
                             </div>
                         }
                     </div>
                 </div>
+            </div>
 
-                <!-- Action Buttons -->
-                <div class="flex justify-end gap-4">
-                    <button type="button" @onclick="GoBack" class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
-                        Cancel
-                    </button>
-                    <button type="submit" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-                        Add Employee
-                    </button>
-                </div>
-            </form>
-        </div>
+            <!-- Action Buttons -->
+            <div class="mt-6 flex justify-end gap-4">
+                <button type="button" @onclick="GoBack" class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button type="submit" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    Add Employee
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
 @code {
     private EmployeeFormData EmployeeData { get; set; } = new();
     private bool ShowPasswordFields { get; set; } = false;
+    private EmployeeAddressHandler? addressHandler;
+    private DotNetObjectReference<AddEmployee>? dotNetRef;
+    private DateTime? birthDate;
+    private int? age;
 
+    protected override void OnInitialized()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+        addressHandler = new EmployeeAddressHandler(AddressService, EmployeeData, StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && dotNetRef != null)
+        {
+            await JSRuntime.InvokeVoidAsync("setupClickOutsideHandler", dotNetRef);
+        }
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
+    }
+
+    private void CloseAllDropdowns()
+    {
+        addressHandler?.CloseDropdowns();
+    }
+
+    [JSInvokable]
+    public void CloseDropdownsFromJS()
+    {
+        addressHandler?.CloseDropdowns();
+        StateHasChanged();
+    }
+
+    // Name formatting methods
+    private void FormatFirstName()
+    {
+        EmployeeData.FirstName = EmployeeFormHelpers.FormatName(EmployeeData.FirstName);
+    }
+
+    private void FormatMiddleName()
+    {
+        EmployeeData.MiddleName = EmployeeFormHelpers.FormatName(EmployeeData.MiddleName);
+    }
+
+    private void FormatLastName()
+    {
+        EmployeeData.LastName = EmployeeFormHelpers.FormatName(EmployeeData.LastName);
+    }
+
+    // Contact number formatting
+    private void FormatContactNumber()
+    {
+        EmployeeData.ContactNumber = EmployeeFormHelpers.CleanContactNumber(EmployeeData.ContactNumber);
+        if (EmployeeData.ContactNumber.Length > 11)
+        {
+            EmployeeData.ContactNumber = EmployeeData.ContactNumber.Substring(0, 11);
+        }
+    }
+
+    // Emergency contact name formatting methods
+    private void FormatEmergencyContactFirstName()
+    {
+        EmployeeData.EmergencyContactFirstName = EmployeeFormHelpers.FormatName(EmployeeData.EmergencyContactFirstName);
+    }
+
+    private void FormatEmergencyContactMiddleName()
+    {
+        EmployeeData.EmergencyContactMiddleName = EmployeeFormHelpers.FormatName(EmployeeData.EmergencyContactMiddleName);
+    }
+
+    private void FormatEmergencyContactLastName()
+    {
+        EmployeeData.EmergencyContactLastName = EmployeeFormHelpers.FormatName(EmployeeData.EmergencyContactLastName);
+    }
+
+    // Emergency contact number formatting
+    private void FormatEmergencyContactNumber()
+    {
+        EmployeeData.EmergencyContactNumber = EmployeeFormHelpers.CleanContactNumber(EmployeeData.EmergencyContactNumber);
+        if (EmployeeData.EmergencyContactNumber.Length > 11)
+        {
+            EmployeeData.EmergencyContactNumber = EmployeeData.EmergencyContactNumber.Substring(0, 11);
+        }
+    }
+
+    // Age calculation
+    private void CalculateAge()
+    {
+        if (birthDate.HasValue)
+        {
+            var today = DateTime.Today;
+            age = today.Year - birthDate.Value.Year;
+            if (birthDate.Value.Date > today.AddYears(-(int)age))
+                age--;
+            EmployeeData.Age = age?.ToString() ?? "";
+        }
+    }
+
+    // Address handler methods
+    private void FilterProvinces()
+    {
+        addressHandler?.FilterProvinces();
+    }
+
+    private void FilterCities()
+    {
+        addressHandler?.FilterCities();
+    }
+
+    private void FilterBarangays()
+    {
+        addressHandler?.FilterBarangays();
+    }
+
+    private void SelectProvince(string province)
+    {
+        addressHandler?.SelectProvince(province);
+    }
+
+    private void SelectCity(string city)
+    {
+        addressHandler?.SelectCity(city);
+    }
+
+    private void SelectBarangay(string barangay)
+    {
+        addressHandler?.SelectBarangay(barangay);
+    }
+
+    private void HandleSearchKeyDown(KeyboardEventArgs e)
+    {
+        // Prevent Enter key from submitting the form
+    }
+
+    private void HandleCountryChange()
+    {
+        if (!string.IsNullOrWhiteSpace(EmployeeData.Country) && 
+            !EmployeeData.Country.Equals("Philippines", StringComparison.OrdinalIgnoreCase))
+        {
+            // Clear Philippine address fields if non-Philippines country is entered
+            EmployeeData.Province = "";
+            EmployeeData.City = "";
+            EmployeeData.Barangay = "";
+            EmployeeData.ZipCode = "";
+            addressHandler?.CloseDropdowns();
+        }
+    }
+
+    private string GetCountryClass()
+    {
+        var baseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base";
+        if (addressHandler?.IsCountryDisabled() == true)
+        {
+            return $"{baseClass} bg-gray-100 cursor-not-allowed";
+        }
+        return baseClass;
+    }
+
+    // Salary calculation
+    private void CalculateTotalSalary()
+    {
+        EmployeeData.TotalSalary = EmployeeData.BaseSalary + EmployeeData.Allowance + EmployeeData.Bonus - EmployeeData.Deductions;
+        StateHasChanged();
+    }
+
+    // Role change handler
     private void OnRoleChanged()
     {
-        // Roles that need password and system ID: Registrar, Cashier, Teacher, HR, System Admin
         var rolesWithAccess = new[] { "Registrar", "Cashier", "Teacher", "HR", "System Admin" };
         ShowPasswordFields = rolesWithAccess.Contains(EmployeeData.Role);
 
         if (ShowPasswordFields)
         {
-            // Generate default password (you can customize this logic)
             EmployeeData.DefaultPassword = GenerateDefaultPassword();
-            // Generate system ID (you can customize this logic)
             EmployeeData.SystemId = GenerateSystemId();
         }
         else
@@ -184,15 +686,11 @@
 
     private string GenerateDefaultPassword()
     {
-        // Generate a default password (e.g., "Password123!" or based on employee name)
-        // For now, using a simple default
         return "Password123!";
     }
 
     private string GenerateSystemId()
     {
-        // Generate system ID in format BDES-XXXX
-        // For now, using a simple incrementing pattern
         var random = new Random();
         var number = random.Next(1000, 9999);
         return $"BDES-{number}";
@@ -201,8 +699,6 @@
     private void HandleSubmit()
     {
         // TODO: Implement save employee logic
-        // Save employee data to database/API
-        // Then navigate back to HR page
         NavigationManager.NavigateTo("/human-resource");
     }
 
@@ -211,26 +707,4 @@
         NavigationManager.NavigateTo("/human-resource");
     }
 
-    public class EmployeeFormData
-    {
-        public string FirstName { get; set; } = string.Empty;
-        public string MiddleName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string BirthDate { get; set; } = string.Empty;
-        public string Gender { get; set; } = string.Empty;
-        public string Age { get; set; } = string.Empty;
-        public string ContactNumber { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public string DefaultPassword { get; set; } = string.Empty;
-        public string SystemId { get; set; } = string.Empty;
-        public string HouseNo { get; set; } = string.Empty;
-        public string StreetName { get; set; } = string.Empty;
-        public string Barangay { get; set; } = string.Empty;
-        public string City { get; set; } = string.Empty;
-        public string Province { get; set; } = string.Empty;
-        public string Country { get; set; } = string.Empty;
-        public string ZipCode { get; set; } = string.Empty;
-    }
 }
-

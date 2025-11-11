@@ -1,8 +1,7 @@
 @page "/student-register"
 
-@using System.ComponentModel.DataAnnotations
-
-@inject NavigationManager Navigation
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
 
 @layout Components.Layout.EmptyLayout
 
@@ -14,8 +13,8 @@
         </div>
 
         <!-- Form Content -->
-        <div class="bg-white shadow-xl rounded-b-xl p-4 sm:p-6 md:p-8 lg:p-10">
-            <EditForm Model="@registrationModel" OnValidSubmit="@SubmitRegistration">
+        <div class="bg-white shadow-xl rounded-b-xl p-4 sm:p-6 md:p-8 lg:p-10" @onclick="HandleFormClick">
+            <EditForm EditContext="@editContext" id="registration-form" @onsubmit:preventDefault="true">
                 <DataAnnotationsValidator />
 
                 <!-- Personal Information -->
@@ -28,29 +27,32 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.FirstName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="First Name" />
+                                       @bind-Value:after="FormatFirstName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="e.g. Juan" />
                             <ValidationMessage For="@(() => registrationModel.FirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
                             <InputText @bind-Value="registrationModel.MiddleName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Middle Name" />
+                                       @bind-Value:after="FormatMiddleName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="e.g. Dela Cruz" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.LastName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Last Name" />
+                                       @bind-Value:after="FormatLastName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="e.g. Santos" />
                             <ValidationMessage For="@(() => registrationModel.LastName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Suffix</label>
                             <InputSelect @bind-Value="registrationModel.Suffix" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white">
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
                                 <option value="">N/A</option>
                                 <option value="Jr.">Jr.</option>
                                 <option value="Sr.">Sr.</option>
@@ -65,17 +67,66 @@
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Birth Date <span class="text-red-500">*</span>
                             </label>
-                            <InputDate @bind-Value="registrationModel.BirthDate" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base" />
+                            <InputDate @bind-Value="registrationModel.BirthDate" @bind-Value:after="CalculateAge"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base" />
                             <ValidationMessage For="@(() => registrationModel.BirthDate)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                                Age <span class="text-red-500">*</span>
+                            </label>
+                            <InputNumber @bind-Value="registrationModel.Age" 
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                placeholder="e.g. 15" />
+                            <ValidationMessage For="@(() => registrationModel.Age)" class="text-red-500 text-xs mt-1" />
+                        </div>
+                        <div class="relative">
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Place of Birth <span class="text-red-500">*</span>
                             </label>
-                            <InputText @bind-Value="registrationModel.PlaceOfBirth" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Place of Birth" />
+                            <div class="relative">
+                                <div @onclick="TogglePlaceOfBirthDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="placeofbirth"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.PlaceOfBirth) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.PlaceOfBirth) ? "Select City" : registrationModel.PlaceOfBirth)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (showPlaceOfBirthDropdown)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="placeofbirth">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="placeOfBirthSearchText" 
+                                                   @bind:after="FilterPlaceOfBirth"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search city..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (filteredPlaceOfBirthCities.Any())
+                                            {
+                                                @foreach (var city in filteredPlaceOfBirthCities)
+                                                {
+                                                    <div @onclick="() => SelectPlaceOfBirth(city)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.PlaceOfBirth == city ? "bg-blue-100" : "")">
+                                                        @city
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                             <ValidationMessage For="@(() => registrationModel.PlaceOfBirth)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
@@ -101,7 +152,7 @@
                                 Mother Tongue <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.MotherTongue" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white">
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
                                 <option value="">Select</option>
                                 <option value="Tagalog">Tagalog</option>
                                 <option value="Cebuano">Cebuano</option>
@@ -114,7 +165,7 @@
                             @if (registrationModel.MotherTongue == "Other")
                             {
                                 <InputText @bind-Value="registrationModel.MotherTongueOther" 
-                                    class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base mt-2"
+                                    class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base mt-2"
                                     placeholder="Please specify mother tongue" />
                             }
                         </div>
@@ -141,7 +192,7 @@
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">If Yes, please specify:</label>
                             <InputSelect @bind-Value="registrationModel.IPCommunitySpecify" 
                                 disabled="@(registrationModel.IsIPCommunity != "Yes")"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white disabled:bg-gray-100 disabled:cursor-not-allowed">
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base bg-white disabled:bg-gray-100 disabled:cursor-not-allowed">
                                 <option value="">N/A</option>
                                 <option value="Lumad">Lumad</option>
                                 <option value="Manobo">Manobo</option>
@@ -151,7 +202,7 @@
                             @if (registrationModel.IPCommunitySpecify == "Other" && registrationModel.IsIPCommunity == "Yes")
                             {
                                 <InputText @bind-Value="registrationModel.IPCommunitySpecifyOther" 
-                                    class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base mt-2"
+                                    class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base mt-2"
                                     placeholder="Please specify" />
                             }
                         </div>
@@ -176,7 +227,7 @@
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">If Yes, 4Ps Household ID:</label>
                             <InputText @bind-Value="registrationModel.FourPsHouseholdId" 
                                 disabled="@(registrationModel.Is4PsBeneficiary != "Yes")"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 placeholder="N/A" />
                         </div>
                     </div>
@@ -192,51 +243,173 @@
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">House No./Street</label>
                             <InputText @bind-Value="registrationModel.CurrentHouseNo" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="House No./Street" />
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                placeholder="e.g. 123" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Street Name</label>
                             <InputText @bind-Value="registrationModel.CurrentStreetName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Street Name" />
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                placeholder="e.g. Rizal Street" />
                         </div>
-                        <div>
+                        <div class="relative">
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Barangay <span class="text-red-500">*</span>
                             </label>
-                            <InputText @bind-Value="registrationModel.CurrentBarangay" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Barangay" />
+                            <div class="relative">
+                                <div @onclick="ToggleBarangayDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="barangay"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentBarangay) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.CurrentBarangay) ? "Select Barangay" : registrationModel.CurrentBarangay)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (currentAddressHandler?.ShowBarangayDropdown == true)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="barangay">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="currentAddressHandler.BarangaySearchText" 
+                                                   @bind:after="FilterBarangays"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search barangay..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (currentAddressHandler.FilteredBarangays.Any())
+                                            {
+                                                @foreach (var barangay in currentAddressHandler.FilteredBarangays)
+                                                {
+                                                    <div @onclick="() => SelectBarangay(barangay)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.CurrentBarangay == barangay ? "bg-blue-100" : "")">
+                                                        @barangay
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                             <ValidationMessage For="@(() => registrationModel.CurrentBarangay)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                        <div>
-                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                                Municipality/City <span class="text-red-500">*</span>
-                            </label>
-                            <InputText @bind-Value="registrationModel.CurrentCity" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Municipality/City" />
-                            <ValidationMessage For="@(() => registrationModel.CurrentCity)" class="text-red-500 text-xs mt-1" />
-                        </div>
-                        <div>
+                        <div class="relative">
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Province <span class="text-red-500">*</span>
                             </label>
-                            <InputText @bind-Value="registrationModel.CurrentProvince" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Province" />
+                            <div class="relative">
+                                <div @onclick="ToggleProvinceDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="province"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentProvince) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.CurrentProvince) ? "Select Province" : registrationModel.CurrentProvince)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (currentAddressHandler?.ShowProvinceDropdown == true)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="province">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="currentAddressHandler.ProvinceSearchText" 
+                                                   @bind:after="FilterProvinces"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search province..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (currentAddressHandler.FilteredProvinces.Any())
+                                            {
+                                                @foreach (var province in currentAddressHandler.FilteredProvinces)
+                                                {
+                                                    <div @onclick="() => SelectProvince(province)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.CurrentProvince == province ? "bg-blue-100" : "")">
+                                                        @province
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                             <ValidationMessage For="@(() => registrationModel.CurrentProvince)" class="text-red-500 text-xs mt-1" />
+                        </div>
+                        <div class="relative">
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                                Municipality/City <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div @onclick="ToggleCityDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="city"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentCity) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.CurrentCity) ? "Select City" : registrationModel.CurrentCity)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (currentAddressHandler?.ShowCityDropdown == true)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="city">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="currentAddressHandler.CitySearchText" 
+                                                   @bind:after="FilterCities"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search city..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (currentAddressHandler.FilteredCities.Any())
+                                            {
+                                                @foreach (var city in currentAddressHandler.FilteredCities)
+                                                {
+                                                    <div @onclick="() => SelectCity(city)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.CurrentCity == city ? "bg-blue-100" : "")">
+                                                        @city
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            <ValidationMessage For="@(() => registrationModel.CurrentCity)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Country <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.CurrentCountry" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Country" />
+                                       @bind-Value:after="HandleCurrentCountryChange"
+                                       disabled="@(currentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetCurrentCountryClass()"
+                                       placeholder="Country" />
                             <ValidationMessage For="@(() => registrationModel.CurrentCountry)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
@@ -244,8 +417,9 @@
                                 ZIP Code <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.CurrentZipCode" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="ZIP Code" />
+                                       disabled="@(currentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetCurrentCountryClass()"
+                                       placeholder="ZIP Code" />
                             <ValidationMessage For="@(() => registrationModel.CurrentZipCode)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
@@ -260,7 +434,8 @@
                     <div class="mb-3 sm:mb-4">
                         <label class="flex items-center cursor-pointer">
                             <InputCheckbox @bind-Value="registrationModel.SameAsCurrentAddress" 
-                                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                           @bind-Value:after="HandleSameAsCurrentAddressChange"
+                                           class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
                             <span class="ml-2 text-xs sm:text-sm font-medium text-gray-700">Same with your current Address?</span>
                         </label>
                     </div>
@@ -269,62 +444,184 @@
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">House No./Street</label>
                             <InputText @bind-Value="registrationModel.PermanentHouseNo" 
                                 disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 placeholder="House No./Street" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Street Name</label>
                             <InputText @bind-Value="registrationModel.PermanentStreetName" 
                                 disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
                                 placeholder="Street Name" />
                         </div>
-                        <div>
+                        <div class="relative">
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Barangay <span class="text-red-500">*</span>
                             </label>
-                            <InputText @bind-Value="registrationModel.PermanentBarangay" 
-                                disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="Barangay" />
+                            <div class="relative">
+                                <div @onclick="TogglePermanentBarangayDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="permanent-barangay"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
+                                     style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentBarangay) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.PermanentBarangay) ? "Select Barangay" : registrationModel.PermanentBarangay)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (permanentAddressHandler?.ShowBarangayDropdown == true && !registrationModel.SameAsCurrentAddress)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="permanent-barangay">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="permanentAddressHandler.BarangaySearchText" 
+                                                   @bind:after="FilterPermanentBarangays"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search barangay..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (permanentAddressHandler.FilteredBarangays.Any())
+                                            {
+                                                @foreach (var barangay in permanentAddressHandler.FilteredBarangays)
+                                                {
+                                                    <div @onclick="() => SelectPermanentBarangay(barangay)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.PermanentBarangay == barangay ? "bg-blue-100" : "")">
+                                                        @barangay
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                        <div>
-                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
-                                Municipality/City <span class="text-red-500">*</span>
-                            </label>
-                            <InputText @bind-Value="registrationModel.PermanentCity" 
-                                disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="Municipality/City" />
-                        </div>
-                        <div>
+                        <div class="relative">
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Province <span class="text-red-500">*</span>
                             </label>
-                            <InputText @bind-Value="registrationModel.PermanentProvince" 
-                                disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="Province" />
+                            <div class="relative">
+                                <div @onclick="TogglePermanentProvinceDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="permanent-province"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
+                                     style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentProvince) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.PermanentProvince) ? "Select Province" : registrationModel.PermanentProvince)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (permanentAddressHandler?.ShowProvinceDropdown == true && !registrationModel.SameAsCurrentAddress)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="permanent-province">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="permanentAddressHandler.ProvinceSearchText" 
+                                                   @bind:after="FilterPermanentProvinces"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search province..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (permanentAddressHandler.FilteredProvinces.Any())
+                                            {
+                                                @foreach (var province in permanentAddressHandler.FilteredProvinces)
+                                                {
+                                                    <div @onclick="() => SelectPermanentProvince(province)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.PermanentProvince == province ? "bg-blue-100" : "")">
+                                                        @province
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                                Municipality/City <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <div @onclick="TogglePermanentCityDropdown" 
+                                     @onclick:stopPropagation="true"
+                                     data-dropdown="permanent-city"
+                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
+                                     style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
+                                    <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentCity) ? "text-gray-400" : "text-gray-700")">
+                                        @(string.IsNullOrWhiteSpace(registrationModel.PermanentCity) ? "Select City" : registrationModel.PermanentCity)
+                                    </span>
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </div>
+                                @if (permanentAddressHandler?.ShowCityDropdown == true && !registrationModel.SameAsCurrentAddress)
+                                {
+                                    <div class="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg" @onclick:stopPropagation="true" data-dropdown="permanent-city">
+                                        <div class="p-2 border-b border-gray-200">
+                                            <input type="text" 
+                                                   @bind="permanentAddressHandler.CitySearchText" 
+                                                   @bind:after="FilterPermanentCities"
+                                                   @onkeydown="HandleSearchKeyDown"
+                                                   @onkeydown:stopPropagation="true"
+                                                   placeholder="Search city..."
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm" />
+                                        </div>
+                                        <div class="max-h-60 overflow-auto">
+                                            @if (permanentAddressHandler.FilteredCities.Any())
+                                            {
+                                                @foreach (var city in permanentAddressHandler.FilteredCities)
+                                                {
+                                                    <div @onclick="() => SelectPermanentCity(city)" 
+                                                         class="px-4 py-2 hover:bg-blue-50 cursor-pointer text-sm @(registrationModel.PermanentCity == city ? "bg-blue-100" : "")">
+                                                        @city
+                                                    </div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <div class="px-4 py-2 text-sm text-gray-500">No results found</div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Country <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.PermanentCountry" 
-                                disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="Country" />
+                                       @bind-Value:after="HandlePermanentCountryChange"
+                                       disabled="@(registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetPermanentCountryClass()"
+                                       placeholder="Country" />
+                            <ValidationMessage For="@(() => registrationModel.PermanentCountry)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 ZIP Code <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.PermanentZipCode" 
-                                disabled="@registrationModel.SameAsCurrentAddress"
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                placeholder="ZIP Code" />
+                                       disabled="@(registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetPermanentCountryClass()"
+                                       placeholder="ZIP Code" />
                         </div>
                     </div>
                 </div>
@@ -341,32 +638,51 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianFirstName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="First Name" />
+                                       @bind-Value:after="FormatGuardianFirstName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="e.g. Maria" />
                             <ValidationMessage For="@(() => registrationModel.GuardianFirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
                             <InputText @bind-Value="registrationModel.GuardianMiddleName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Middle Name" />
+                                       @bind-Value:after="FormatGuardianMiddleName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="Middle Name" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianLastName" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Last Name" />
+                                       @bind-Value:after="FormatGuardianLastName"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="Last Name" />
                             <ValidationMessage For="@(() => registrationModel.GuardianLastName)" class="text-red-500 text-xs mt-1" />
                         </div>
+                        <div>
+                            <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Suffix</label>
+                            <InputSelect @bind-Value="registrationModel.GuardianSuffix" 
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
+                                <option value="">N/A</option>
+                                <option value="Jr.">Jr.</option>
+                                <option value="Sr.">Sr.</option>
+                                <option value="II">II</option>
+                                <option value="III">III</option>
+                                <option value="IV">IV</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-3 sm:mb-4">
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 Contact Number <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianContactNumber" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Contact Number" />
+                                       maxlength="11"
+                                       onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
+                                       class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                       placeholder="e.g. 09123456789" />
                             <ValidationMessage For="@(() => registrationModel.GuardianContactNumber)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
@@ -376,7 +692,7 @@
                                 Relationship <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.GuardianRelationship" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white">
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
                                 <option value="">Select Relationship</option>
                                 <option value="Father">Father</option>
                                 <option value="Mother">Mother</option>
@@ -385,13 +701,18 @@
                             </InputSelect>
                             <ValidationMessage For="@(() => registrationModel.GuardianRelationship)" class="text-red-500 text-xs mt-1" />
                         </div>
+                        @if (registrationModel.GuardianRelationship == "Other")
+                        {
+                            <div>
+                                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                                    Please specify:
+                                </label>
+                                <InputText @bind-Value="registrationModel.GuardianRelationshipOther" 
+                                    class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base"
+                                    placeholder="e.g. Yaya" />
+                            </div>
+                        }
                     </div>
-                    @if (registrationModel.GuardianRelationship == "Other")
-                    {
-                        <InputText @bind-Value="registrationModel.GuardianRelationshipOther" 
-                            class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base mt-2"
-                            placeholder="Please specify relationship" />
-                    }
                 </div>
 
                 <hr class="my-6 sm:my-8 border-gray-200" />
@@ -425,7 +746,7 @@
                     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">With LRN?</label>
-                            <InputRadioGroup @bind-Value="registrationModel.HasLRN">
+                            <InputRadioGroup @bind-Value="registrationModel.HasLRN" @bind-Value:after="HandleHasLRNChange">
                                 <div class="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
                                     <label class="flex items-center cursor-pointer">
                                         <InputRadio Value="@("Yes")" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
@@ -443,20 +764,26 @@
                                 Learner Reference No. <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.LearnerReferenceNo" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
-                                placeholder="Learner Reference No." />
+                                @bind-Value:after="HandleLRNChange"
+                                disabled="@(registrationModel.HasLRN != "Yes")"
+                                maxlength="12"
+                                onkeypress="return /[0-9]/i.test(event.key)"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                placeholder="e.g. 123456789012" />
                             <ValidationMessage For="@(() => registrationModel.LearnerReferenceNo)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                                 School year <span class="text-red-500">*</span>
                             </label>
-                            <InputSelect @bind-Value="registrationModel.SchoolYear" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white">
-                                <option value="">Select School Year</option>
-                                <option value="2024-2025">2024-2025</option>
-                                <option value="2025-2026">2025-2026</option>
-                                <option value="2026-2027">2026-2027</option>
+                            <InputSelect @bind-Value="registrationModel.SchoolYear" @bind-Value:after="OnSchoolYearChanged"
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
+                                <option value="" disabled selected>Select School Year</option>
+                                <option value="ADD_NEW">+ Add School Year</option>
+                                @foreach (var schoolYear in availableSchoolYears)
+                                {
+                                    <option value="@schoolYear">@schoolYear</option>
+                                }
                             </InputSelect>
                             <ValidationMessage For="@(() => registrationModel.SchoolYear)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -465,8 +792,9 @@
                                 Grade to Enroll <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.GradeToEnroll" 
-                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base bg-white">
-                                <option value="">Select Grade</option>
+                                class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base bg-white">
+                                <option value="" disabled selected>Select Grade</option>
+                                <option value="Pre-school">Pre-school</option>
                                 <option value="Kinder">Kinder</option>
                                 <option value="Grade 1">Grade 1</option>
                                 <option value="Grade 2">Grade 2</option>
@@ -482,11 +810,77 @@
                         <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
                             Requirements <span class="text-red-500">*</span>
                         </label>
-                        <label class="flex items-center cursor-pointer">
-                            <InputCheckbox @bind-Value="registrationModel.HasBirthCertificate" 
-                                class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                            <span class="ml-2 text-xs sm:text-sm text-gray-700">PSA Birth Certificate</span>
-                        </label>
+                        <div class="space-y-2">
+                            @if (registrationModel.StudentType == "New Student")
+                            {
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasPSABirthCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">PSA Birth Certificate (photocopy & original for verification)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasBaptismalCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Baptismal Certificate (if applicable, for Catholic schools)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasReportCard" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Report Card / Form 138 (from preschool if available)</span>
+                                </label>
+                            }
+                            else if (registrationModel.StudentType == "Transferee")
+                            {
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasPSABirthCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">PSA Birth Certificate</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasBaptismalCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Baptismal Certificate (if applicable)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasForm138" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Form 138 (Report Card)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasForm137" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Form 137 (Permanent Record) – requested from previous school</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasGoodMoralCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Certificate of Good Moral Character</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasTransferCert" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Transfer Certificate / Honorable Dismissal</span>
+                                </label>
+                            }
+                            else if (registrationModel.StudentType == "Returnee")
+                            {
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasForm138" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Form 138 (Report Card)</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasUpdatedEnrollmentForm" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Updated Enrollment Form</span>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <InputCheckbox @bind-Value="registrationModel.HasClearance" 
+                                        class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                                    <span class="ml-2 text-xs sm:text-sm text-gray-700">Clearance (if required)</span>
+                                </label>
+                            }
+                        </div>
                     </div>
                     <div class="bg-green-50 border border-green-200 rounded-lg p-3 sm:p-4">
                         <label class="flex items-start cursor-pointer">
@@ -504,10 +898,13 @@
                 <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mt-6 sm:mt-8">
                     <button type="button" 
                         @onclick="Cancel"
+                        @onkeydown:preventDefault="true"
                         class="px-6 sm:px-8 py-2.5 sm:py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-full transition-all duration-300 shadow-md hover:shadow-lg min-w-[140px] sm:min-w-[160px] text-sm sm:text-base">
                         Cancel
                     </button>
-                    <button type="submit" 
+                    <button type="button" 
+                        @onclick="HandleSubmitClick"
+                        @onkeydown:preventDefault="true"
                         disabled="@isSubmitting"
                         class="px-6 sm:px-8 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-full transition-all duration-300 shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px] sm:min-w-[160px] text-sm sm:text-base">
                         @if (isSubmitting)
@@ -532,121 +929,74 @@
 </div>
 
 <!-- Terms and Privacy Policy Modal -->
-<TermsModal Show="@showTermsModal" OnClose="CloseTermsModal" />
+<TermsModal Show="@showTermsModal" OnClose="CloseTermsModal" OnUnderstand="HandleTermsUnderstand" />
 
-@code {
-    private StudentRegistrationModel registrationModel = new();
-    private bool isSubmitting = false;
-    private bool showTermsModal = false;
-
-    private async Task SubmitRegistration()
-    {
-        isSubmitting = true;
-        try
-        {
-            // TODO: Backend team will implement API call
-            await Task.Delay(2000); // Simulate API call
-            
-            // Success - navigate to landing page
-            Navigation.NavigateTo("/");
-        }
-        catch (Exception ex)
-        {
-            // Handle error
-            Console.WriteLine($"Error submitting registration: {ex.Message}");
-        }
-        finally
-        {
-            isSubmitting = false;
-        }
-    }
-
-    private void Cancel()
-    {
-        Navigation.NavigateTo("/");
-    }
-
-    private void OpenTermsModal()
-    {
-        showTermsModal = true;
-    }
-
-    private void CloseTermsModal()
-    {
-        showTermsModal = false;
-        StateHasChanged();
-    }
-
-    // Model class
-    public class StudentRegistrationModel
-    {
-        // Personal Information
-        [Required(ErrorMessage = "First name is required")]
-        public string FirstName { get; set; } = "";
-        public string MiddleName { get; set; } = "";
-        [Required(ErrorMessage = "Last name is required")]
-        public string LastName { get; set; } = "";
-        public string Suffix { get; set; } = "";
-        [Required(ErrorMessage = "Birth date is required")]
-        public DateTime? BirthDate { get; set; }
-        [Required(ErrorMessage = "Place of birth is required")]
-        public string PlaceOfBirth { get; set; } = "";
-        [Required(ErrorMessage = "Sex is required")]
-        public string Sex { get; set; } = "";
-        [Required(ErrorMessage = "Mother tongue is required")]
-        public string MotherTongue { get; set; } = "";
-        public string MotherTongueOther { get; set; } = "";
-        public string IsIPCommunity { get; set; } = "";
-        public string IPCommunitySpecify { get; set; } = "";
-        public string IPCommunitySpecifyOther { get; set; } = "";
-        public string Is4PsBeneficiary { get; set; } = "";
-        public string FourPsHouseholdId { get; set; } = "";
-        // Current Address
-        public string CurrentHouseNo { get; set; } = "";
-        public string CurrentStreetName { get; set; } = "";
-        [Required(ErrorMessage = "Barangay is required")]
-        public string CurrentBarangay { get; set; } = "";
-        [Required(ErrorMessage = "City is required")]
-        public string CurrentCity { get; set; } = "";
-        [Required(ErrorMessage = "Province is required")]
-        public string CurrentProvince { get; set; } = "";
-        [Required(ErrorMessage = "Country is required")]
-        public string CurrentCountry { get; set; } = "";
-        [Required(ErrorMessage = "ZIP code is required")]
-        public string CurrentZipCode { get; set; } = "";
-        // Permanent Address
-        public bool SameAsCurrentAddress { get; set; } = false;
-        public string PermanentHouseNo { get; set; } = "";
-        public string PermanentStreetName { get; set; } = "";
-        public string PermanentBarangay { get; set; } = "";
-        public string PermanentCity { get; set; } = "";
-        public string PermanentProvince { get; set; } = "";
-        public string PermanentCountry { get; set; } = "";
-        public string PermanentZipCode { get; set; } = "";
-        // Guardian Information
-        [Required(ErrorMessage = "Guardian first name is required")]
-        public string GuardianFirstName { get; set; } = "";
-        public string GuardianMiddleName { get; set; } = "";
-        [Required(ErrorMessage = "Guardian last name is required")]
-        public string GuardianLastName { get; set; } = "";
-        [Required(ErrorMessage = "Contact number is required")]
-        public string GuardianContactNumber { get; set; } = "";
-        [Required(ErrorMessage = "Relationship is required")]
-        public string GuardianRelationship { get; set; } = "";
-        public string GuardianRelationshipOther { get; set; } = "";
-        // Enrollment Details
-        [Required(ErrorMessage = "Student type is required")]
-        public string StudentType { get; set; } = "";
-        public string HasLRN { get; set; } = "";
-        [Required(ErrorMessage = "Learner reference number is required")]
-        public string LearnerReferenceNo { get; set; } = "";
-        [Required(ErrorMessage = "School year is required")]
-        public string SchoolYear { get; set; } = "";
-        [Required(ErrorMessage = "Grade to enroll is required")]
-        public string GradeToEnroll { get; set; } = "";
-        public bool HasBirthCertificate { get; set; } = false;
-        [Range(typeof(bool), "true", "true", ErrorMessage = "You must agree to the terms")]
-        public bool AgreeToTerms { get; set; } = false;
-    }
+<!-- Add School Year Modal -->
+@if (showAddSchoolYearModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddSchoolYearModal">
+        <div class="w-full max-w-md rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-lg bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Add School Year</h3>
+                <button @onclick="CloseAddSchoolYearModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <div class="mb-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Start Year <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="startYear" @bind-Value:after="OnStartYearChanged"
+                                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:outline-none focus:ring-0">
+                                <option value="" disabled selected>Select Start Year</option>
+                                @foreach (var year in availableStartYears)
+                                {
+                                    <option value="@year">@year</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                End Year <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="endYear" @bind-Value:after="ValidateSchoolYearFormat"
+                                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:outline-none focus:ring-0"
+                                         disabled="@(string.IsNullOrWhiteSpace(startYear))">
+                                <option value="" disabled selected>Select End Year</option>
+                                @if (!string.IsNullOrWhiteSpace(startYear) && int.TryParse(startYear, out int start))
+                                {
+                                    <option value="@(start + 1)">@(start + 1)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(schoolYearValidationError))
+                    {
+                        <p class="mt-2 text-xs text-red-500">@schoolYearValidationError</p>
+                    }
+                    else
+                    {
+                        <p class="mt-2 text-xs text-gray-500">Format: Start Year must be exactly 1 year before End Year (e.g., 2027-2028)</p>
+                    }
+                </div>
+                <div class="flex justify-end gap-3">
+                    <button type="button" @onclick="CloseAddSchoolYearModal" 
+                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="AddSchoolYear" 
+                            disabled="@(string.IsNullOrWhiteSpace(startYear) || string.IsNullOrWhiteSpace(endYear) || !isValidSchoolYearFormat || availableSchoolYears.Count >= 3)"
+                            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Add
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 

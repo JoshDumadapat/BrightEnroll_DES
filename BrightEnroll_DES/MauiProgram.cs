@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using BrightEnroll_DES.Services.AuthFunction;
+using BrightEnroll_DES.Services;
 
 namespace BrightEnroll_DES
 {
@@ -19,6 +20,12 @@ namespace BrightEnroll_DES
 
             // Register AuthService
             builder.Services.AddSingleton<IAuthService, AuthService>();
+            
+            // Register Address Service
+            builder.Services.AddSingleton<AddressService>();
+            
+            // Register School Year Service
+            builder.Services.AddSingleton<SchoolYearService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

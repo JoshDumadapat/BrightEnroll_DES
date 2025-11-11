@@ -3,22 +3,24 @@
 
 <PageTitle>Academics</PageTitle>
 
-<div>
-
-    <!-- Tabs -->
-    <div class="mb-6 flex items-center gap-6">
-        <button @onclick='() => SetActiveTab("sections")'
-                class="@GetTabClasses("sections")">
-            Sections
-        </button>
-        <button @onclick='() => SetActiveTab("subjects")'
-                class="@GetTabClasses("subjects")">
-            Subjects
-        </button>
-        <button @onclick='() => SetActiveTab("teachers")'
-                class="@GetTabClasses("teachers")">
-            Teacher Assignment
-        </button>
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Academics</h1>
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("sections")'
+                    class="@GetTabClasses("sections")">
+                Sections
+            </button>
+            <button @onclick='() => SetActiveTab("subjects")'
+                    class="@GetTabClasses("subjects")">
+                Subjects
+            </button>
+            <button @onclick='() => SetActiveTab("teachers")'
+                    class="@GetTabClasses("teachers")">
+                Teacher Assignment
+            </button>
+        </div>
     </div>
 
     <!-- Card Container -->
@@ -26,133 +28,1100 @@
         <!-- SECTIONS TAB -->
         @if (ActiveTab == "sections")
         {
-            <div class="space-y-5">
             <!-- Filters -->
-            <div>
+            <div class="border-b border-gray-200 px-6 py-4">
                 <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-                <div class="flex flex-wrap items-center gap-3">
-                <div class="relative w-60">
-                    <input type="text" placeholder="Search here..." class="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                    <svg xmlns="http://www.w3.org/2000/svg" class="absolute right-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
-
-                <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400">
-                    <option>Subjects</option>
-                </select>
-
-                <select class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400">
-                    <option>Grade</option>
-                </select>
-
-                <button class="ml-auto flex items-center space-x-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition-all hover:bg-blue-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Add Section</span>
-                </button>
+                <div class="flex items-center gap-4">
+                    <div class="relative flex w-1/4 items-center">
+                        <span class="absolute left-4 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..."
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Subjects</option>
+                    </select>
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Grade</option>
+                    </select>
+                    <button @onclick="OpenAddSectionModal" class="ml-auto flex items-center space-x-2 rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition-all hover:bg-blue-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add Section</span>
+                    </button>
                 </div>
             </div>
 
             <!-- Table -->
-            <div class="overflow-hidden rounded-xl bg-white shadow">
-                <table class="min-w-full text-left text-sm text-gray-600">
-                    <thead class="bg-gray-50 text-xs font-medium uppercase text-gray-700">
-                        <tr>
-                            <th class="px-6 py-3">Section I.D.</th>
-                            <th class="px-6 py-3">Section Name</th>
-                            <th class="px-6 py-3">Grade Level</th>
-                            <th class="px-6 py-3">Homeroom Teacher</th>
-                            <th class="px-6 py-3">Classroom</th>
-                            <th class="px-6 py-3">Capacity</th>
-                            <th class="px-6 py-3 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr class="border-b transition hover:bg-gray-50">
-                            <td class="px-6 py-3">SEC-01</td>
-                            <td class="px-6 py-3">Saturn</td>
-                            <td class="px-6 py-3">3</td>
-                            <td class="px-6 py-3">Mr. John Doe</td>
-                            <td class="px-6 py-3">Room A1</td>
-                            <td class="px-6 py-3">40</td>
-                            <td class="flex justify-end gap-2 px-6 py-3 text-right">
-                                <!-- Edit Button -->
-                                <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                    </svg>
-                                </button>
-                                <!-- Delete Button -->
-                                <button class="flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition hover:bg-red-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                    </svg>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-3">SEC-02</td>
-                            <td class="px-6 py-3">Uranus</td>
-                            <td class="px-6 py-3">3</td>
-                            <td class="px-6 py-3">Mrs. Carmina Santos</td>
-                            <td class="px-6 py-3">Room A2</td>
-                            <td class="px-6 py-3">40</td>
-                            <td class="flex justify-end gap-2 px-6 py-3 text-right">
-                                <!-- Edit Button -->
-                                <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                    </svg>
-                                </button>
-                                <!-- Delete Button -->
-                                <button class="flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition hover:bg-red-100">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                                    </svg>
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Section I.D.</th>
+                        <th class="px-4 py-3 text-left">Section Name</th>
+                        <th class="px-4 py-3 text-left">Grade Level</th>
+                        <th class="px-4 py-3 text-left">Homeroom Teacher</th>
+                        <th class="px-4 py-3 text-left">Classroom</th>
+                        <th class="px-4 py-3 text-left">Capacity</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">SEC-01</td>
+                        <td class="px-4 py-3">Saturn</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Mr. John Doe</td>
+                        <td class="px-4 py-3">Room A1</td>
+                        <td class="px-4 py-3">40</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditSectionModal(new Section { Id = \"SEC-01\", Name = \"Saturn\", GradeLevel = \"3\", HomeroomTeacher = \"Mr. John Doe\", Classroom = \"Room A1\", Capacity = 40, Notes = \"\" })" class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">SEC-02</td>
+                        <td class="px-4 py-3">Uranus</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Mrs. Carmina Santos</td>
+                        <td class="px-4 py-3">Room A2</td>
+                        <td class="px-4 py-3">40</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditSectionModal(new Section { Id = \"SEC-02\", Name = \"Uranus\", GradeLevel = \"3\", HomeroomTeacher = \"Mrs. Carmina Santos\", Classroom = \"Room A2\", Capacity = 40, Notes = \"\" })" class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
 
             <!-- Pagination -->
-            <div class="mt-4 flex items-center justify-between text-sm text-gray-500">
-                <p>9 of 456 pre-registered students</p>
-                <div class="flex items-center space-x-2">
-                    <span class="rounded-lg bg-blue-600 px-3 py-1 text-white">1</span>
-                    <button class="rounded px-2 py-1 hover:bg-gray-200">2</button>
-                    <button class="rounded px-2 py-1 hover:bg-gray-200">3</button>
+            <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                <span>9 of 456 pre-registered students</span>
+                <div class="flex items-center gap-2">
+                    <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
                     <span>...</span>
-                    <button class="rounded px-2 py-1 hover:bg-gray-200">10</button>
-
-                    <select class="ml-4 rounded-lg border border-gray-300 px-2 py-1 text-sm">
-                        <option>9 rows</option>
-                        <option>25 rows</option>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+                    <span class="ml-4">Show</span>
+                    <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="5">5 rows</option>
+                        <option value="10">10 rows</option>
+                        <option value="20">20 rows</option>
                     </select>
                 </div>
             </div>
-        </div>
         }
         else if (ActiveTab == "subjects")
         {
-            <div class="p-6 text-gray-600">
-                <p class="text-center text-sm text-gray-400">Subjects tab content coming soon...</p>
+            <!-- Filters -->
+            <div class="border-b border-gray-200 px-6 py-4">
+                <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+                <div class="flex items-center gap-4">
+                    <div class="relative flex w-1/4 items-center">
+                        <span class="absolute left-4 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..."
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Grade</option>
+                    </select>
+                    <button @onclick="OpenAddSubjectModal" class="ml-auto flex items-center space-x-2 rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition-all hover:bg-blue-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add Subject</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Subject I.D.</th>
+                        <th class="px-4 py-3 text-left">Subject Name</th>
+                        <th class="px-4 py-3 text-left">Grade Level</th>
+                        <th class="px-4 py-3 text-left">Linked Sections</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">SUB-101</td>
+                        <td class="px-4 py-3">Math</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Saturn, Uranus</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditSubjectModal(new Subject { Id = \"SUB-101\", Name = \"Math\", GradeLevel = \"3\", LinkedSections = new List<string> { \"Saturn\", \"Uranus\" }, Description = \"\" })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">SUB-102</td>
+                        <td class="px-4 py-3">English</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Uranus</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditSubjectModal(new Subject { Id = \"SUB-102\", Name = \"English\", GradeLevel = \"3\", LinkedSections = new List<string> { \"Uranus\" }, Description = \"\" })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">SUB-103</td>
+                        <td class="px-4 py-3">Science</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Jupiter</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditSubjectModal(new Subject { Id = \"SUB-103\", Name = \"Science\", GradeLevel = \"3\", LinkedSections = new List<string> { \"Jupiter\" }, Description = \"\" })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                <span>3 of 456 subjects</span>
+                <div class="flex items-center gap-2">
+                    <button class="rounded-md px-3 py-1 text-xs text-white bg-blue-600">1</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+                    <span>...</span>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+                    <span class="ml-4">Show</span>
+                    <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="5">5 rows</option>
+                        <option value="10">10 rows</option>
+                        <option value="20">20 rows</option>
+                    </select>
+                </div>
             </div>
         }
         else if (ActiveTab == "teachers")
         {
-            <div class="p-6 text-gray-600">
-                <p class="text-center text-sm text-gray-400">Teacher assignment tab content coming soon...</p>
+            <!-- Filters -->
+            <div class="border-b border-gray-200 px-6 py-4">
+                <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+                <div class="flex items-center gap-4">
+                    <div class="relative flex w-1/4 items-center">
+                        <span class="absolute left-4 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..."
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Grade</option>
+                    </select>
+                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option>Subject</option>
+                    </select>
+                    <button @onclick="OpenAddAssignmentModal" class="ml-auto flex items-center space-x-2 rounded-full bg-blue-600 px-4 py-2 text-sm text-white shadow-sm transition-all hover:bg-blue-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                        </svg>
+                        <span>Add Assignment</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Assignment I.D.</th>
+                        <th class="px-4 py-3 text-left">Teacher Name</th>
+                        <th class="px-4 py-3 text-left">Grade</th>
+                        <th class="px-4 py-3 text-left">Subject</th>
+                        <th class="px-4 py-3 text-left">Section</th>
+                        <th class="px-4 py-3 text-left">Schedule</th>
+                        <th class="px-4 py-3 text-left">Classroom</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">ASG-101</td>
+                        <td class="px-4 py-3">Mrs. Santos</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Science</td>
+                        <td class="px-4 py-3">Saturn</td>
+                        <td class="px-4 py-3">Mon/Wed 9:00-10:00</td>
+                        <td class="px-4 py-3">Room A1</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditAssignmentModal(new TeacherAssignment { Id = \"ASG-101\", TeacherName = \"Mrs. Santos\", Grade = \"3\", Subject = \"Science\", Section = \"Saturn\", Schedule = \"Mon/Wed 9:00-10:00\", Classroom = \"Room A1\", SelectedDays = new List<string> { \"M\", \"W\" } })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">ASG-102</td>
+                        <td class="px-4 py-3">Mrs. Santos</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">Math</td>
+                        <td class="px-4 py-3">Saturn</td>
+                        <td class="px-4 py-3">Mon-Fri 8:00-9:00</td>
+                        <td class="px-4 py-3">Room A1</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditAssignmentModal(new TeacherAssignment { Id = \"ASG-102\", TeacherName = \"Mrs. Santos\", Grade = \"3\", Subject = \"Math\", Section = \"Saturn\", Schedule = \"Mon-Fri 8:00-9:00\", Classroom = \"Room A1\", SelectedDays = new List<string> { \"M\", \"T\", \"W\", \"TH\", \"F\" } })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">ASG-103</td>
+                        <td class="px-4 py-3">Mrs. Cruz</td>
+                        <td class="px-4 py-3">3</td>
+                        <td class="px-4 py-3">English</td>
+                        <td class="px-4 py-3">Jupiter</td>
+                        <td class="px-4 py-3">Tue/Thu 10:00-11:00</td>
+                        <td class="px-4 py-3">Room A3</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <!-- Edit Button -->
+                            <button @onclick="() => OpenEditAssignmentModal(new TeacherAssignment { Id = \"ASG-103\", TeacherName = \"Mrs. Cruz\", Grade = \"3\", Subject = \"English\", Section = \"Jupiter\", Schedule = \"Tue/Thu 10:00-11:00\", Classroom = \"Room A3\", SelectedDays = new List<string> { \"T\", \"TH\" } })" class="flex items-center justify-center rounded-lg bg-gray-100 p-2 text-gray-600 transition hover:bg-gray-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                </svg>
+                            </button>
+                            <!-- Delete Button -->
+                            <button class="flex items-center justify-center rounded-lg bg-red-100 p-2 text-red-600 transition hover:bg-red-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- Pagination -->
+            <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+                <span>3 of 456 assignments</span>
+                <div class="flex items-center gap-2">
+                    <button class="rounded-md px-3 py-1 text-xs text-white bg-blue-600">1</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+                    <span>...</span>
+                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+                    <span class="ml-4">Show</span>
+                    <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="5">5 rows</option>
+                        <option value="10">10 rows</option>
+                        <option value="20">20 rows</option>
+                    </select>
+                </div>
             </div>
         }
     </div>
 </div>
 
+<!-- Add Section Modal -->
+@if (ShowAddSectionModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddSectionModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg px-6 py-4" style="background-color: #0E335D;">
+                <h3 class="text-lg font-semibold text-white">Add New Section</h3>
+                <button @onclick="CloseAddSectionModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleAddSection" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Section Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Section Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="NewSection.Name" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                   required />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewSection.GradeLevel" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Grade</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+
+                        <!-- Classroom -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Classroom <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewSection.Classroom" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Classroom</option>
+                                <option value="Room A1">Room A1</option>
+                                <option value="Room A2">Room A2</option>
+                                <option value="Room A3">Room A3</option>
+                                <option value="Room B1">Room B1</option>
+                                <option value="Room B2">Room B2</option>
+                            </select>
+                        </div>
+
+                        <!-- Capacity -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Capacity <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" @bind="NewSection.Capacity" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                   required />
+                        </div>
+
+                        <!-- Homeroom Teacher -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Homeroom Teacher <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewSection.HomeroomTeacher" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Teacher</option>
+                                <option value="Mr. Cruz">Mr. Cruz</option>
+                                <option value="Mr. John Doe">Mr. John Doe</option>
+                                <option value="Mrs. Carmina Santos">Mrs. Carmina Santos</option>
+                                <option value="Ms. Reyes">Ms. Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Notes
+                            </label>
+                            <textarea @bind="NewSection.Notes" 
+                                     rows="3"
+                                     placeholder="Enter notes..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseAddSectionModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                            Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Section Modal -->
+@if (ShowEditSectionModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEditSectionModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg bg-yellow-500 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Edit Section</h3>
+                <button @onclick="CloseEditSectionModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleEditSection" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Section Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Section Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditingSection.Name" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingSection.GradeLevel" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Grade</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+
+                        <!-- Classroom -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Classroom <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingSection.Classroom" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Classroom</option>
+                                <option value="Room A1">Room A1</option>
+                                <option value="Room A2">Room A2</option>
+                                <option value="Room A3">Room A3</option>
+                                <option value="Room B1">Room B1</option>
+                                <option value="Room B2">Room B2</option>
+                            </select>
+                        </div>
+
+                        <!-- Capacity -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Capacity <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" @bind="EditingSection.Capacity" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Homeroom Teacher -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Homeroom Teacher <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingSection.HomeroomTeacher" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Teacher</option>
+                                <option value="Mr. Cruz">Mr. Cruz</option>
+                                <option value="Mr. John Doe">Mr. John Doe</option>
+                                <option value="Mrs. Carmina Santos">Mrs. Carmina Santos</option>
+                                <option value="Ms. Reyes">Ms. Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Notes
+                            </label>
+                            <textarea @bind="EditingSection.Notes" 
+                                     rows="3"
+                                     placeholder="Enter notes..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseEditSectionModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Subject Modal -->
+@if (ShowAddSubjectModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddSubjectModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg px-6 py-4" style="background-color: #0E335D;">
+                <h3 class="text-lg font-semibold text-white">Add New Subject</h3>
+                <button @onclick="CloseAddSubjectModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleAddSubject" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Subject Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Subject Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="NewSubject.Name" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                   required />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewSubject.GradeLevel" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Grade</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+
+                        <!-- Linked Sections -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Linked Sections <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewSubject.LinkedSections.Contains("Saturn"))" @onchange="@((e) => ToggleNewSubjectSection("Saturn"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Saturn</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewSubject.LinkedSections.Contains("Uranus"))" @onchange="@((e) => ToggleNewSubjectSection("Uranus"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Uranus</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewSubject.LinkedSections.Contains("Jupiter"))" @onchange="@((e) => ToggleNewSubjectSection("Jupiter"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Jupiter</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Description
+                            </label>
+                            <textarea @bind="NewSubject.Description" 
+                                     rows="3"
+                                     placeholder="Enter description..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseAddSubjectModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                            Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Subject Modal -->
+@if (ShowEditSubjectModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEditSubjectModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg bg-yellow-500 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Edit Subject</h3>
+                <button @onclick="CloseEditSubjectModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleEditSubject" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Subject Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Subject Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditingSubject.Name" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingSubject.GradeLevel" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Grade</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+
+                        <!-- Linked Sections -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Linked Sections <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingSubject.LinkedSections.Contains("Saturn"))" @onchange="@((e) => ToggleSection("Saturn"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Saturn</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingSubject.LinkedSections.Contains("Uranus"))" @onchange="@((e) => ToggleSection("Uranus"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Uranus</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingSubject.LinkedSections.Contains("Jupiter"))" @onchange="@((e) => ToggleSection("Jupiter"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Jupiter</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Description
+                            </label>
+                            <textarea @bind="EditingSubject.Description" 
+                                     rows="3"
+                                     placeholder="Enter description..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseEditSubjectModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Assignment Modal -->
+@if (ShowAddAssignmentModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddAssignmentModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Assign New Teacher</h3>
+                <button @onclick="CloseAddAssignmentModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleAddAssignment" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Teacher -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Teacher <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewAssignment.TeacherName" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Teacher</option>
+                                <option value="Mrs. Santos">Mrs. Santos</option>
+                                <option value="Mrs. Cruz">Mrs. Cruz</option>
+                                <option value="Mr. John Doe">Mr. John Doe</option>
+                                <option value="Ms. Reyes">Ms. Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Section -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Section <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="NewAssignment.Section" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Classroom -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Classroom <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="NewAssignment.Classroom" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade level <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="NewAssignment.Grade" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Select Subject -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Subject <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewAssignment.Subject" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Subject</option>
+                                <option value="Math">Math</option>
+                                <option value="English">English</option>
+                                <option value="Science">Science</option>
+                                <option value="Filipino">Filipino</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Time -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Time <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="NewAssignment.Time" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Time</option>
+                                <option value="8:00am - 9:00am">8:00am - 9:00am</option>
+                                <option value="9:00am - 10:00am">9:00am - 10:00am</option>
+                                <option value="10:00am - 11:00am">10:00am - 11:00am</option>
+                                <option value="11:00am - 12:00pm">11:00am - 12:00pm</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Day -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Day <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("M"))" @onchange="@((e) => ToggleNewAssignmentDay("M"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">M</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("T"))" @onchange="@((e) => ToggleNewAssignmentDay("T"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">T</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("W"))" @onchange="@((e) => ToggleNewAssignmentDay("W"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">W</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("TH"))" @onchange="@((e) => ToggleNewAssignmentDay("TH"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">TH</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("F"))" @onchange="@((e) => ToggleNewAssignmentDay("F"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">F</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("Sat"))" @onchange="@((e) => ToggleNewAssignmentDay("Sat"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sat</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(NewAssignment.SelectedDays.Contains("Sun"))" @onchange="@((e) => ToggleNewAssignmentDay("Sun"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sun</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseAddAssignmentModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                            Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Assignment Modal -->
+@if (ShowEditAssignmentModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEditAssignmentModal">
+        <div class="w-full max-w-2xl rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-lg bg-yellow-500 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Edit Assigned Teacher</h3>
+                <button @onclick="CloseEditAssignmentModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <form @onsubmit="HandleEditAssignment" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Teacher -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Teacher <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingAssignment.TeacherName" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Teacher</option>
+                                <option value="Mrs. Santos">Mrs. Santos</option>
+                                <option value="Mrs. Cruz">Mrs. Cruz</option>
+                                <option value="Mr. John Doe">Mr. John Doe</option>
+                                <option value="Ms. Reyes">Ms. Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Section -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Section <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditingAssignment.Section" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Classroom -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Classroom <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditingAssignment.Classroom" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade level <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="EditingAssignment.Grade" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Select Subject -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Subject <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingAssignment.Subject" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Subject</option>
+                                <option value="Math">Math</option>
+                                <option value="English">English</option>
+                                <option value="Science">Science</option>
+                                <option value="Filipino">Filipino</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Time -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Time <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="EditingAssignment.Time" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Time</option>
+                                <option value="8:00am - 9:00am">8:00am - 9:00am</option>
+                                <option value="9:00am - 10:00am">9:00am - 10:00am</option>
+                                <option value="10:00am - 11:00am">10:00am - 11:00am</option>
+                                <option value="11:00am - 12:00pm">11:00am - 12:00pm</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Day -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Day <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("M"))" @onchange="@((e) => ToggleDay("M"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">M</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("T"))" @onchange="@((e) => ToggleDay("T"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">T</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("W"))" @onchange="@((e) => ToggleDay("W"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">W</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("TH"))" @onchange="@((e) => ToggleDay("TH"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">TH</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("F"))" @onchange="@((e) => ToggleDay("F"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">F</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("Sat"))" @onchange="@((e) => ToggleDay("Sat"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sat</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(EditingAssignment.SelectedDays.Contains("Sun"))" @onchange="@((e) => ToggleDay("Sun"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sun</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Modal Footer -->
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="CloseEditAssignmentModal" class="rounded-full border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-full bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string ActiveTab = "sections";
+    private bool ShowAddSectionModal = false;
+    private bool ShowEditSectionModal = false;
+    private bool ShowAddSubjectModal = false;
+    private bool ShowEditSubjectModal = false;
+    private bool ShowAddAssignmentModal = false;
+    private bool ShowEditAssignmentModal = false;
+    private Section NewSection = new();
+    private Section EditingSection = new();
+    private Subject NewSubject = new();
+    private Subject EditingSubject = new();
+    private TeacherAssignment NewAssignment = new();
+    private TeacherAssignment EditingAssignment = new();
 
     private void SetActiveTab(string tab)
     {
@@ -166,15 +1135,245 @@
         return tab switch
         {
             "sections" => isSelected
-                ? "rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow"
-                : "border-b-2 border-blue-600 px-3 py-2 text-sm font-semibold text-blue-600 transition-transform duration-300 ease-in-out hover:scale-105",
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
             "subjects" => isSelected
-                ? "rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white shadow"
-                : "border-b-2 border-purple-600 px-3 py-2 text-sm font-semibold text-purple-600 transition-transform duration-300 ease-in-out hover:scale-105",
+                ? "px-3 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600"
+                : "px-3 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
             "teachers" => isSelected
-                ? "rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow"
-                : "border-b-2 border-green-600 px-3 py-2 text-sm font-semibold text-green-600 transition-transform duration-300 ease-in-out hover:scale-105",
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
             _ => "px-3 py-2 text-sm font-semibold"
         };
+    }
+
+    private void OpenAddSectionModal()
+    {
+        NewSection = new Section();
+        ShowAddSectionModal = true;
+    }
+
+    private void CloseAddSectionModal()
+    {
+        ShowAddSectionModal = false;
+        NewSection = new Section();
+    }
+
+    private void OpenEditSectionModal(Section section)
+    {
+        EditingSection = new Section
+        {
+            Id = section.Id,
+            Name = section.Name,
+            GradeLevel = section.GradeLevel,
+            Classroom = section.Classroom,
+            Capacity = section.Capacity,
+            HomeroomTeacher = section.HomeroomTeacher,
+            Notes = section.Notes
+        };
+        ShowEditSectionModal = true;
+    }
+
+    private void CloseEditSectionModal()
+    {
+        ShowEditSectionModal = false;
+        EditingSection = new Section();
+    }
+
+    private void HandleAddSection()
+    {
+        // TODO: Save the new section to the database
+        // For now, just close the modal
+        CloseAddSectionModal();
+        StateHasChanged();
+    }
+
+    private void HandleEditSection()
+    {
+        // TODO: Update the section in the database
+        // For now, just close the modal
+        CloseEditSectionModal();
+        StateHasChanged();
+    }
+
+    // Subject Modal Methods
+    private void OpenAddSubjectModal()
+    {
+        NewSubject = new Subject();
+        ShowAddSubjectModal = true;
+    }
+
+    private void CloseAddSubjectModal()
+    {
+        ShowAddSubjectModal = false;
+        NewSubject = new Subject();
+    }
+
+    private void OpenEditSubjectModal(Subject subject)
+    {
+        EditingSubject = new Subject
+        {
+            Id = subject.Id,
+            Name = subject.Name,
+            GradeLevel = subject.GradeLevel,
+            LinkedSections = new List<string>(subject.LinkedSections),
+            Description = subject.Description
+        };
+        ShowEditSubjectModal = true;
+    }
+
+    private void CloseEditSubjectModal()
+    {
+        ShowEditSubjectModal = false;
+        EditingSubject = new Subject();
+    }
+
+    private void ToggleSection(string sectionName)
+    {
+        if (EditingSubject.LinkedSections.Contains(sectionName))
+        {
+            EditingSubject.LinkedSections.Remove(sectionName);
+        }
+        else
+        {
+            EditingSubject.LinkedSections.Add(sectionName);
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleNewSubjectSection(string sectionName)
+    {
+        if (NewSubject.LinkedSections.Contains(sectionName))
+        {
+            NewSubject.LinkedSections.Remove(sectionName);
+        }
+        else
+        {
+            NewSubject.LinkedSections.Add(sectionName);
+        }
+        StateHasChanged();
+    }
+
+    private void HandleAddSubject()
+    {
+        // TODO: Save the new subject to the database
+        CloseAddSubjectModal();
+        StateHasChanged();
+    }
+
+    private void HandleEditSubject()
+    {
+        // TODO: Update the subject in the database
+        CloseEditSubjectModal();
+        StateHasChanged();
+    }
+
+    // Assignment Modal Methods
+    private void OpenAddAssignmentModal()
+    {
+        NewAssignment = new TeacherAssignment();
+        ShowAddAssignmentModal = true;
+    }
+
+    private void CloseAddAssignmentModal()
+    {
+        ShowAddAssignmentModal = false;
+        NewAssignment = new TeacherAssignment();
+    }
+
+    private void OpenEditAssignmentModal(TeacherAssignment assignment)
+    {
+        EditingAssignment = new TeacherAssignment
+        {
+            Id = assignment.Id,
+            TeacherName = assignment.TeacherName,
+            Grade = assignment.Grade,
+            Subject = assignment.Subject,
+            Section = assignment.Section,
+            Schedule = assignment.Schedule,
+            Classroom = assignment.Classroom,
+            Time = assignment.Time,
+            SelectedDays = new List<string>(assignment.SelectedDays)
+        };
+        ShowEditAssignmentModal = true;
+    }
+
+    private void CloseEditAssignmentModal()
+    {
+        ShowEditAssignmentModal = false;
+        EditingAssignment = new TeacherAssignment();
+    }
+
+    private void ToggleDay(string day)
+    {
+        if (EditingAssignment.SelectedDays.Contains(day))
+        {
+            EditingAssignment.SelectedDays.Remove(day);
+        }
+        else
+        {
+            EditingAssignment.SelectedDays.Add(day);
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleNewAssignmentDay(string day)
+    {
+        if (NewAssignment.SelectedDays.Contains(day))
+        {
+            NewAssignment.SelectedDays.Remove(day);
+        }
+        else
+        {
+            NewAssignment.SelectedDays.Add(day);
+        }
+        StateHasChanged();
+    }
+
+    private void HandleAddAssignment()
+    {
+        // TODO: Save the new assignment to the database
+        CloseAddAssignmentModal();
+        StateHasChanged();
+    }
+
+    private void HandleEditAssignment()
+    {
+        // TODO: Update the assignment in the database
+        CloseEditAssignmentModal();
+        StateHasChanged();
+    }
+
+    public class Section
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string GradeLevel { get; set; } = "";
+        public string Classroom { get; set; } = "";
+        public int Capacity { get; set; }
+        public string HomeroomTeacher { get; set; } = "";
+        public string Notes { get; set; } = "";
+    }
+
+    public class Subject
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string GradeLevel { get; set; } = "";
+        public List<string> LinkedSections { get; set; } = new();
+        public string Description { get; set; } = "";
+    }
+
+    public class TeacherAssignment
+    {
+        public string Id { get; set; } = "";
+        public string TeacherName { get; set; } = "";
+        public string Grade { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Section { get; set; } = "";
+        public string Schedule { get; set; } = "";
+        public string Classroom { get; set; } = "";
+        public string Time { get; set; } = "";
+        public List<string> SelectedDays { get; set; } = new();
     }
 }
