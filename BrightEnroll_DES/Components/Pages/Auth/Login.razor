@@ -1,8 +1,13 @@
 ﻿@page "/login"
 @layout Components.Layout.AuthLayout
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services
 @inject NavigationManager Navigation
 @inject IAuthService AuthService
+@inject ILoadingService LoadingService
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" OnClose="CloseToast" Duration="3000" />
 
 <div class="relative flex h-screen w-full flex-col md:flex-row"> 
     <div class="relative h-[50vh] w-full md:h-screen md:w-[40%]">
@@ -15,7 +20,7 @@
             <!-- Back Arrow Button - Top Left Corner - Responsive Size -->
             <a href="/" class="absolute left-2 top-2 flex items-center text-gray-600 transition-all duration-200 hover:scale-110 hover:text-gray-900 sm:left-[10px] sm:top-[10px]">
                 <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m7 7h18" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
                 <span class="ml-0.5 text-sm font-medium sm:ml-1 sm:text-sm md:text-base">Back</span>
             </a>
@@ -38,10 +43,10 @@
 
 
                 <form class="w-full space-y-2 sm:space-y-2.5 md:space-y-3 lg:space-y-4" @onsubmit:preventDefault="true" @onsubmit="HandleLogin">
-                    <!-- Username -->
+                    <!-- Email or System ID -->
                     <div>
                         <label class="mb-0.5 block text-sm font-medium text-gray-700 sm:mb-1 sm:text-sm md:text-sm">
-                            Enter username:
+                            Enter email or System ID:
                         </label>
                         <div class="relative">
                             <!-- User Icon -->
@@ -51,14 +56,14 @@
                                 </svg>
                             </div>
                             <input type="text"
-                                   @bind="Username"
+                                   @bind="EmailOrSystemId"
                                    @bind:event="oninput"
-                                   placeholder="Username"
-                                   class="@UsernameInputClass" />
+                                   placeholder="Email or System ID"
+                                   class="@EmailOrSystemIdInputClass" />
                         </div>
-                        @if (usernameError && string.IsNullOrWhiteSpace(_username))
+                        @if (emailOrSystemIdError && string.IsNullOrWhiteSpace(_emailOrSystemId))
                         {
-                            <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Username is required</p>
+                            <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Email or System ID is required</p>
                         }
                     </div>
                     <div class="mb-3 sm:mb-4 md:mb-5 lg:mb-6"></div>
@@ -111,14 +116,21 @@
                 @if (loginError)
                 {
                     <div class="mb-2.5 rounded-lg border border-red-300 bg-red-50 p-2 sm:mb-3 sm:p-2.5 md:mb-4 md:p-3">
-                        <p class="text-sm text-red-600 sm:text-sm">Invalid username or password. Please try again.</p>
+                        <p class="text-sm text-red-600 sm:text-sm">Invalid email/System ID or password. Please try again.</p>
                     </div>
                 }
 
-                <!-- Remember me -->
-                    <div class="mb-2.5 flex items-center sm:mb-3 md:mb-4">
-                        <input id="remember-me" type="checkbox" @bind="rememberMe" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4" />
-                        <label for="remember-me" class="ml-1.5 text-sm text-gray-700 sm:ml-2 sm:text-sm md:text-sm">Remember me</label>
+                <!-- Remember me and Forgot Password -->
+                    <div class="mb-2.5 flex items-center justify-between sm:mb-3 md:mb-4">
+                        <div class="flex items-center">
+                            <input id="remember-me" type="checkbox" @bind="rememberMe" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4" />
+                            <label for="remember-me" class="ml-1.5 text-sm text-gray-700 sm:ml-2 sm:text-sm md:text-sm">Remember me</label>
+                        </div>
+                        <button type="button" 
+                                @onclick="NavigateToForgotPassword"
+                                class="cursor-pointer border-none bg-transparent p-0 text-sm font-medium text-blue-600 no-underline transition-all duration-200 hover:text-blue-700 hover:underline sm:text-sm">
+                            Forgot Password?
+                        </button>
                     </div>
 
                     <div class="mb-3 sm:mb-4 md:mb-5 lg:mb-6"></div>
@@ -145,25 +157,25 @@
 </div>
 
 @code {
-    private string _username = string.Empty;
+    private string _emailOrSystemId = string.Empty;
     private string _password = string.Empty;
     private bool rememberMe = false;
     private bool showPassword = false;
-    private bool usernameError = false;
+    private bool emailOrSystemIdError = false;
     private bool passwordError = false;
     private bool loginError = false;
 
-    // Username property with setter to clear error on input
-    private string Username
+    // Email or System ID property with setter to clear error on input
+    private string EmailOrSystemId
     {
-        get => _username;
+        get => _emailOrSystemId;
         set
         {
-            _username = value;
+            _emailOrSystemId = value;
             // Clear error when user starts typing
-            if (usernameError && !string.IsNullOrWhiteSpace(value))
+            if (emailOrSystemIdError && !string.IsNullOrWhiteSpace(value))
             {
-                usernameError = false;
+                emailOrSystemIdError = false;
             }
         }
     }
@@ -188,14 +200,30 @@
     }
 
     // Computed classes for input fields
-    private string UsernameInputClass => $"w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-4 sm:text-sm md:py-3 md:pl-10 {(usernameError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+    private string EmailOrSystemIdInputClass => $"w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-4 sm:text-sm {(emailOrSystemIdError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
     
-    private string PasswordInputClass => $"w-full rounded-lg border py-2 pl-8 pr-9 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-10 sm:text-sm md:py-3 md:pl-10 {(passwordError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+    private string PasswordInputClass => $"w-full rounded-lg border py-2 pl-8 pr-9 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-10 sm:text-sm {(passwordError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
 
     private void TogglePasswordVisibility() => showPassword = !showPassword;
 
+    private bool showToast = false;
+    private string toastMessage = "";
+
     protected override void OnInitialized()
     {
+        // Check for toast parameter in query string
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("toast", out var toastValue))
+        {
+            if (toastValue == "registration_submitted")
+            {
+                toastMessage = "Registration submitted successfully!";
+                showToast = true;
+            }
+        }
+
         // If already logged in, redirect to dashboard
         if (AuthService.IsAuthenticated)
         {
@@ -203,28 +231,64 @@
         }
     }
 
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var query = new Dictionary<string, string>();
+        
+        if (string.IsNullOrWhiteSpace(queryString))
+            return query;
+        
+        // Remove the leading '?'
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&');
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=');
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                query[key] = value;
+            }
+        }
+        
+        return query;
+    }
+
     protected override void OnAfterRender(bool firstRender)
     {
-        // Additional check after render to catch any navigation attempts
-        if (firstRender && AuthService.IsAuthenticated)
+        if (firstRender)
         {
-            Navigation.NavigateTo("/dashboard", forceLoad: true);
+            // Clean up query parameter from URL after showing toast
+            var uri = new Uri(Navigation.Uri);
+            if (uri.Query.Contains("toast="))
+            {
+                Navigation.NavigateTo("/login", forceLoad: false);
+            }
+            
+            // Additional check after render to catch any navigation attempts
+            if (AuthService.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/dashboard", forceLoad: true);
+            }
         }
     }
 
     private async Task HandleLogin()
     {
         // Reset errors
-        usernameError = false;
+        emailOrSystemIdError = false;
         passwordError = false;
         loginError = false;
 
         // Validate fields
         bool isValid = true;
 
-        if (string.IsNullOrWhiteSpace(_username))
+        if (string.IsNullOrWhiteSpace(_emailOrSystemId))
         {
-            usernameError = true;
+            emailOrSystemIdError = true;
             isValid = false;
         }
 
@@ -241,19 +305,19 @@
             return;
         }
 
-        // Attempt login using AuthService
-        var loginResult = await AuthService.LoginAsync(_username, _password);
+        // Attempt login using AuthService (accepts email or system ID)
+        var loginResult = await AuthService.LoginAsync(_emailOrSystemId, _password);
 
         if (loginResult)
         {
-            // Login successful - redirect to dashboard
+            // Login successful - redirect to dashboard (loading will be shown by dashboard when loading data)
             Navigation.NavigateTo("/dashboard");
         }
         else
         {
             // Login failed - show error message and red outlines on both fields
             loginError = true;
-            usernameError = true;
+            emailOrSystemIdError = true;
             passwordError = true;  
             StateHasChanged();
         }
@@ -262,5 +326,18 @@
     private void NavigateToStudentRegistration()
     {
         Navigation.NavigateTo("/student-register");
+    }
+
+    private void NavigateToForgotPassword()
+    {
+        // TODO: Navigate to forgot password page when implemented
+        // Navigation.NavigateTo("/forgot-password");
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
     }
 }

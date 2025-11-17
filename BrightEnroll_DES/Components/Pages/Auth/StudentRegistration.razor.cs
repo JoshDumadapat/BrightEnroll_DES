@@ -25,6 +25,12 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private bool isSubmitting = false;
     private bool showTermsModal = false;
     private bool showAddSchoolYearModal = false;
+    private bool showConfirmModal = false;
+    private string confirmModalTitle = "";
+    private string confirmModalMessage = "";
+    private string confirmModalType = ""; // "submit" or "cancel"
+    private bool showToast = false;
+    private string toastMessage = "";
     private string newSchoolYear = "";
     private string startYear = "";
     private string endYear = "";
@@ -83,7 +89,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         }
     }
 
-    private async Task HandleSubmitClick()
+    private Task HandleSubmitClick()
     {
         // Only trigger validation when submit button is clicked
         if (editContext != null)
@@ -93,15 +99,12 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             
             if (isValid)
             {
-                // Show confirmation dialog
-                var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
-                    "Are all the information correct? Do you want to submit the registration?");
-                
-                if (confirmed)
-                {
-                    // If confirmed, submit the form
-                    await SubmitRegistration();
-                }
+                // Show confirmation modal
+                confirmModalTitle = "Confirm Registration";
+                confirmModalMessage = "Are all the information correct? Do you want to submit the registration?";
+                confirmModalType = "submit";
+                showConfirmModal = true;
+                StateHasChanged();
             }
             else
             {
@@ -109,6 +112,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
                 StateHasChanged();
             }
         }
+        
+        return Task.CompletedTask;
     }
 
     private async Task SubmitRegistration()
@@ -124,8 +129,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             // TODO: Backend team will implement API call
             // await Task.Delay(2000); // Simulate API call
             
-            // Success - navigate to login page
-            Navigation.NavigateTo("/login");
+            // Success - navigate to login page, toast will show on destination page
+            Navigation.NavigateTo("/login?toast=registration_submitted");
         }
         catch (Exception ex)
         {
@@ -136,16 +141,50 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         }
     }
 
-    private async Task Cancel()
+    private void Cancel()
     {
-        // Show confirmation dialog
-        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
-            "Are you sure you want to cancel? All entered data will be cleared.");
+        // Show confirmation modal
+        confirmModalTitle = "Cancel Registration";
+        confirmModalMessage = "Are you sure you want to cancel? All entered data will be cleared.";
+        confirmModalType = "cancel";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        confirmModalTitle = "";
+        confirmModalMessage = "";
+        confirmModalType = "";
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
         
-        if (confirmed)
+        if (confirmModalType == "submit")
         {
-            Navigation.NavigateTo("/");
+            await SubmitRegistration();
         }
+        else if (confirmModalType == "cancel")
+        {
+            // Navigate first, then toast will show on destination page
+            Navigation.NavigateTo("/?toast=registration_cancelled");
+        }
+        
+        confirmModalTitle = "";
+        confirmModalMessage = "";
+        confirmModalType = "";
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
     }
 
     private void OpenTermsModal()

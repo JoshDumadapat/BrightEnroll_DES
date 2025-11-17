@@ -1,11 +1,21 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager Navigation
+@inject BrightEnroll_DES.Services.AuthFunction.IAuthService AuthService
+
+<!-- Loading Screen -->
+<LoadingScreen />
 
 <div class="page paddin-0">
     <!-- Mobile Overlay -->
     @if (isSidebarOpen)
     {
         <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
+    }
+
+    <!-- Dropdown Overlay -->
+    @if (isDropdownOpen)
+    {
+        <div class="fixed inset-0 z-[99]" @onclick="CloseDropdown"></div>
     }
 
     <!-- Sidebar -->
@@ -31,8 +41,8 @@
                             <div class="flex items-center gap-3 md:gap-4">
                                 <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-gray-200 hover:ring-blue-400 transition-all duration-200" />
                                 <div class="text-left">
-                                    <p class="text-sm md:text-base font-semibold text-gray-800">Moni Roy</p>
-                                    <p class="text-xs md:text-sm text-gray-500">Admin</p>
+                                    <p class="text-sm md:text-base font-semibold text-gray-800">@GetUserDisplayName()</p>
+                                    <p class="text-xs md:text-sm text-gray-500">@GetUserRole()</p>
                                 </div>
                             </div>
                         </div>
@@ -70,7 +80,7 @@
                                 <!-- Dropdown Menu -->
                                 @if (isDropdownOpen)
                                 {
-                                    <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl">
+                                    <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl" @onclick:stopPropagation="true">
                                     <!-- Profile Option -->
                                     <a href="/profile" @onclick="CloseDropdown" class="flex h-10 items-center gap-4 px-4 text-gray-700 transition-colors hover:bg-gray-100">
                                         <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -191,5 +201,26 @@
         title = char.ToUpper(title[0]) + title.Substring(1);
         
         return title;
+    }
+
+    private string GetUserDisplayName()
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null) return "User";
+        
+        var nameParts = new List<string> { user.first_name };
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        nameParts.Add(user.last_name);
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+        
+        return string.Join(" ", nameParts);
+    }
+
+    private string GetUserRole()
+    {
+        var user = AuthService.CurrentUser;
+        return user?.user_role ?? "User";
     }
 }

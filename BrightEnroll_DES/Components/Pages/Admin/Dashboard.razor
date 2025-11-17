@@ -1,5 +1,7 @@
 ﻿@page "/dashboard"
 @layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@inject ILoadingService LoadingService
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -16,16 +18,8 @@
 
     <!-- Responsive Layout -->
     <div class="flex flex-col-reverse gap-4 md:grid md:grid-cols-2 md:items-center md:gap-4">
-        <!-- Left: Current View (on desktop), but moves below filters on small screens -->
-        <div class="flex justify-start md:items-center md:justify-start">
-            <div class="text-left">
-                <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
-                <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
-            </div>
-        </div>
-
-        <!-- Right: Filters and Buttons -->
-        <div class="flex flex-wrap justify-start gap-3 sm:flex-nowrap sm:justify-end">
+        <!-- Left: Filters and Buttons (on desktop), but moves below Current View on small screens -->
+        <div class="flex flex-wrap justify-start gap-3 sm:flex-nowrap sm:justify-start">
             <!-- From Date -->
             <div class="flex w-full flex-col gap-1 sm:w-auto">
                 <label class="text-xs font-medium text-gray-600">From Date:</label>
@@ -63,6 +57,14 @@
                     </svg>
                     Apply Filter
                 </button>
+            </div>
+        </div>
+
+        <!-- Right: Current View (on desktop), but moves above filters on small screens -->
+        <div class="flex justify-end md:items-center md:justify-end">
+            <div class="text-right">
+                <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
+                <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
             </div>
         </div>
     </div>
@@ -260,9 +262,38 @@
     private DateTime? ToDate { get; set; }
     private string? QuickSelect { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        // Initialize filters if needed
+        // Show loading screen when actually loading data
+        LoadingService.ShowLoading("Loading...");
+        
+        // Initialize dashboard data
+        await InitializeDashboard();
+    }
+
+    private async Task InitializeDashboard()
+    {
+        try
+        {
+            // Simulate loading time for initialization
+            // In a real app, this would load data from APIs, services, etc.
+            // You can add actual data loading here:
+            // - Load user data
+            // - Load dashboard statistics
+            // - Load notifications
+            // - etc.
+            await Task.Delay(1500); // Simulate data loading delay
+            
+            // Additional data loading operations can be added here:
+            // await LoadDashboardStatistics();
+            // await LoadUserNotifications();
+            // await LoadRecentActivities();
+        }
+        finally
+        {
+            // Always hide loading screen after data loading is complete
+            LoadingService.HideLoading();
+        }
     }
 
     private string GetCurrentViewText()

@@ -11,7 +11,7 @@
         <!-- Filters -->
         <div class="border-b border-gray-200 px-6 py-4">
             <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <div class="relative flex items-center">
                         <span class="absolute left-3 flex items-center justify-center">
@@ -20,22 +20,30 @@
                                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </span>
-                        <input type="text" placeholder="Search here..."
+                        <input type="text" placeholder="Search here..." @bind="EmployeeSearchText"
                                class="w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
                     </div>
 
-                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option>Role</option>
+                    <select @bind="EmployeeRoleFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">Role</option>
                     </select>
 
-                    <select class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option>Status</option>
+                    <select @bind="EmployeeStatusFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">Status</option>
                     </select>
                 </div>
 
-                <button @onclick="NavigateToAddEmployee" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-                    + Add Employee
-                </button>
+                <div class="flex items-center gap-3">
+                    <button @onclick="ClearEmployeeFilters" class="flex items-center gap-2 rounded-full bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Clear
+                    </button>
+                    <button @onclick="NavigateToAddEmployee" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                        + Add Employee
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -116,11 +124,11 @@
 @if (ShowInactiveModal)
 {
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseInactiveModal">
-        <div class="w-full max-w-md rounded-lg bg-white shadow-xl" @onclick:stopPropagation="true">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-lg bg-red-600 px-6 py-4">
-                <h3 class="text-lg font-semibold text-white">Make Employee Inactive</h3>
-                <button @onclick="CloseInactiveModal" class="text-white hover:text-gray-200">
+            <div class="flex items-center justify-between rounded-t-2xl" style="background-color: #e65353; padding: 12px 24px;">
+                <h3 class="text-lg font-semibold text-white" style="margin: 0;">Make Employee Inactive</h3>
+                <button @onclick="CloseInactiveModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -128,33 +136,32 @@
             </div>
 
             <!-- Modal Body -->
-            <div class="px-6 py-4">
-                <div class="mb-4">
-                    <p class="text-sm text-gray-700 mb-2">
+            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
+                <div style="margin: 0 0 20px 0;">
+                    <p class="text-sm text-gray-700" style="margin: 0 0 8px 0; line-height: 1.5;">
                         You are about to make <span class="font-semibold">@SelectedEmployee?.Name</span> inactive.
                     </p>
-                    <p class="text-sm text-gray-600 mb-4">Please provide a reason for this action:</p>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">
-                        Reason <span class="text-red-500">*</span>
+                    <p class="text-sm text-gray-600" style="margin: 0 0 16px 0;">Please provide a reason for this action:</p>
+                    <label class="block text-sm font-medium text-gray-700" style="margin: 0 0 8px 0;">
+                        Reason <span style="color: #e65353;">*</span>
                     </label>
                     <textarea @bind="InactiveReason" 
                              rows="4"
                              placeholder="Enter the reason for making this employee inactive..."
-                             class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-400"
+                             class="w-full rounded-lg border border-gray-300 text-sm text-gray-700 outline-none"
+                             style="padding: 8px 12px; margin: 0;"
+                             onfocus="this.style.borderColor='#e65353'; this.style.boxShadow='0 0 0 2px rgba(230, 83, 83, 0.2)';"
+                             onblur="this.style.borderColor='#d1d5db'; this.style.boxShadow='none';"
                              required></textarea>
                 </div>
-            </div>
-
-            <!-- Modal Footer -->
-            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-                <button type="button" @onclick="CloseInactiveModal" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Cancel
-                </button>
-                <button type="button" @onclick="ConfirmInactive" 
-                        disabled="@(string.IsNullOrWhiteSpace(InactiveReason))"
-                        class="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                    Confirm
-                </button>
+                <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
+                    <button type="button" @onclick="ConfirmInactive" 
+                            disabled="@(string.IsNullOrWhiteSpace(InactiveReason))"
+                            class="rounded-full text-white hover:opacity-90 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed text-sm font-medium transition-all"
+                            style="background-color: #e65353; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                        Confirm
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -177,6 +184,11 @@
     private bool ShowInactiveModal { get; set; } = false;
     private Employee? SelectedEmployee { get; set; }
     private string InactiveReason { get; set; } = string.Empty;
+    
+    // Filter variables
+    private string EmployeeSearchText { get; set; } = "";
+    private string EmployeeRoleFilter { get; set; } = "";
+    private string EmployeeStatusFilter { get; set; } = "";
 
     private void NavigateToAddEmployee()
     {
@@ -214,6 +226,14 @@
         // Directly set to active without modal
         employee.Status = "Active";
         // TODO: Clear inactive reason if stored
+        StateHasChanged();
+    }
+
+    private void ClearEmployeeFilters()
+    {
+        EmployeeSearchText = "";
+        EmployeeRoleFilter = "";
+        EmployeeStatusFilter = "";
         StateHasChanged();
     }
 

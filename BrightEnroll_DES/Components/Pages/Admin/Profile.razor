@@ -1,6 +1,7 @@
 @page "/profile"
 @layout Components.Layout.MainLayout
 @inject NavigationManager NavigationManager
+@inject BrightEnroll_DES.Services.AuthFunction.IAuthService AuthService
 
 <PageTitle>Profile</PageTitle>
 
@@ -40,7 +41,7 @@
                         </div>
                         <div class="text-right">
                             <span class="block text-sm font-medium text-gray-700">Assigned Role:</span>
-                            <span class="block text-base font-bold text-gray-800">Administrator</span>
+                            <span class="block text-base font-bold text-gray-800">@ProfileData.Role</span>
                         </div>
                     </div>
                 </div>
@@ -53,7 +54,7 @@
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
                 <h5 class="text-lg font-bold text-gray-800">Personal Information</h5>
-                <button @onclick="ToggleEditPersonalInfo" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                <button @onclick="ToggleEditPersonalInfo" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                     @(IsEditingPersonalInfo ? "Cancel" : "Edit Information")
                 </button>
             </div>
@@ -107,7 +108,7 @@
             @if (IsEditingPersonalInfo)
             {
                 <div class="mt-4 flex justify-end">
-                    <button @onclick="SavePersonalInfo" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    <button @onclick="SavePersonalInfo" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
                         Save Changes
                     </button>
                 </div>
@@ -120,7 +121,7 @@
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
                 <h5 class="text-lg font-bold text-gray-800">Address</h5>
-                <button @onclick="ToggleEditAddress" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                <button @onclick="ToggleEditAddress" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                     @(IsEditingAddress ? "Cancel" : "Edit Address")
                 </button>
             </div>
@@ -164,7 +165,7 @@
             @if (IsEditingAddress)
             {
                 <div class="mt-4 flex justify-end">
-                    <button @onclick="SaveAddress" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    <button @onclick="SaveAddress" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
                         Save Changes
                     </button>
                 </div>
@@ -177,7 +178,7 @@
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
                 <h5 class="text-lg font-bold text-gray-800">Payment Information</h5>
-                <button @onclick="ToggleEditPaymentInfo" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                <button @onclick="ToggleEditPaymentInfo" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                     @(IsEditingPaymentInfo ? "Cancel" : "Edit Payment Info")
                 </button>
             </div>
@@ -206,7 +207,7 @@
             @if (IsEditingPaymentInfo)
             {
                 <div class="mt-4 flex justify-end">
-                    <button @onclick="SavePaymentInfo" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    <button @onclick="SavePaymentInfo" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
                         Save Changes
                     </button>
                 </div>
@@ -302,7 +303,7 @@
                     </div>
                 </div>
                 <div class="mt-4 flex justify-end">
-                    <button @onclick="UpdatePassword" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    <button @onclick="UpdatePassword" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
                         Update Password
                     </button>
                 </div>
@@ -319,27 +320,49 @@
     private bool ShowNewPassword { get; set; } = false;
     private bool ShowConfirmPassword { get; set; } = false;
 
-    private ProfileModel ProfileData { get; set; } = new()
+    private ProfileModel ProfileData { get; set; } = new();
+
+    protected override void OnInitialized()
     {
-        FirstName = "Admin",
-        MiddleName = "",
-        LastName = "Supervisor",
-        BirthDate = "03/15/1985",
-        Gender = "Male",
-        Age = "39",
-        ContactNumber = "09171234567",
-        Email = "admin@ogsconnect.com",
-        Role = "Administrator",
-        Status = "Active",
-        SystemId = "BDES-S1001",
-        HouseNo = "",
-        StreetName = "",
-        Barangay = "Barangay 71-C",
-        City = "Manila",
-        Province = "Metro Manila",
-        Country = "Philippines",
-        ZipCode = "1000"
-    };
+        LoadUserData();
+    }
+
+    private void LoadUserData()
+    {
+        var user = AuthService.CurrentUser;
+        if (user != null)
+        {
+            ProfileData = new ProfileModel
+            {
+                FirstName = user.first_name,
+                MiddleName = user.mid_name ?? "",
+                LastName = user.last_name,
+                BirthDate = user.birthdate.ToString("MM/dd/yyyy"),
+                Gender = CapitalizeFirst(user.gender),
+                Age = user.age.ToString(),
+                ContactNumber = user.contact_num,
+                Email = user.email,
+                Role = user.user_role,
+                Status = "Active", // You may want to add a status field to the User model
+                SystemId = user.system_ID,
+                HouseNo = "",
+                StreetName = "",
+                Barangay = "",
+                City = "",
+                Province = "",
+                Country = "",
+                ZipCode = ""
+            };
+        }
+    }
+
+    private string CapitalizeFirst(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+        
+        return char.ToUpper(text[0]) + (text.Length > 1 ? text.Substring(1).ToLower() : "");
+    }
 
     private PaymentModel PaymentData { get; set; } = new()
     {

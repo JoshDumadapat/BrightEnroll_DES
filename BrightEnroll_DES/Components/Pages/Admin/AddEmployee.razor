@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
+@using System.Linq
 @inject NavigationManager NavigationManager
 @inject AddressService AddressService
 @inject IJSRuntime JSRuntime
@@ -351,6 +352,20 @@
                                       placeholder="e.g. Santos" />
                         </div>
                         <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
+                            <InputSelect @bind-Value="EmployeeData.EmergencyContactSuffix" 
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">N/A</option>
+                                <option value="Jr.">Jr.</option>
+                                <option value="Sr.">Sr.</option>
+                                <option value="II">II</option>
+                                <option value="III">III</option>
+                                <option value="IV">IV</option>
+                            </InputSelect>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                        <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Relationship <span class="text-red-500">*</span>
                             </label>
@@ -366,8 +381,6 @@
                                 <option value="Other">Other</option>
                             </InputSelect>
                         </div>
-                    </div>
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Contact Number <span class="text-red-500">*</span>
@@ -384,55 +397,6 @@
                             <InputText @bind-Value="EmployeeData.EmergencyContactAddress" 
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                       placeholder="e.g. 123 Main Street, City" />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Salary Information -->
-            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
-                <div class="px-6 py-6">
-                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Salary Information</h2>
-                    
-                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
-                                Base Salary <span class="text-red-500">*</span>
-                            </label>
-                            <InputNumber @bind-Value="EmployeeData.BaseSalary" 
-                                        @bind-Value:after="CalculateTotalSalary"
-                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                        placeholder="0.00" />
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Allowance</label>
-                            <InputNumber @bind-Value="EmployeeData.Allowance" 
-                                        @bind-Value:after="CalculateTotalSalary"
-                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                        placeholder="0.00" />
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Bonus</label>
-                            <InputNumber @bind-Value="EmployeeData.Bonus" 
-                                        @bind-Value:after="CalculateTotalSalary"
-                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                        placeholder="0.00" />
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Deductions</label>
-                            <InputNumber @bind-Value="EmployeeData.Deductions" 
-                                        @bind-Value:after="CalculateTotalSalary"
-                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                        placeholder="0.00" />
-                        </div>
-                    </div>
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Salary</label>
-                            <InputNumber @bind-Value="EmployeeData.TotalSalary" 
-                                        class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                        placeholder="0.00"
-                                        readonly />
                         </div>
                     </div>
                 </div>
@@ -481,6 +445,146 @@
                 </div>
             </div>
 
+            <!-- Salary Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Salary Information</h2>
+                    
+                    <!-- Base Salary and Allowance -->
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Base Salary <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <input type="text" 
+                                       @ref="baseSalaryInputRef"
+                                       data-salary-field="@nameof(EmployeeData.BaseSalary)"
+                                       value="@GetSalaryDisplayValue(nameof(EmployeeData.BaseSalary))" 
+                                       @oninput="(e) => HandleSalaryInput(e, nameof(EmployeeData.BaseSalary))"
+                                       @onfocus="(e) => HandleSalaryFocus(e, nameof(EmployeeData.BaseSalary))"
+                                       @onblur="(e) => HandleSalaryBlur(e, nameof(EmployeeData.BaseSalary))"
+                                       @onkeydown="HandleSalaryKeyDown"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 pl-8 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="0" />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Allowance</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <input type="text" 
+                                       @ref="allowanceInputRef"
+                                       data-salary-field="@nameof(EmployeeData.Allowance)"
+                                       value="@GetSalaryDisplayValue(nameof(EmployeeData.Allowance))" 
+                                       @oninput="(e) => HandleSalaryInput(e, nameof(EmployeeData.Allowance))"
+                                       @onfocus="(e) => HandleSalaryFocus(e, nameof(EmployeeData.Allowance))"
+                                       @onblur="(e) => HandleSalaryBlur(e, nameof(EmployeeData.Allowance))"
+                                       @onkeydown="HandleSalaryKeyDown"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 pl-8 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="0" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bonus (Read-only) -->
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Bonus (13th Month Pay)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <input type="text" 
+                                       value="@FormatSalaryInput(EmployeeData.Bonus)" 
+                                       readonly
+                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="0.00" />
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Automatically calculated (Base Salary / 12)</p>
+                        </div>
+                    </div>
+
+                    <!-- Deductions Section -->
+                    <div class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:mb-4">
+                        <h3 class="mb-3 text-sm font-semibold text-gray-700 sm:mb-4 sm:text-base">Deductions</h3>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">SSS</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.SSS)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0.00" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">PhilHealth</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.PhilHealth)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0.00" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Pag-IBIG</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.PagIbig)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0.00" />
+                                </div>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Withholding Tax</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.WithholdingTax)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0.00" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Deductions</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.Deductions)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm font-semibold text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0.00" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Total Salary -->
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Salary</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <input type="text" 
+                                       value="@FormatSalaryInput(EmployeeData.TotalSalary)" 
+                                       readonly
+                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm font-semibold text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="0.00" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Action Buttons -->
             <div class="mt-6 flex justify-end gap-4">
                 <button type="button" @onclick="GoBack" class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
@@ -501,6 +605,13 @@
     private DotNetObjectReference<AddEmployee>? dotNetRef;
     private DateTime? birthDate;
     private int? age;
+    
+    // Salary input editing state
+    private string? editingSalaryField = null;
+    private string baseSalaryRawInput = "";
+    private string allowanceRawInput = "";
+    private ElementReference baseSalaryInputRef;
+    private ElementReference allowanceInputRef;
 
     protected override void OnInitialized()
     {
@@ -659,11 +770,34 @@
         return baseClass;
     }
 
-    // Salary calculation
+    // Salary calculation methods
+    private void CalculateAllSalaryComponents()
+    {
+        // Calculate bonus (13th Month Pay)
+        EmployeeData.Bonus = Salary.CalculateBonus(EmployeeData.BaseSalary);
+        
+        // Calculate deduction breakdown
+        var breakdown = Salary.GetDeductionBreakdown(EmployeeData.BaseSalary, EmployeeData.Allowance);
+        EmployeeData.SSS = breakdown.SSS;
+        EmployeeData.PhilHealth = breakdown.PhilHealth;
+        EmployeeData.PagIbig = breakdown.PagIbig;
+        EmployeeData.WithholdingTax = breakdown.WithholdingTax;
+        EmployeeData.Deductions = breakdown.Total;
+        
+        // Calculate total salary
+        EmployeeData.TotalSalary = Salary.CalculateTotalSalary(
+            EmployeeData.BaseSalary, 
+            EmployeeData.Allowance, 
+            EmployeeData.Bonus, 
+            EmployeeData.Deductions
+        );
+        
+        StateHasChanged();
+    }
+
     private void CalculateTotalSalary()
     {
-        EmployeeData.TotalSalary = EmployeeData.BaseSalary + EmployeeData.Allowance + EmployeeData.Bonus - EmployeeData.Deductions;
-        StateHasChanged();
+        CalculateAllSalaryComponents();
     }
 
     // Role change handler
@@ -682,6 +816,238 @@
             EmployeeData.DefaultPassword = "";
             EmployeeData.SystemId = "";
         }
+
+        // Auto-calculate base salary based on role
+        if (!string.IsNullOrWhiteSpace(EmployeeData.Role))
+        {
+            EmployeeData.BaseSalary = Salary.CalculateBaseSalary(EmployeeData.Role);
+            CalculateAllSalaryComponents();
+        }
+    }
+
+    // Format salary input with commas and 2 decimals
+    private string FormatSalaryInput(decimal value)
+    {
+        if (value == 0)
+            return "0.00";
+        
+        return Salary.FormatNumber(value);
+    }
+
+    // Get display value for salary field (raw when editing, formatted when not)
+    private string GetSalaryDisplayValue(string fieldName)
+    {
+        if (editingSalaryField == fieldName)
+        {
+            if (fieldName == nameof(EmployeeData.BaseSalary))
+                return baseSalaryRawInput;
+            else if (fieldName == nameof(EmployeeData.Allowance))
+                return allowanceRawInput;
+        }
+        
+        // Return formatted value when not editing
+        if (fieldName == nameof(EmployeeData.BaseSalary))
+            return FormatSalaryInput(EmployeeData.BaseSalary);
+        else if (fieldName == nameof(EmployeeData.Allowance))
+            return FormatSalaryInput(EmployeeData.Allowance);
+        
+        return "0";
+    }
+
+    // Handle salary field focus - clear to "0" without decimal
+    private async Task HandleSalaryFocus(FocusEventArgs e, string fieldName)
+    {
+        editingSalaryField = fieldName;
+        
+        if (fieldName == nameof(EmployeeData.BaseSalary))
+        {
+            // Remove decimal if value is whole number, otherwise show without trailing zeros
+            if (EmployeeData.BaseSalary == 0)
+            {
+                baseSalaryRawInput = "0";
+            }
+            else if (EmployeeData.BaseSalary == Math.Floor(EmployeeData.BaseSalary))
+            {
+                baseSalaryRawInput = ((int)EmployeeData.BaseSalary).ToString();
+            }
+            else
+            {
+                baseSalaryRawInput = EmployeeData.BaseSalary.ToString("0.##");
+            }
+            
+            // Select all text for easy editing
+            await Task.Delay(10);
+            await JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('[data-salary-field=\"{fieldName}\"]')?.select();");
+        }
+        else if (fieldName == nameof(EmployeeData.Allowance))
+        {
+            // Remove decimal if value is whole number, otherwise show without trailing zeros
+            if (EmployeeData.Allowance == 0)
+            {
+                allowanceRawInput = "0";
+            }
+            else if (EmployeeData.Allowance == Math.Floor(EmployeeData.Allowance))
+            {
+                allowanceRawInput = ((int)EmployeeData.Allowance).ToString();
+            }
+            else
+            {
+                allowanceRawInput = EmployeeData.Allowance.ToString("0.##");
+            }
+            
+            // Select all text for easy editing
+            await Task.Delay(10);
+            await JSRuntime.InvokeVoidAsync("eval", $"document.querySelector('[data-salary-field=\"{fieldName}\"]')?.select();");
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle salary field blur - format with 2 decimals
+    private void HandleSalaryBlur(FocusEventArgs e, string fieldName)
+    {
+        editingSalaryField = null;
+        
+        // Parse and format the raw input
+        string rawValue = "";
+        if (fieldName == nameof(EmployeeData.BaseSalary))
+        {
+            rawValue = baseSalaryRawInput;
+        }
+        else if (fieldName == nameof(EmployeeData.Allowance))
+        {
+            rawValue = allowanceRawInput;
+        }
+        
+        // Clean and parse
+        string cleaned = rawValue.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "0";
+        }
+        
+        if (decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            // Round to 2 decimals (always show 2 decimal places)
+            parsedValue = Math.Round(parsedValue, 2);
+            
+            // Update the appropriate field
+            if (fieldName == nameof(EmployeeData.BaseSalary))
+            {
+                EmployeeData.BaseSalary = parsedValue;
+                baseSalaryRawInput = "";
+            }
+            else if (fieldName == nameof(EmployeeData.Allowance))
+            {
+                EmployeeData.Allowance = parsedValue;
+                allowanceRawInput = "";
+            }
+            
+            // Recalculate all salary components
+            CalculateAllSalaryComponents();
+        }
+        else
+        {
+            // If parsing fails, reset to 0
+            if (fieldName == nameof(EmployeeData.BaseSalary))
+            {
+                EmployeeData.BaseSalary = 0;
+                baseSalaryRawInput = "";
+            }
+            else if (fieldName == nameof(EmployeeData.Allowance))
+            {
+                EmployeeData.Allowance = 0;
+                allowanceRawInput = "";
+            }
+            CalculateAllSalaryComponents();
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle salary input with validation and decimal limit
+    private void HandleSalaryInput(ChangeEventArgs e, string fieldName)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // Remove peso sign, commas, and spaces
+        string cleaned = inputValue.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned))
+        {
+            cleaned = "0";
+        }
+        else
+        {
+            // Validate: only numbers and one dot
+            var validChars = cleaned.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var dotCount = validChars.Count(c => c == '.');
+            
+            if (dotCount > 1)
+            {
+                // Remove extra dots
+                var firstDotIndex = Array.IndexOf(validChars, '.');
+                validChars = validChars.Take(firstDotIndex + 1).Concat(validChars.Skip(firstDotIndex + 1).Where(c => c != '.')).ToArray();
+            }
+            
+            cleaned = new string(validChars);
+            
+            // If starting with "0" and next char is a digit (not "."), replace the "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Update raw input
+        if (fieldName == nameof(EmployeeData.BaseSalary))
+        {
+            baseSalaryRawInput = cleaned;
+        }
+        else if (fieldName == nameof(EmployeeData.Allowance))
+        {
+            allowanceRawInput = cleaned;
+        }
+        
+        // Parse and update the field value
+        if (decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            // Round to 2 decimals
+            parsedValue = Math.Round(parsedValue, 2);
+            
+            // Update the appropriate field
+            if (fieldName == nameof(EmployeeData.BaseSalary))
+            {
+                EmployeeData.BaseSalary = parsedValue;
+            }
+            else if (fieldName == nameof(EmployeeData.Allowance))
+            {
+                EmployeeData.Allowance = parsedValue;
+            }
+            
+            // Recalculate all salary components
+            CalculateAllSalaryComponents();
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle keyboard input - only allow numbers and dot
+    // Note: Input validation in HandleSalaryInput will filter invalid characters
+    private void HandleSalaryKeyDown(KeyboardEventArgs e)
+    {
+        // This method is kept for potential future use
+        // Input validation is handled in HandleSalaryInput method
     }
 
     private string GenerateDefaultPassword()
