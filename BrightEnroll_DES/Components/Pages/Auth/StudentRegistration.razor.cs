@@ -15,6 +15,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private AddressService AddressService { get; set; } = null!;
     [Inject] private SchoolYearService SchoolYearService { get; set; } = null!;
+    [Inject] private StudentService StudentService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
@@ -123,19 +124,69 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         
         try
         {
-            // Show loading for 1 second before submitting
-            await Task.Delay(1000);
-            
-            // TODO: Backend team will implement API call
-            // await Task.Delay(2000); // Simulate API call
+            // Map StudentRegistrationModel to StudentRegistrationData
+            var studentData = new StudentRegistrationData
+            {
+                // Student Information
+                FirstName = registrationModel.FirstName,
+                MiddleName = registrationModel.MiddleName,
+                LastName = registrationModel.LastName,
+                Suffix = registrationModel.Suffix,
+                BirthDate = registrationModel.BirthDate ?? DateTime.Now,
+                Age = registrationModel.Age,
+                PlaceOfBirth = registrationModel.PlaceOfBirth,
+                Sex = registrationModel.Sex,
+                MotherTongue = registrationModel.MotherTongue,
+                IsIPCommunity = registrationModel.IsIPCommunity,
+                IPCommunitySpecify = registrationModel.IPCommunitySpecify,
+                Is4PsBeneficiary = registrationModel.Is4PsBeneficiary,
+                FourPsHouseholdId = registrationModel.FourPsHouseholdId,
+
+                // Current Address
+                CurrentHouseNo = registrationModel.CurrentHouseNo,
+                CurrentStreetName = registrationModel.CurrentStreetName,
+                CurrentBarangay = registrationModel.CurrentBarangay,
+                CurrentCity = registrationModel.CurrentCity,
+                CurrentProvince = registrationModel.CurrentProvince,
+                CurrentCountry = registrationModel.CurrentCountry,
+                CurrentZipCode = registrationModel.CurrentZipCode,
+
+                // Permanent Address
+                PermanentHouseNo = registrationModel.PermanentHouseNo,
+                PermanentStreetName = registrationModel.PermanentStreetName,
+                PermanentBarangay = registrationModel.PermanentBarangay,
+                PermanentCity = registrationModel.PermanentCity,
+                PermanentProvince = registrationModel.PermanentProvince,
+                PermanentCountry = registrationModel.PermanentCountry,
+                PermanentZipCode = registrationModel.PermanentZipCode,
+
+                // Guardian Information
+                GuardianFirstName = registrationModel.GuardianFirstName,
+                GuardianMiddleName = registrationModel.GuardianMiddleName,
+                GuardianLastName = registrationModel.GuardianLastName,
+                GuardianSuffix = registrationModel.GuardianSuffix,
+                GuardianContactNumber = registrationModel.GuardianContactNumber,
+                GuardianRelationship = registrationModel.GuardianRelationship,
+
+                // Enrollment Details
+                StudentType = registrationModel.StudentType,
+                LearnerReferenceNo = registrationModel.LearnerReferenceNo,
+                SchoolYear = registrationModel.SchoolYear,
+                GradeToEnroll = registrationModel.GradeToEnroll
+            };
+
+            // Register student using StudentService
+            var registeredStudent = await StudentService.RegisterStudentAsync(studentData);
             
             // Success - navigate to login page, toast will show on destination page
             Navigation.NavigateTo("/login?toast=registration_submitted");
         }
         catch (Exception ex)
         {
-            // Handle error
+            // Handle error - show error message to user
             Console.WriteLine($"Error submitting registration: {ex.Message}");
+            toastMessage = $"Registration failed: {ex.Message}";
+            showToast = true;
             isSubmitting = false;
             StateHasChanged();
         }

@@ -2,6 +2,9 @@
 using BrightEnroll_DES.Services.AuthFunction;
 using BrightEnroll_DES.Services;
 using BrightEnroll_DES.Services.DBConnections;
+using BrightEnroll_DES.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace BrightEnroll_DES
 {
@@ -50,6 +53,29 @@ namespace BrightEnroll_DES
             
             // Register School Year Service
             builder.Services.AddSingleton<SchoolYearService>();
+
+            // Register EF Core DbContext
+            builder.Services.AddDbContext<AppDbContext>(options =>
+            {
+                // Get connection string from configuration
+                var configuration = new ConfigurationBuilder()
+                    .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                    .Build();
+
+                var connectionString = configuration.GetConnectionString("DefaultConnection");
+                
+                // Fallback to default LocalDB connection if not found
+                if (string.IsNullOrWhiteSpace(connectionString))
+                {
+                    connectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
+                }
+
+                options.UseSqlServer(connectionString);
+            });
+
+            // Register StudentService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<StudentService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
