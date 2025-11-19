@@ -1,14 +1,21 @@
 ﻿@page "/human-resource/add-employee"
 @layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Components.Pages.Admin.HRComponents
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.HR
+@using BrightEnroll_DES.Services.Repositories
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.JSInterop
 @using System.Linq
+@using System.Collections.Generic
+@using System.Threading
 @inject NavigationManager NavigationManager
 @inject AddressService AddressService
+@inject EmployeeService EmployeeService
+@inject IUserRepository UserRepository
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
@@ -25,7 +32,9 @@
                 Back
             </button>
         </div>
-        <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+        <EditForm EditContext="@editContext" @onsubmit:preventDefault="true">
+            <DataAnnotationsValidator />
+            
             <!-- Personal Information -->
             <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
                 <div class="px-6 py-6">
@@ -37,9 +46,10 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.FirstName" 
-                                       @bind-Value:after="FormatFirstName"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       @bind-Value:after="() => { FormatFirstName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.FirstName))); StateHasChanged(); }"
+                                       class="@GetInputClass(nameof(EmployeeData.FirstName))"
                                        placeholder="e.g. Juan" />
+                            <ValidationMessage For="@(() => EmployeeData.FirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
@@ -53,9 +63,10 @@
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.LastName" 
-                                       @bind-Value:after="FormatLastName"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                       @bind-Value:after="() => { FormatLastName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.LastName))); StateHasChanged(); }"
+                                       class="@GetInputClass(nameof(EmployeeData.LastName))"
                                        placeholder="e.g. Santos" />
+                            <ValidationMessage For="@(() => EmployeeData.LastName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
@@ -75,39 +86,49 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Birth Date <span class="text-red-500">*</span>
                             </label>
-                            <InputDate @bind-Value="birthDate" @bind-Value:after="CalculateAge"
-                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
-                        </div>
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
-                                Gender <span class="text-red-500">*</span>
-                            </label>
-                            <InputSelect @bind-Value="EmployeeData.Gender" 
-                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
-                                <option value="">Select Gender</option>
-                                <option value="Male">Male</option>
-                                <option value="Female">Female</option>
-                                <option value="Other">Other</option>
-                            </InputSelect>
+                            <InputDate @bind-Value="EmployeeData.BirthDate" @bind-Value:after="() => { CalculateAge(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.BirthDate))); StateHasChanged(); }"
+                                class="@GetInputClass(nameof(EmployeeData.BirthDate))" />
+                            <ValidationMessage For="@(() => EmployeeData.BirthDate)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Age <span class="text-red-500">*</span>
                             </label>
-                            <InputNumber @bind-Value="age" 
-                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                            <InputNumber @bind-Value="EmployeeData.Age" 
+                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Age))); StateHasChanged(); }"
+                                class="@GetInputClass(nameof(EmployeeData.Age))"
                                 placeholder="e.g. 30" />
+                            <ValidationMessage For="@(() => EmployeeData.Age)" class="text-red-500 text-xs mt-1" />
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Sex <span class="text-red-500">*</span>
+                            </label>
+                            <InputRadioGroup @bind-Value="EmployeeData.Sex" @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Sex))); StateHasChanged(); }">
+                                <div class="flex items-center gap-4 pt-1 sm:gap-6 sm:pt-2">
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Male")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Male</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Female")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Female</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                            <ValidationMessage For="@(() => EmployeeData.Sex)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Contact Number <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.ContactNumber" 
-                                      @bind-Value:after="FormatContactNumber"
+                                      @bind-Value:after="() => { FormatContactNumber(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber))); StateHasChanged(); }"
                                       maxlength="11"
                                       onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      class="@GetInputClass(nameof(EmployeeData.ContactNumber))"
                                       placeholder="e.g. 09123456789" />
+                            <ValidationMessage For="@(() => EmployeeData.ContactNumber)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
@@ -116,16 +137,23 @@
                                 Email <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.Email" 
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      @bind-Value:after="async () => { await CheckEmailUniqueness(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email))); StateHasChanged(); }"
+                                      type="email"
+                                      class="@GetInputClass(nameof(EmployeeData.Email))"
                                       placeholder="e.g. juan.santos@email.com" />
+                            <ValidationMessage For="@(() => EmployeeData.Email)" class="text-red-500 text-xs mt-1" />
+                            @if (isEmailDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.Email))
+                            {
+                                <div class="text-red-500 text-xs mt-1">This email is already registered. Please use a different email address.</div>
+                            }
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- Address -->
-            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
-                <div class="px-6 py-6">
+            <div class="mb-6 rounded-xl bg-white shadow sm:mb-8" style="overflow: visible;">
+                <div class="px-6 py-6" style="overflow: visible;">
                     <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Address</h2>
                     
                     <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
@@ -153,7 +181,7 @@
                                 <div @onclick="() => addressHandler?.ToggleProvinceDropdown()" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="province"
-                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between">
+                                     class="@GetDropdownClass(nameof(EmployeeData.Province))">
                                     <span class="@(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "Select Province" : EmployeeData.Province)
                                     </span>
@@ -163,7 +191,7 @@
                                 </div>
                                 @if (addressHandler?.ShowProvinceDropdown == true)
                                 {
-                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="province">
+                                    <div class="absolute z-[9999] mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="province">
                                         <div class="border-b border-gray-200 p-2">
                                             <input type="text" 
                                                    @bind="addressHandler.ProvinceSearchText" 
@@ -192,6 +220,7 @@
                                     </div>
                                 }
                             </div>
+                            <ValidationMessage For="@(() => EmployeeData.Province)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
 
@@ -205,7 +234,7 @@
                                 <div @onclick="() => addressHandler?.ToggleCityDropdown()" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="city"
-                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "opacity-50 cursor-not-allowed" : "")"
+                                     class="@GetDropdownClass(nameof(EmployeeData.City)) @(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "opacity-50 cursor-not-allowed" : "")"
                                      style="@(string.IsNullOrWhiteSpace(EmployeeData.Province) ? "pointer-events: none;" : "")">
                                     <span class="@(string.IsNullOrWhiteSpace(EmployeeData.City) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(EmployeeData.City) ? "Select City" : EmployeeData.City)
@@ -216,7 +245,7 @@
                                 </div>
                                 @if (addressHandler?.ShowCityDropdown == true && !string.IsNullOrWhiteSpace(EmployeeData.Province))
                                 {
-                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="city">
+                                    <div class="absolute z-[9999] mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="city">
                                         <div class="border-b border-gray-200 p-2">
                                             <input type="text" 
                                                    @bind="addressHandler.CitySearchText" 
@@ -245,6 +274,7 @@
                                     </div>
                                 }
                             </div>
+                            <ValidationMessage For="@(() => EmployeeData.City)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
 
@@ -258,7 +288,7 @@
                                 <div @onclick="() => addressHandler?.ToggleBarangayDropdown()" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="barangay"
-                                     class="w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 text-sm sm:text-base bg-white cursor-pointer flex items-center justify-between @(string.IsNullOrWhiteSpace(EmployeeData.City) ? "opacity-50 cursor-not-allowed" : "")"
+                                     class="@GetDropdownClass(nameof(EmployeeData.Barangay)) @(string.IsNullOrWhiteSpace(EmployeeData.City) ? "opacity-50 cursor-not-allowed" : "")"
                                      style="@(string.IsNullOrWhiteSpace(EmployeeData.City) ? "pointer-events: none;" : "")">
                                     <span class="@(string.IsNullOrWhiteSpace(EmployeeData.Barangay) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(EmployeeData.Barangay) ? "Select Barangay" : EmployeeData.Barangay)
@@ -269,7 +299,7 @@
                                 </div>
                                 @if (addressHandler?.ShowBarangayDropdown == true && !string.IsNullOrWhiteSpace(EmployeeData.City))
                                 {
-                                    <div class="absolute z-20 mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="barangay">
+                                    <div class="absolute z-[9999] mt-1 w-full rounded-lg border border-gray-300 bg-white shadow-lg" @onclick:stopPropagation="true" data-dropdown="barangay">
                                         <div class="border-b border-gray-200 p-2">
                                             <input type="text" 
                                                    @bind="addressHandler.BarangaySearchText" 
@@ -298,6 +328,7 @@
                                     </div>
                                 }
                             </div>
+                            <ValidationMessage For="@(() => EmployeeData.Barangay)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
 
@@ -331,9 +362,10 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.EmergencyContactFirstName" 
-                                      @bind-Value:after="FormatEmergencyContactFirstName"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      @bind-Value:after="() => { FormatEmergencyContactFirstName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.EmergencyContactFirstName))); StateHasChanged(); }"
+                                      class="@GetInputClass(nameof(EmployeeData.EmergencyContactFirstName))"
                                       placeholder="e.g. Maria" />
+                            <ValidationMessage For="@(() => EmployeeData.EmergencyContactFirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
@@ -347,9 +379,10 @@
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.EmergencyContactLastName" 
-                                      @bind-Value:after="FormatEmergencyContactLastName"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      @bind-Value:after="() => { FormatEmergencyContactLastName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.EmergencyContactLastName))); StateHasChanged(); }"
+                                      class="@GetInputClass(nameof(EmployeeData.EmergencyContactLastName))"
                                       placeholder="e.g. Santos" />
+                            <ValidationMessage For="@(() => EmployeeData.EmergencyContactLastName)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
@@ -370,7 +403,8 @@
                                 Relationship <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="EmployeeData.EmergencyContactRelationship" 
-                                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                        @bind-Value:after="() => { OnRelationshipChanged(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.EmergencyContactRelationship))); StateHasChanged(); }"
+                                        class="@GetInputClassWithExtra(nameof(EmployeeData.EmergencyContactRelationship), "bg-white")">
                                 <option value="">Select Relationship</option>
                                 <option value="Spouse">Spouse</option>
                                 <option value="Parent">Parent</option>
@@ -380,17 +414,26 @@
                                 <option value="Friend">Friend</option>
                                 <option value="Other">Other</option>
                             </InputSelect>
+                            <ValidationMessage For="@(() => EmployeeData.EmergencyContactRelationship)" class="text-red-500 text-xs mt-1" />
+                            @if (EmployeeData.EmergencyContactRelationship == "Other")
+                            {
+                                <InputText @bind-Value="EmployeeData.EmergencyContactRelationshipOther" 
+                                          @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.EmergencyContactRelationshipOther))); StateHasChanged(); }"
+                                          class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                          placeholder="Please specify" />
+                            }
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Contact Number <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.EmergencyContactNumber" 
-                                      @bind-Value:after="FormatEmergencyContactNumber"
+                                      @bind-Value:after="() => { FormatEmergencyContactNumber(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.EmergencyContactNumber))); StateHasChanged(); }"
                                       maxlength="11"
                                       onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      class="@GetInputClass(nameof(EmployeeData.EmergencyContactNumber))"
                                       placeholder="e.g. 09123456789" />
+                            <ValidationMessage For="@(() => EmployeeData.EmergencyContactNumber)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Address</label>
@@ -412,17 +455,26 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Role <span class="text-red-500">*</span>
                             </label>
-                            <InputSelect @bind-Value="EmployeeData.Role" @bind-Value:after="OnRoleChanged" 
-                                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                            <InputSelect @bind-Value="EmployeeData.Role" @bind-Value:after="async () => { await OnRoleChangedAsync(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Role))); StateHasChanged(); }" 
+                                        class="@GetInputClassWithExtra(nameof(EmployeeData.Role), "bg-white")">
                                 <option value="">Select Role</option>
                                 <option value="Registrar">Registrar</option>
                                 <option value="Cashier">Cashier</option>
                                 <option value="Teacher">Teacher</option>
                                 <option value="HR">HR</option>
                                 <option value="System Admin">System Admin</option>
+                                <option value="Librarian">Librarian</option>
                                 <option value="Janitor">Janitor</option>
                                 <option value="Other">Other</option>
                             </InputSelect>
+                            <ValidationMessage For="@(() => EmployeeData.Role)" class="text-red-500 text-xs mt-1" />
+                            @if (EmployeeData.Role == "Other")
+                            {
+                                <InputText @bind-Value="EmployeeData.RoleOther" 
+                                    @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.RoleOther))); StateHasChanged(); }"
+                                    class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                    placeholder="Please specify role" />
+                            }
                         </div>
                         @if (ShowPasswordFields)
                         {
@@ -450,30 +502,45 @@
                 <div class="px-6 py-6">
                     <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Salary Information</h2>
                     
-                    <!-- Base Salary and Allowance -->
-                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                    <!-- Base Salary, Allowance, and Total -->
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Base Salary <span class="text-red-500">*</span>
                             </label>
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                <input type="text" 
-                                       @ref="baseSalaryInputRef"
-                                       data-salary-field="@nameof(EmployeeData.BaseSalary)"
-                                       value="@GetSalaryDisplayValue(nameof(EmployeeData.BaseSalary))" 
-                                       @oninput="(e) => HandleSalaryInput(e, nameof(EmployeeData.BaseSalary))"
-                                       @onfocus="(e) => HandleSalaryFocus(e, nameof(EmployeeData.BaseSalary))"
-                                       @onblur="(e) => HandleSalaryBlur(e, nameof(EmployeeData.BaseSalary))"
-                                       @onkeydown="HandleSalaryKeyDown"
-                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 pl-8 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
-                                       placeholder="0" />
+                                <span class="-translate-y-1/2 absolute left-3 top-1/2 text-sm text-gray-600">₱</span>
+                                @if (IsBaseSalaryReadonly())
+                                {
+                                    <input type="text" 
+                                           value="@FormatSalaryInput(EmployeeData.BaseSalary)" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0" />
+                                }
+                                else
+                                {
+                                    <input type="text" 
+                                           @ref="baseSalaryInputRef"
+                                           data-salary-field="@nameof(EmployeeData.BaseSalary)"
+                                           value="@GetSalaryDisplayValue(nameof(EmployeeData.BaseSalary))" 
+                                           @oninput="(e) => HandleSalaryInput(e, nameof(EmployeeData.BaseSalary))"
+                                           @onfocus="(e) => HandleSalaryFocus(e, nameof(EmployeeData.BaseSalary))"
+                                           @onblur="(e) => HandleSalaryBlur(e, nameof(EmployeeData.BaseSalary))"
+                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 pl-8 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="0" />
+                                }
                             </div>
+                            @if (IsBaseSalaryReadonly() && !string.IsNullOrWhiteSpace(EmployeeData.Role))
+                            {
+                                <p class="mt-1 text-xs text-gray-500">Base salary is automatically set for @EmployeeData.Role role</p>
+                            }
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Allowance</label>
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <span class="-translate-y-1/2 absolute left-3 top-1/2 text-sm text-gray-600">₱</span>
                                 <input type="text" 
                                        @ref="allowanceInputRef"
                                        data-salary-field="@nameof(EmployeeData.Allowance)"
@@ -481,99 +548,15 @@
                                        @oninput="(e) => HandleSalaryInput(e, nameof(EmployeeData.Allowance))"
                                        @onfocus="(e) => HandleSalaryFocus(e, nameof(EmployeeData.Allowance))"
                                        @onblur="(e) => HandleSalaryBlur(e, nameof(EmployeeData.Allowance))"
-                                       @onkeydown="HandleSalaryKeyDown"
+                                       onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 pl-8 text-right text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="0" />
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Bonus (Read-only) -->
-                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
                         <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Bonus (13th Month Pay)</label>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total</label>
                             <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                <input type="text" 
-                                       value="@FormatSalaryInput(EmployeeData.Bonus)" 
-                                       readonly
-                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                       placeholder="0.00" />
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Automatically calculated (Base Salary / 12)</p>
-                        </div>
-                    </div>
-
-                    <!-- Deductions Section -->
-                    <div class="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:mb-4">
-                        <h3 class="mb-3 text-sm font-semibold text-gray-700 sm:mb-4 sm:text-base">Deductions</h3>
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">SSS</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                    <input type="text" 
-                                           value="@FormatSalaryInput(EmployeeData.SSS)" 
-                                           readonly
-                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                           placeholder="0.00" />
-                                </div>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">PhilHealth</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                    <input type="text" 
-                                           value="@FormatSalaryInput(EmployeeData.PhilHealth)" 
-                                           readonly
-                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                           placeholder="0.00" />
-                                </div>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Pag-IBIG</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                    <input type="text" 
-                                           value="@FormatSalaryInput(EmployeeData.PagIbig)" 
-                                           readonly
-                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                           placeholder="0.00" />
-                                </div>
-                            </div>
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Withholding Tax</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                    <input type="text" 
-                                           value="@FormatSalaryInput(EmployeeData.WithholdingTax)" 
-                                           readonly
-                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                           placeholder="0.00" />
-                                </div>
-                            </div>
-                        </div>
-                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                            <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Deductions</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                    <input type="text" 
-                                           value="@FormatSalaryInput(EmployeeData.Deductions)" 
-                                           readonly
-                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 pl-8 text-right text-sm font-semibold text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
-                                           placeholder="0.00" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Total Salary -->
-                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Total Salary</label>
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                <span class="-translate-y-1/2 absolute left-3 top-1/2 text-sm text-gray-600">₱</span>
                                 <input type="text" 
                                        value="@FormatSalaryInput(EmployeeData.TotalSalary)" 
                                        readonly
@@ -587,24 +570,147 @@
 
             <!-- Action Buttons -->
             <div class="mt-6 flex justify-end gap-4">
-                <button type="button" @onclick="GoBack" class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
+                <button type="button" 
+                    @onclick="Cancel"
+                    @onkeydown:preventDefault="true"
+                    class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
                     Cancel
                 </button>
-                <button type="submit" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-                    Add Employee
+                <button type="button" 
+                    @onclick="HandleSubmitClick"
+                    @onkeydown:preventDefault="true"
+                    disabled="@isSubmitting"
+                    class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                    @if (isSubmitting)
+                    {
+                        <span class="inline-flex items-center justify-center">
+                            <svg class="-ml-1 mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Adding Employee...</span>
+                        </span>
+                    }
+                    else
+                    {
+                        <span>Add Employee</span>
+                    }
                 </button>
             </div>
-        </form>
+        </EditForm>
     </div>
 </div>
 
+<!-- Toast Notification (only for error cases) -->
+@if (showToast)
+{
+    <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
+}
+
+<!-- Confirmation Modal -->
+@if (showConfirmModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseConfirmModal">
+        <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl" style="@(confirmModalType == "cancel" ? "background-color: #e65353;" : "background-color: #2563eb;") padding: 12px 24px;">
+                <h3 class="text-lg font-semibold text-white" style="margin: 0;">@confirmModalTitle</h3>
+                <button @onclick="CloseConfirmModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
+                <p class="text-sm text-gray-700" style="margin: 0 0 20px 0; line-height: 1.5;">@confirmModalMessage</p>
+
+                <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
+                    <button type="button" @onclick="ConfirmAction"
+                            class="rounded-full text-sm font-medium text-white transition-all"
+                            style="@(confirmModalType == "cancel" ? "background-color: #e65353;" : "background-color: #2563eb;") padding: 10px 24px; margin: 0; border: none; cursor: pointer; @(confirmModalType == "cancel" ? "hover:opacity-90;" : "hover:opacity-90;")">
+                        @(confirmModalType == "submit" ? "Add Employee" : "Confirm")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Validation Error Modal -->
+@if (showValidationModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+        <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl" style="background-color: #e65353; padding: 12px 24px;">
+                <h3 class="text-lg font-semibold text-white" style="margin: 0;">Missing Required Fields</h3>
+                <button @onclick="CloseValidationModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
+                <p class="mb-4 text-sm text-gray-700" style="margin: 0 0 16px 0; line-height: 1.5;">
+                    Please fill in the following required fields before submitting:
+                </p>
+                
+                @if (missingFields.Any())
+                {
+                    <div class="mb-4 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50" style="padding: 12px;">
+                        <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                            @foreach (var field in missingFields)
+                            {
+                                <li>@field</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50" style="padding: 12px;">
+                        <p class="text-sm text-gray-700">Please complete all required fields marked with <span class="text-red-500">*</span></p>
+                    </div>
+                }
+
+                <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
+                    <button type="button" @onclick="CloseValidationModal" class="rounded-full text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                        OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    private EditContext? editContext;
     private EmployeeFormData EmployeeData { get; set; } = new();
     private bool ShowPasswordFields { get; set; } = false;
     private EmployeeAddressHandler? addressHandler;
     private DotNetObjectReference<AddEmployee>? dotNetRef;
-    private DateTime? birthDate;
-    private int? age;
+    
+    // Validation and error handling
+    private bool showValidationModal = false;
+    private List<string> missingFields = new();
+    
+    // Confirmation modal
+    private bool showConfirmModal = false;
+    private string confirmModalTitle = "";
+    private string confirmModalMessage = "";
+    private string confirmModalType = ""; // "submit" or "cancel"
+    
+    // Loading state
+    private bool isSubmitting = false;
+    
+    // Toast notification (only for error cases)
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
     
     // Salary input editing state
     private string? editingSalaryField = null;
@@ -612,9 +718,14 @@
     private string allowanceRawInput = "";
     private ElementReference baseSalaryInputRef;
     private ElementReference allowanceInputRef;
+    
+    // Email uniqueness validation
+    private bool isEmailDuplicate = false;
+    private CancellationTokenSource? emailCheckCancellationTokenSource;
 
     protected override void OnInitialized()
     {
+        editContext = new EditContext(EmployeeData);
         dotNetRef = DotNetObjectReference.Create(this);
         addressHandler = new EmployeeAddressHandler(AddressService, EmployeeData, StateHasChanged);
     }
@@ -631,6 +742,8 @@
     public void Dispose()
     {
         dotNetRef?.Dispose();
+        emailCheckCancellationTokenSource?.Cancel();
+        emailCheckCancellationTokenSource?.Dispose();
     }
 
     private void CloseAllDropdowns()
@@ -700,13 +813,17 @@
     // Age calculation
     private void CalculateAge()
     {
-        if (birthDate.HasValue)
+        if (EmployeeData.BirthDate.HasValue)
         {
             var today = DateTime.Today;
-            age = today.Year - birthDate.Value.Year;
-            if (birthDate.Value.Date > today.AddYears(-(int)age))
+            var age = today.Year - EmployeeData.BirthDate.Value.Year;
+            if (EmployeeData.BirthDate.Value.Date > today.AddYears(-age))
                 age--;
-            EmployeeData.Age = age?.ToString() ?? "";
+            EmployeeData.Age = age;
+        }
+        else
+        {
+            EmployeeData.Age = null;
         }
     }
 
@@ -729,16 +846,31 @@
     private void SelectProvince(string province)
     {
         addressHandler?.SelectProvince(province);
+        if (editContext != null)
+        {
+            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Province)));
+        }
+        StateHasChanged();
     }
 
     private void SelectCity(string city)
     {
         addressHandler?.SelectCity(city);
+        if (editContext != null)
+        {
+            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.City)));
+        }
+        StateHasChanged();
     }
 
     private void SelectBarangay(string barangay)
     {
         addressHandler?.SelectBarangay(barangay);
+        if (editContext != null)
+        {
+            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Barangay)));
+        }
+        StateHasChanged();
     }
 
     private void HandleSearchKeyDown(KeyboardEventArgs e)
@@ -770,46 +902,45 @@
         return baseClass;
     }
 
-    // Salary calculation methods
-    private void CalculateAllSalaryComponents()
+    // Calculate total salary (Base Salary + Allowance)
+    private void CalculateTotalSalary()
     {
-        // Calculate bonus (13th Month Pay)
-        EmployeeData.Bonus = Salary.CalculateBonus(EmployeeData.BaseSalary);
-        
-        // Calculate deduction breakdown
-        var breakdown = Salary.GetDeductionBreakdown(EmployeeData.BaseSalary, EmployeeData.Allowance);
-        EmployeeData.SSS = breakdown.SSS;
-        EmployeeData.PhilHealth = breakdown.PhilHealth;
-        EmployeeData.PagIbig = breakdown.PagIbig;
-        EmployeeData.WithholdingTax = breakdown.WithholdingTax;
-        EmployeeData.Deductions = breakdown.Total;
-        
-        // Calculate total salary
-        EmployeeData.TotalSalary = Salary.CalculateTotalSalary(
-            EmployeeData.BaseSalary, 
-            EmployeeData.Allowance, 
-            EmployeeData.Bonus, 
-            EmployeeData.Deductions
-        );
-        
+        EmployeeData.TotalSalary = EmployeeData.BaseSalary + EmployeeData.Allowance;
         StateHasChanged();
     }
 
-    private void CalculateTotalSalary()
+    // Get base salary for a specific role
+    private decimal GetBaseSalaryForRole(string role)
     {
-        CalculateAllSalaryComponents();
+        return role switch
+        {
+            "Teacher" => 27000.00m,
+            "Cashier" => 20916.00m,
+            "HR" => 16391.00m,
+            "System Admin" => 15260.00m,
+            "Registrar" => 15000.00m,
+            "Librarian" => 15000.00m,
+            "Janitor" => 15000.00m,
+            _ => 0.00m
+        };
+    }
+
+    // Check if base salary should be readonly (not "Other" role)
+    private bool IsBaseSalaryReadonly()
+    {
+        return !string.IsNullOrWhiteSpace(EmployeeData.Role) && EmployeeData.Role != "Other";
     }
 
     // Role change handler
-    private void OnRoleChanged()
+    private async Task OnRoleChangedAsync()
     {
-        var rolesWithAccess = new[] { "Registrar", "Cashier", "Teacher", "HR", "System Admin" };
+        var rolesWithAccess = new[] { "Registrar", "Cashier", "Teacher", "HR", "System Admin", "Librarian" };
         ShowPasswordFields = rolesWithAccess.Contains(EmployeeData.Role);
 
         if (ShowPasswordFields)
         {
             EmployeeData.DefaultPassword = GenerateDefaultPassword();
-            EmployeeData.SystemId = GenerateSystemId();
+            EmployeeData.SystemId = await GenerateSystemIdAsync();
         }
         else
         {
@@ -817,11 +948,29 @@
             EmployeeData.SystemId = "";
         }
 
-        // Auto-calculate base salary based on role
-        if (!string.IsNullOrWhiteSpace(EmployeeData.Role))
+        // Automatically set base salary based on role (except "Other")
+        if (!string.IsNullOrWhiteSpace(EmployeeData.Role) && EmployeeData.Role != "Other")
         {
-            EmployeeData.BaseSalary = Salary.CalculateBaseSalary(EmployeeData.Role);
-            CalculateAllSalaryComponents();
+            EmployeeData.BaseSalary = GetBaseSalaryForRole(EmployeeData.Role);
+            CalculateTotalSalary();
+        }
+        else if (EmployeeData.Role == "Other")
+        {
+            // Reset to 0 when "Other" is selected to allow manual input
+            EmployeeData.BaseSalary = 0;
+            CalculateTotalSalary();
+        }
+
+        StateHasChanged();
+    }
+
+    // Relationship change handler
+    private void OnRelationshipChanged()
+    {
+        // Clear the "Other" field if relationship is changed away from "Other"
+        if (EmployeeData.EmergencyContactRelationship != "Other")
+        {
+            EmployeeData.EmergencyContactRelationshipOther = "";
         }
     }
 
@@ -831,7 +980,7 @@
         if (value == 0)
             return "0.00";
         
-        return Salary.FormatNumber(value);
+        return value.ToString("N2");
     }
 
     // Get display value for salary field (raw when editing, formatted when not)
@@ -840,9 +989,15 @@
         if (editingSalaryField == fieldName)
         {
             if (fieldName == nameof(EmployeeData.BaseSalary))
-                return baseSalaryRawInput;
+            {
+                // Format with commas while typing for Base Salary
+                return FormatNumberWithCommas(baseSalaryRawInput);
+            }
             else if (fieldName == nameof(EmployeeData.Allowance))
-                return allowanceRawInput;
+            {
+                // Format with commas while typing for Allowance
+                return FormatNumberWithCommas(allowanceRawInput);
+            }
         }
         
         // Return formatted value when not editing
@@ -852,6 +1007,67 @@
             return FormatSalaryInput(EmployeeData.Allowance);
         
         return "0";
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas manually
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = FormatIntegerWithCommas(intValue);
+                return decimalPart.Length > 0 ? $"{formattedInteger}.{decimalPart}" : formattedInteger;
+            }
+            else if (string.IsNullOrWhiteSpace(integerPart))
+            {
+                return decimalPart.Length > 0 ? $".{decimalPart}" : ".";
+            }
+        }
+        else
+        {
+            // No decimal point, format the whole number
+            if (!string.IsNullOrWhiteSpace(cleaned) && long.TryParse(cleaned, out long intValue))
+            {
+                return FormatIntegerWithCommas(intValue);
+            }
+        }
+        
+        return numberString;
+    }
+
+    // Format integer with commas (e.g., 19000 -> "19,000")
+    private string FormatIntegerWithCommas(long value)
+    {
+        if (value == 0)
+            return "0";
+        
+        string result = "";
+        string valueStr = value.ToString();
+        int length = valueStr.Length;
+        
+        for (int i = 0; i < length; i++)
+        {
+            if (i > 0 && (length - i) % 3 == 0)
+            {
+                result += ",";
+            }
+            result += valueStr[i];
+        }
+        
+        return result;
     }
 
     // Handle salary field focus - clear to "0" without decimal
@@ -864,7 +1080,7 @@
             // Remove decimal if value is whole number, otherwise show without trailing zeros
             if (EmployeeData.BaseSalary == 0)
             {
-                baseSalaryRawInput = "0";
+                baseSalaryRawInput = "";
             }
             else if (EmployeeData.BaseSalary == Math.Floor(EmployeeData.BaseSalary))
             {
@@ -884,7 +1100,7 @@
             // Remove decimal if value is whole number, otherwise show without trailing zeros
             if (EmployeeData.Allowance == 0)
             {
-                allowanceRawInput = "0";
+                allowanceRawInput = "";
             }
             else if (EmployeeData.Allowance == Math.Floor(EmployeeData.Allowance))
             {
@@ -943,8 +1159,8 @@
                 allowanceRawInput = "";
             }
             
-            // Recalculate all salary components
-            CalculateAllSalaryComponents();
+            // Recalculate total salary
+            CalculateTotalSalary();
         }
         else
         {
@@ -959,7 +1175,7 @@
                 EmployeeData.Allowance = 0;
                 allowanceRawInput = "";
             }
-            CalculateAllSalaryComponents();
+            CalculateTotalSalary();
         }
         
         StateHasChanged();
@@ -973,9 +1189,9 @@
         // Remove peso sign, commas, and spaces
         string cleaned = inputValue.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
         
-        if (string.IsNullOrWhiteSpace(cleaned))
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
         {
-            cleaned = "0";
+            cleaned = "";
         }
         else
         {
@@ -1009,7 +1225,7 @@
             }
         }
         
-        // Update raw input
+        // Update raw input (store without commas for parsing)
         if (fieldName == nameof(EmployeeData.BaseSalary))
         {
             baseSalaryRawInput = cleaned;
@@ -1019,8 +1235,8 @@
             allowanceRawInput = cleaned;
         }
         
-        // Parse and update the field value
-        if (decimal.TryParse(cleaned, out decimal parsedValue))
+        // Parse and update the field value (only if we have a valid number)
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
         {
             // Round to 2 decimals
             parsedValue = Math.Round(parsedValue, 2);
@@ -1035,8 +1251,21 @@
                 EmployeeData.Allowance = parsedValue;
             }
             
-            // Recalculate all salary components
-            CalculateAllSalaryComponents();
+            // Recalculate total salary
+            CalculateTotalSalary();
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            // If empty or just a dot, set to 0
+            if (fieldName == nameof(EmployeeData.BaseSalary))
+            {
+                EmployeeData.BaseSalary = 0;
+            }
+            else if (fieldName == nameof(EmployeeData.Allowance))
+            {
+                EmployeeData.Allowance = 0;
+            }
+            CalculateTotalSalary();
         }
         
         StateHasChanged();
@@ -1044,33 +1273,390 @@
 
     // Handle keyboard input - only allow numbers and dot
     // Note: Input validation in HandleSalaryInput will filter invalid characters
-    private void HandleSalaryKeyDown(KeyboardEventArgs e)
-    {
-        // This method is kept for potential future use
-        // Input validation is handled in HandleSalaryInput method
-    }
 
     private string GenerateDefaultPassword()
     {
-        return "Password123!";
+        return "BDESPassword123!";
     }
 
-    private string GenerateSystemId()
+    private async Task<string> GenerateSystemIdAsync()
     {
-        var random = new Random();
-        var number = random.Next(1000, 9999);
-        return $"BDES-{number}";
+        try
+        {
+            // Get next available system ID from database (incremental)
+            return await UserRepository.GetNextSystemIdAsync();
+        }
+        catch (Exception ex)
+        {
+            // Fallback to random if database query fails
+            Console.WriteLine($"Error generating system ID: {ex.Message}");
+            var random = new Random();
+            var number = random.Next(1000, 9999);
+            return $"BDES-{number}";
+        }
     }
 
-    private void HandleSubmit()
+    // Check email uniqueness with debouncing to avoid too many database calls
+    private async Task CheckEmailUniqueness()
     {
-        // TODO: Implement save employee logic
-        NavigationManager.NavigateTo("/human-resource");
+        // Cancel any pending email check
+        if (emailCheckCancellationTokenSource != null)
+        {
+            emailCheckCancellationTokenSource.Cancel();
+            emailCheckCancellationTokenSource.Dispose();
+        }
+        
+        // Reset duplicate flag immediately
+        isEmailDuplicate = false;
+        
+        // If email is empty or invalid format, don't check
+        if (string.IsNullOrWhiteSpace(EmployeeData.Email) || 
+            !System.Text.RegularExpressions.Regex.IsMatch(EmployeeData.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            StateHasChanged();
+            return;
+        }
+        
+        // Create new cancellation token source
+        emailCheckCancellationTokenSource = new CancellationTokenSource();
+        var cancellationToken = emailCheckCancellationTokenSource.Token;
+        
+        try
+        {
+            // Wait 500ms before checking (debounce)
+            await Task.Delay(500, cancellationToken);
+            
+            // Check if email exists in database
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                var emailExists = await UserRepository.ExistsByEmailAsync(EmployeeData.Email);
+                isEmailDuplicate = emailExists;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when user types again before delay completes
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't block user input
+            Console.WriteLine($"Error checking email uniqueness: {ex.Message}");
+            isEmailDuplicate = false;
+            StateHasChanged();
+        }
+    }
+
+    private Task HandleSubmitClick()
+    {
+        // Only trigger validation when submit button is clicked
+        if (editContext != null)
+        {
+            // Check for duplicate email before validating form
+            if (isEmailDuplicate)
+            {
+                // Show validation error modal with email duplicate message
+                missingFields.Clear();
+                missingFields.Add("Email: This email is already registered. Please use a different email address.");
+                showValidationModal = true;
+                StateHasChanged();
+                return Task.CompletedTask;
+            }
+            
+            // Validate the form - this will show validation errors
+            var isValid = editContext.Validate();
+            
+            // Notify all required fields to ensure validation state is updated
+            if (!isValid)
+            {
+                // Explicitly notify dropdown fields to trigger validation display
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Province)));
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.City)));
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Barangay)));
+            }
+            
+            if (isValid)
+            {
+                // Show confirmation modal
+                confirmModalTitle = "Confirm Add Employee";
+                confirmModalMessage = "Are all the information correct? Do you want to add this employee?";
+                confirmModalType = "submit";
+                showConfirmModal = true;
+                StateHasChanged();
+            }
+            else
+            {
+                // Collect all validation errors
+                CollectMissingFields();
+                // Show validation error modal
+                showValidationModal = true;
+                // Force UI update to show validation errors
+                StateHasChanged();
+            }
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private void CollectMissingFields()
+    {
+        missingFields.Clear();
+        
+        if (editContext == null) return;
+        
+        // Get all fields with validation errors
+        var modelType = editContext.Model.GetType();
+        var properties = modelType.GetProperties();
+        
+        foreach (var property in properties)
+        {
+            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, property.Name);
+            var validationMessages = editContext.GetValidationMessages(fieldIdentifier);
+            
+            if (validationMessages.Any())
+            {
+                // Get user-friendly field name
+                var fieldName = GetFieldDisplayName(property.Name);
+                if (!string.IsNullOrWhiteSpace(fieldName) && !missingFields.Contains(fieldName))
+                {
+                    missingFields.Add(fieldName);
+                }
+            }
+        }
+    }
+
+    private string GetFieldDisplayName(string fieldName)
+    {
+        // Map field names to user-friendly display names
+        var fieldNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "FirstName", "First Name" },
+            { "LastName", "Last Name" },
+            { "BirthDate", "Birth Date" },
+            { "Age", "Age" },
+            { "Sex", "Sex" },
+            { "ContactNumber", "Contact Number" },
+            { "Email", "Email" },
+            { "Barangay", "Barangay" },
+            { "City", "City" },
+            { "Province", "Province" },
+            { "EmergencyContactFirstName", "Emergency Contact - First Name" },
+            { "EmergencyContactLastName", "Emergency Contact - Last Name" },
+            { "EmergencyContactRelationship", "Emergency Contact - Relationship" },
+            { "EmergencyContactNumber", "Emergency Contact - Contact Number" },
+            { "Role", "Role" },
+            { "BaseSalary", "Base Salary" }
+        };
+        
+        return fieldNameMap.TryGetValue(fieldName, out var displayName) ? displayName : fieldName;
+    }
+
+    private void CloseValidationModal()
+    {
+        showValidationModal = false;
+        missingFields.Clear();
+        StateHasChanged();
+    }
+
+    private void Cancel()
+    {
+        // Show confirmation modal
+        confirmModalTitle = "Cancel Add Employee";
+        confirmModalMessage = "Are you sure you want to cancel? All entered data will be cleared.";
+        confirmModalType = "cancel";
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        confirmModalTitle = "";
+        confirmModalMessage = "";
+        confirmModalType = "";
+        StateHasChanged();
+    }
+
+    private async Task ConfirmAction()
+    {
+        showConfirmModal = false;
+        StateHasChanged();
+        
+        if (confirmModalType == "submit")
+        {
+            await SubmitEmployee();
+        }
+        else if (confirmModalType == "cancel")
+        {
+            // Navigate first, then toast will show on destination page
+            NavigationManager.NavigateTo("/human-resource?toast=employee_cancelled");
+        }
+        
+        confirmModalTitle = "";
+        confirmModalMessage = "";
+        confirmModalType = "";
+    }
+
+    private async Task SubmitEmployee()
+    {
+        isSubmitting = true;
+        StateHasChanged(); // Update UI to show loading state
+        
+        try
+        {
+            // Final check: Verify email is still unique before submission (prevents race conditions)
+            if (!string.IsNullOrWhiteSpace(EmployeeData.Email))
+            {
+                var emailExists = await UserRepository.ExistsByEmailAsync(EmployeeData.Email);
+                if (emailExists)
+                {
+                    isSubmitting = false;
+                    isEmailDuplicate = true;
+                    missingFields.Clear();
+                    missingFields.Add("Email: This email is already registered. Please use a different email address.");
+                    showValidationModal = true;
+                    StateHasChanged();
+                    return;
+                }
+            }
+            
+            // Map EmployeeFormData to EmployeeRegistrationData (DTO)
+            var employeeData = new EmployeeRegistrationData
+            {
+                // Personal Information
+                FirstName = EmployeeData.FirstName,
+                MiddleName = EmployeeData.MiddleName,
+                LastName = EmployeeData.LastName,
+                Suffix = EmployeeData.Suffix,
+                BirthDate = EmployeeData.BirthDate,
+                Age = EmployeeData.Age,
+                Sex = EmployeeData.Sex,
+                ContactNumber = EmployeeData.ContactNumber,
+                Email = EmployeeData.Email,
+                Role = EmployeeData.Role,
+                RoleOther = EmployeeData.RoleOther,
+                SystemId = EmployeeData.SystemId,
+                DefaultPassword = EmployeeData.DefaultPassword,
+
+                // Address Information
+                HouseNo = EmployeeData.HouseNo,
+                StreetName = EmployeeData.StreetName,
+                Province = EmployeeData.Province,
+                City = EmployeeData.City,
+                Barangay = EmployeeData.Barangay,
+                Country = EmployeeData.Country,
+                ZipCode = EmployeeData.ZipCode,
+
+                // Emergency Contact Information
+                EmergencyContactFirstName = EmployeeData.EmergencyContactFirstName,
+                EmergencyContactMiddleName = EmployeeData.EmergencyContactMiddleName,
+                EmergencyContactLastName = EmployeeData.EmergencyContactLastName,
+                EmergencyContactSuffix = EmployeeData.EmergencyContactSuffix,
+                EmergencyContactRelationship = EmployeeData.EmergencyContactRelationship == "Other" 
+                    ? EmployeeData.EmergencyContactRelationshipOther 
+                    : EmployeeData.EmergencyContactRelationship,
+                EmergencyContactNumber = EmployeeData.EmergencyContactNumber,
+                EmergencyContactAddress = EmployeeData.EmergencyContactAddress,
+
+                // Salary Information
+                BaseSalary = EmployeeData.BaseSalary,
+                Allowance = EmployeeData.Allowance
+            };
+
+            // Register employee using EmployeeService
+            var userId = await EmployeeService.RegisterEmployeeAsync(employeeData);
+            
+            // Success - navigate to human resource page, toast will show on destination page
+            NavigationManager.NavigateTo("/human-resource?toast=employee_added");
+        }
+        catch (Exception ex)
+        {
+            // Handle error - show error message to user
+            Console.WriteLine($"Error adding employee: {ex.Message}");
+            // For errors, show toast on current page since we're not navigating
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to add employee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
     }
 
     private void GoBack()
     {
         NavigationManager.NavigateTo("/human-resource");
+    }
+
+    // Returns CSS class for input fields based on validation
+    private string GetInputClass(string fieldName)
+    {
+        if (editContext == null) 
+            return "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+
+        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, fieldName);
+        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
+        var isModified = editContext.IsModified(fieldIdentifier);
+        
+        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+        
+        if (hasError)
+        {
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+        
+        // Show green border for valid fields that have been modified
+        if (isModified && !hasError)
+        {
+            return $"{baseClass} border-green-500 focus:border-green-500";
+        }
+        
+        return $"{baseClass} border-gray-300 focus:border-blue-500";
+    }
+
+    // Returns CSS class for dropdown fields based on validation
+    private string GetDropdownClass(string fieldName)
+    {
+        var baseClass = "flex w-full cursor-pointer items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+        
+        if (editContext == null) 
+            return $"{baseClass} border-gray-300 focus-within:border-blue-500";
+
+        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, fieldName);
+        var validationMessages = editContext.GetValidationMessages(fieldIdentifier);
+        var hasError = validationMessages.Any();
+        var isModified = editContext.IsModified(fieldIdentifier);
+        
+        // Explicitly check for validation errors
+        if (hasError)
+        {
+            return $"{baseClass} border-red-500 focus-within:border-red-500";
+        }
+        
+        // Show green border for valid fields that have been modified
+        if (isModified && !hasError)
+        {
+            return $"{baseClass} border-green-500 focus-within:border-green-500";
+        }
+        
+        return $"{baseClass} border-gray-300 focus-within:border-blue-500";
+    }
+
+    // Returns CSS class for input fields with extra classes
+    private string GetInputClassWithExtra(string fieldName, string extraClasses = "")
+    {
+        var baseClass = GetInputClass(fieldName);
+        if (!string.IsNullOrWhiteSpace(extraClasses))
+        {
+            return $"{baseClass} {extraClasses}";
+        }
+        return baseClass;
     }
 
 }

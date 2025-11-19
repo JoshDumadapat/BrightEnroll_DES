@@ -3,21 +3,21 @@
 ## Which Script Should I Use?
 
 ### ✅ **For New Device Setup (USE THIS ONE)**
-**`Initialize_Database.sql`** - This is the **ONLY script you need** for setting up on a new device.
+**`Initialize_Database.sql`** - Complete database setup script (optimized)
 - Creates the database
-- Creates all tables
-- Creates indexes
+- Creates all tables (Users, Students, Guardians, Requirements, Employee tables)
+- Creates all indexes
+- Adds status column if missing
 - Ready to use!
+
+**Note:** The application auto-creates the database on startup. This script is for manual setup only.
 
 ### 📦 **Optional Scripts (For Advanced Users)**
 
-1. **`Create_tbl_Users.sql`** - Legacy script (only creates table, assumes DB exists)
-   - ⚠️ **Don't use this** - Use `Initialize_Database.sql` instead
-
-2. **`Export_Database.sql`** - For exporting database schema
+1. **`Export_Database.sql`** - For exporting database schema
    - Use when you want to document your database structure
 
-3. **`Backup_Database_Data.sql`** - For backing up existing data
+2. **`Backup_Database_Data.sql`** - For backing up existing data
    - Use when you want to transfer data from one device to another
 
 ---

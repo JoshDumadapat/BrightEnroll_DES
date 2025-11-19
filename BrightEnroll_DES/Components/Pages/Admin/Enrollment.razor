@@ -1,6 +1,10 @@
 ﻿@page "/enrollment"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.EnrollmentComponents
+@using BrightEnroll_DES.Services
+@using Microsoft.Extensions.Logging
+@inject StudentService StudentService
+@inject ILogger<Enrollment> Logger
 
 <PageTitle>Enrollment</PageTitle>
 
@@ -98,18 +102,7 @@
 
     private int RowsPerPage { get; set; } = 5;
 
-    private List<NewApplicant.Student> Applicants = new()
-    {
-        new() { Id = "00001", Name = "Christine Brooks", LRN = "N/A", Date = "04 Sep 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
-        new() { Id = "00002", Name = "Rosie Pearson", LRN = "N/A", Date = "28 May 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
-        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", Type = "Transferee", GradeLevel = "G1", Status = "Pending" },
-        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "N/A", Date = "05 Feb 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
-        new() { Id = "00005", Name = "Alan Cain", LRN = "129706263748", Date = "29 Jul 2025", Type = "Transferee", GradeLevel = "G4", Status = "Pending" },
-        new() { Id = "00006", Name = "Alfred Murray", LRN = "N/A", Date = "15 Aug 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" },
-        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706263433", Date = "21 Dec 2025", Type = "Transferee", GradeLevel = "G1", Status = "Pending" },
-        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706261232", Date = "30 Apr 2025", Type = "Transferee", GradeLevel = "G5", Status = "Pending" },
-        new() { Id = "00009", Name = "Dollie Hines", LRN = "N/A", Date = "09 Jan 2025", Type = "New", GradeLevel = "Kinder", Status = "Pending" }
-    };
+    private List<NewApplicant.Student> Applicants = new();
 
     private List<ForEnrollment.ForEnrollmentStudent> ForEnrollmentStudents = new()
     {
@@ -137,16 +130,62 @@
         new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2025", Type = "Eligible", GradeLevel = "G3", Documents = "Verified", Status = "Pending" }
     };
 
-    private List<EnrolledStudent> EnrolledStudents = new()
+    private List<EnrolledStudent> EnrolledStudents = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        new() { Id = "00001", Name = "Christine Brooks", LRN = "N/A", Date = "04 Sep 2025", GradeLevel = "Kinder", Section = "Saturn", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00002", Name = "Rosie Pearson", LRN = "N/A", Date = "28 May 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", GradeLevel = "G1", Section = "Sun", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "N/A", Date = "05 Feb 2025", GradeLevel = "Kinder", Section = "Laurel", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00005", Name = "Alan Cain", LRN = "129706263748", Date = "29 Jul 2025", GradeLevel = "G4", Section = "Jupiter", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00006", Name = "Alfred Murray", LRN = "N/A", Date = "15 Aug 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706263433", Date = "21 Dec 2025", GradeLevel = "G1", Section = "Uranus", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706261232", Date = "30 Apr 2025", GradeLevel = "G5", Section = "Saturn", Documents = "Verified", Status = "Enrolled" },
-        new() { Id = "00009", Name = "Dollie Hines", LRN = "N/A", Date = "09 Jan 2025", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Enrolled" }
-    };
+        await LoadNewApplicantsAsync();
+        await LoadEnrolledStudentsAsync();
+    }
+
+    private async Task LoadNewApplicantsAsync()
+    {
+        try
+        {
+            var newApplicantsDto = await StudentService.GetNewApplicantsAsync();
+            
+            // Map NewApplicantDto to NewApplicant.Student
+            Applicants = newApplicantsDto.Select(dto => new NewApplicant.Student
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                LRN = dto.LRN ?? "N/A",
+                Date = dto.Date,
+                Type = dto.Type,
+                GradeLevel = dto.GradeLevel,
+                Status = dto.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading new applicants: {Message}", ex.Message);
+            Applicants = new List<NewApplicant.Student>();
+        }
+    }
+
+    private async Task LoadEnrolledStudentsAsync()
+    {
+        try
+        {
+            var enrolledStudentsDto = await StudentService.GetEnrolledStudentsAsync();
+            
+            // Map EnrolledStudentDto to EnrolledStudent
+            EnrolledStudents = enrolledStudentsDto.Select(dto => new EnrolledStudent
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                LRN = dto.LRN,
+                Date = dto.Date,
+                GradeLevel = dto.GradeLevel,
+                Section = dto.Section,
+                Documents = dto.Documents,
+                Status = dto.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading enrolled students: {Message}", ex.Message);
+            EnrolledStudents = new List<EnrolledStudent>();
+        }
+    }
 }

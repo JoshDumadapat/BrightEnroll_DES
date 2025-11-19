@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.Logging;
 using BrightEnroll_DES.Services.AuthFunction;
 using BrightEnroll_DES.Services;
+using BrightEnroll_DES.Services.HR;
+using BrightEnroll_DES.Services.Finance;
 using BrightEnroll_DES.Services.DBConnections;
+using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -33,8 +36,8 @@ namespace BrightEnroll_DES
                 return new DBConnection();
             });
 
-            // Register Repositories (ORM-like pattern with SQL injection protection)
-            builder.Services.AddSingleton<BrightEnroll_DES.Services.Repositories.IUserRepository, BrightEnroll_DES.Services.Repositories.UserRepository>();
+            // Register Repositories (EF Core ORM with SQL injection protection)
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.IUserRepository, BrightEnroll_DES.Services.Repositories.UserRepository>();
 
             // Register LoginService
             builder.Services.AddSingleton<ILoginService, LoginService>();
@@ -42,8 +45,8 @@ namespace BrightEnroll_DES
             // Register AuthService
             builder.Services.AddSingleton<IAuthService, AuthService>();
             
-            // Register Database Seeder
-            builder.Services.AddSingleton<DatabaseSeeder>();
+            // Register Database Seeder (scoped for EF Core DbContext)
+            builder.Services.AddScoped<DatabaseSeeder>();
             
             // Register Loading Service
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
@@ -76,6 +79,12 @@ namespace BrightEnroll_DES
 
             // Register StudentService (scoped for EF Core DbContext)
             builder.Services.AddScoped<StudentService>();
+            
+            // Register EmployeeService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<EmployeeService>();
+            
+            // Register FeeService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<FeeService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -96,9 +105,12 @@ namespace BrightEnroll_DES
                 // Automatically create database and tables if they don't exist
                 Task.Run(async () => await initializer.InitializeDatabaseAsync()).Wait();
                 
-                // Seed initial admin user
-                var seeder = app.Services.GetRequiredService<DatabaseSeeder>();
-                Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
+                // Seed initial admin user - create a scope for DbContext
+                using (var scope = app.Services.CreateScope())
+                {
+                    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                    Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
+                }
             }
             catch (Exception ex)
             {

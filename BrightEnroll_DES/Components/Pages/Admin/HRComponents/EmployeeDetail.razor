@@ -1,0 +1,107 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.HRComponents
+@using BrightEnroll_DES.Components.Pages.Admin.HRComponents
+@using BrightEnroll_DES.Data.Models
+@* Employee Detail Component with Tabs *@
+
+<div class="text-gray-800">
+    <!-- Tabs and Back Button -->
+    <div class="mb-6 flex items-center justify-between gap-6">
+        <!-- Tabs Card -->
+        <div class="overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+            <div class="flex items-center gap-6">
+                <button @onclick="() => SelectedTab = TabType.EmployeeInfo" 
+                        class="@GetTabClasses(TabType.EmployeeInfo)"
+                        style="@GetEmployeeInfoStyle()">
+                    Employee Info
+                </button>
+            </div>
+        </div>
+        <button @onclick="OnBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+
+    <!-- Employee Summary Card (Shown in all tabs) -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-4">
+            <!-- Row 1: Name and Status -->
+            <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-800">@(EmployeeData?.FullName ?? "N/A")</h3>
+                @if (EmployeeData?.Status != null)
+                {
+                    var statusClass = EmployeeData.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
+                        ? "bg-green-100 text-green-700"
+                        : "bg-red-100 text-red-700";
+                    <span class="rounded-md px-3 py-1 text-xs font-medium @statusClass">@EmployeeData.Status</span>
+                }
+            </div>
+            
+            <!-- Row 2: System ID and Role -->
+            <div class="mb-2 flex items-center justify-between">
+                <span class="text-sm text-gray-700">System ID: @(EmployeeData?.SystemId ?? "N/A")</span>
+                <span class="text-sm text-gray-700">Role: @(EmployeeData?.Role ?? "N/A")</span>
+            </div>
+            
+            <!-- Row 3: Date Hired -->
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Date Hired: @(EmployeeData?.DateHired?.ToString("MMMM d, yyyy") ?? "N/A")</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    @if (SelectedTab == TabType.EmployeeInfo)
+    {
+        <EmployeeInfo EmployeeData="EmployeeData" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public EmployeeDataView? EmployeeData { get; set; }
+
+    [Parameter]
+    public EventCallback OnBackClick { get; set; }
+
+    private enum TabType
+    {
+        EmployeeInfo
+    }
+
+    private TabType SelectedTab { get; set; } = TabType.EmployeeInfo;
+
+    private string GetEmployeeInfoStyle()
+    {
+        bool isSelected = SelectedTab == TabType.EmployeeInfo;
+        if (isSelected)
+        {
+            return "color: #0E335D; border-bottom: 2px solid #0E335D;";
+        }
+        else
+        {
+            return "color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(TabType tab)
+    {
+        bool isSelected = SelectedTab == tab;
+        
+        return tab switch
+        {
+            TabType.EmployeeInfo => isSelected
+                ? "px-3 py-2 text-sm font-semibold"
+                : "px-3 py-2 text-sm font-semibold transition-colors duration-200",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private async Task OnBack()
+    {
+        await OnBackClick.InvokeAsync();
+    }
+}
+

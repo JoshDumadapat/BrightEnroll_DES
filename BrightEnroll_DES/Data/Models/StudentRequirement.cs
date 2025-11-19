@@ -3,10 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// EF Core model for student_requirements_tbl table
-/// </summary>
-[Table("student_requirements_tbl")]
+// Maps to tbl_StudentRequirements table
+[Table("tbl_StudentRequirements")]
 public class StudentRequirement
 {
     [Key]
@@ -16,7 +14,8 @@ public class StudentRequirement
 
     [Required]
     [Column("student_id")]
-    public int StudentId { get; set; }
+    [MaxLength(6)]
+    public string StudentId { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(100)]
@@ -32,7 +31,6 @@ public class StudentRequirement
     [Column("requirement_type")]
     public string RequirementType { get; set; } = string.Empty;
 
-    // Navigation property
     [ForeignKey("StudentId")]
     public virtual Student Student { get; set; } = null!;
 }

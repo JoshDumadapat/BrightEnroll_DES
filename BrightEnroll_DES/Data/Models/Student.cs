@@ -3,16 +3,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// EF Core model for students_tbl table
-/// </summary>
-[Table("students_tbl")]
+// Maps to tbl_Students table
+[Table("tbl_Students")]
 public class Student
 {
     [Key]
     [Column("student_id")]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int StudentId { get; set; }
+    [MaxLength(6)]
+    public string StudentId { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(50)]
@@ -145,11 +143,18 @@ public class Student
     [Column("guardian_id")]
     public int GuardianId { get; set; }
 
-    // Navigation property
+    [Required]
+    [Column("date_registered", TypeName = "datetime")]
+    public DateTime DateRegistered { get; set; } = DateTime.Now;
+
+    [Required]
+    [MaxLength(20)]
+    [Column("status")]
+    public string Status { get; set; } = "Pending";
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 
-    // Navigation property for requirements
     public virtual ICollection<StudentRequirement> Requirements { get; set; } = new List<StudentRequirement>();
 }
 

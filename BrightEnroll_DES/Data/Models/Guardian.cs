@@ -3,10 +3,8 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// EF Core model for guardians_tbl table
-/// </summary>
-[Table("guardians_tbl")]
+// Maps to tbl_Guardians table
+[Table("tbl_Guardians")]
 public class Guardian
 {
     [Key]
@@ -40,7 +38,6 @@ public class Guardian
     [Column("relationship")]
     public string? Relationship { get; set; }
 
-    // Navigation property
     public virtual ICollection<Student> Students { get; set; } = new List<Student>();
 }
 

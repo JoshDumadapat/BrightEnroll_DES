@@ -1,8 +1,6 @@
 namespace BrightEnroll_DES.Components.Pages.Admin.HRComponents;
 
-/// <summary>
-/// Handles salary calculations based on Philippine compensation rules
-/// </summary>
+// Calculates salary, deductions, and taxes based on Philippine rules
 public class Salary
 {
     // Base salary ranges by role (in PHP)
@@ -35,9 +33,7 @@ public class Salary
         (666666.67m, decimal.MaxValue, 0.35m) // 35%
     };
 
-    /// <summary>
-    /// Calculates the base salary based on role (uses midpoint of range)
-    /// </summary>
+    // Returns base salary for a role (midpoint of range)
     public static decimal CalculateBaseSalary(string role)
     {
         if (string.IsNullOrWhiteSpace(role))
@@ -53,11 +49,7 @@ public class Salary
         return (BaseSalaryRanges["Other"].Min + BaseSalaryRanges["Other"].Max) / 2;
     }
 
-    /// <summary>
-    /// Calculates 13th Month Pay (mandatory bonus)
-    /// Formula: Total Basic Salary Earned within Calendar Year / 12
-    /// For monthly calculation, this is Base Salary / 12
-    /// </summary>
+    // Calculates 13th month pay (base salary / 12)
     public static decimal CalculateBonus(decimal baseSalary)
     {
         if (baseSalary <= 0)
@@ -67,9 +59,7 @@ public class Salary
         return Math.Round(baseSalary / 12, 2);
     }
 
-    /// <summary>
-    /// Calculates SSS contribution (11% of base salary, with caps)
-    /// </summary>
+    // Calculates SSS contribution (11% of base salary, capped)
     public static decimal CalculateSSS(decimal baseSalary)
     {
         if (baseSalary <= 0)
@@ -86,9 +76,7 @@ public class Salary
         return sssAmount;
     }
 
-    /// <summary>
-    /// Calculates PhilHealth contribution (3% of base salary)
-    /// </summary>
+    // Calculates PhilHealth contribution (3% of base salary)
     public static decimal CalculatePhilHealth(decimal baseSalary)
     {
         if (baseSalary <= 0)
@@ -97,9 +85,7 @@ public class Salary
         return Math.Round(baseSalary * PHILHEALTH_RATE, 2);
     }
 
-    /// <summary>
-    /// Calculates Pag-IBIG contribution (2% of base salary, capped at 200/month)
-    /// </summary>
+    // Calculates Pag-IBIG contribution (2% of base salary, max 200/month)
     public static decimal CalculatePagIbig(decimal baseSalary)
     {
         if (baseSalary <= 0)
@@ -114,10 +100,7 @@ public class Salary
         return pagIbigAmount;
     }
 
-    /// <summary>
-    /// Calculates Withholding Tax (Income Tax) based on TRAIN Law
-    /// Only applies if monthly taxable income exceeds 20,833.33
-    /// </summary>
+    // Calculates withholding tax based on TRAIN Law brackets
     public static decimal CalculateWithholdingTax(decimal baseSalary, decimal allowance)
     {
         // Taxable income = Base Salary + Taxable Allowance
@@ -172,9 +155,7 @@ public class Salary
         return Math.Round(tax, 2);
     }
 
-    /// <summary>
-    /// Calculates total deductions (SSS + PhilHealth + Pag-IBIG + Withholding Tax)
-    /// </summary>
+    // Returns total of all deductions
     public static decimal CalculateTotalDeductions(decimal baseSalary, decimal allowance)
     {
         decimal sss = CalculateSSS(baseSalary);
@@ -185,9 +166,7 @@ public class Salary
         return Math.Round(sss + philHealth + pagIbig + withholdingTax, 2);
     }
 
-    /// <summary>
-    /// Gets breakdown of deductions for transparency
-    /// </summary>
+    // Returns breakdown of all deductions
     public static DeductionBreakdown GetDeductionBreakdown(decimal baseSalary, decimal allowance)
     {
         return new DeductionBreakdown
@@ -200,33 +179,25 @@ public class Salary
         };
     }
 
-    /// <summary>
-    /// Calculates total salary (Base + Allowance + Bonus - Deductions)
-    /// </summary>
+    // Calculates net salary (base + allowance + bonus - deductions)
     public static decimal CalculateTotalSalary(decimal baseSalary, decimal allowance, decimal bonus, decimal deductions)
     {
         return Math.Round(baseSalary + allowance + bonus - deductions, 2);
     }
 
-    /// <summary>
-    /// Formats a decimal value as Philippine Peso with 2 decimals
-    /// </summary>
+    // Formats number as peso currency (₱X,XXX.XX)
     public static string FormatPeso(decimal value)
     {
         return $"₱{value:N2}";
     }
 
-    /// <summary>
-    /// Formats a decimal value with thousand separators (commas) and 2 decimals
-    /// </summary>
+    // Formats number with commas and 2 decimals
     public static string FormatNumber(decimal value)
     {
         return value.ToString("N2");
     }
 
-    /// <summary>
-    /// Parses a formatted number string back to decimal
-    /// </summary>
+    // Converts formatted string back to decimal
     public static decimal ParseNumber(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -242,9 +213,7 @@ public class Salary
     }
 }
 
-/// <summary>
-/// Breakdown of deductions for transparency
-/// </summary>
+// Holds breakdown of all deduction amounts
 public class DeductionBreakdown
 {
     public decimal SSS { get; set; }

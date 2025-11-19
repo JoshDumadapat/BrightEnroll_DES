@@ -1,0 +1,116 @@
+@page "/archive"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.ArchiveComponents
+
+<PageTitle>Archive</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Archive</h1>
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick="() => SelectedTab = TabType.StudentArchive" 
+                    class="@GetTabClasses(TabType.StudentArchive)">
+                Student Archive
+            </button>
+            <button @onclick="() => SelectedTab = TabType.EmployeeArchive" 
+                    class="@GetTabClasses(TabType.EmployeeArchive)">
+                Employee Archive
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (SelectedTab == TabType.StudentArchive)
+        {
+            <StudentArchive Students="ArchivedStudents" RowsPerPage="RowsPerPage" />
+        }
+        else if (SelectedTab == TabType.EmployeeArchive)
+        {
+            <EmployeeArchive Employees="ArchivedEmployees" RowsPerPage="RowsPerPage" />
+        }
+    </div>
+</div>
+
+@code {
+    private enum TabType
+    {
+        StudentArchive,
+        EmployeeArchive
+    }
+
+    private TabType SelectedTab { get; set; } = TabType.StudentArchive;
+
+    private string GetTabClasses(TabType tab)
+    {
+        bool isSelected = SelectedTab == tab;
+        
+        return tab switch
+        {
+            TabType.StudentArchive => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            TabType.EmployeeArchive => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600"
+                : "px-3 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private int RowsPerPage { get; set; } = 5;
+
+    private List<ArchivedStudent> ArchivedStudents = new()
+    {
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "129706182734", Date = "04 Sep 2024", GradeLevel = "Kinder", Section = "Saturn", Documents = "Verified", Status = "Graduated", ArchivedDate = "15 Mar 2025", ArchivedReason = "Graduated" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "129706182712", Date = "28 May 2024", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Transferred", ArchivedDate = "10 Feb 2025", ArchivedReason = "Transferred to another school" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2024", GradeLevel = "G1", Section = "Sun", Documents = "Verified", Status = "Withdrawn", ArchivedDate = "05 Jan 2025", ArchivedReason = "Family relocation" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "129706182715", Date = "05 Feb 2024", GradeLevel = "Kinder", Section = "Laurel", Documents = "Verified", Status = "Graduated", ArchivedDate = "20 Mar 2025", ArchivedReason = "Graduated" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706182748", Date = "29 Jul 2024", GradeLevel = "G4", Section = "Jupiter", Documents = "Verified", Status = "Transferred", ArchivedDate = "18 Dec 2024", ArchivedReason = "Transferred to private school" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "129706182719", Date = "15 Aug 2024", GradeLevel = "Kinder", Section = "Rizal", Documents = "Verified", Status = "Withdrawn", ArchivedDate = "12 Nov 2024", ArchivedReason = "Personal reasons" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706182733", Date = "21 Dec 2024", GradeLevel = "G1", Section = "Uranus", Documents = "Verified", Status = "Graduated", ArchivedDate = "25 Mar 2025", ArchivedReason = "Graduated" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706182732", Date = "30 Apr 2024", GradeLevel = "G5", Section = "Saturn", Documents = "Verified", Status = "Transferred", ArchivedDate = "08 Jan 2025", ArchivedReason = "Moved abroad" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2024", GradeLevel = "G3", Section = "Rizal", Documents = "Verified", Status = "Withdrawn", ArchivedDate = "22 Oct 2024", ArchivedReason = "Financial difficulties" }
+    };
+
+    private List<ArchivedEmployee> ArchivedEmployees = new()
+    {
+        new() { Id = "00001", Name = "Mrs. Santos", Address = "123 Main St.", Contact = "09123456789", Email = "m.santos@email.com", Role = "Teacher", Status = "Resigned", ArchivedDate = "15 Dec 2024", ArchivedReason = "Resigned - Career opportunity" },
+        new() { Id = "00002", Name = "Mr. Cruz", Address = "45 Oak Ave.", Contact = "09123456775", Email = "r.cruz@email.com", Role = "Teacher", Status = "Terminated", ArchivedDate = "10 Nov 2024", ArchivedReason = "Terminated - Policy violation" },
+        new() { Id = "00003", Name = "Ms. Reyes", Address = "78 Pine St.", Contact = "09123456765", Email = "s.reyes@email.com", Role = "Teacher", Status = "Retired", ArchivedDate = "30 Oct 2024", ArchivedReason = "Retired" },
+        new() { Id = "00004", Name = "Mr. Dela Rosa", Address = "12 Maple Blvd.", Contact = "09123456763", Email = "j.delarosa@email.com", Role = "Teacher", Status = "Resigned", ArchivedDate = "05 Sep 2024", ArchivedReason = "Resigned - Personal reasons" },
+        new() { Id = "00005", Name = "Ms. Mendez", Address = "34 Birch Ln.", Contact = "09123456789", Email = "l.mendez@email.com", Role = "Teacher", Status = "Terminated", ArchivedDate = "20 Aug 2024", ArchivedReason = "Terminated - Performance issues" },
+        new() { Id = "00006", Name = "Alfred Murray", Address = "34 Birch Ln.", Contact = "09123456755", Email = "a.torres@email.com", Role = "Registrar", Status = "Resigned", ArchivedDate = "12 Jul 2024", ArchivedReason = "Resigned - Health reasons" },
+        new() { Id = "00007", Name = "Maggie Sullivan", Address = "34 Birch Ln.", Contact = "09123456765", Email = "k.cruz@email.com", Role = "Teacher", Status = "Retired", ArchivedDate = "25 Jun 2024", ArchivedReason = "Retired" },
+        new() { Id = "00008", Name = "Rosie Todd", Address = "90 Walnut Ave.", Contact = "09123456712", Email = "b.reyes@email.com", Role = "Cashier", Status = "Resigned", ArchivedDate = "18 May 2024", ArchivedReason = "Resigned - Relocation" },
+        new() { Id = "00009", Name = "Dollie Hines", Address = "90 Walnut Ave.", Contact = "09123456782", Email = "m.delacruz@email.com", Role = "Registrar", Status = "Terminated", ArchivedDate = "03 Apr 2024", ArchivedReason = "Terminated - Contract ended" }
+    };
+
+    public class ArchivedStudent
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string LRN { get; set; } = "";
+        public string Date { get; set; } = "";
+        public string GradeLevel { get; set; } = "";
+        public string Section { get; set; } = "";
+        public string Documents { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string ArchivedDate { get; set; } = "";
+        public string ArchivedReason { get; set; } = "";
+    }
+
+    public class ArchivedEmployee
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string Contact { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Role { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string ArchivedDate { get; set; } = "";
+        public string ArchivedReason { get; set; } = "";
+    }
+}
+

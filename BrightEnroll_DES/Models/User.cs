@@ -16,6 +16,7 @@ namespace BrightEnroll_DES.Models
         public string email { get; set; } = string.Empty;
         public string password { get; set; } = string.Empty;
         public DateTime date_hired { get; set; }
+        public string status { get; set; } = "active";
     }
 }
 

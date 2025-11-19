@@ -1,11 +1,23 @@
 ﻿@page "/finance"
 @layout Components.Layout.MainLayout
 @inject IJSRuntime JSRuntime
+@inject BrightEnroll_DES.Services.Finance.FeeService FeeService
+@inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
+
+@using BrightEnroll_DES.Components.Pages.Admin.FinanceComponents
+@using BrightEnroll_DES.Services.Finance
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services
+@using Microsoft.Extensions.Logging
 
 <PageTitle>Finance</PageTitle>
 
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Finance</h1>
+    
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
@@ -31,714 +43,75 @@
 
     <!-- Card Container -->
     <div class="overflow-hidden rounded-xl bg-white shadow">
-        <!-- Fee Setup Tab -->
         @if (activeTab == "FeeSetup")
         {
-            <!-- Search + Grade Filter + Add Fee -->
-            <div class="border-b border-gray-200 px-6 py-4">
-                <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-3">
-                    <div class="relative flex items-center">
-                        <span class="absolute left-3 flex items-center justify-center">
-                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </span>
-                        <input type="text" placeholder="Search here..." @bind="FeeSearchText"
-                               class="w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
-                    </div>
-                    <select @bind="FeeGradeFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option value="">Grade</option>
-                        <option value="Kinder">Kinder</option>
-                        <option value="Grade 1">Grade 1</option>
-                        <option value="Grade 2">Grade 2</option>
-                    </select>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                        <button @onclick="ClearFeeFilters" class="flex items-center gap-2 rounded-full bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            Clear
-                        </button>
-                        <button @onclick="OpenAddFeeModal" class="rounded-full bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700">
-                            + Add Fee
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Table -->
-            <div>
-                <table class="min-w-full text-sm">
-                    <thead class="bg-gray-100 font-semibold text-gray-600">
-                        <tr>
-                            <th class="px-4 py-3 text-left">Grade Level</th>
-                            <th class="px-4 py-3 text-left">Tuition Fee</th>
-                            <th class="px-4 py-3 text-left">Misc Fee</th>
-                            <th class="px-4 py-3 text-left">Other Fee</th>
-                            <th class="px-4 py-3 text-left">Total Fee</th>
-                            <th class="px-4 py-3 text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y">
-                        @foreach (var fee in FeeList)
-                        {
-                            <tr class="transition hover:bg-gray-50">
-                                <td class="px-4 py-3">@fee.GradeLevel</td>
-                                <td class="px-4 py-3">Php @fee.TuitionFee.ToString("N2")</td>
-                                <td class="px-4 py-3">Php @fee.MiscFee.ToString("N2")</td>
-                                <td class="px-4 py-3">Php @fee.OtherFee.ToString("N2")</td>
-                                <td class="px-4 py-3 font-medium">Php @fee.TotalFee.ToString("N2")</td>
-                                <td class="flex items-center justify-center gap-2 px-4 py-3">
-                                    <!-- Edit Button -->
-                                    <button @onclick="() => OpenEditFeeModal(fee)" class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                        </svg>
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
+            <FeeSetup FeeList="FeeList" 
+                      OnFeeAdded="HandleFeeAdded" 
+                      OnFeeUpdated="HandleFeeUpdated" />
         }
         else if (activeTab == "Payments")
         {
-            <div class="p-6">
-                <!-- Student Info Section -->
-                <div class="mb-6">
-                    <h2 class="mb-4 text-lg font-bold text-blue-600">Student Info</h2>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Student ID:</label>
-                            <div class="relative">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
-                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </span>
-                                <input type="text" @bind="PaymentData.StudentId" 
-                                       class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
-                            </div>
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Student Name:</label>
-                            <input type="text" @bind="PaymentData.StudentName" 
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
-                                   readonly />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Grade Level:</label>
-                            <input type="text" @bind="PaymentData.GradeLevel" 
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
-                                   readonly />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Payment Status:</label>
-                            <div class="mt-2">
-                                @if (PaymentData.PaymentStatus == "Fully Paid")
-                                {
-                                    <span class="inline-block rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Fully Paid</span>
-                                }
-                                else if (PaymentData.PaymentStatus == "Partially Paid")
-                                {
-                                    <span class="inline-block rounded-md bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">Partially Paid</span>
-                                }
-                                else
-                                {
-                                    <span class="inline-block rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Unpaid</span>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Divider -->
-                <div class="my-6 border-t border-gray-200"></div>
-
-                <!-- Payment Section -->
-                <div>
-                    <h2 class="mb-4 text-lg font-bold text-blue-600">Payment</h2>
-                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
-                            <input type="text" value="@($"Php {PaymentData.TotalFee:N2}")" 
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
-                                   readonly />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Amount Paid:</label>
-                            <input type="text" value="@($"Php {PaymentData.AmountPaid:N2}")" 
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
-                                   readonly />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Balance:</label>
-                            <input type="text" value="@($"Php {PaymentData.Balance:N2}")" 
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
-                                   readonly />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">New Payment Amount:</label>
-                            <input type="text" @bind="PaymentData.NewPaymentAmount" 
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method:</label>
-                            <select @bind="PaymentData.PaymentMethod" 
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                                <option value="Cash">Cash</option>
-                                <option value="Check">Check</option>
-                                <option value="Bank Transfer">Bank Transfer</option>
-                                <option value="Credit Card">Credit Card</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="mt-6 flex justify-end gap-3">
-                        <button @onclick="ClearPaymentForm" class="rounded-full bg-gray-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
-                            Clear
-                        </button>
-                        <button @onclick="OpenPaymentConfirmationModal" class="rounded-full bg-green-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
-                            Pay
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <Payments PaymentData="PaymentData" 
+                      OnPaymentProcessed="HandlePaymentProcessed" />
         }
         else if (activeTab == "Expenses")
         {
-            <div class="p-6 text-gray-600">
-                <p class="text-center text-sm text-gray-400">Expenses page content goes here.</p>
-            </div>
+            <Expenses ExpenseForm="ExpenseForm" 
+                      OnExpenseSaved="HandleExpenseSaved" />
         }
         else if (activeTab == "Records")
         {
-            <!-- Filters -->
-            <div class="border-b border-gray-200 px-6 py-4">
-                <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-                <div class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <div class="relative flex items-center">
-                            <span class="absolute left-3 flex items-center justify-center">
-                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            </span>
-                            <input type="text" placeholder="search here..." @bind="RecordsSearchText"
-                                   class="w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-                        <select @bind="RecordsGradeFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                            <option value="">Grade</option>
-                            <option value="Kinder">Kinder</option>
-                            <option value="Grade 1">Grade 1</option>
-                            <option value="Grade 2">Grade 2</option>
-                            <option value="Grade 3">Grade 3</option>
-                            <option value="Grade 4">Grade 4</option>
-                            <option value="Grade 5">Grade 5</option>
-                            <option value="Grade 6">Grade 6</option>
-                        </select>
-                        <select @bind="RecordsPaymentStatusFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                            <option value="">Payment Status</option>
-                            <option value="Fully Paid">Fully Paid</option>
-                            <option value="Partially Paid">Partially Paid</option>
-                            <option value="Unpaid">Unpaid</option>
-                        </select>
-                    </div>
-                    <button @onclick="ExportRecordsPDF" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg" style="font-size: 13px;">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Export PDF
-                    </button>
-                </div>
-            </div>
-
-            <!-- Table -->
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-100 font-semibold text-gray-600">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Student ID</th>
-                        <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-left">Grade</th>
-                        <th class="px-4 py-3 text-left">Total Fee</th>
-                        <th class="px-4 py-3 text-left">Amount Paid</th>
-                        <th class="px-4 py-3 text-left">Balance</th>
-                        <th class="px-4 py-3 text-left">Payment Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                    @foreach (var record in PaymentRecords)
-                    {
-                        <tr class="transition hover:bg-gray-50">
-                            <td class="px-4 py-3">@record.StudentId</td>
-                            <td class="px-4 py-3">@record.Name</td>
-                            <td class="px-4 py-3">@record.Grade</td>
-                            <td class="px-4 py-3">@($"Php {record.TotalFee:N0}")</td>
-                            <td class="px-4 py-3">@($"Php {record.AmountPaid:N0}")</td>
-                            <td class="px-4 py-3">@($"Php {record.Balance:N0}")</td>
-                            <td class="px-4 py-3">
-                                @if (record.PaymentStatus == "Fully Paid")
-                                {
-                                    <span class="inline-block rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">Fully Paid</span>
-                                }
-                                else if (record.PaymentStatus == "Partially Paid")
-                                {
-                                    <span class="inline-block rounded-md bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">Partially Paid</span>
-                                }
-                                else
-                                {
-                                    <span class="inline-block rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Unpaid</span>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-
-            <!-- Pagination -->
-            <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-                <span>@($"{PaymentRecords.Count} of {PaymentRecords.Count} payment records")</span>
-                <div class="flex items-center gap-2">
-                    <button class="rounded-md px-3 py-1 text-xs text-white bg-blue-600">1</button>
-                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
-                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
-                    <span>...</span>
-                    <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
-                    <span class="ml-4">Show</span>
-                    <select class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option value="5">5 rows</option>
-                        <option value="10">10 rows</option>
-                        <option value="20">20 rows</option>
-                    </select>
-                </div>
-            </div>
+            <Records PaymentRecords="PaymentRecords" 
+                     OnViewPaymentDetails="HandleViewPaymentDetails" 
+                     OnEditPaymentRecord="HandleEditPaymentRecord" 
+                     OnExportPDF="HandleExportPDF" />
         }
     </div>
-
-    <!-- Add Fee Modal -->
-    @if (ShowAddFeeModal)
-    {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddFeeModal">
-            <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-                <!-- Modal Header -->
-                <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2">
-                    <h3 class="text-lg font-semibold text-white">Add Fee</h3>
-                    <button @onclick="CloseAddFeeModal" class="text-white hover:text-gray-200">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Modal Body -->
-                <div class="px-6 py-4 rounded-b-2xl">
-                    <form @onsubmit="HandleAddFee" @onsubmit:preventDefault="true">
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Select Grade Level <span class="text-red-500">*</span>
-                            </label>
-                            <select @bind="NewFeeFormData.GradeLevel" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
-                                <option value="">Select Grade Level</option>
-                                <option value="Kinder">Kinder</option>
-                                <option value="Grade 1">Grade 1</option>
-                                <option value="Grade 2">Grade 2</option>
-                                <option value="Grade 3">Grade 3</option>
-                                <option value="Grade 4">Grade 4</option>
-                                <option value="Grade 5">Grade 5</option>
-                                <option value="Grade 6">Grade 6</option>
-                            </select>
-                        </div>
-
-                        <!-- Tuition Fee Breakdown -->
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Tuition Fee <span class="text-red-500">*</span>
-                            </label>
-                            <div class="mb-2 space-y-2">
-                                @foreach (var item in NewTuitionBreakdown)
-                                {
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" @bind="item.Name" @bind:after="CalculateTuitionTotal" 
-                                               placeholder="Item name"
-                                               class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <input type="text" @bind="item.AmountString" @bind:after="CalculateTuitionTotal" 
-                                               placeholder="Php 0.00"
-                                               class="w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <button type="button" @onclick="() => RemoveTuitionBreakdownItem(item)" 
-                                                class="rounded-full bg-red-50 p-2 text-red-600 hover:bg-red-100">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                                <button type="button" @onclick="AddTuitionBreakdownItem" 
-                                        class="w-full rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                                    + Add Tuition Item
-                                </button>
-                            </div>
-                            <input type="text" value="@NewFeeFormData.TuitionFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
-                        </div>
-
-                        <!-- Misc Fee Breakdown -->
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Misc Fee <span class="text-red-500">*</span>
-                            </label>
-                            <div class="mb-2 space-y-2">
-                                @foreach (var item in NewMiscBreakdown)
-                                {
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" @bind="item.Name" @bind:after="CalculateMiscTotal" 
-                                               placeholder="Item name"
-                                               class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <input type="text" @bind="item.AmountString" @bind:after="CalculateMiscTotal" 
-                                               placeholder="Php 0.00"
-                                               class="w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <button type="button" @onclick="() => RemoveMiscBreakdownItem(item)" 
-                                                class="rounded-full bg-red-50 p-2 text-red-600 hover:bg-red-100">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                                <button type="button" @onclick="AddMiscBreakdownItem" 
-                                        class="w-full rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                                    + Add Misc Item
-                                </button>
-                            </div>
-                            <input type="text" value="@NewFeeFormData.MiscFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Other Fee <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" @bind="NewFeeFormData.OtherFeeString" @bind:after="CalculateTotal" required
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-
-                        <div class="mb-6">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
-                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
-                                Php @TotalFee.ToString("N2")
-                            </div>
-                        </div>
-
-                        <div class="mt-6 flex justify-end gap-3">
-                            <button type="button" @onclick="CloseAddFeeModal" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Cancel
-                            </button>
-                            <button type="submit" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                                Add
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    }
-
-    <!-- Edit Fee Modal -->
-    @if (ShowEditFeeModal)
-    {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEditFeeModal">
-            <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-                <!-- Modal Header -->
-                <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2">
-                    <h3 class="text-lg font-semibold text-white">Edit Fee</h3>
-                    <button @onclick="CloseEditFeeModal" class="text-white hover:text-gray-200">
-                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                <!-- Modal Body -->
-                <div class="px-6 py-4 rounded-b-2xl">
-                    <form @onsubmit="HandleEditFee" @onsubmit:preventDefault="true">
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Select Grade Level <span class="text-red-500">*</span>
-                            </label>
-                            <select @bind="EditFeeFormData.GradeLevel" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
-                                <option value="">Select Grade Level</option>
-                                <option value="Kinder">Kinder</option>
-                                <option value="Grade 1">Grade 1</option>
-                                <option value="Grade 2">Grade 2</option>
-                                <option value="Grade 3">Grade 3</option>
-                                <option value="Grade 4">Grade 4</option>
-                                <option value="Grade 5">Grade 5</option>
-                                <option value="Grade 6">Grade 6</option>
-                            </select>
-                        </div>
-
-                        <!-- Tuition Fee Breakdown -->
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Tuition Fee <span class="text-red-500">*</span>
-                            </label>
-                            <div class="mb-2 space-y-2">
-                                @foreach (var item in EditTuitionBreakdown)
-                                {
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" @bind="item.Name" @bind:after="CalculateEditTuitionTotal" 
-                                               placeholder="Item name"
-                                               class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <input type="text" @bind="item.AmountString" @bind:after="CalculateEditTuitionTotal" 
-                                               placeholder="Php 0.00"
-                                               class="w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <button type="button" @onclick="() => RemoveEditTuitionBreakdownItem(item)" 
-                                                class="rounded-full bg-red-50 p-2 text-red-600 hover:bg-red-100">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                                <button type="button" @onclick="AddEditTuitionBreakdownItem" 
-                                        class="w-full rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                                    + Add Tuition Item
-                                </button>
-                            </div>
-                            <input type="text" value="@EditFeeFormData.TuitionFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
-                        </div>
-
-                        <!-- Misc Fee Breakdown -->
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Misc Fee <span class="text-red-500">*</span>
-                            </label>
-                            <div class="mb-2 space-y-2">
-                                @foreach (var item in EditMiscBreakdown)
-                                {
-                                    <div class="flex items-center gap-2">
-                                        <input type="text" @bind="item.Name" @bind:after="CalculateEditMiscTotal" 
-                                               placeholder="Item name"
-                                               class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <input type="text" @bind="item.AmountString" @bind:after="CalculateEditMiscTotal" 
-                                               placeholder="Php 0.00"
-                                               class="w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                                        <button type="button" @onclick="() => RemoveEditMiscBreakdownItem(item)" 
-                                                class="rounded-full bg-red-50 p-2 text-red-600 hover:bg-red-100">
-                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                }
-                                <button type="button" @onclick="AddEditMiscBreakdownItem" 
-                                        class="w-full rounded-full border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                                    + Add Misc Item
-                                </button>
-                            </div>
-                            <input type="text" value="@EditFeeFormData.MiscFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Other Fee <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" @bind="EditFeeFormData.OtherFeeString" @bind:after="CalculateEditTotal" required
-                                   placeholder="Php 0.00"
-                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                        </div>
-
-                        <div class="mb-6">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
-                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
-                                Php @EditTotalFee.ToString("N2")
-                            </div>
-                        </div>
-
-                        <div class="mt-6 flex justify-end gap-3">
-                            <button type="button" @onclick="CloseEditFeeModal" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Cancel
-                            </button>
-                            <button type="submit" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                                Update
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    }
-
-<!-- Payment Confirmation Modal -->
-@if (ShowPaymentConfirmationModal)
-{
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="ClosePaymentConfirmationModal">
-        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden" @onclick:stopPropagation="true">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl" style="background-color: #16a34a; padding: 12px 24px;">
-                <h3 class="text-lg font-semibold text-white" style="margin: 0;">Confirm Payment</h3>
-                <button @onclick="ClosePaymentConfirmationModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Modal Body -->
-            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
-                <p class="text-sm text-gray-700" style="margin: 0 0 16px 0; line-height: 1.5;">
-                    Are you sure you want to process a payment of <span class="font-semibold">@PaymentData.NewPaymentAmount</span> for <span class="font-semibold">@PaymentData.StudentName</span>?
-                </p>
-                <div class="rounded-lg bg-gray-50" style="padding: 16px; margin: 0 0 20px 0;">
-                    <div class="flex justify-between text-sm" style="margin: 0 0 8px 0;">
-                        <span class="text-gray-600">Payment Method:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.PaymentMethod</span>
-                    </div>
-                    <div class="flex justify-between text-sm" style="margin: 0;">
-                        <span class="text-gray-600">New Balance:</span>
-                        <span class="font-medium text-gray-900">@($"Php {(PaymentData.Balance - ParsePaymentAmount(PaymentData.NewPaymentAmount)):N2}")</span>
-                    </div>
-                </div>
-                <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
-                    <button type="button" @onclick="ConfirmPayment" class="rounded-full text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #16a34a; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
-                        Confirm
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- Payment Receipt Modal -->
-@if (ShowPaymentReceiptModal)
-{
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="ClosePaymentReceiptModal">
-        <div class="w-full max-w-md rounded-xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-xl" style="background-color: #2563eb; padding: 12px 24px;">
-                <h3 class="text-lg font-semibold text-white" style="margin: 0;">Payment Receipt</h3>
-                <button @onclick="ClosePaymentReceiptModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <!-- Receipt Content -->
-            <div class="p-6">
-                <!-- Logo and Header -->
-                <div class="mb-6 text-center">
-                    <div class="mb-2 flex items-center justify-center">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600">
-                            <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                            </svg>
-                        </div>
-                    </div>
-                    <h1 class="text-2xl font-bold text-blue-600">BRIGHTENROLL</h1>
-                    <p class="text-sm text-blue-500">ENROLLMENT MANAGEMENT SYSTEM</p>
-                </div>
-
-                <!-- Receipt Title -->
-                <h2 class="mb-6 text-center text-xl font-bold text-gray-900">Payment Receipt</h2>
-
-                <!-- Receipt Details -->
-                <div class="space-y-3 border-b-2 border-dashed border-gray-300 pb-4">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Date:</span>
-                        <span class="font-medium text-gray-900">@DateTime.Now.ToString("MMM dd, yyyy")</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Student:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.StudentName</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">ID:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.StudentId</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Grade:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.GradeLevel</span>
-                    </div>
-                </div>
-
-                <!-- Financial Summary -->
-                <div class="mt-4 space-y-2 border-b-2 border-dashed border-gray-300 pb-4">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Total Fee:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.TotalFee.ToString("N0")</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Amount Paid:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.AmountPaid.ToString("N0")</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Previous Payment:</span>
-                        <span class="font-medium text-gray-900">@PreviousAmountPaid.ToString("N0")</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Balance:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.Balance.ToString("N0")</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Payment Method:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.PaymentMethod</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Status:</span>
-                        <span class="font-medium text-gray-900">@PaymentData.PaymentStatus</span>
-                    </div>
-                </div>
-
-                <!-- Print Button -->
-                <div class="mt-6 text-center">
-                    <button @onclick="PrintReceipt" class="rounded-lg bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg">
-                        Print PDF
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 </div>
 
 @code {
     private string activeTab = "FeeSetup";
-    private bool ShowAddFeeModal { get; set; } = false;
-    private bool ShowEditFeeModal { get; set; } = false;
-    private bool ShowPaymentConfirmationModal { get; set; } = false;
-    private bool ShowPaymentReceiptModal { get; set; } = false;
-    private FeeFormData NewFeeFormData { get; set; } = new();
-    private FeeFormData EditFeeFormData { get; set; } = new();
-    private FeeItem? EditingFeeItem { get; set; }
-    private decimal TotalFee { get; set; } = 0;
-    private decimal EditTotalFee { get; set; } = 0;
+
+    // Fee Setup Data
+    private List<FeeModel> FeeList = new();
     
-    // Breakdown lists for Add modal
-    private List<BreakdownItem> NewTuitionBreakdown { get; set; } = new();
-    private List<BreakdownItem> NewMiscBreakdown { get; set; } = new();
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
     
-    // Breakdown lists for Edit modal
-    private List<BreakdownItem> EditTuitionBreakdown { get; set; } = new();
-    private List<BreakdownItem> EditMiscBreakdown { get; set; } = new();
+    // Prevent concurrent submissions
+    private bool _isProcessingFee = false;
+
+    // Payments Data
+    private PaymentDataModel PaymentData = new()
+    {
+        StudentId = "547635",
+        StudentName = "Darrell Carol",
+        GradeLevel = "Grade 1",
+        TotalFee = 11300,
+        AmountPaid = 8300,
+        Balance = 3000,
+        PaymentStatus = "Partially Paid",
+        NewPaymentAmount = 0,
+        PaymentMethod = "Cash"
+    };
+
+    // Expenses Data
+    private ExpenseFormModel ExpenseForm = new()
+    {
+        ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+        RecordedBy = "Admin User",
+        ExpenseDate = DateTime.Now,
+        PaymentMethod = "Cash",
+        Status = "Pending"
+    };
+
+    // Records Data
+    private List<PaymentRecord> PaymentRecords = new()
+    {
+        new() { StudentId = "547635", Name = "Darrell Carol", Grade = "Grade 1", TotalFee = 11300, AmountPaid = 8300, Balance = 3000, PaymentStatus = "Partially Paid" }
+    };
 
     private void SetActiveTab(string tab)
     {
@@ -780,379 +153,301 @@
         };
     }
 
-    private void OpenAddFeeModal()
+    protected override async Task OnInitializedAsync()
     {
-        NewFeeFormData = new FeeFormData();
-        NewTuitionBreakdown = new List<BreakdownItem>();
-        NewMiscBreakdown = new List<BreakdownItem>();
-        TotalFee = 0;
-        ShowAddFeeModal = true;
+        await LoadFeesAsync();
     }
 
-    private void CloseAddFeeModal()
+    private async Task LoadFeesAsync()
     {
-        ShowAddFeeModal = false;
-        NewFeeFormData = new FeeFormData();
-        NewTuitionBreakdown = new List<BreakdownItem>();
-        NewMiscBreakdown = new List<BreakdownItem>();
-        TotalFee = 0;
-    }
-
-    private void OpenEditFeeModal(FeeItem fee)
-    {
-        EditingFeeItem = fee;
-        EditFeeFormData = new FeeFormData
+        try
         {
-            GradeLevel = fee.GradeLevel,
-            TuitionFeeString = $"Php {fee.TuitionFee:N2}",
-            MiscFeeString = $"Php {fee.MiscFee:N2}",
-            OtherFeeString = $"Php {fee.OtherFee:N2}"
-        };
-        EditTotalFee = fee.TotalFee;
-        
-        // Initialize breakdowns (for now, create single items - can be enhanced to load from stored breakdowns)
-        EditTuitionBreakdown = new List<BreakdownItem> { new BreakdownItem { Name = "Tuition", AmountString = $"Php {fee.TuitionFee:N2}" } };
-        EditMiscBreakdown = new List<BreakdownItem> { new BreakdownItem { Name = "Misc", AmountString = $"Php {fee.MiscFee:N2}" } };
-        
-        ShowEditFeeModal = true;
-    }
-
-    private void CloseEditFeeModal()
-    {
-        ShowEditFeeModal = false;
-        EditingFeeItem = null;
-        EditFeeFormData = new FeeFormData();
-        EditTuitionBreakdown = new List<BreakdownItem>();
-        EditMiscBreakdown = new List<BreakdownItem>();
-        EditTotalFee = 0;
-    }
-
-    // Breakdown management methods for Add modal
-    private void AddTuitionBreakdownItem()
-    {
-        NewTuitionBreakdown.Add(new BreakdownItem());
-        StateHasChanged();
-    }
-
-    private void RemoveTuitionBreakdownItem(BreakdownItem item)
-    {
-        NewTuitionBreakdown.Remove(item);
-        CalculateTuitionTotal();
-    }
-
-    private void AddMiscBreakdownItem()
-    {
-        NewMiscBreakdown.Add(new BreakdownItem());
-        StateHasChanged();
-    }
-
-    private void RemoveMiscBreakdownItem(BreakdownItem item)
-    {
-        NewMiscBreakdown.Remove(item);
-        CalculateMiscTotal();
-    }
-
-    // Breakdown management methods for Edit modal
-    private void AddEditTuitionBreakdownItem()
-    {
-        EditTuitionBreakdown.Add(new BreakdownItem());
-        StateHasChanged();
-    }
-
-    private void RemoveEditTuitionBreakdownItem(BreakdownItem item)
-    {
-        EditTuitionBreakdown.Remove(item);
-        CalculateEditTuitionTotal();
-    }
-
-    private void AddEditMiscBreakdownItem()
-    {
-        EditMiscBreakdown.Add(new BreakdownItem());
-        StateHasChanged();
-    }
-
-    private void RemoveEditMiscBreakdownItem(BreakdownItem item)
-    {
-        EditMiscBreakdown.Remove(item);
-        CalculateEditMiscTotal();
-    }
-
-    // Calculate totals from breakdowns
-    private void CalculateTuitionTotal()
-    {
-        decimal total = 0;
-        foreach (var item in NewTuitionBreakdown)
-        {
-            total += ParseCurrency(item.AmountString);
+            var fees = await FeeService.GetAllFeesAsync();
+            
+            // Map Fee entities to FeeModel for UI
+            FeeList = fees.Select(f => new FeeModel
+            {
+                GradeLevel = f.GradeLevel?.GradeLevelName ?? "N/A",
+                TuitionFee = f.TuitionFee,
+                MiscFee = f.MiscFee,
+                OtherFee = f.OtherFee,
+                TuitionBreakdown = f.Breakdowns
+                    .Where(b => b.BreakdownType == "Tuition")
+                    .OrderBy(b => b.DisplayOrder)
+                    .Select(b => new FeeBreakdownItem
+                    {
+                        Name = b.ItemName,
+                        AmountString = b.Amount.ToString("N2")
+                    }).ToList(),
+                MiscBreakdown = f.Breakdowns
+                    .Where(b => b.BreakdownType == "Misc")
+                    .OrderBy(b => b.DisplayOrder)
+                    .Select(b => new FeeBreakdownItem
+                    {
+                        Name = b.ItemName,
+                        AmountString = b.Amount.ToString("N2")
+                    }).ToList(),
+                OtherBreakdown = f.Breakdowns
+                    .Where(b => b.BreakdownType == "Other")
+                    .OrderBy(b => b.DisplayOrder)
+                    .Select(b => new FeeBreakdownItem
+                    {
+                        Name = b.ItemName,
+                        AmountString = b.Amount.ToString("N2")
+                    }).ToList()
+            }).ToList();
         }
-        NewFeeFormData.TuitionFeeString = $"Php {total:N2}";
-        CalculateTotal();
-    }
-
-    private void CalculateMiscTotal()
-    {
-        decimal total = 0;
-        foreach (var item in NewMiscBreakdown)
+        catch (Exception ex)
         {
-            total += ParseCurrency(item.AmountString);
+            Logger?.LogError(ex, "Error loading fees: {Message}", ex.Message);
+            FeeList = new List<FeeModel>();
+            
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load fees: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
         }
-        NewFeeFormData.MiscFeeString = $"Php {total:N2}";
-        CalculateTotal();
-    }
-
-    private void CalculateEditTuitionTotal()
-    {
-        decimal total = 0;
-        foreach (var item in EditTuitionBreakdown)
+        finally
         {
-            total += ParseCurrency(item.AmountString);
+            StateHasChanged();
         }
-        EditFeeFormData.TuitionFeeString = $"Php {total:N2}";
-        CalculateEditTotal();
     }
 
-    private void CalculateEditMiscTotal()
+    // Event Handlers
+    private async Task HandleFeeAdded(FeeModel fee)
     {
-        decimal total = 0;
-        foreach (var item in EditMiscBreakdown)
+        // Prevent concurrent submissions
+        if (_isProcessingFee)
         {
-            total += ParseCurrency(item.AmountString);
-        }
-        EditFeeFormData.MiscFeeString = $"Php {total:N2}";
-        CalculateEditTotal();
-    }
-
-    private void CalculateTotal()
-    {
-        var tuition = ParseCurrency(NewFeeFormData.TuitionFeeString);
-        var misc = ParseCurrency(NewFeeFormData.MiscFeeString);
-        var other = ParseCurrency(NewFeeFormData.OtherFeeString);
-        TotalFee = tuition + misc + other;
-    }
-
-    private void CalculateEditTotal()
-    {
-        var tuition = ParseCurrency(EditFeeFormData.TuitionFeeString);
-        var misc = ParseCurrency(EditFeeFormData.MiscFeeString);
-        var other = ParseCurrency(EditFeeFormData.OtherFeeString);
-        EditTotalFee = tuition + misc + other;
-    }
-
-    private decimal ParseCurrency(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return 0;
-
-        // Remove "Php", spaces, and commas
-        var cleaned = value.Replace("Php", "").Replace(" ", "").Replace(",", "").Trim();
-        if (decimal.TryParse(cleaned, out var result))
-            return result;
-        return 0;
-    }
-
-    private void HandleAddFee()
-    {
-        var tuition = ParseCurrency(NewFeeFormData.TuitionFeeString);
-        var misc = ParseCurrency(NewFeeFormData.MiscFeeString);
-        var other = ParseCurrency(NewFeeFormData.OtherFeeString);
-
-        var newFee = new FeeItem
-        {
-            GradeLevel = NewFeeFormData.GradeLevel,
-            TuitionFee = tuition,
-            MiscFee = misc,
-            OtherFee = other
-        };
-
-        FeeList.Add(newFee);
-        CloseAddFeeModal();
-    }
-
-    private void HandleEditFee()
-    {
-        if (EditingFeeItem == null)
-            return;
-
-        var tuition = ParseCurrency(EditFeeFormData.TuitionFeeString);
-        var misc = ParseCurrency(EditFeeFormData.MiscFeeString);
-        var other = ParseCurrency(EditFeeFormData.OtherFeeString);
-
-        EditingFeeItem.GradeLevel = EditFeeFormData.GradeLevel;
-        EditingFeeItem.TuitionFee = tuition;
-        EditingFeeItem.MiscFee = misc;
-        EditingFeeItem.OtherFee = other;
-
-        CloseEditFeeModal();
-    }
-
-    private List<FeeItem> FeeList = new()
-    {
-        new() { GradeLevel = "Kinder", TuitionFee = 10000, MiscFee = 500, OtherFee = 200 },
-        new() { GradeLevel = "Grade 1", TuitionFee = 10500, MiscFee = 500, OtherFee = 300 },
-    };
-
-    public class FeeItem
-    {
-        public string GradeLevel { get; set; } = "";
-        public decimal TuitionFee { get; set; }
-        public decimal MiscFee { get; set; }
-        public decimal OtherFee { get; set; }
-        public decimal TotalFee => TuitionFee + MiscFee + OtherFee;
-    }
-
-    public class FeeFormData
-    {
-        public string GradeLevel { get; set; } = "";
-        public string TuitionFeeString { get; set; } = "";
-        public string MiscFeeString { get; set; } = "";
-        public string OtherFeeString { get; set; } = "";
-    }
-
-    public class BreakdownItem
-    {
-        public string Name { get; set; } = "";
-        public string AmountString { get; set; } = "";
-    }
-
-    // Payment Data
-    private PaymentDataModel PaymentData = new()
-    {
-        StudentId = "547635",
-        StudentName = "Darrell Carol",
-        GradeLevel = "Grade 1",
-        PaymentStatus = "Partially Paid",
-        TotalFee = 11300,
-        AmountPaid = 5300,
-        Balance = 6000,
-        NewPaymentAmount = "Php 3,000.00",
-        PaymentMethod = "Cash"
-    };
-
-    private void OpenPaymentConfirmationModal()
-    {
-        if (string.IsNullOrWhiteSpace(PaymentData.NewPaymentAmount))
-        {
-            // TODO: Show error message
             return;
         }
-        ShowPaymentConfirmationModal = true;
-    }
-
-    private void ClosePaymentConfirmationModal()
-    {
-        ShowPaymentConfirmationModal = false;
-    }
-
-    private decimal PreviousAmountPaid { get; set; } = 0;
-
-    private void ConfirmPayment()
-    {
-        // Store previous amount paid for receipt
-        PreviousAmountPaid = PaymentData.AmountPaid;
         
-        // Update payment data
-        var newPayment = ParsePaymentAmount(PaymentData.NewPaymentAmount);
-        PaymentData.AmountPaid += newPayment;
-        PaymentData.Balance -= newPayment;
+        _isProcessingFee = true;
+        StateHasChanged();
         
-        // Update payment status
-        if (PaymentData.Balance <= 0)
+        try
         {
-            PaymentData.PaymentStatus = "Fully Paid";
+            // Get grade level ID from name
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var gradeLevel = gradeLevels.FirstOrDefault(g => g.GradeLevelName == fee.GradeLevel);
+            
+            if (gradeLevel == null)
+            {
+                Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found. Please select a valid grade level.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Create request with breakdown items (filter out empty items)
+            var request = new CreateFeeRequest
+            {
+                GradeLevelId = gradeLevel.GradeLevelId,
+                TuitionFee = fee.TuitionFee,
+                MiscFee = fee.MiscFee,
+                OtherFee = fee.OtherFee,
+                TuitionBreakdown = fee.TuitionBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                MiscBreakdown = fee.MiscBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                OtherBreakdown = fee.OtherBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                CreatedBy = "Admin" // TODO: Get from current user context
+            };
+
+            await FeeService.CreateFeeAsync(request);
+            
+            // Reload fees from database
+            await LoadFeesAsync();
+            
+            // Show success toast
+            toastMessage = $"Fee for {fee.GradeLevel} added successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
         }
-        else if (PaymentData.AmountPaid > 0)
+        catch (Exception ex)
         {
-            PaymentData.PaymentStatus = "Partially Paid";
+            Logger?.LogError(ex, "Error adding fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
+            
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to add fee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
         }
-
-        // TODO: Save payment to database
-
-        ClosePaymentConfirmationModal();
-        ShowPaymentReceiptModal = true;
-        StateHasChanged();
+        finally
+        {
+            _isProcessingFee = false;
+            StateHasChanged();
+        }
     }
 
-    private void ClosePaymentReceiptModal()
+    private async Task HandleFeeUpdated(FeeModel fee)
     {
-        ShowPaymentReceiptModal = false;
-        // Reset new payment amount
-        PaymentData.NewPaymentAmount = "";
+        try
+        {
+            // Get grade level ID from name
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var gradeLevel = gradeLevels.FirstOrDefault(g => g.GradeLevelName == fee.GradeLevel);
+            
+            if (gradeLevel == null)
+            {
+                Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Get existing fee
+            var existingFee = await FeeService.GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
+            
+            if (existingFee == null)
+            {
+                Logger?.LogError("Fee not found for grade level: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Fee not found for {fee.GradeLevel}.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Create update request with breakdown items (filter out empty items)
+            var request = new UpdateFeeRequest
+            {
+                TuitionFee = fee.TuitionFee,
+                MiscFee = fee.MiscFee,
+                OtherFee = fee.OtherFee,
+                TuitionBreakdown = fee.TuitionBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                MiscBreakdown = fee.MiscBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                OtherBreakdown = fee.OtherBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                UpdatedBy = "Admin" // TODO: Get from current user context
+            };
+
+            await FeeService.UpdateFeeAsync(existingFee.FeeId, request);
+            
+            // Reload fees from database
+            await LoadFeesAsync();
+            
+            // Show success toast
+            toastMessage = $"Fee for {fee.GradeLevel} updated successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error updating fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
+            
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update fee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
     }
-
-    private void ClearPaymentForm()
-    {
-        PaymentData.NewPaymentAmount = "";
-        PaymentData.PaymentMethod = "Cash";
-    }
-
-    private void ClearFeeFilters()
-    {
-        FeeSearchText = "";
-        FeeGradeFilter = "";
-        StateHasChanged();
-    }
-
-    private decimal ParsePaymentAmount(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-            return 0;
-
-        // Remove "Php", spaces, and commas
-        var cleaned = value.Replace("Php", "").Replace(" ", "").Replace(",", "").Trim();
-        if (decimal.TryParse(cleaned, out var result))
-            return result;
-        return 0;
-    }
-
-    private async Task PrintReceipt()
-    {
-        // Print the receipt using browser print dialog
-        await JSRuntime.InvokeVoidAsync("window.print");
-        // TODO: In a production environment, you might want to generate a proper PDF
-        // using a library like jsPDF or a server-side PDF generation library
-    }
-
-    public class PaymentDataModel
-    {
-        public string StudentId { get; set; } = "";
-        public string StudentName { get; set; } = "";
-        public string GradeLevel { get; set; } = "";
-        public string PaymentStatus { get; set; } = "";
-        public decimal TotalFee { get; set; }
-        public decimal AmountPaid { get; set; }
-        public decimal Balance { get; set; }
-        public string NewPaymentAmount { get; set; } = "";
-        public string PaymentMethod { get; set; } = "Cash";
-    }
-
-    // Records Tab Data
-    private string RecordsSearchText { get; set; } = "";
-    private string RecordsGradeFilter { get; set; } = "";
-    private string RecordsPaymentStatusFilter { get; set; } = "";
     
-    // Fee Setup filter variables
-    private string FeeSearchText { get; set; } = "";
-    private string FeeGradeFilter { get; set; } = "";
-
-    private List<PaymentRecord> PaymentRecords = new()
+    private void CloseToast()
     {
-        new() { StudentId = "547635", Name = "Darrell Carol", Grade = "Grade 1", TotalFee = 11300, AmountPaid = 8300, Balance = 3000, PaymentStatus = "Partially Paid" }
-    };
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
 
-    private void ExportRecordsPDF()
+    private void HandlePaymentProcessed(PaymentDataModel paymentData)
+    {
+        // Update payment records
+        var record = PaymentRecords.FirstOrDefault(r => r.StudentId == paymentData.StudentId);
+        if (record != null)
+        {
+            record.AmountPaid = paymentData.AmountPaid;
+            record.Balance = paymentData.Balance;
+            record.PaymentStatus = paymentData.PaymentStatus;
+        }
+        else
+        {
+            PaymentRecords.Add(new PaymentRecord
+            {
+                StudentId = paymentData.StudentId,
+                Name = paymentData.StudentName,
+                Grade = paymentData.GradeLevel,
+                TotalFee = paymentData.TotalFee,
+                AmountPaid = paymentData.AmountPaid,
+                Balance = paymentData.Balance,
+                PaymentStatus = paymentData.PaymentStatus
+            });
+        }
+        StateHasChanged();
+    }
+
+    private void HandleExpenseSaved(ExpenseFormModel expenseForm)
+    {
+        // TODO: Save expense to database
+        // For now, just reset the form
+        ExpenseForm = new ExpenseFormModel
+        {
+            ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+            RecordedBy = "Admin User",
+            ExpenseDate = DateTime.Now,
+            PaymentMethod = "Cash",
+            Status = "Pending"
+        };
+        StateHasChanged();
+    }
+
+    private void HandleViewPaymentDetails(PaymentRecord record)
+    {
+        // TODO: Implement view payment details logic
+        // Could open a modal or navigate to a detail page
+    }
+
+    private void HandleEditPaymentRecord(PaymentRecord record)
+    {
+        // TODO: Implement edit payment record logic
+        // Could open a modal or navigate to an edit page
+    }
+
+    private async Task HandleExportPDF()
     {
         // TODO: Implement PDF export functionality
         // This would typically generate a PDF with all payment records
-    }
-
-    public class PaymentRecord
-    {
-        public string StudentId { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Grade { get; set; } = "";
-        public decimal TotalFee { get; set; }
-        public decimal AmountPaid { get; set; }
-        public decimal Balance { get; set; }
-        public string PaymentStatus { get; set; } = "";
+        await Task.CompletedTask;
     }
 }

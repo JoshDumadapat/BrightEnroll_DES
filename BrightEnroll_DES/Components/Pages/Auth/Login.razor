@@ -1,13 +1,16 @@
 ﻿@page "/login"
 @layout Components.Layout.AuthLayout
+@using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services.AuthFunction
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Components.Pages.Auth.Handlers
 @inject NavigationManager Navigation
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject IJSRuntime JSRuntime
 
 <!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" OnClose="CloseToast" Duration="3000" />
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@ToastType.Success" OnClose="CloseToast" Duration="3000" />
 
 <div class="relative flex h-screen w-full flex-col md:flex-row"> 
     <div class="relative h-[50vh] w-full md:h-screen md:w-[40%]">
@@ -16,13 +19,13 @@
      
     <div class="absolute bottom-0 left-0 right-0 flex min-h-[50vh] w-full items-center justify-center overflow-y-auto p-1.5 sm:p-2 md:relative md:min-h-screen md:w-[60%] md:p-3 md:p-8">
 
-        <div class="relative my-auto max-h-[95vh] w-full max-w-[96%] overflow-y-auto rounded-2xl bg-white p-3 shadow-xl sm:max-h-[98vh] sm:max-w-[420px] sm:p-4 md:max-h-none md:max-w-[480px] md:p-6 lg:max-w-[520px] lg:p-8 xl:p-10">
+        <div class="relative my-auto max-h-[95vh] w-full max-w-[96%] overflow-y-auto rounded-2xl bg-white p-3 pb-8 shadow-xl sm:max-h-[98vh] sm:max-w-[420px] sm:p-4 sm:pb-4 md:max-h-none md:max-w-[480px] md:p-6 md:pb-6 lg:max-w-[520px] lg:p-8 lg:pb-8 xl:p-10 xl:pb-10">
             <!-- Back Arrow Button - Top Left Corner - Responsive Size -->
             <a href="/" class="absolute left-2 top-2 flex items-center text-gray-600 transition-all duration-200 hover:scale-110 hover:text-gray-900 sm:left-[10px] sm:top-[10px]">
                 <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
                 </svg>
-                <span class="ml-0.5 text-sm font-medium sm:ml-1 sm:text-sm md:text-base">Back</span>
+                <span class="font-sm ml-0.5 text-sm sm:ml-1 sm:text-sm md:text-base">Back</span>
             </a>
             
             <div class="flex flex-col">
@@ -123,7 +126,7 @@
                 <!-- Remember me and Forgot Password -->
                     <div class="mb-2.5 flex items-center justify-between sm:mb-3 md:mb-4">
                         <div class="flex items-center">
-                            <input id="remember-me" type="checkbox" @bind="rememberMe" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4" />
+                            <input id="remember-me" type="checkbox" @bind="rememberMe" @bind:after="OnRememberMeChanged" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4" />
                             <label for="remember-me" class="ml-1.5 text-sm text-gray-700 sm:ml-2 sm:text-sm md:text-sm">Remember me</label>
                         </div>
                         <button type="button" 
@@ -133,16 +136,17 @@
                         </button>
                     </div>
 
-                    <div class="mb-3 sm:mb-4 md:mb-5 lg:mb-6"></div>
+                    <div class="mb-4 sm:mb-4 md:mb-5 lg:mb-6"></div>
 
                     <!-- Submit Button - Capsule Shape -->
                     <button type="submit"
-                            class="w-full rounded-full bg-blue-600 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:bg-blue-800 sm:py-2.5 sm:text-sm md:py-3 md:text-base">
+                            class="mx-auto block w-3/4 rounded-full bg-blue-600 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:bg-blue-800 sm:py-2.5 sm:text-sm md:py-3 md:text-base">
                         LOG IN
                     </button>
 
+
                     <!-- Student Registration Link -->
-                    <div class="pt-1.5 text-center sm:pt-2">
+                    <div class="pt-0 text-center sm:pt-2">
                         <button 
                             type="button"
                             @onclick="NavigateToStudentRegistration"
@@ -164,6 +168,7 @@
     private bool emailOrSystemIdError = false;
     private bool passwordError = false;
     private bool loginError = false;
+    private RememberMeHandler? _rememberMeHandler;
 
     // Email or System ID property with setter to clear error on input
     private string EmailOrSystemId
@@ -200,9 +205,9 @@
     }
 
     // Computed classes for input fields
-    private string EmailOrSystemIdInputClass => $"w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-4 sm:text-sm {(emailOrSystemIdError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+    private string EmailOrSystemIdInputClass => $"w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-4 sm:text-sm {(emailOrSystemIdError || loginError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
     
-    private string PasswordInputClass => $"w-full rounded-lg border py-2 pl-8 pr-9 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-10 sm:text-sm {(passwordError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+    private string PasswordInputClass => $"w-full rounded-lg border py-2 pl-8 pr-9 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-10 sm:text-sm {(passwordError || loginError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
 
     private void TogglePasswordVisibility() => showPassword = !showPassword;
 
@@ -211,6 +216,9 @@
 
     protected override void OnInitialized()
     {
+        // Initialize RememberMeHandler
+        _rememberMeHandler = new RememberMeHandler(JSRuntime);
+
         // Check for toast parameter in query string
         var uri = new Uri(Navigation.Uri);
         var query = ParseQueryString(uri.Query);
@@ -257,10 +265,23 @@
         return query;
     }
 
-    protected override void OnAfterRender(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            // Load saved credentials if remember me was enabled
+            if (_rememberMeHandler != null)
+            {
+                var (savedEmail, savedPassword, wasRemembered) = await _rememberMeHandler.LoadCredentialsAsync();
+                if (wasRemembered && !string.IsNullOrWhiteSpace(savedEmail) && !string.IsNullOrWhiteSpace(savedPassword))
+                {
+                    _emailOrSystemId = savedEmail;
+                    _password = savedPassword;
+                    rememberMe = true;
+                    StateHasChanged();
+                }
+            }
+
             // Clean up query parameter from URL after showing toast
             var uri = new Uri(Navigation.Uri);
             if (uri.Query.Contains("toast="))
@@ -310,6 +331,12 @@
 
         if (loginResult)
         {
+            // Save credentials if remember me is checked
+            if (_rememberMeHandler != null)
+            {
+                await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
+            }
+
             // Login successful - redirect to dashboard (loading will be shown by dashboard when loading data)
             Navigation.NavigateTo("/dashboard");
         }
@@ -320,6 +347,15 @@
             emailOrSystemIdError = true;
             passwordError = true;  
             StateHasChanged();
+        }
+    }
+
+    private async Task OnRememberMeChanged()
+    {
+        // Clear credentials immediately when Remember Me is unchecked
+        if (!rememberMe && _rememberMeHandler != null)
+        {
+            await _rememberMeHandler.ClearCredentialsAsync();
         }
     }
 

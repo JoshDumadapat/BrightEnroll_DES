@@ -1,13 +1,15 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Data.Common;
 
 namespace BrightEnroll_DES.Services;
 
-/// <summary>
-/// Service for student registration and management operations
-/// </summary>
+// Handles student registration - creates student, guardian, and requirements
 public class StudentService
 {
     private readonly AppDbContext _context;
@@ -19,18 +21,12 @@ public class StudentService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Registers a new student with guardian and requirements
-    /// </summary>
-    /// <param name="studentData">Student data from registration form</param>
-    /// <returns>Created Student entity with generated IDs</returns>
-    /// <exception cref="Exception">Thrown if registration fails</exception>
+    // Creates a new student with guardian and requirements
     public async Task<Student> RegisterStudentAsync(StudentRegistrationData studentData)
     {
         using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
-            // Step 1: Insert Guardian first
             var guardian = new Guardian
             {
                 FirstName = studentData.GuardianFirstName,
@@ -45,52 +41,88 @@ public class StudentService
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Guardian created with ID: {GuardianId}", guardian.GuardianId);
-
-            // Step 2: Insert Student linked to Guardian
-            var student = new Student
+            
+            // Call stored procedure to create student with auto-generated ID
+            string generatedStudentId;
+            var connection = _context.Database.GetDbConnection();
+            var wasOpen = connection.State == System.Data.ConnectionState.Open;
+            if (!wasOpen)
             {
-                FirstName = studentData.FirstName,
-                MiddleName = studentData.MiddleName,
-                LastName = studentData.LastName,
-                Suffix = string.IsNullOrWhiteSpace(studentData.Suffix) ? null : studentData.Suffix,
-                Birthdate = studentData.BirthDate,
-                Age = studentData.Age ?? 0,
-                PlaceOfBirth = string.IsNullOrWhiteSpace(studentData.PlaceOfBirth) ? null : studentData.PlaceOfBirth,
-                Sex = studentData.Sex,
-                MotherTongue = string.IsNullOrWhiteSpace(studentData.MotherTongue) ? null : studentData.MotherTongue,
-                IpComm = studentData.IsIPCommunity == "Yes",
-                IpSpecify = string.IsNullOrWhiteSpace(studentData.IPCommunitySpecify) ? null : studentData.IPCommunitySpecify,
-                FourPs = studentData.Is4PsBeneficiary == "Yes",
-                FourPsHseId = string.IsNullOrWhiteSpace(studentData.FourPsHouseholdId) ? null : studentData.FourPsHouseholdId,
-                HseNo = string.IsNullOrWhiteSpace(studentData.CurrentHouseNo) ? null : studentData.CurrentHouseNo,
-                Street = string.IsNullOrWhiteSpace(studentData.CurrentStreetName) ? null : studentData.CurrentStreetName,
-                Brngy = string.IsNullOrWhiteSpace(studentData.CurrentBarangay) ? null : studentData.CurrentBarangay,
-                Province = string.IsNullOrWhiteSpace(studentData.CurrentProvince) ? null : studentData.CurrentProvince,
-                City = string.IsNullOrWhiteSpace(studentData.CurrentCity) ? null : studentData.CurrentCity,
-                Country = string.IsNullOrWhiteSpace(studentData.CurrentCountry) ? null : studentData.CurrentCountry,
-                ZipCode = string.IsNullOrWhiteSpace(studentData.CurrentZipCode) ? null : studentData.CurrentZipCode,
-                PhseNo = string.IsNullOrWhiteSpace(studentData.PermanentHouseNo) ? null : studentData.PermanentHouseNo,
-                Pstreet = string.IsNullOrWhiteSpace(studentData.PermanentStreetName) ? null : studentData.PermanentStreetName,
-                Pbrngy = string.IsNullOrWhiteSpace(studentData.PermanentBarangay) ? null : studentData.PermanentBarangay,
-                Pprovince = string.IsNullOrWhiteSpace(studentData.PermanentProvince) ? null : studentData.PermanentProvince,
-                Pcity = string.IsNullOrWhiteSpace(studentData.PermanentCity) ? null : studentData.PermanentCity,
-                Pcountry = string.IsNullOrWhiteSpace(studentData.PermanentCountry) ? null : studentData.PermanentCountry,
-                PzipCode = string.IsNullOrWhiteSpace(studentData.PermanentZipCode) ? null : studentData.PermanentZipCode,
-                StudentType = studentData.StudentType,
-                Lrn = string.IsNullOrWhiteSpace(studentData.LearnerReferenceNo) || studentData.LearnerReferenceNo == "Pending" 
-                    ? null 
-                    : studentData.LearnerReferenceNo,
-                SchoolYr = studentData.SchoolYear,
-                GradeLevel = studentData.GradeToEnroll,
-                GuardianId = guardian.GuardianId
-            };
+                await connection.OpenAsync();
+            }
+            
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "[dbo].[sp_CreateStudent]";
+                command.CommandType = System.Data.CommandType.StoredProcedure;
+                
+                // Associate the command with the EF Core transaction
+                command.Transaction = transaction.GetDbTransaction();
 
-            _context.Students.Add(student);
-            await _context.SaveChangesAsync();
+                // Add all input parameters
+                command.Parameters.Add(new SqlParameter("@first_name", studentData.FirstName));
+                command.Parameters.Add(new SqlParameter("@middle_name", string.IsNullOrWhiteSpace(studentData.MiddleName) ? string.Empty : studentData.MiddleName));
+                command.Parameters.Add(new SqlParameter("@last_name", studentData.LastName));
+                command.Parameters.Add(new SqlParameter("@suffix", string.IsNullOrWhiteSpace(studentData.Suffix) ? (object)DBNull.Value : studentData.Suffix));
+                command.Parameters.Add(new SqlParameter("@birthdate", studentData.BirthDate));
+                command.Parameters.Add(new SqlParameter("@age", studentData.Age ?? 0));
+                command.Parameters.Add(new SqlParameter("@place_of_birth", string.IsNullOrWhiteSpace(studentData.PlaceOfBirth) ? (object)DBNull.Value : studentData.PlaceOfBirth));
+                command.Parameters.Add(new SqlParameter("@sex", studentData.Sex));
+                command.Parameters.Add(new SqlParameter("@mother_tongue", string.IsNullOrWhiteSpace(studentData.MotherTongue) ? (object)DBNull.Value : studentData.MotherTongue));
+                command.Parameters.Add(new SqlParameter("@ip_comm", studentData.IsIPCommunity == "Yes" ? 1 : 0));
+                command.Parameters.Add(new SqlParameter("@ip_specify", string.IsNullOrWhiteSpace(studentData.IPCommunitySpecify) ? (object)DBNull.Value : studentData.IPCommunitySpecify));
+                command.Parameters.Add(new SqlParameter("@four_ps", studentData.Is4PsBeneficiary == "Yes" ? 1 : 0));
+                command.Parameters.Add(new SqlParameter("@four_ps_hseID", string.IsNullOrWhiteSpace(studentData.FourPsHouseholdId) ? (object)DBNull.Value : studentData.FourPsHouseholdId));
+                command.Parameters.Add(new SqlParameter("@hse_no", string.IsNullOrWhiteSpace(studentData.CurrentHouseNo) ? (object)DBNull.Value : studentData.CurrentHouseNo));
+                command.Parameters.Add(new SqlParameter("@street", string.IsNullOrWhiteSpace(studentData.CurrentStreetName) ? (object)DBNull.Value : studentData.CurrentStreetName));
+                command.Parameters.Add(new SqlParameter("@brngy", string.IsNullOrWhiteSpace(studentData.CurrentBarangay) ? (object)DBNull.Value : studentData.CurrentBarangay));
+                command.Parameters.Add(new SqlParameter("@province", string.IsNullOrWhiteSpace(studentData.CurrentProvince) ? (object)DBNull.Value : studentData.CurrentProvince));
+                command.Parameters.Add(new SqlParameter("@city", string.IsNullOrWhiteSpace(studentData.CurrentCity) ? (object)DBNull.Value : studentData.CurrentCity));
+                command.Parameters.Add(new SqlParameter("@country", string.IsNullOrWhiteSpace(studentData.CurrentCountry) ? (object)DBNull.Value : studentData.CurrentCountry));
+                command.Parameters.Add(new SqlParameter("@zip_code", string.IsNullOrWhiteSpace(studentData.CurrentZipCode) ? (object)DBNull.Value : studentData.CurrentZipCode));
+                command.Parameters.Add(new SqlParameter("@phse_no", string.IsNullOrWhiteSpace(studentData.PermanentHouseNo) ? (object)DBNull.Value : studentData.PermanentHouseNo));
+                command.Parameters.Add(new SqlParameter("@pstreet", string.IsNullOrWhiteSpace(studentData.PermanentStreetName) ? (object)DBNull.Value : studentData.PermanentStreetName));
+                command.Parameters.Add(new SqlParameter("@pbrngy", string.IsNullOrWhiteSpace(studentData.PermanentBarangay) ? (object)DBNull.Value : studentData.PermanentBarangay));
+                command.Parameters.Add(new SqlParameter("@pprovince", string.IsNullOrWhiteSpace(studentData.PermanentProvince) ? (object)DBNull.Value : studentData.PermanentProvince));
+                command.Parameters.Add(new SqlParameter("@pcity", string.IsNullOrWhiteSpace(studentData.PermanentCity) ? (object)DBNull.Value : studentData.PermanentCity));
+                command.Parameters.Add(new SqlParameter("@pcountry", string.IsNullOrWhiteSpace(studentData.PermanentCountry) ? (object)DBNull.Value : studentData.PermanentCountry));
+                command.Parameters.Add(new SqlParameter("@pzip_code", string.IsNullOrWhiteSpace(studentData.PermanentZipCode) ? (object)DBNull.Value : studentData.PermanentZipCode));
+                command.Parameters.Add(new SqlParameter("@student_type", studentData.StudentType));
+                command.Parameters.Add(new SqlParameter("@LRN", string.IsNullOrWhiteSpace(studentData.LearnerReferenceNo) || studentData.LearnerReferenceNo == "Pending" ? (object)DBNull.Value : studentData.LearnerReferenceNo));
+                command.Parameters.Add(new SqlParameter("@school_yr", studentData.SchoolYear));
+                command.Parameters.Add(new SqlParameter("@grade_level", studentData.GradeToEnroll));
+                command.Parameters.Add(new SqlParameter("@guardian_id", guardian.GuardianId));
+                
+                // Add output parameter
+                var studentIdParam = new SqlParameter("@student_id", System.Data.SqlDbType.VarChar, 6)
+                {
+                    Direction = System.Data.ParameterDirection.Output
+                };
+                command.Parameters.Add(studentIdParam);
 
-            _logger?.LogInformation("Student created with ID: {StudentId}", student.StudentId);
+                await command.ExecuteNonQueryAsync();
+                generatedStudentId = studentIdParam.Value?.ToString() ?? string.Empty;
+            }
+            finally
+            {
+                if (!wasOpen)
+                {
+                    await connection.CloseAsync();
+                }
+            }
 
-            // Step 3: Insert default requirements based on student_type
+            _logger?.LogInformation("Student created with ID: {StudentId}", generatedStudentId);
+
+            // Load the created student from database
+            var student = await _context.Students
+                .Include(s => s.Guardian)
+                .FirstOrDefaultAsync(s => s.StudentId == generatedStudentId);
+
+            if (student == null)
+            {
+                throw new Exception($"Failed to retrieve created student with ID: {generatedStudentId}");
+            }
             var requirements = GetDefaultRequirements(student.StudentId, student.StudentType);
             
             if (requirements.Any())
@@ -100,27 +132,39 @@ public class StudentService
                 _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
             }
 
-            // Commit transaction
             await transaction.CommitAsync();
-
-            // Reload student with related data
             await _context.Entry(student).Reference(s => s.Guardian).LoadAsync();
             await _context.Entry(student).Collection(s => s.Requirements).LoadAsync();
 
             return student;
         }
+        catch (SqlException sqlEx)
+        {
+            await transaction.RollbackAsync();
+            _logger?.LogError(sqlEx, "SQL error registering student: {Message}. Error Number: {Number}", sqlEx.Message, sqlEx.Number);
+            
+            // Provide more specific error messages for common SQL errors
+            if (sqlEx.Number == 2812) // Object not found (stored procedure)
+            {
+                throw new Exception($"The stored procedure 'sp_CreateStudent' was not found. Please ensure the database is properly initialized.", sqlEx);
+            }
+            else if (sqlEx.Number == 208) // Invalid object name (table)
+            {
+                throw new Exception($"A required database table is missing. Please ensure the database is properly initialized.", sqlEx);
+            }
+            
+            throw new Exception($"Database error: {sqlEx.Message}", sqlEx);
+        }
         catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            _logger?.LogError(ex, "Error registering student: {Message}", ex.Message);
+            _logger?.LogError(ex, "Error registering student: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
             throw new Exception($"Failed to register student: {ex.Message}", ex);
         }
     }
 
-    /// <summary>
-    /// Gets default requirements based on student type
-    /// </summary>
-    private List<StudentRequirement> GetDefaultRequirements(int studentId, string studentType)
+    // Returns default requirements list based on student type
+    private List<StudentRequirement> GetDefaultRequirements(string studentId, string studentType)
     {
         var requirements = new List<StudentRequirement>();
 
@@ -161,10 +205,8 @@ public class StudentService
         return requirements;
     }
 
-    /// <summary>
-    /// Gets a student by ID with related data
-    /// </summary>
-    public async Task<Student?> GetStudentByIdAsync(int studentId)
+    // Gets student by ID with guardian and requirements
+    public async Task<Student?> GetStudentByIdAsync(string studentId)
     {
         return await _context.Students
             .Include(s => s.Guardian)
@@ -172,25 +214,170 @@ public class StudentService
             .FirstOrDefaultAsync(s => s.StudentId == studentId);
     }
 
-    /// <summary>
-    /// Gets all students with related data
-    /// </summary>
+    // Gets all students with guardian and requirements using EF Core ORM
+    // Uses EF Core's Include for eager loading - fully ORM approach
     public async Task<List<Student>> GetAllStudentsAsync()
     {
-        return await _context.Students
-            .Include(s => s.Guardian)
-            .Include(s => s.Requirements)
-            .ToListAsync();
+        try
+        {
+            // Use EF Core's Include for eager loading - fully ORM, secure approach
+            // No raw SQL - all queries are generated by EF Core with parameterization
+            var students = await _context.Students
+                .Include(s => s.Guardian)
+                .Include(s => s.Requirements)
+                .OrderBy(s => s.StudentId)
+                .ToListAsync();
+
+            return students;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching all students: {Message}", ex.Message);
+            throw new Exception($"Failed to fetch students: {ex.Message}", ex);
+        }
+    }
+
+    // Gets enrolled students from view for enrollment table display using EF Core ORM
+    // Returns only the data needed for the Enrolled tab
+    // Uses EF Core's FromSqlRaw with parameterized WHERE clause for security
+    public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync()
+    {
+        try
+        {
+            // Use EF Core's FromSqlRaw with parameterized query - secure ORM approach
+            // Status is hardcoded in the query (not user input), so it's safe
+            // EF Core still provides connection management and query validation
+            var enrolledStatus = "Enrolled";
+            
+            var enrolledStudents = await _context.StudentDataViews
+                .FromSqlRaw(@"
+                    SELECT 
+                        StudentId,
+                        FirstName,
+                        MiddleName,
+                        LastName,
+                        Suffix,
+                        FullName,
+                        BirthDate,
+                        Age,
+                        LRN,
+                        GradeLevel,
+                        SchoolYear,
+                        DateRegistered,
+                        Status,
+                        StudentType
+                    FROM [dbo].[vw_StudentData] 
+                    WHERE Status = {0}", enrolledStatus)
+                .Where(s => s.Status == enrolledStatus)
+                .OrderByDescending(s => s.DateRegistered)
+                .Select(s => new EnrolledStudentDto
+                {
+                    Id = s.StudentId ?? "N/A",
+                    Name = s.FullName ?? "N/A",
+                    LRN = s.LRN ?? "N/A",
+                    Date = s.DateRegistered.HasValue 
+                        ? s.DateRegistered.Value.ToString("dd MMM yyyy") 
+                        : "N/A",
+                    GradeLevel = s.GradeLevel ?? "N/A",
+                    Section = "N/A", // Section not in database yet
+                    Documents = "Verified", // Default value
+                    Status = s.Status ?? "Pending"
+                })
+                .ToListAsync();
+
+            return enrolledStudents;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching enrolled students: {Message}", ex.Message);
+            throw new Exception($"Failed to fetch enrolled students: {ex.Message}", ex);
+        }
+    }
+
+    // Gets pending students (new applicants) from view for enrollment table display using EF Core ORM
+    // Returns only the data needed for the New Applicants tab
+    // Uses EF Core's FromSqlRaw with parameterized WHERE clause for security
+    public async Task<List<NewApplicantDto>> GetNewApplicantsAsync()
+    {
+        try
+        {
+            // Use EF Core's FromSqlRaw with parameterized query - secure ORM approach
+            // Status is hardcoded in the query (not user input), so it's safe
+            var pendingStatus = "Pending";
+            
+            var newApplicants = await _context.StudentDataViews
+                .FromSqlRaw(@"
+                    SELECT 
+                        StudentId,
+                        FirstName,
+                        MiddleName,
+                        LastName,
+                        Suffix,
+                        FullName,
+                        BirthDate,
+                        Age,
+                        LRN,
+                        GradeLevel,
+                        SchoolYear,
+                        DateRegistered,
+                        Status,
+                        StudentType
+                    FROM [dbo].[vw_StudentData] 
+                    WHERE Status = {0}", pendingStatus)
+                .Where(s => s.Status == pendingStatus)
+                .OrderByDescending(s => s.DateRegistered)
+                .Select(s => new NewApplicantDto
+                {
+                    Id = s.StudentId ?? "N/A",
+                    Name = s.FullName ?? "N/A",
+                    LRN = s.LRN ?? "N/A",
+                    Date = s.DateRegistered.HasValue 
+                        ? s.DateRegistered.Value.ToString("MMMM dd, yyyy") 
+                        : "N/A",
+                    Type = s.StudentType ?? "New",
+                    GradeLevel = s.GradeLevel ?? "N/A",
+                    Status = s.Status ?? "Pending"
+                })
+                .ToListAsync();
+
+            return newApplicants;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching new applicants: {Message}", ex.Message);
+            throw new Exception($"Failed to fetch new applicants: {ex.Message}", ex);
+        }
     }
 }
 
-/// <summary>
-/// Data transfer object for student registration
-/// Maps from StudentRegistrationModel to Student entity
-/// </summary>
+// DTO for enrolled student display in enrollment table
+public class EnrolledStudentDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string LRN { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;
+    public string GradeLevel { get; set; } = string.Empty;
+    public string Section { get; set; } = string.Empty;
+    public string Documents { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+}
+
+// DTO for new applicant display in enrollment table
+public class NewApplicantDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string LRN { get; set; } = string.Empty;
+    public string Date { get; set; } = string.Empty;
+    public string Type { get; set; } = string.Empty;
+    public string GradeLevel { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+}
+
+// Holds student registration form data
 public class StudentRegistrationData
 {
-    // Student Information
     public string FirstName { get; set; } = string.Empty;
     public string MiddleName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;

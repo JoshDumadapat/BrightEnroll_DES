@@ -1,4 +1,5 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.EnrollmentComponents
+@using BrightEnroll_DES.Components.Pages.Admin
 @* New Applicants Component with Filters *@
 
 <!-- Filters -->
@@ -13,29 +14,29 @@
                               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </span>
-                <input type="text" placeholder="Search here..." @bind="SearchText"
+                <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
                        class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
             </div>
-            <select @bind="TypeFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+            <select @bind="TypeFilter" @bind:after="OnFilterChanged" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                 <option value="">Type</option>
-                <option value="New">New</option>
-                <option value="Transferee">Transferee</option>
+                @foreach (var type in AvailableTypes)
+                {
+                    <option value="@type">@type</option>
+                }
             </select>
-            <select @bind="GradeFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+            <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                 <option value="">Grade</option>
-                <option value="Kinder">Kinder</option>
-                <option value="G1">G1</option>
-                <option value="G2">G2</option>
-                <option value="G3">G3</option>
-                <option value="G4">G4</option>
-                <option value="G5">G5</option>
-                <option value="G6">G6</option>
+                @foreach (var grade in AvailableGrades)
+                {
+                    <option value="@grade">@grade</option>
+                }
             </select>
-            <select @bind="StatusFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+            <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                 <option value="">Status</option>
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
+                @foreach (var status in AvailableStatuses)
+                {
+                    <option value="@status">@status</option>
+                }
             </select>
         </div>
         <div class="flex items-center gap-3">
@@ -71,58 +72,65 @@
         </tr>
     </thead>
     <tbody class="divide-y">
-        @foreach (var student in Students)
+        @if (FilteredStudents != null && FilteredStudents.Any())
         {
-            <tr class="transition hover:bg-gray-50">
-                <td class="px-4 py-3">@student.Id</td>
-                <td class="px-4 py-3">@student.Name</td>
-                <td class="px-4 py-3">
-                    @if (student.LRN == "N/A")
-                    {
-                        <span class="text-yellow-500">@student.LRN</span>
-                    }
-                    else
-                    {
-                        <span class="text-gray-900">@student.LRN</span>
-                    }
-                </td>
-                <td class="px-4 py-3">@student.Date</td>
-                <td class="px-4 py-3">@student.Type</td>
-                <td class="px-4 py-3">@student.GradeLevel</td>
-                <td class="px-4 py-3 text-yellow-500">Not verified</td>
-                <td class="px-4 py-3">
-                    <span class="rounded-md bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@student.Status</span>
-                </td>
-                <td class="flex items-center justify-center gap-2 px-4 py-3">
-                    <!-- Edit Button -->
-                    <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+            @foreach (var student in PaginatedStudents)
+            {
+                <tr class="transition hover:bg-gray-50">
+                    <td class="px-4 py-3">@student.Id</td>
+                    <td class="px-4 py-3">@student.Name</td>
+                    <td class="px-4 py-3">
+                        @if (student.LRN == "N/A")
+                        {
+                            <span class="text-gray-400">@student.LRN</span>
+                        }
+                        else
+                        {
+                            <span class="text-gray-900">@student.LRN</span>
+                        }
+                    </td>
+                    <td class="px-4 py-3">@student.Date</td>
+                    <td class="px-4 py-3">@student.Type</td>
+                    <td class="px-4 py-3">@student.GradeLevel</td>
+                    <td class="px-4 py-3 text-yellow-500">Not verified</td>
+                    <td class="px-4 py-3">
+                        <span class="rounded-md bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@student.Status</span>
+                    </td>
+                    <td class="flex items-center justify-center gap-2 px-4 py-3">
+                        <!-- Edit Button -->
+                        <button class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition hover:bg-yellow-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                    </button>
+                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                        <p class="text-sm text-gray-500 mt-1">There are no new applicants to display at this time.</p>
+                    </div>
                 </td>
             </tr>
         }
     </tbody>
 </table>
 
-<!-- Footer -->
-<div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-    <span>@($"{Students.Count} of 456 pre-registered students")</span>
-    <div class="flex items-center gap-2">
-        <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
-        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
-        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
-        <span>...</span>
-        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
-        <span class="ml-4">Show</span>
-        <select @bind="RowsPerPage" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-            <option value="5">5 rows</option>
-            <option value="10">10 rows</option>
-            <option value="20">20 rows</option>
-        </select>
-    </div>
-</div>
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@(FilteredStudents?.Count ?? 0)" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="pre-registered students"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
 
 @code {
     [Parameter]
@@ -137,12 +145,145 @@
     private string GradeFilter { get; set; } = "";
     private string StatusFilter { get; set; } = "";
 
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+
+    // Computed properties for dynamic dropdowns
+    private List<string> AvailableTypes
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<string>();
+            
+            return Students
+                .Where(s => !string.IsNullOrWhiteSpace(s.Type))
+                .Select(s => s.Type)
+                .Distinct()
+                .OrderBy(t => t)
+                .ToList();
+        }
+    }
+
+    private List<string> AvailableGrades
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<string>();
+            
+            return Students
+                .Where(s => !string.IsNullOrWhiteSpace(s.GradeLevel))
+                .Select(s => s.GradeLevel)
+                .Distinct()
+                .OrderBy(g => g)
+                .ToList();
+        }
+    }
+
+    private List<string> AvailableStatuses
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<string>();
+            
+            return Students
+                .Where(s => !string.IsNullOrWhiteSpace(s.Status))
+                .Select(s => s.Status)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+        }
+    }
+
+    // Computed property for filtered students
+    private List<Student> FilteredStudents
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<Student>();
+
+            var filtered = Students.AsEnumerable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(s => 
+                    s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Type filter
+            if (!string.IsNullOrWhiteSpace(TypeFilter))
+            {
+                filtered = filtered.Where(s => s.Type == TypeFilter);
+            }
+
+            // Grade filter
+            if (!string.IsNullOrWhiteSpace(GradeFilter))
+            {
+                filtered = filtered.Where(s => s.GradeLevel == GradeFilter);
+            }
+
+            // Status filter
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                filtered = filtered.Where(s => s.Status == StatusFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated students
+    private List<Student> PaginatedStudents
+    {
+        get
+        {
+            var filtered = FilteredStudents;
+            return filtered
+                .Skip((CurrentPage - 1) * RowsPerPage)
+                .Take(RowsPerPage)
+                .ToList();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
     private void ClearFilters()
     {
         SearchText = "";
         TypeFilter = "";
         GradeFilter = "";
         StatusFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
     }
 
     private void ExportPDF()
