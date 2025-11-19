@@ -94,8 +94,17 @@
     </ItemGroup>
     
     <Target Name="TailwindBuild" BeforeTargets="BeforeBuild">
-        <Exec Command="npm install" WorkingDirectory="$(ProjectDir)" ContinueOnError="false" Condition="!Exists('$(ProjectDir)node_modules')" />
-        <Exec Command="npm run build-css" WorkingDirectory="$(ProjectDir)" ContinueOnError="false" />
+        <!-- Check if npm is available -->
+        <Exec Command="npm --version" ContinueOnError="true" IgnoreExitCode="true">
+            <Output TaskParameter="ExitCode" PropertyName="NpmExitCode" />
+        </Exec>
+        
+        <!-- Only run npm commands if npm is available -->
+        <Exec Command="npm install" WorkingDirectory="$(ProjectDir)" ContinueOnError="true" Condition="'$(NpmExitCode)' == '0' AND !Exists('$(ProjectDir)node_modules')" />
+        <Exec Command="npm run build-css" WorkingDirectory="$(ProjectDir)" ContinueOnError="true" Condition="'$(NpmExitCode)' == '0'" />
+        
+        <!-- Warning if npm is not available -->
+        <Warning Text="npm is not available. Tailwind CSS will not be built. Install Node.js from https://nodejs.org/" Condition="'$(NpmExitCode)' != '0'" />
     </Target>
     
     <!-- Include tailwind.css after Tailwind build completes -->
