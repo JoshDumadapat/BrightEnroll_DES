@@ -2,6 +2,7 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.HRComponents
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
@@ -9,6 +10,7 @@
 @using System.Linq
 @inject NavigationManager NavigationManager
 @inject AddressService AddressService
+@inject IEmployeeService EmployeeService
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
@@ -590,13 +592,23 @@
                 <button type="button" @onclick="GoBack" class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
                     Cancel
                 </button>
-                <button type="submit" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-                    Add Employee
+                <button type="submit" disabled="@isSubmitting" class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (isSubmitting)
+                    {
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Add Employee</span>
+                    }
                 </button>
             </div>
         </form>
     </div>
 </div>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" ToastType="@toastType" OnClose="CloseToast" Duration="3000" />
 
 @code {
     private EmployeeFormData EmployeeData { get; set; } = new();
@@ -612,6 +624,12 @@
     private string allowanceRawInput = "";
     private ElementReference baseSalaryInputRef;
     private ElementReference allowanceInputRef;
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private string toastType = "success"; // "success" or "error"
+    private bool isSubmitting = false;
 
     protected override void OnInitialized()
     {
@@ -1062,10 +1080,185 @@
         return $"BDES-{number}";
     }
 
-    private void HandleSubmit()
+    private async Task HandleSubmit()
     {
-        // TODO: Implement save employee logic
-        NavigationManager.NavigateTo("/human-resource");
+        if (isSubmitting)
+            return;
+
+        try
+        {
+            isSubmitting = true;
+            StateHasChanged();
+
+            // Validate required fields
+            var validationError = ValidateForm();
+            if (!string.IsNullOrEmpty(validationError))
+            {
+                ShowToast("error", validationError);
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Map EmployeeFormData to Employee model
+            var employee = MapFormDataToEmployee();
+
+            // Save to database
+            await EmployeeService.CreateEmployeeAsync(employee);
+
+            ShowToast("success", "Employee added successfully!");
+            await Task.Delay(1000); // Wait for toast to show
+            NavigationManager.NavigateTo("/human-resource");
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Handle business logic errors (duplicate email, etc.)
+            ShowToast("error", ex.Message);
+            System.Diagnostics.Debug.WriteLine($"Business error adding employee: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            // Handle database and other errors
+            var errorMessage = $"Failed to add employee: {ex.Message}";
+            if (ex.InnerException != null)
+            {
+                errorMessage += $" ({ex.InnerException.Message})";
+            }
+            ShowToast("error", errorMessage);
+            System.Diagnostics.Debug.WriteLine($"Error adding employee: {ex}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private string ValidateForm()
+    {
+        if (string.IsNullOrWhiteSpace(EmployeeData.FirstName))
+            return "First Name is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.LastName))
+            return "Last Name is required.";
+        
+        if (!birthDate.HasValue)
+            return "Birth Date is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.Gender))
+            return "Gender is required.";
+        
+        if (age == null || age <= 0)
+            return "Valid Age is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+            return "Contact Number is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.Email))
+            return "Email is required.";
+        
+        if (!EmployeeData.Email.Contains("@") || !EmployeeData.Email.Contains("."))
+            return "Please enter a valid email address.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.Province))
+            return "Province is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.City))
+            return "City/Municipality is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.Barangay))
+            return "Barangay is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactFirstName))
+            return "Emergency Contact First Name is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactLastName))
+            return "Emergency Contact Last Name is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactRelationship))
+            return "Emergency Contact Relationship is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactNumber))
+            return "Emergency Contact Number is required.";
+        
+        if (string.IsNullOrWhiteSpace(EmployeeData.Role))
+            return "Role is required.";
+        
+        if (EmployeeData.BaseSalary <= 0)
+            return "Base Salary must be greater than 0.";
+
+        return string.Empty;
+    }
+
+    private Employee MapFormDataToEmployee()
+    {
+        var employee = new Employee
+        {
+            system_ID = string.IsNullOrWhiteSpace(EmployeeData.SystemId) 
+                ? GenerateSystemId() 
+                : EmployeeData.SystemId,
+            first_name = EmployeeData.FirstName.Trim(),
+            mid_name = string.IsNullOrWhiteSpace(EmployeeData.MiddleName) ? null : EmployeeData.MiddleName.Trim(),
+            last_name = EmployeeData.LastName.Trim(),
+            suffix = string.IsNullOrWhiteSpace(EmployeeData.Suffix) ? null : EmployeeData.Suffix.Trim(),
+            birthdate = birthDate!.Value,
+            age = (byte)age!.Value,
+            gender = EmployeeData.Gender.Trim(),
+            contact_num = EmployeeData.ContactNumber.Trim(),
+            email = EmployeeData.Email.Trim().ToLowerInvariant(),
+            role = EmployeeData.Role.Trim(),
+            password = string.IsNullOrWhiteSpace(EmployeeData.DefaultPassword) ? "DefaultPassword123!" : EmployeeData.DefaultPassword,
+            status = "Active",
+            date_hired = DateTime.Now,
+            
+            // Address
+            house_no = string.IsNullOrWhiteSpace(EmployeeData.HouseNo) ? null : EmployeeData.HouseNo.Trim(),
+            street_name = string.IsNullOrWhiteSpace(EmployeeData.StreetName) ? null : EmployeeData.StreetName.Trim(),
+            barangay = EmployeeData.Barangay.Trim(),
+            city = EmployeeData.City.Trim(),
+            province = EmployeeData.Province.Trim(),
+            country = string.IsNullOrWhiteSpace(EmployeeData.Country) ? "Philippines" : EmployeeData.Country.Trim(),
+            zip_code = string.IsNullOrWhiteSpace(EmployeeData.ZipCode) ? null : EmployeeData.ZipCode.Trim(),
+            
+            // Emergency Contact
+            emergency_contact_first_name = EmployeeData.EmergencyContactFirstName.Trim(),
+            emergency_contact_mid_name = string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactMiddleName) 
+                ? null 
+                : EmployeeData.EmergencyContactMiddleName.Trim(),
+            emergency_contact_last_name = EmployeeData.EmergencyContactLastName.Trim(),
+            emergency_contact_suffix = string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactSuffix) 
+                ? null 
+                : EmployeeData.EmergencyContactSuffix.Trim(),
+            emergency_contact_relationship = EmployeeData.EmergencyContactRelationship.Trim(),
+            emergency_contact_number = EmployeeData.EmergencyContactNumber.Trim(),
+            emergency_contact_address = string.IsNullOrWhiteSpace(EmployeeData.EmergencyContactAddress) 
+                ? null 
+                : EmployeeData.EmergencyContactAddress.Trim(),
+            
+            // Salary
+            base_salary = EmployeeData.BaseSalary,
+            allowance = EmployeeData.Allowance,
+            bonus = EmployeeData.Bonus,
+            deductions = EmployeeData.Deductions,
+            total_salary = EmployeeData.TotalSalary
+        };
+
+        return employee;
+    }
+
+    private void ShowToast(string type, string message)
+    {
+        toastType = type;
+        toastMessage = message;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
     }
 
     private void GoBack()

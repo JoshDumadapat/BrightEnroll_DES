@@ -1,6 +1,9 @@
 ﻿@page "/human-resource"
 @layout Components.Layout.MainLayout
 @inject NavigationManager NavigationManager
+@inject BrightEnroll_DES.Services.IEmployeeService EmployeeService
+@using BrightEnroll_DES.Models
+@implements IDisposable
 
 <PageTitle>Human Resource</PageTitle>
 
@@ -20,16 +23,22 @@
                                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                             </svg>
                         </span>
-                        <input type="text" placeholder="Search here..." @bind="EmployeeSearchText"
+                        <input type="text" placeholder="Search here..." @bind="EmployeeSearchText" @bind:event="oninput" @bind:after="OnSearchChanged"
                                class="w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
                     </div>
 
-                    <select @bind="EmployeeRoleFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option value="">Role</option>
+                    <select @bind="EmployeeRoleFilter" @bind:after="OnFilterChanged" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">All Roles</option>
+                        @foreach (var role in AvailableRoles)
+                        {
+                            <option value="@role">@role</option>
+                        }
                     </select>
 
-                    <select @bind="EmployeeStatusFilter" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                        <option value="">Status</option>
+                    <select @bind="EmployeeStatusFilter" @bind:after="OnFilterChanged" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
                     </select>
                 </div>
 
@@ -63,29 +72,43 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y">
-                    @foreach (var emp in Employees)
+                    @if (IsLoading)
                     {
-                        <tr class="transition hover:bg-gray-50">
-                            <td class="px-4 py-3">@emp.Id</td>
-                            <td class="px-4 py-3">@emp.Name</td>
-                            <td class="px-4 py-3">@emp.Address</td>
-                            <td class="px-4 py-3">@emp.Contact</td>
-                            <td class="px-4 py-3">@emp.Email</td>
-                            <td class="px-4 py-3">@emp.Role</td>
-                            <td class="px-4 py-3">
-                                @if (emp.Status == "Active")
-                                {
-                                    <button @onclick="() => OpenInactiveModal(emp)" class="cursor-pointer rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200">
-                                        Active
-                                    </button>
-                                }
-                                else
-                                {
-                                    <button @onclick="() => SetEmployeeActive(emp)" class="cursor-pointer rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
-                                        Inactive
-                                    </button>
-                                }
-                            </td>
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">Loading employees...</td>
+                        </tr>
+                    }
+                    else if (!FilteredEmployees.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-500">No employees found.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var emp in FilteredEmployees)
+                        {
+                            <tr class="transition hover:bg-gray-50">
+                                <td class="px-4 py-3">@emp.system_ID</td>
+                                <td class="px-4 py-3">@emp.FullName</td>
+                                <td class="px-4 py-3">-</td>
+                                <td class="px-4 py-3">@emp.contact_num</td>
+                                <td class="px-4 py-3">@emp.email</td>
+                                <td class="px-4 py-3">@emp.role</td>
+                                <td class="px-4 py-3">
+                                    @if (emp.status == "Active")
+                                    {
+                                        <button @onclick="() => OpenInactiveModal(emp)" class="cursor-pointer rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700 transition-colors hover:bg-green-200">
+                                            Active
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button @onclick="() => SetEmployeeActive(emp)" class="cursor-pointer rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                                            Inactive
+                                        </button>
+                                    }
+                                </td>
                             <td class="flex items-center justify-center px-4 py-3">
                                 <!-- View Button -->
                                 <button class="flex items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-400 transition hover:bg-blue-100">
@@ -95,7 +118,8 @@
                                     </svg>
                                 </button>
                             </td>
-                        </tr>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -103,7 +127,7 @@
 
         <!-- Footer with Pagination -->
         <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            <span>@($"{Employees.Count} of 456 pre-registered employees")</span>
+            <span>@($"{FilteredEmployees.Count()} of {AllEmployees.Count()} employees")</span>
             <div class="flex items-center gap-2">
                 <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
                 <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
@@ -139,7 +163,7 @@
             <div class="rounded-b-2xl bg-white" style="padding: 24px;">
                 <div style="margin: 0 0 20px 0;">
                     <p class="text-sm text-gray-700" style="margin: 0 0 8px 0; line-height: 1.5;">
-                        You are about to make <span class="font-semibold">@SelectedEmployee?.Name</span> inactive.
+                        You are about to make <span class="font-semibold">@SelectedEmployee?.FullName</span> inactive.
                     </p>
                     <p class="text-sm text-gray-600" style="margin: 0 0 16px 0;">Please provide a reason for this action:</p>
                     <label class="block text-sm font-medium text-gray-700" style="margin: 0 0 8px 0;">
@@ -168,18 +192,10 @@
 }
 
 @code {
-    private List<Employee> Employees = new()
-    {
-        new() { Id = "00001", Name = "Mrs. Santos", Address = "123 Main St.", Contact = "09123456789", Email = "m.santos@email.com", Role = "Teacher", Status = "Active" },
-        new() { Id = "00002", Name = "Mr. Cruz", Address = "45 Oak Ave.", Contact = "09123456775", Email = "r.cruz@email.com", Role = "Teacher", Status = "Inactive" },
-        new() { Id = "00003", Name = "Ms. Reyes", Address = "78 Pine St.", Contact = "09123456765", Email = "s.reyes@email.com", Role = "Teacher", Status = "Active" },
-        new() { Id = "00004", Name = "Mr. Dela Rosa", Address = "12 Maple Blvd.", Contact = "09123456763", Email = "j.delarosa@email.com", Role = "Teacher", Status = "Active" },
-        new() { Id = "00005", Name = "Ms. Mendez", Address = "34 Birch Ln.", Contact = "09123456789", Email = "l.mendez@email.com", Role = "Teacher", Status = "Inactive" },
-        new() { Id = "00006", Name = "Alfred Murray", Address = "34 Birch Ln.", Contact = "09123456755", Email = "a.torres@email.com", Role = "Registrar", Status = "Active" },
-        new() { Id = "00007", Name = "Maggie Sullivan", Address = "34 Birch Ln.", Contact = "09123456765", Email = "k.cruz@email.com", Role = "Teacher", Status = "Active" },
-        new() { Id = "00008", Name = "Rosie Todd", Address = "90 Walnut Ave.", Contact = "09123456712", Email = "b.reyes@email.com", Role = "Cashier", Status = "Active" },
-        new() { Id = "00009", Name = "Dollie Hines", Address = "90 Walnut Ave.", Contact = "09123456782", Email = "m.delacruz@email.com", Role = "Registrar", Status = "Active" }
-    };
+    private List<Employee> AllEmployees { get; set; } = new();
+    private IEnumerable<Employee> FilteredEmployees { get; set; } = new List<Employee>();
+    private List<string> AvailableRoles { get; set; } = new();
+    private bool IsLoading { get; set; } = true;
 
     private bool ShowInactiveModal { get; set; } = false;
     private Employee? SelectedEmployee { get; set; }
@@ -189,6 +205,115 @@
     private string EmployeeSearchText { get; set; } = "";
     private string EmployeeRoleFilter { get; set; } = "";
     private string EmployeeStatusFilter { get; set; } = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        NavigationManager.LocationChanged += OnLocationChanged;
+        await LoadEmployeesAsync();
+        await LoadRolesAsync();
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // Reload employees when navigating to this page (but not when going to add-employee)
+        if (e.Location.Contains("/human-resource") && !e.Location.Contains("/add-employee"))
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadEmployeesAsync();
+                StateHasChanged();
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+
+    private async Task LoadEmployeesAsync()
+    {
+        try
+        {
+            IsLoading = true;
+            StateHasChanged();
+            
+            var employees = await EmployeeService.GetAllEmployeesAsync();
+            AllEmployees = employees.ToList();
+            ApplyFilters();
+            
+            System.Diagnostics.Debug.WriteLine($"Loaded {AllEmployees.Count} employees from database");
+        }
+        catch (Exception ex)
+        {
+            // Log error - in production, use proper logging
+            System.Diagnostics.Debug.WriteLine($"Error loading employees: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            AllEmployees = new List<Employee>();
+            FilteredEmployees = new List<Employee>();
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadRolesAsync()
+    {
+        try
+        {
+            AvailableRoles = (await EmployeeService.GetDistinctRolesAsync()).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading roles: {ex.Message}");
+            AvailableRoles = new List<string>();
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = AllEmployees.AsEnumerable();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(EmployeeSearchText))
+        {
+            var searchLower = EmployeeSearchText.ToLowerInvariant();
+            filtered = filtered.Where(e => 
+                e.FullName.ToLowerInvariant().Contains(searchLower) ||
+                e.email.ToLowerInvariant().Contains(searchLower) ||
+                e.system_ID.ToLowerInvariant().Contains(searchLower) ||
+                e.contact_num.Contains(searchLower)
+            );
+        }
+
+        // Apply role filter
+        if (!string.IsNullOrWhiteSpace(EmployeeRoleFilter))
+        {
+            filtered = filtered.Where(e => e.role == EmployeeRoleFilter);
+        }
+
+        // Apply status filter
+        if (!string.IsNullOrWhiteSpace(EmployeeStatusFilter))
+        {
+            filtered = filtered.Where(e => e.status == EmployeeStatusFilter);
+        }
+
+        FilteredEmployees = filtered.ToList();
+    }
+
+    private void OnSearchChanged()
+    {
+        ApplyFilters();
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        ApplyFilters();
+        StateHasChanged();
+    }
 
     private void NavigateToAddEmployee()
     {
@@ -209,24 +334,62 @@
         InactiveReason = string.Empty;
     }
 
-    private void ConfirmInactive()
+    private async Task ConfirmInactive()
     {
         if (SelectedEmployee != null && !string.IsNullOrWhiteSpace(InactiveReason))
         {
-            // TODO: Save the inactive reason to the database
-            SelectedEmployee.Status = "Inactive";
-            // TODO: Log the reason: SelectedEmployee.InactiveReason = InactiveReason;
-            CloseInactiveModal();
-            StateHasChanged();
+            try
+            {
+                var success = await EmployeeService.UpdateEmployeeStatusAsync(
+                    SelectedEmployee.employee_ID, 
+                    "Inactive", 
+                    InactiveReason
+                );
+
+                if (success)
+                {
+                    // Reload employees to get updated data
+                    await LoadEmployeesAsync();
+                    CloseInactiveModal();
+                }
+                else
+                {
+                    // Handle error - in production, show user-friendly message
+                    System.Diagnostics.Debug.WriteLine("Failed to update employee status");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating employee status: {ex.Message}");
+            }
         }
     }
 
-    private void SetEmployeeActive(Employee employee)
+    private async Task SetEmployeeActive(Employee employee)
     {
-        // Directly set to active without modal
-        employee.Status = "Active";
-        // TODO: Clear inactive reason if stored
-        StateHasChanged();
+        try
+        {
+            var success = await EmployeeService.UpdateEmployeeStatusAsync(
+                employee.employee_ID, 
+                "Active", 
+                null
+            );
+
+            if (success)
+            {
+                // Reload employees to get updated data
+                await LoadEmployeesAsync();
+            }
+            else
+            {
+                // Handle error - in production, show user-friendly message
+                System.Diagnostics.Debug.WriteLine("Failed to update employee status");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating employee status: {ex.Message}");
+        }
     }
 
     private void ClearEmployeeFilters()
@@ -234,17 +397,7 @@
         EmployeeSearchText = "";
         EmployeeRoleFilter = "";
         EmployeeStatusFilter = "";
+        ApplyFilters();
         StateHasChanged();
-    }
-
-    public class Employee
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Address { get; set; } = "";
-        public string Contact { get; set; } = "";
-        public string Email { get; set; } = "";
-        public string Role { get; set; } = "";
-        public string Status { get; set; } = "";
     }
 }

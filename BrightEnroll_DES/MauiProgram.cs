@@ -32,6 +32,7 @@ namespace BrightEnroll_DES
 
             // Register Repositories (ORM-like pattern with SQL injection protection)
             builder.Services.AddSingleton<BrightEnroll_DES.Services.Repositories.IUserRepository, BrightEnroll_DES.Services.Repositories.UserRepository>();
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.Repositories.IEmployeeRepository, BrightEnroll_DES.Services.Repositories.EmployeeRepository>();
 
             // Register LoginService
             builder.Services.AddSingleton<ILoginService, LoginService>();
@@ -50,6 +51,9 @@ namespace BrightEnroll_DES
             
             // Register School Year Service
             builder.Services.AddSingleton<SchoolYearService>();
+            
+            // Register Employee Service
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.IEmployeeService, BrightEnroll_DES.Services.EmployeeService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
