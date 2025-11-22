@@ -25,7 +25,7 @@
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Add Employee</h1>
     <div class="mx-auto max-w-5xl">
         <div class="mb-6 flex justify-start">
-            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -123,12 +123,17 @@
                                 Contact Number <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="EmployeeData.ContactNumber" 
-                                      @bind-Value:after="() => { FormatContactNumber(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber))); StateHasChanged(); }"
+                                      @bind-Value:after="async () => { FormatContactNumber(); await CheckContactUniqueness(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber))); StateHasChanged(); }"
                                       maxlength="11"
                                       onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
-                                      class="@GetInputClass(nameof(EmployeeData.ContactNumber))"
+                                      class="@GetContactInputClassExplicit()"
+                                      style="@GetContactInputStyle()"
                                       placeholder="e.g. 09123456789" />
                             <ValidationMessage For="@(() => EmployeeData.ContactNumber)" class="text-red-500 text-xs mt-1" />
+                            @if (isContactDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+                            {
+                                <div class="text-red-500 text-xs mt-1">This contact number is already registered. Please use a different contact number.</div>
+                            }
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
@@ -139,7 +144,8 @@
                             <InputText @bind-Value="EmployeeData.Email" 
                                       @bind-Value:after="async () => { await CheckEmailUniqueness(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email))); StateHasChanged(); }"
                                       type="email"
-                                      class="@GetInputClass(nameof(EmployeeData.Email))"
+                                      class="@GetEmailInputClassExplicit()"
+                                      style="@GetEmailInputStyle()"
                                       placeholder="e.g. juan.santos@email.com" />
                             <ValidationMessage For="@(() => EmployeeData.Email)" class="text-red-500 text-xs mt-1" />
                             @if (isEmailDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.Email))
@@ -485,6 +491,9 @@
                                           readonly />
                                 <p class="mt-1 text-xs text-gray-500">Default password is automatically generated</p>
                             </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(EmployeeData.Role))
+                        {
                             <div>
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">System ID</label>
                                 <InputText @bind-Value="EmployeeData.SystemId" 
@@ -573,14 +582,14 @@
                 <button type="button" 
                     @onclick="Cancel"
                     @onkeydown:preventDefault="true"
-                    class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
+                    class="rounded-lg bg-gray-500 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
                     Cancel
                 </button>
                 <button type="button" 
                     @onclick="HandleSubmitClick"
                     @onkeydown:preventDefault="true"
                     disabled="@isSubmitting"
-                    class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                    class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
                     @if (isSubmitting)
                     {
                         <span class="inline-flex items-center justify-center">
@@ -678,8 +687,111 @@
                 }
 
                 <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
-                    <button type="button" @onclick="CloseValidationModal" class="rounded-full text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                    <button type="button" @onclick="CloseValidationModal" class="rounded-lg text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
                         OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Duplicate Employee Warning Modal -->
+@if (showDuplicateModal && duplicateCheckResult != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseDuplicateModal">
+        <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl" style="background-color: #f59e0b; padding: 12px 24px;">
+                <h3 class="text-lg font-semibold text-white" style="margin: 0;">⚠️ Potential Duplicate Employee Detected</h3>
+                <button @onclick="CloseDuplicateModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
+                <p class="mb-4 text-sm text-gray-700" style="margin: 0 0 16px 0; line-height: 1.5;">
+                    A potential duplicate employee record was found based on <strong>Full Name</strong>, <strong>Date of Birth</strong>, and <strong>Address</strong>.
+                </p>
+                
+                <!-- Existing Employee Information -->
+                <div class="mb-4 rounded-lg border-2 border-yellow-200 bg-yellow-50" style="padding: 16px;">
+                    <h4 class="mb-3 text-sm font-semibold text-gray-800" style="margin: 0 0 12px 0;">Existing Employee Record:</h4>
+                    <div class="space-y-2 text-sm text-gray-700">
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">System ID:</span>
+                            <span>@duplicateCheckResult.ExistingSystemId</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">Full Name:</span>
+                            <span>@duplicateCheckResult.ExistingFullName</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">Date of Birth:</span>
+                            <span>@duplicateCheckResult.ExistingBirthDate.ToString("MM/dd/yyyy")</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">Address:</span>
+                            <span>@duplicateCheckResult.ExistingAddress</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">Current Email:</span>
+                            <span>@duplicateCheckResult.ExistingEmail</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">Current Contact:</span>
+                            <span>@duplicateCheckResult.ExistingContactNumber</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- New Employee Information -->
+                <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50" style="padding: 16px;">
+                    <h4 class="mb-3 text-sm font-semibold text-gray-800" style="margin: 0 0 12px 0;">New Employee Information:</h4>
+                    <div class="space-y-2 text-sm text-gray-700">
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">New Email:</span>
+                            <span>@(string.IsNullOrWhiteSpace(EmployeeData.Email) ? "Not provided" : EmployeeData.Email)</span>
+                        </div>
+                        <div class="flex">
+                            <span class="font-medium" style="min-width: 140px;">New Contact:</span>
+                            <span>@(string.IsNullOrWhiteSpace(EmployeeData.ContactNumber) ? "Not provided" : EmployeeData.ContactNumber)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="mb-4 text-sm text-gray-600" style="margin: 0 0 16px 0; line-height: 1.5;">
+                    <strong>What would you like to do?</strong><br/>
+                    • <strong>Update Existing:</strong> Update the existing employee's contact number and/or email with the new information.<br/>
+                    • <strong>Create New:</strong> Proceed to create a new employee record (only if this is confirmed to be a different person).
+                </p>
+
+                <div class="flex justify-end gap-3" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
+                    <button type="button" @onclick="CloseDuplicateModal" 
+                            class="rounded-lg text-sm font-medium text-gray-700 transition-all hover:bg-gray-100" 
+                            style="background-color: #f3f4f6; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="ProceedWithNewEmployee" 
+                            class="rounded-lg text-sm font-medium text-white transition-all hover:opacity-90" 
+                            style="background-color: #3b82f6; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                        Create New Employee
+                    </button>
+                    <button type="button" @onclick="UpdateExistingEmployee" 
+                            disabled="@isSubmitting"
+                            class="rounded-lg text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed" 
+                            style="background-color: #10b981; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
+                        @if (isSubmitting)
+                        {
+                            <span>Updating...</span>
+                        }
+                        else
+                        {
+                            <span>Update Existing Employee</span>
+                        }
                     </button>
                 </div>
             </div>
@@ -722,6 +834,14 @@
     // Email uniqueness validation
     private bool isEmailDuplicate = false;
     private CancellationTokenSource? emailCheckCancellationTokenSource;
+    
+    // Contact number uniqueness validation
+    private bool isContactDuplicate = false;
+    private CancellationTokenSource? contactCheckCancellationTokenSource;
+    
+    // Duplicate employee detection
+    private bool showDuplicateModal = false;
+    private EmployeeDuplicateCheckResult? duplicateCheckResult = null;
 
     protected override void OnInitialized()
     {
@@ -744,6 +864,8 @@
         dotNetRef?.Dispose();
         emailCheckCancellationTokenSource?.Cancel();
         emailCheckCancellationTokenSource?.Dispose();
+        contactCheckCancellationTokenSource?.Cancel();
+        contactCheckCancellationTokenSource?.Dispose();
     }
 
     private void CloseAllDropdowns()
@@ -937,15 +1059,26 @@
         var rolesWithAccess = new[] { "Registrar", "Cashier", "Teacher", "HR", "System Admin", "Librarian" };
         ShowPasswordFields = rolesWithAccess.Contains(EmployeeData.Role);
 
-        if (ShowPasswordFields)
+        // Generate System ID for ALL roles (required by database)
+        // System ID is required for all employees regardless of role
+        if (!string.IsNullOrWhiteSpace(EmployeeData.Role))
         {
-            EmployeeData.DefaultPassword = GenerateDefaultPassword();
             EmployeeData.SystemId = await GenerateSystemIdAsync();
         }
         else
         {
-            EmployeeData.DefaultPassword = "";
             EmployeeData.SystemId = "";
+        }
+
+        // Generate password for ALL roles (required by database)
+        // Password is required for all employees, but only displayed for roles with system access
+        if (!string.IsNullOrWhiteSpace(EmployeeData.Role))
+        {
+            EmployeeData.DefaultPassword = GenerateDefaultPassword();
+        }
+        else
+        {
+            EmployeeData.DefaultPassword = "";
         }
 
         // Automatically set base salary based on role (except "Other")
@@ -1297,6 +1430,7 @@
     }
 
     // Check email uniqueness with debouncing to avoid too many database calls
+    // Fixed: Captures email value to prevent stale results and reduces delay
     private async Task CheckEmailUniqueness()
     {
         // Cancel any pending email check
@@ -1304,50 +1438,105 @@
         {
             emailCheckCancellationTokenSource.Cancel();
             emailCheckCancellationTokenSource.Dispose();
+            emailCheckCancellationTokenSource = null;
         }
         
-        // Reset duplicate flag immediately
+        // Capture current email value to verify it hasn't changed after async operations
+        var currentEmail = EmployeeData.Email?.Trim() ?? string.Empty;
+        
+        // Reset duplicate flag immediately when email changes
         isEmailDuplicate = false;
+        StateHasChanged(); // Update UI immediately to clear any previous error state
         
         // If email is empty or invalid format, don't check
-        if (string.IsNullOrWhiteSpace(EmployeeData.Email) || 
-            !System.Text.RegularExpressions.Regex.IsMatch(EmployeeData.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        if (string.IsNullOrWhiteSpace(currentEmail) || 
+            !System.Text.RegularExpressions.Regex.IsMatch(currentEmail, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
         {
-            StateHasChanged();
             return;
         }
         
-        // Create new cancellation token source
-        emailCheckCancellationTokenSource = new CancellationTokenSource();
-        var cancellationToken = emailCheckCancellationTokenSource.Token;
+        // Create new cancellation token source and store reference
+        var tokenSource = new CancellationTokenSource();
+        emailCheckCancellationTokenSource = tokenSource;
+        var cancellationToken = tokenSource.Token;
         
         try
         {
-            // Wait 500ms before checking (debounce)
-            await Task.Delay(500, cancellationToken);
+            // Reduced debounce delay from 500ms to 300ms for faster response
+            await Task.Delay(300, cancellationToken);
             
-            // Check if email exists in database
+            // Verify email hasn't changed and cancellation wasn't requested
             if (!cancellationToken.IsCancellationRequested)
             {
-                var emailExists = await UserRepository.ExistsByEmailAsync(EmployeeData.Email);
-                isEmailDuplicate = emailExists;
-                StateHasChanged();
+                // Double-check that the email value hasn't changed during the delay
+                var emailAfterDelay = EmployeeData.Email?.Trim() ?? string.Empty;
+                if (emailAfterDelay != currentEmail)
+                {
+                    // Email changed during delay, don't update flag
+                    return;
+                }
+                
+                // Check if email exists in database
+                var emailExists = await UserRepository.ExistsByEmailAsync(currentEmail);
+                
+                // Triple-check email hasn't changed after database call and token source is still active
+                var emailAfterCheck = EmployeeData.Email?.Trim() ?? string.Empty;
+                if (emailAfterCheck == currentEmail && 
+                    !cancellationToken.IsCancellationRequested &&
+                    emailCheckCancellationTokenSource == tokenSource) // Verify this is still the active check
+                {
+                    // Only update flag if email still matches and wasn't cancelled
+                    isEmailDuplicate = emailExists;
+                    StateHasChanged();
+                }
             }
         }
         catch (OperationCanceledException)
         {
-            // Expected when user types again before delay completes
+            // Expected when user types again before delay completes - do nothing
+            // Flag remains false (already set above)
         }
         catch (Exception ex)
         {
             // Log error but don't block user input
             Console.WriteLine($"Error checking email uniqueness: {ex.Message}");
-            isEmailDuplicate = false;
-            StateHasChanged();
+            // Only update flag if email still matches current value and this is still the active check
+            var emailAfterError = EmployeeData.Email?.Trim() ?? string.Empty;
+            if (emailAfterError == currentEmail && emailCheckCancellationTokenSource == tokenSource)
+            {
+                isEmailDuplicate = false;
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            // Only dispose if this is still the active token source (hasn't been replaced)
+            if (emailCheckCancellationTokenSource == tokenSource)
+            {
+                try
+                {
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        tokenSource.Dispose();
+                    }
+                }
+                catch
+                {
+                    // Ignore disposal errors
+                }
+                finally
+                {
+                    // Only clear if this is still the active source
+                    if (emailCheckCancellationTokenSource == tokenSource)
+                    {
+                        emailCheckCancellationTokenSource = null;
+                    }
+                }
+            }
         }
     }
 
-    private Task HandleSubmitClick()
+    private async Task HandleSubmitClick()
     {
         // Only trigger validation when submit button is clicked
         if (editContext != null)
@@ -1359,8 +1548,23 @@
                 missingFields.Clear();
                 missingFields.Add("Email: This email is already registered. Please use a different email address.");
                 showValidationModal = true;
+                // Force UI update to show red border on email field
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email)));
                 StateHasChanged();
-                return Task.CompletedTask;
+                return; // Prevent form submission
+            }
+            
+            // Check for duplicate contact number before validating form
+            if (isContactDuplicate)
+            {
+                // Show validation error modal with contact duplicate message
+                missingFields.Clear();
+                missingFields.Add("Contact Number: This contact number is already registered. Please use a different contact number.");
+                showValidationModal = true;
+                // Force UI update to show red border on contact field
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber)));
+                StateHasChanged();
+                return; // Prevent form submission
             }
             
             // Validate the form - this will show validation errors
@@ -1375,14 +1579,24 @@
                 editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Barangay)));
             }
             
-            if (isValid)
+            // Only proceed if form is valid AND email/contact are not duplicate
+            if (isValid && !isEmailDuplicate && !isContactDuplicate)
             {
-                // Show confirmation modal
-                confirmModalTitle = "Confirm Add Employee";
-                confirmModalMessage = "Are all the information correct? Do you want to add this employee?";
-                confirmModalType = "submit";
-                showConfirmModal = true;
-                StateHasChanged();
+                // Check for duplicate employee before showing confirmation modal
+                // Duplicate check is based on: Full Name + DOB + Address
+                await CheckForDuplicateEmployee();
+                
+                // If duplicate found, the modal will be shown by CheckForDuplicateEmployee
+                // If no duplicate, proceed with normal confirmation
+                if (!showDuplicateModal)
+                {
+                    // Show confirmation modal
+                    confirmModalTitle = "Confirm Add Employee";
+                    confirmModalMessage = "Are all the information correct? Do you want to add this employee?";
+                    confirmModalType = "submit";
+                    showConfirmModal = true;
+                    StateHasChanged();
+                }
             }
             else
             {
@@ -1394,8 +1608,143 @@
                 StateHasChanged();
             }
         }
+    }
+    
+    // Simplified duplicate check: Only checks First Name + Last Name
+    // If First Name + Last Name matches existing record, show modal with all details
+    private async Task CheckForDuplicateEmployee()
+    {
+        try
+        {
+            // Only pass First Name and Last Name for duplicate check
+            // Email and Contact Number have separate real-time duplicate detection
+            var employeeData = new EmployeeRegistrationData
+            {
+                FirstName = EmployeeData.FirstName,
+                LastName = EmployeeData.LastName
+            };
+            
+            // Perform duplicate check (only First Name + Last Name)
+            duplicateCheckResult = await EmployeeService.CheckForDuplicateEmployeeAsync(employeeData);
+            
+            // If duplicate found, show warning modal with all details
+            if (duplicateCheckResult != null && duplicateCheckResult.IsDuplicate)
+            {
+                showDuplicateModal = true;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't block submission
+            Console.WriteLine($"Error checking for duplicate employee: {ex.Message}");
+            // Continue with normal flow if check fails
+        }
+    }
+    
+    // Check contact number uniqueness with debouncing (similar to email)
+    private async Task CheckContactUniqueness()
+    {
+        // Cancel any pending contact check
+        if (contactCheckCancellationTokenSource != null)
+        {
+            contactCheckCancellationTokenSource.Cancel();
+            contactCheckCancellationTokenSource.Dispose();
+            contactCheckCancellationTokenSource = null;
+        }
         
-        return Task.CompletedTask;
+        // Capture current contact value to verify it hasn't changed after async operations
+        var currentContact = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
+        
+        // Reset duplicate flag immediately when contact changes
+        isContactDuplicate = false;
+        StateHasChanged(); // Update UI immediately to clear any previous error state
+        
+        // If contact is empty or invalid format, don't check
+        if (string.IsNullOrWhiteSpace(currentContact) || currentContact.Length < 10)
+        {
+            return;
+        }
+        
+        // Create new cancellation token source and store reference
+        var tokenSource = new CancellationTokenSource();
+        contactCheckCancellationTokenSource = tokenSource;
+        var cancellationToken = tokenSource.Token;
+        
+        try
+        {
+            // Reduced debounce delay from 500ms to 300ms for faster response
+            await Task.Delay(300, cancellationToken);
+            
+            // Verify contact hasn't changed and cancellation wasn't requested
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                // Double-check that the contact value hasn't changed during the delay
+                var contactAfterDelay = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
+                if (contactAfterDelay != currentContact)
+                {
+                    // Contact changed during delay, don't update flag
+                    return;
+                }
+                
+                // Check if contact exists in database
+                var contactExists = await UserRepository.ExistsByContactNumberAsync(currentContact);
+                
+                // Triple-check contact hasn't changed after database call and token source is still active
+                var contactAfterCheck = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
+                if (contactAfterCheck == currentContact && 
+                    !cancellationToken.IsCancellationRequested &&
+                    contactCheckCancellationTokenSource == tokenSource) // Verify this is still the active check
+                {
+                    // Only update flag if contact still matches and wasn't cancelled
+                    isContactDuplicate = contactExists;
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when user types again before delay completes - do nothing
+            // Flag remains false (already set above)
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't block user input
+            Console.WriteLine($"Error checking contact uniqueness: {ex.Message}");
+            // Only update flag if contact still matches current value and this is still the active check
+            var contactAfterError = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
+            if (contactAfterError == currentContact && contactCheckCancellationTokenSource == tokenSource)
+            {
+                isContactDuplicate = false;
+                StateHasChanged();
+            }
+        }
+        finally
+        {
+            // Only dispose if this is still the active token source
+            if (contactCheckCancellationTokenSource == tokenSource)
+            {
+                try
+                {
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        tokenSource.Dispose();
+                    }
+                }
+                catch
+                {
+                    // Ignore disposal errors
+                }
+                finally
+                {
+                    // Only clear if this is still the active source
+                    if (contactCheckCancellationTokenSource == tokenSource)
+                    {
+                        contactCheckCancellationTokenSource = null;
+                    }
+                }
+            }
+        }
     }
 
     private void CollectMissingFields()
@@ -1476,6 +1825,75 @@
         confirmModalType = "";
         StateHasChanged();
     }
+    
+    // Close duplicate warning modal
+    private void CloseDuplicateModal()
+    {
+        showDuplicateModal = false;
+        duplicateCheckResult = null;
+        StateHasChanged();
+    }
+    
+    // Handle update existing employee (update contact/email only)
+    private async Task UpdateExistingEmployee()
+    {
+        if (duplicateCheckResult == null || !duplicateCheckResult.ExistingEmployeeId.HasValue)
+        {
+            CloseDuplicateModal();
+            return;
+        }
+        
+        isSubmitting = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Update existing employee's contact and email
+            var success = await EmployeeService.UpdateEmployeeContactInfoAsync(
+                duplicateCheckResult.ExistingEmployeeId.Value,
+                EmployeeData.ContactNumber,
+                EmployeeData.Email
+            );
+            
+            if (success)
+            {
+                // Success - navigate to human resource page
+                NavigationManager.NavigateTo("/human-resource?toast=employee_updated");
+            }
+            else
+            {
+                // Show error
+                toastMessage = "Failed to update employee contact information.";
+                toastType = ToastType.Error;
+                showToast = true;
+                isSubmitting = false;
+                CloseDuplicateModal();
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle error
+            Console.WriteLine($"Error updating employee: {ex.Message}");
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update employee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            isSubmitting = false;
+            CloseDuplicateModal();
+            StateHasChanged();
+        }
+    }
+    
+    // Handle proceed with new employee (user confirms it's a different person)
+    private async Task ProceedWithNewEmployee()
+    {
+        // Close duplicate modal
+        CloseDuplicateModal();
+        
+        // The duplicate modal itself serves as the confirmation
+        // Directly submit the employee without showing another confirmation modal
+        await SubmitEmployee();
+    }
 
     private async Task ConfirmAction()
     {
@@ -1488,8 +1906,8 @@
         }
         else if (confirmModalType == "cancel")
         {
-            // Navigate first, then toast will show on destination page
-            NavigationManager.NavigateTo("/human-resource?toast=employee_cancelled");
+            // Navigate without toast notification for cancel
+            NavigationManager.NavigateTo("/human-resource");
         }
         
         confirmModalTitle = "";
@@ -1514,6 +1932,22 @@
                     isEmailDuplicate = true;
                     missingFields.Clear();
                     missingFields.Add("Email: This email is already registered. Please use a different email address.");
+                    showValidationModal = true;
+                    StateHasChanged();
+                    return;
+                }
+            }
+            
+            // Final check: Verify contact number is still unique before submission (prevents race conditions)
+            if (!string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+            {
+                var contactExists = await UserRepository.ExistsByContactNumberAsync(EmployeeData.ContactNumber);
+                if (contactExists)
+                {
+                    isSubmitting = false;
+                    isContactDuplicate = true;
+                    missingFields.Clear();
+                    missingFields.Add("Contact Number: This contact number is already registered. Please use a different contact number.");
                     showValidationModal = true;
                     StateHasChanged();
                     return;
@@ -1592,6 +2026,107 @@
     private void GoBack()
     {
         NavigationManager.NavigateTo("/human-resource");
+    }
+
+    // Explicit method for email input CSS class - ensures no green when duplicate is detected
+    private string GetEmailInputClassExplicit()
+    {
+        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+        
+        // PRIORITY 1: If duplicate email is detected, return ONLY red border classes - NO green classes at all
+        // This check must happen FIRST before any other validation checks to prevent green border
+        if (isEmailDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.Email))
+        {
+            // Explicitly return only red classes - NO green classes included
+            // This ensures Tailwind won't apply any green border styling
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+        
+        if (editContext == null) 
+            return $"{baseClass} border-gray-300 focus:border-blue-500";
+
+        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email));
+        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
+        var isModified = editContext.IsModified(fieldIdentifier);
+        
+        // PRIORITY 2: Check for standard validation errors - show red border
+        if (hasError)
+        {
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+        
+        // PRIORITY 3: Show green border ONLY if ALL conditions are met:
+        // 1. Field is modified
+        // 2. No validation errors
+        // 3. Email is NOT duplicate (critical check - prevents green when duplicate detected)
+        // 4. Email is not empty (additional safety check)
+        // All conditions must be true - if ANY condition fails, no green border
+        if (isModified && !hasError && !isEmailDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.Email))
+        {
+            return $"{baseClass} border-green-500 focus:border-green-500";
+        }
+        
+        return $"{baseClass} border-gray-300 focus:border-blue-500";
+    }
+
+    // Returns inline style to force red border when duplicate email is detected
+    private string GetEmailInputStyle()
+    {
+        // Force red border with !important to override any Tailwind classes (including green)
+        // This must override both normal and focus states
+        if (isEmailDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.Email))
+        {
+            // Use comprehensive inline styles to override all possible border colors
+            // Target both normal state and :focus pseudo-class to ensure red border always shows
+            // Use box-shadow as a backup since it has higher specificity than border-color in some cases
+            return "border-color: #ef4444 !important; border-width: 1px !important; box-shadow: 0 0 0 1px #ef4444 !important; outline: none !important;";
+        }
+        // When not duplicate, return empty to allow normal Tailwind classes
+        return "";
+    }
+    
+    // Returns CSS class for contact number input - ensures no green when duplicate is detected
+    private string GetContactInputClassExplicit()
+    {
+        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+        
+        // PRIORITY 1: If duplicate contact is detected, return ONLY red border classes - NO green classes at all
+        if (isContactDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+        {
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+        
+        if (editContext == null) 
+            return $"{baseClass} border-gray-300 focus:border-blue-500";
+
+        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber));
+        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
+        var isModified = editContext.IsModified(fieldIdentifier);
+        
+        // PRIORITY 2: Check for standard validation errors - show red border
+        if (hasError)
+        {
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+        
+        // PRIORITY 3: Show green border ONLY if ALL conditions are met
+        if (isModified && !hasError && !isContactDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+        {
+            return $"{baseClass} border-green-500 focus:border-green-500";
+        }
+        
+        return $"{baseClass} border-gray-300 focus:border-blue-500";
+    }
+    
+    // Returns inline style to force red border when duplicate contact is detected
+    private string GetContactInputStyle()
+    {
+        // Force red border with !important to override any Tailwind classes (including green)
+        if (isContactDuplicate && !string.IsNullOrWhiteSpace(EmployeeData.ContactNumber))
+        {
+            return "border-color: #ef4444 !important; border-width: 1px !important; box-shadow: 0 0 0 1px #ef4444 !important; outline: none !important;";
+        }
+        return "";
     }
 
     // Returns CSS class for input fields based on validation

@@ -34,14 +34,29 @@
                         <label class="mb-2 block text-base font-medium text-gray-700">
                             Select Grade Level <span class="text-red-500">*</span>
                         </label>
-                        <select @bind="FormData.GradeLevel" required
-                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                        <select @bind="FormData.GradeLevel" @bind:after="OnGradeLevelChanged" required
+                                class="w-full rounded-lg border @(gradeLevelError ? "border-red-500" : "border-gray-300") bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                             <option value="">Select Grade Level</option>
-                            @foreach (var gradeLevel in availableGradeLevels)
+                            @if (AvailableGradeLevels.Any())
                             {
-                                <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                @foreach (var gradeLevel in AvailableGradeLevels)
+                                {
+                                    <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                }
+                            }
+                            else
+                            {
+                                <option value="" disabled>No available grade levels (all have fees)</option>
                             }
                         </select>
+                        @if (gradeLevelError)
+                        {
+                            <p class="mt-1 text-sm text-red-600">@gradeLevelErrorMessage</p>
+                        }
+                        @if (ExistingFees != null && ExistingFees.Any() && !AvailableGradeLevels.Any())
+                        {
+                            <p class="mt-1 text-sm text-amber-600">All grade levels already have fees. To modify a fee, please use the Edit button on the existing fee entry.</p>
+                        }
                     </div>
 
                     <!-- Row 2: Three Columns for Fee Breakdowns -->
@@ -212,7 +227,7 @@
             
             <!-- Modal Footer - Fixed -->
             <div class="flex justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4 rounded-b-2xl flex-shrink-0">
-                <button type="button" @onclick="HandleCancelClick" class="rounded-full border border-gray-300 bg-white px-4 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50">
+                <button type="button" @onclick="HandleCancelClick" class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
                 <button type="button" @onclick="HandleSubmitClick" 
@@ -250,10 +265,10 @@
                 <p class="mt-2 text-sm text-gray-600">Total Fee: <strong>Php @TotalFee.ToString("N2")</strong></p>
             </div>
             <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
-                <button @onclick="CloseSubmitConfirmModal" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50">
+                <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button @onclick="ConfirmSubmit" class="rounded-full bg-blue-600 px-4 py-2 text-base font-medium text-white hover:bg-blue-700">
+                <button @onclick="ConfirmSubmit" class="rounded-lg bg-blue-600 px-4 py-2 text-base font-medium text-white hover:bg-blue-700">
                     Confirm
                 </button>
             </div>
@@ -277,7 +292,7 @@
             <div class="px-6 py-6">
                 <p class="mb-6 text-base text-gray-800">Are you sure you want to cancel? All entered data will be cleared.</p>
                 <div class="flex justify-end">
-                    <button @onclick="ConfirmCancel" class="rounded-full px-4 py-2 text-base font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353;">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-4 py-2 text-base font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353;">
                         Confirm
                     </button>
                 </div>
@@ -309,7 +324,7 @@
                 </ul>
             </div>
             <div class="flex justify-end border-t border-gray-200 px-6 py-4">
-                <button @onclick="CloseValidationModal" class="rounded-full bg-red-600 px-4 py-2 text-base font-medium text-white hover:bg-red-700">
+                <button @onclick="CloseValidationModal" class="rounded-lg bg-red-600 px-4 py-2 text-base font-medium text-white hover:bg-red-700">
                     OK
                 </button>
             </div>
@@ -321,12 +336,34 @@
     [Parameter] public bool IsVisible { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<FeeModel> OnSubmit { get; set; }
+    [Parameter] public List<FeeModel>? ExistingFees { get; set; } // List of existing fees to prevent duplicates
 
     private FeeFormData FormData { get; set; } = new();
     private List<FeeBreakdownItem> TuitionBreakdown { get; set; } = new();
     private List<FeeBreakdownItem> MiscBreakdown { get; set; } = new();
     private List<FeeBreakdownItem> OtherBreakdown { get; set; } = new();
     private List<GradeLevel> availableGradeLevels = new();
+    
+    // Get grade levels that are available (not already having fees)
+    private List<GradeLevel> AvailableGradeLevels
+    {
+        get
+        {
+            if (ExistingFees == null || !ExistingFees.Any())
+                return availableGradeLevels;
+            
+            // Get list of grade levels that already have fees
+            var existingGradeLevels = ExistingFees
+                .Where(f => !string.IsNullOrWhiteSpace(f.GradeLevel))
+                .Select(f => f.GradeLevel)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            
+            // Filter out grade levels that already have fees
+            return availableGradeLevels
+                .Where(g => !existingGradeLevels.Contains(g.GradeLevelName))
+                .ToList();
+        }
+    }
 
     private decimal TotalFee => FormData.TuitionFee + FormData.MiscFee + FormData.OtherFee;
     
@@ -346,6 +383,10 @@
     // Validation modal
     private bool showValidationModal = false;
     private List<string> validationErrors = new();
+    
+    // Grade level duplicate validation
+    private bool gradeLevelError = false;
+    private string gradeLevelErrorMessage = "";
 
     private bool _wasVisible = false;
     
@@ -480,6 +521,29 @@
         showSubmitConfirmModal = false;
         showCancelConfirmModal = false;
         _isProcessing = false;
+        gradeLevelError = false;
+        gradeLevelErrorMessage = "";
+    }
+    
+    private void OnGradeLevelChanged()
+    {
+        // Reset error state
+        gradeLevelError = false;
+        gradeLevelErrorMessage = "";
+        
+        // Check if selected grade level already has a fee
+        if (!string.IsNullOrWhiteSpace(FormData.GradeLevel) && ExistingFees != null && ExistingFees.Any())
+        {
+            var hasExistingFee = ExistingFees.Any(f => 
+                string.Equals(f.GradeLevel, FormData.GradeLevel, StringComparison.OrdinalIgnoreCase));
+            if (hasExistingFee)
+            {
+                gradeLevelError = true;
+                gradeLevelErrorMessage = $"Grade Level '{FormData.GradeLevel}' already has a fee. Each grade level can only have one fee entry. Please select a different grade level or edit the existing fee.";
+            }
+        }
+        
+        StateHasChanged();
     }
 
     private bool HasData()
@@ -541,6 +605,19 @@
         if (string.IsNullOrWhiteSpace(FormData.GradeLevel))
         {
             validationErrors.Add("Grade Level is required");
+        }
+        else
+        {
+            // Check if grade level already has a fee (duplicate prevention)
+            if (ExistingFees != null && ExistingFees.Any())
+            {
+                var hasExistingFee = ExistingFees.Any(f => 
+                    string.Equals(f.GradeLevel, FormData.GradeLevel, StringComparison.OrdinalIgnoreCase));
+                if (hasExistingFee)
+                {
+                    validationErrors.Add($"Grade Level '{FormData.GradeLevel}' already has a fee. Each grade level can only have one fee entry. Please select a different grade level or edit the existing fee.");
+                }
+            }
         }
         
         // Check Tuition Fee is required

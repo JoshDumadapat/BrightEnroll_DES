@@ -4,13 +4,19 @@
 @using BrightEnroll_DES.Services.AuthFunction
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Components.Pages.Auth.Handlers
+@using System.Threading.Tasks
 @inject NavigationManager Navigation
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject IJSRuntime JSRuntime
+@inject IConnectivityService ConnectivityService
+@implements IDisposable
 
 <!-- Toast Notification -->
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@ToastType.Success" OnClose="CloseToast" Duration="3000" />
+
+<!-- Connectivity Toast -->
+<ConnectivityToast Show="@showConnectivityToast" IsOnline="@isOnline" Message="@connectivityMessage" />
 
 <div class="relative flex h-screen w-full flex-col md:flex-row"> 
     <div class="relative h-[50vh] w-full md:h-screen md:w-[40%]">
@@ -213,11 +219,48 @@
 
     private bool showToast = false;
     private string toastMessage = "";
+    
+    // Connectivity toast state
+    private bool showConnectivityToast = false;
+    private bool isOnline = false;
+    private string connectivityMessage = "";
 
     protected override void OnInitialized()
     {
         // Initialize RememberMeHandler
         _rememberMeHandler = new RememberMeHandler(JSRuntime);
+        
+        // Subscribe to connectivity changes
+        ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+        
+        // Initial check and show toast ONLY ONCE on login page (first time app opens)
+        if (!ConnectivityService.HasShownInitialToast)
+        {
+            _ = Task.Run(async () =>
+            {
+                var isConnected = await ConnectivityService.CheckConnectivityAsync();
+                await InvokeAsync(() =>
+                {
+                    ConnectivityService.HasShownInitialToast = true;
+                    isOnline = isConnected;
+                    connectivityMessage = isConnected 
+                        ? "You are online. Data will sync to cloud." 
+                        : "Offline. Changes saved locally, will sync when online.";
+                    showConnectivityToast = true;
+                    StateHasChanged();
+                    
+                    // Auto-hide after 3 seconds
+                    _ = Task.Delay(3000).ContinueWith(_ =>
+                    {
+                        InvokeAsync(() =>
+                        {
+                            showConnectivityToast = false;
+                            StateHasChanged();
+                        });
+                    });
+                });
+            });
+        }
 
         // Check for toast parameter in query string
         var uri = new Uri(Navigation.Uri);
@@ -299,6 +342,10 @@
 
     private async Task HandleLogin()
     {
+        // Show loading screen IMMEDIATELY on button click, before any validation
+        LoadingService.ShowLoading("Logging in...");
+        StateHasChanged(); // Force immediate UI update
+        
         // Reset errors
         emailOrSystemIdError = false;
         passwordError = false;
@@ -319,33 +366,57 @@
             isValid = false;
         }
 
-        // Force UI update to show error states
+        // If validation fails, hide loading and show errors
         if (!isValid)
         {
+            LoadingService.HideLoading();
             StateHasChanged();
             return;
         }
+        
+        var startTime = DateTime.Now;
 
-        // Attempt login using AuthService (accepts email or system ID)
-        var loginResult = await AuthService.LoginAsync(_emailOrSystemId, _password);
-
-        if (loginResult)
+        try
         {
-            // Save credentials if remember me is checked
-            if (_rememberMeHandler != null)
+            // Attempt login using AuthService (accepts email or system ID)
+            var loginResult = await AuthService.LoginAsync(_emailOrSystemId, _password);
+
+            if (loginResult)
             {
-                await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
-            }
+                // Save credentials if remember me is checked
+                if (_rememberMeHandler != null)
+                {
+                    await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
+                }
 
-            // Login successful - redirect to dashboard (loading will be shown by dashboard when loading data)
-            Navigation.NavigateTo("/dashboard");
+                // Keep loading message as "Logging in... Please wait." during navigation
+                // Dashboard will hide loading immediately after navigation (no separate loading screen)
+                // Login successful - redirect to dashboard
+                Navigation.NavigateTo("/dashboard");
+            }
+            else
+            {
+                // Login failed - show error message and red outlines on both fields
+                LoadingService.HideLoading();
+                loginError = true;
+                emailOrSystemIdError = true;
+                passwordError = true;  
+                StateHasChanged();
+            }
         }
-        else
+        catch (Exception)
         {
-            // Login failed - show error message and red outlines on both fields
+            // Ensure loading screen shows for at least 1 second even on error
+            var elapsed = DateTime.Now - startTime;
+            var minDuration = TimeSpan.FromSeconds(1);
+            if (elapsed < minDuration)
+            {
+                await Task.Delay(minDuration - elapsed);
+            }
+            LoadingService.HideLoading();
             loginError = true;
             emailOrSystemIdError = true;
-            passwordError = true;  
+            passwordError = true;
             StateHasChanged();
         }
     }
@@ -375,5 +446,32 @@
         showToast = false;
         toastMessage = "";
         StateHasChanged();
+    }
+
+    private void OnConnectivityChanged(object? sender, bool isConnected)
+    {
+        // Only show toast if initial toast has been shown (connection change, not initial load)
+        if (ConnectivityService.HasShownInitialToast)
+        {
+            isOnline = isConnected;
+            connectivityMessage = isConnected 
+                ? "You are now online. Data will sync to cloud." 
+                : "Offline. Changes saved locally, will sync when online.";
+            
+            showConnectivityToast = true;
+            InvokeAsync(StateHasChanged);
+            
+            // Auto-hide after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                showConnectivityToast = false;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
     }
 }

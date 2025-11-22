@@ -1,14 +1,24 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.FinanceComponents.FeeSetupModal
 @using BrightEnroll_DES.Components.Pages.Admin.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.HRComponents
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Finance
+@using BrightEnroll_DES.Data.Models
+@using System.Linq
+@inject IJSRuntime JSRuntime
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
 @if (IsVisible)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleClose">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleCancelClick">
         <div class="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2 flex-shrink-0">
+            <!-- Modal Header - Yellow -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-yellow-500 px-6 py-2 flex-shrink-0">
                 <h3 class="text-lg font-semibold text-white">Edit Fee</h3>
-                <button @onclick="HandleClose" class="text-white hover:text-gray-200">
+                <button @onclick="HandleCancelClick" class="text-white hover:text-gray-200">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -17,31 +27,22 @@
 
             <!-- Modal Body - Scrollable -->
             <div class="overflow-y-auto px-6 py-4 flex-1">
-                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
-                    <!-- Row 1: Grade Level -->
+                <form @onsubmit:preventDefault="true">
+                    <!-- Row 1: Grade Level - Read Only -->
                     <div class="mb-4">
-                        <label class="mb-2 block text-sm font-medium text-gray-700">
-                            Select Grade Level <span class="text-red-500">*</span>
+                        <label class="mb-2 block text-base font-medium text-gray-700">
+                            Grade Level <span class="text-red-500">*</span>
                         </label>
-                        <select @bind="FormData.GradeLevel" required
-                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
-                            <option value="">Select Grade Level</option>
-                            <option value="Pre-School">Pre-School</option>
-                            <option value="Kinder">Kinder</option>
-                            <option value="Grade 1">Grade 1</option>
-                            <option value="Grade 2">Grade 2</option>
-                            <option value="Grade 3">Grade 3</option>
-                            <option value="Grade 4">Grade 4</option>
-                            <option value="Grade 5">Grade 5</option>
-                            <option value="Grade 6">Grade 6</option>
-                        </select>
+                        <input type="text" value="@FormData.GradeLevel" readonly
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2.5 text-base text-gray-700 outline-none cursor-not-allowed" />
+                        <p class="mt-1 text-xs text-gray-500">Grade level cannot be changed when editing a fee.</p>
                     </div>
 
                     <!-- Row 2: Three Columns for Fee Breakdowns -->
                     <div class="mb-4 grid grid-cols-3 gap-4">
                         <!-- Tuition Fee Column -->
                         <div class="flex flex-col">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                            <label class="mb-2 block text-base font-medium text-gray-700">
                                 Tuition Fee <span class="text-red-500">*</span>
                             </label>
                             <div class="flex flex-col border border-gray-200 rounded-lg bg-gray-50" style="max-height: 280px;">
@@ -49,16 +50,27 @@
                                     @foreach (var item in TuitionBreakdown)
                                     {
                                         <div class="flex flex-col gap-1 bg-white p-2 rounded border border-gray-200">
-                                            <input type="text" @bind="item.Name" @bind:after="OnTuitionChanged" 
+                                            <input type="text" @bind="item.Name" @bind:after="() => { FormatItemName(item); OnTuitionChanged(); }" 
                                                    placeholder="Item name"
-                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
                                             <div class="flex items-center gap-1">
-                                                <input type="text" @bind="item.AmountString" @bind:after="OnTuitionChanged" 
-                                                       placeholder="Php 0.00"
-                                                       class="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                <div class="relative flex-1">
+                                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                                    <input type="text" 
+                                                           value="@GetAmountDisplayValue(item)" 
+                                                           @oninput='(e) => HandleAmountInput(e, item, "tuition")' 
+                                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                                           @onpaste='(e) => HandleAmountPaste(e, item, "tuition")' 
+                                                           @onfocus='(e) => HandleAmountFocus(e, item)' 
+                                                           @onblur='(e) => HandleAmountBlur(e, item, "tuition")' 
+                                                           pattern="[0-9.]*"
+                                                           inputmode="decimal"
+                                                           placeholder="0.00"
+                                                           class="w-full rounded border border-gray-300 bg-white pl-7 pr-2 py-1.5 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                </div>
                                                 <button type="button" @onclick="() => OnRemoveTuitionItem(item)" 
-                                                        class="rounded bg-red-50 p-1 text-red-600 hover:bg-red-100">
-                                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        class="rounded bg-red-50 p-1.5 text-red-600 hover:bg-red-100">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                 </button>
@@ -67,18 +79,21 @@
                                     }
                                 </div>
                                 <button type="button" @onclick="OnAddTuitionItem" 
-                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100">
+                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
                                     + Add Item
                                 </button>
                             </div>
-                            <input type="text" value="@FormData.TuitionFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="mt-2 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
+                            <div class="relative mt-2">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-600">₱</span>
+                                <input type="text" value="@FormData.TuitionFeeString" readonly
+                                       placeholder="0.00"
+                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 py-2.5 text-base text-right text-gray-700 outline-none" />
+                            </div>
                         </div>
 
                         <!-- Misc Fee Column -->
                         <div class="flex flex-col">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                            <label class="mb-2 block text-base font-medium text-gray-700">
                                 Misc Fee <span class="text-red-500">*</span>
                             </label>
                             <div class="flex flex-col border border-gray-200 rounded-lg bg-gray-50" style="max-height: 280px;">
@@ -86,16 +101,27 @@
                                     @foreach (var item in MiscBreakdown)
                                     {
                                         <div class="flex flex-col gap-1 bg-white p-2 rounded border border-gray-200">
-                                            <input type="text" @bind="item.Name" @bind:after="OnMiscChanged" 
+                                            <input type="text" @bind="item.Name" @bind:after="() => { FormatItemName(item); OnMiscChanged(); }" 
                                                    placeholder="Item name"
-                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
                                             <div class="flex items-center gap-1">
-                                                <input type="text" @bind="item.AmountString" @bind:after="OnMiscChanged" 
-                                                       placeholder="Php 0.00"
-                                                       class="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                <div class="relative flex-1">
+                                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                                    <input type="text" 
+                                                           value="@GetAmountDisplayValue(item)" 
+                                                           @oninput='(e) => HandleAmountInput(e, item, "misc")' 
+                                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                                           @onpaste='(e) => HandleAmountPaste(e, item, "misc")' 
+                                                           @onfocus='(e) => HandleAmountFocus(e, item)' 
+                                                           @onblur='(e) => HandleAmountBlur(e, item, "misc")' 
+                                                           pattern="[0-9.]*"
+                                                           inputmode="decimal"
+                                                           placeholder="0.00"
+                                                           class="w-full rounded border border-gray-300 bg-white pl-7 pr-2 py-1.5 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                </div>
                                                 <button type="button" @onclick="() => OnRemoveMiscItem(item)" 
-                                                        class="rounded bg-red-50 p-1 text-red-600 hover:bg-red-100">
-                                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        class="rounded bg-red-50 p-1.5 text-red-600 hover:bg-red-100">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                 </button>
@@ -104,18 +130,21 @@
                                     }
                                 </div>
                                 <button type="button" @onclick="OnAddMiscItem" 
-                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100">
+                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
                                     + Add Item
                                 </button>
                             </div>
-                            <input type="text" value="@FormData.MiscFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="mt-2 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
+                            <div class="relative mt-2">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-600">₱</span>
+                                <input type="text" value="@FormData.MiscFeeString" readonly
+                                       placeholder="0.00"
+                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 py-2.5 text-base text-right text-gray-700 outline-none" />
+                            </div>
                         </div>
 
                         <!-- Other Fee Column -->
                         <div class="flex flex-col">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                            <label class="mb-2 block text-base font-medium text-gray-700">
                                 Other Fee <span class="text-red-500">*</span>
                             </label>
                             <div class="flex flex-col border border-gray-200 rounded-lg bg-gray-50" style="max-height: 280px;">
@@ -123,16 +152,27 @@
                                     @foreach (var item in OtherBreakdown)
                                     {
                                         <div class="flex flex-col gap-1 bg-white p-2 rounded border border-gray-200">
-                                            <input type="text" @bind="item.Name" @bind:after="OnOtherChanged" 
+                                            <input type="text" @bind="item.Name" @bind:after="() => { FormatItemName(item); OnOtherChanged(); }" 
                                                    placeholder="Item name"
-                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
                                             <div class="flex items-center gap-1">
-                                                <input type="text" @bind="item.AmountString" @bind:after="OnOtherChanged" 
-                                                       placeholder="Php 0.00"
-                                                       class="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                <div class="relative flex-1">
+                                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                                    <input type="text" 
+                                                           value="@GetAmountDisplayValue(item)" 
+                                                           @oninput='(e) => HandleAmountInput(e, item, "other")' 
+                                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                                           @onpaste='(e) => HandleAmountPaste(e, item, "other")' 
+                                                           @onfocus='(e) => HandleAmountFocus(e, item)' 
+                                                           @onblur='(e) => HandleAmountBlur(e, item, "other")' 
+                                                           pattern="[0-9.]*"
+                                                           inputmode="decimal"
+                                                           placeholder="0.00"
+                                                           class="w-full rounded border border-gray-300 bg-white pl-7 pr-2 py-1.5 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
+                                                </div>
                                                 <button type="button" @onclick="() => OnRemoveOtherItem(item)" 
-                                                        class="rounded bg-red-50 p-1 text-red-600 hover:bg-red-100">
-                                                    <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        class="rounded bg-red-50 p-1.5 text-red-600 hover:bg-red-100">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                                                     </svg>
                                                 </button>
@@ -141,20 +181,23 @@
                                     }
                                 </div>
                                 <button type="button" @onclick="OnAddOtherItem" 
-                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100">
+                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
                                     + Add Item
                                 </button>
                             </div>
-                            <input type="text" value="@FormData.OtherFeeString" readonly
-                                   placeholder="Php 0.00"
-                                   class="mt-2 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 outline-none" />
+                            <div class="relative mt-2">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-600">₱</span>
+                                <input type="text" value="@FormData.OtherFeeString" readonly
+                                       placeholder="0.00"
+                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 py-2.5 text-base text-right text-gray-700 outline-none" />
+                            </div>
                         </div>
                     </div>
 
                     <!-- Total Fee -->
                     <div class="mb-4">
-                        <label class="mb-2 block text-sm font-medium text-gray-700">Total Fee:</label>
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700">
+                        <label class="mb-2 block text-base font-medium text-gray-700">Total Fee:</label>
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2.5 text-base font-semibold text-gray-700">
                             Php @TotalFee.ToString("N2")
                         </div>
                     </div>
@@ -163,11 +206,105 @@
             
             <!-- Modal Footer - Fixed -->
             <div class="flex justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4 rounded-b-2xl flex-shrink-0">
-                <button type="button" @onclick="HandleClose" class="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <button type="button" @onclick="HandleCancelClick" class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button type="button" @onclick="HandleSubmit" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                    Update
+                <button type="button" @onclick="HandleSubmitClick" 
+                        disabled="@_isProcessing"
+                        class="rounded-full bg-yellow-500 px-4 py-2.5 text-base font-medium text-white hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (_isProcessing)
+                    {
+                        <span>Processing...</span>
+                    }
+                    else
+                    {
+                        <span>Update</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Submit -->
+@if (showSubmitConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSubmitConfirmModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-yellow-500 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Confirm Update</h3>
+                <button @onclick="CloseSubmitConfirmModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-base text-gray-700">Are you sure you want to update the fee for <strong>@FormData.GradeLevel</strong>?</p>
+                <p class="mt-2 text-sm text-gray-600">Total Fee: <strong>Php @TotalFee.ToString("N2")</strong></p>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+                <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSubmit" class="rounded-lg bg-yellow-500 px-4 py-2 text-base font-medium text-white hover:bg-yellow-600">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Cancel -->
+@if (showCancelConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelConfirmModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl px-6 py-4" style="background-color: #e65353;">
+                <h3 class="text-lg font-semibold text-white">Cancel Edit Fee</h3>
+                <button @onclick="CloseCancelConfirmModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-6">
+                <p class="mb-6 text-base text-gray-800">Are you sure you want to cancel? All changes will be discarded.</p>
+                <div class="flex justify-end">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-4 py-2 text-base font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Validation Error Modal -->
+@if (showValidationModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-red-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Validation Error</h3>
+                <button @onclick="CloseValidationModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-3 text-base font-medium text-gray-800">Please fill in the following required fields:</p>
+                <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-4">
+                <button @onclick="CloseValidationModal" class="rounded-lg bg-red-600 px-4 py-2 text-base font-medium text-white hover:bg-red-700">
+                    OK
                 </button>
             </div>
         </div>
@@ -186,10 +323,32 @@
     private List<FeeBreakdownItem> OtherBreakdown { get; set; } = new();
 
     private decimal TotalFee => FormData.TuitionFee + FormData.MiscFee + FormData.OtherFee;
+    
+    // Track which item is being edited for formatting
+    private FeeBreakdownItem? editingAmountItem = null;
+    private Dictionary<FeeBreakdownItem, string> amountRawInputs = new();
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // Confirmation modals
+    private bool showSubmitConfirmModal = false;
+    private bool showCancelConfirmModal = false;
+    
+    // Validation modal
+    private bool showValidationModal = false;
+    private List<string> validationErrors = new();
+
+    private bool _wasVisible = false;
+    
+    // Prevent concurrent submissions
+    private bool _isProcessing = false;
 
     protected override void OnParametersSet()
     {
-        if (Fee != null)
+        if (Fee != null && IsVisible && !_wasVisible)
         {
             FormData = new FeeFormData
             {
@@ -198,10 +357,28 @@
                 MiscFeeString = Fee.MiscFee.ToString("N2"),
                 OtherFeeString = Fee.OtherFee.ToString("N2")
             };
-            TuitionBreakdown = Fee.TuitionBreakdown?.ToList() ?? new List<FeeBreakdownItem>();
-            MiscBreakdown = Fee.MiscBreakdown?.ToList() ?? new List<FeeBreakdownItem>();
-            OtherBreakdown = Fee.OtherBreakdown?.ToList() ?? new List<FeeBreakdownItem>();
+            TuitionBreakdown = Fee.TuitionBreakdown?.Select(b => new FeeBreakdownItem
+            {
+                Name = b.Name,
+                AmountString = b.AmountString
+            }).ToList() ?? new List<FeeBreakdownItem>();
+            MiscBreakdown = Fee.MiscBreakdown?.Select(b => new FeeBreakdownItem
+            {
+                Name = b.Name,
+                AmountString = b.AmountString
+            }).ToList() ?? new List<FeeBreakdownItem>();
+            OtherBreakdown = Fee.OtherBreakdown?.Select(b => new FeeBreakdownItem
+            {
+                Name = b.Name,
+                AmountString = b.AmountString
+            }).ToList() ?? new List<FeeBreakdownItem>();
+            
+            // Initialize totals
+            OnTuitionChanged();
+            OnMiscChanged();
+            OnOtherChanged();
         }
+        _wasVisible = IsVisible;
     }
 
     public void Reset()
@@ -210,28 +387,155 @@
         TuitionBreakdown = new List<FeeBreakdownItem>();
         MiscBreakdown = new List<FeeBreakdownItem>();
         OtherBreakdown = new List<FeeBreakdownItem>();
+        amountRawInputs.Clear();
+        editingAmountItem = null;
+        validationErrors.Clear();
+        showValidationModal = false;
+        showSubmitConfirmModal = false;
+        showCancelConfirmModal = false;
+        _isProcessing = false;
+        _wasVisible = false;
     }
 
-    private void HandleClose()
+    private bool HasData()
+    {
+        return !string.IsNullOrWhiteSpace(FormData.GradeLevel) ||
+               TuitionBreakdown.Any() ||
+               MiscBreakdown.Any() ||
+               OtherBreakdown.Any() ||
+               FormData.TuitionFee > 0 ||
+               FormData.MiscFee > 0 ||
+               FormData.OtherFee > 0;
+    }
+
+    private void HandleCancelClick()
+    {
+        if (HasData())
+        {
+            showCancelConfirmModal = true;
+        }
+        else
+        {
+            ConfirmCancel();
+        }
+    }
+
+    private void CloseCancelConfirmModal()
+    {
+        showCancelConfirmModal = false;
+    }
+
+    private void ConfirmCancel()
     {
         Reset();
         OnClose.InvokeAsync();
     }
 
-    private async Task HandleSubmit()
+    private void HandleSubmitClick()
     {
-        var fee = new FeeModel
+        // Validate before showing confirmation
+        if (!ValidateForm())
         {
-            GradeLevel = FormData.GradeLevel,
-            TuitionFee = FormData.TuitionFee,
-            MiscFee = FormData.MiscFee,
-            OtherFee = FormData.OtherFee,
-            TuitionBreakdown = TuitionBreakdown.ToList(),
-            MiscBreakdown = MiscBreakdown.ToList(),
-            OtherBreakdown = OtherBreakdown.ToList()
-        };
-        await OnSubmit.InvokeAsync(fee);
-        Reset();
+            showValidationModal = true;
+            return;
+        }
+        
+        showSubmitConfirmModal = true;
+    }
+
+    private void CloseSubmitConfirmModal()
+    {
+        showSubmitConfirmModal = false;
+    }
+
+    private bool ValidateForm()
+    {
+        validationErrors.Clear();
+        
+        // Grade Level is read-only, so it should always be set if modal is open
+        if (string.IsNullOrWhiteSpace(FormData.GradeLevel))
+        {
+            validationErrors.Add("Grade Level is required");
+        }
+        
+        // Check Tuition Fee is required
+        bool hasTuitionItems = TuitionBreakdown.Any(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0);
+        if (!hasTuitionItems || FormData.TuitionFee <= 0)
+        {
+            validationErrors.Add("Tuition Fee is required. Please add at least one tuition fee item with a name and amount.");
+        }
+        
+        // Validate individual items
+        var allItems = TuitionBreakdown.Concat(MiscBreakdown).Concat(OtherBreakdown).ToList();
+        foreach (var item in allItems)
+        {
+            if (string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0)
+            {
+                validationErrors.Add("Items with amounts must have a name");
+            }
+            if (!string.IsNullOrWhiteSpace(item.Name) && item.Amount <= 0)
+            {
+                validationErrors.Add($"Item '{item.Name}' must have an amount greater than 0");
+            }
+        }
+        
+        return validationErrors.Count == 0;
+    }
+
+    private void CloseValidationModal()
+    {
+        showValidationModal = false;
+    }
+
+    private async Task ConfirmSubmit()
+    {
+        // Prevent concurrent submissions
+        if (_isProcessing)
+        {
+            return;
+        }
+        
+        showSubmitConfirmModal = false;
+        _isProcessing = true;
+        StateHasChanged();
+        
+        try
+        {
+            var fee = new FeeModel
+            {
+                GradeLevel = FormData.GradeLevel,
+                TuitionFee = FormData.TuitionFee,
+                MiscFee = FormData.MiscFee,
+                OtherFee = FormData.OtherFee,
+                TuitionBreakdown = TuitionBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList(),
+                MiscBreakdown = MiscBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList(),
+                OtherBreakdown = OtherBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList()
+            };
+            
+            await OnSubmit.InvokeAsync(fee);
+            Reset();
+            
+            // Success toast will be shown by parent component
+        }
+        catch (Exception ex)
+        {
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update fee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
     }
 
     private void OnAddTuitionItem()
@@ -290,5 +594,237 @@
         FormData.OtherFeeString = total.ToString("N2");
         StateHasChanged();
     }
-}
 
+    // Get display value for amount field (formatted with commas)
+    private string GetAmountDisplayValue(FeeBreakdownItem item)
+    {
+        if (editingAmountItem == item && amountRawInputs.ContainsKey(item))
+        {
+            return FormatNumberWithCommas(amountRawInputs[item]);
+        }
+        
+        // Return formatted value when not editing
+        if (item.Amount > 0)
+        {
+            return item.Amount.ToString("N2");
+        }
+        return "";
+    }
+
+    // Handle paste to filter invalid characters
+    private async Task HandleAmountPaste(ClipboardEventArgs e, FeeBreakdownItem item, string category)
+    {
+        // Prevent default paste
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
+        }
+        catch { }
+        
+        // Get clipboard text
+        var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+        
+        if (!string.IsNullOrWhiteSpace(clipboardText))
+        {
+            // Filter to only allow digits and period
+            var validChars = clipboardText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var cleaned = new string(validChars);
+            
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+            
+            // Update the item's amount
+            if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                item.AmountString = parsedValue.ToString("N2");
+                amountRawInputs[item] = cleaned;
+                
+                // Update the appropriate category total
+                if (category == "tuition")
+                    OnTuitionChanged();
+                else if (category == "misc")
+                    OnMiscChanged();
+                else if (category == "other")
+                    OnOtherChanged();
+                
+                StateHasChanged();
+            }
+        }
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+
+    // Handle amount input with auto-formatting and strict validation - IMMEDIATELY filters invalid characters
+    private void HandleAmountInput(ChangeEventArgs e, FeeBreakdownItem item, string category)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // IMMEDIATELY filter: Remove ALL non-numeric characters except period
+        // This prevents letters and special characters from appearing at all
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                // Keep only the first decimal point
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // If starting with "0" and next char is a digit (not "."), remove the leading "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input (without commas for parsing)
+        amountRawInputs[item] = cleaned;
+        
+        // Parse and update the item's AmountString
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            // Round to 2 decimals
+            parsedValue = Math.Round(parsedValue, 2);
+            item.AmountString = parsedValue.ToString("N2");
+            
+            // Update the appropriate category total
+            if (category == "tuition")
+                OnTuitionChanged();
+            else if (category == "misc")
+                OnMiscChanged();
+            else if (category == "other")
+                OnOtherChanged();
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            item.AmountString = "";
+            if (category == "tuition")
+                OnTuitionChanged();
+            else if (category == "misc")
+                OnMiscChanged();
+            else if (category == "other")
+                OnOtherChanged();
+        }
+        
+        // Force update the input field to reflect the cleaned value immediately
+        // This ensures invalid characters are removed as soon as they're typed
+        StateHasChanged();
+    }
+
+    // Handle focus - start editing
+    private void HandleAmountFocus(Microsoft.AspNetCore.Components.Web.FocusEventArgs e, FeeBreakdownItem item)
+    {
+        editingAmountItem = item;
+        if (!amountRawInputs.ContainsKey(item))
+        {
+            if (item.Amount > 0)
+            {
+                amountRawInputs[item] = item.Amount == Math.Floor(item.Amount) 
+                    ? ((int)item.Amount).ToString() 
+                    : item.Amount.ToString("0.##");
+            }
+            else
+            {
+                amountRawInputs[item] = "";
+            }
+        }
+        StateHasChanged();
+    }
+
+    // Handle blur - finish editing
+    private void HandleAmountBlur(Microsoft.AspNetCore.Components.Web.FocusEventArgs e, FeeBreakdownItem item, string category)
+    {
+        editingAmountItem = null;
+        
+        // Ensure the value is properly formatted
+        if (amountRawInputs.ContainsKey(item))
+        {
+            string rawValue = amountRawInputs[item];
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                item.AmountString = parsedValue.ToString("N2");
+            }
+            else
+            {
+                item.AmountString = "";
+            }
+            amountRawInputs.Remove(item);
+        }
+        
+        StateHasChanged();
+    }
+
+    // Format item name to capitalize first letter of each word
+    private void FormatItemName(FeeBreakdownItem item)
+    {
+        item.Name = EmployeeFormHelpers.FormatName(item.Name);
+    }
+}

@@ -352,8 +352,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         }
         else if (confirmModalType == "cancel")
         {
-            // Navigate first, then toast will show on destination page
-            Navigation.NavigateTo("/?toast=registration_cancelled");
+            // Navigate without toast notification for cancel
+            Navigation.NavigateTo("/");
         }
         
         confirmModalTitle = "";

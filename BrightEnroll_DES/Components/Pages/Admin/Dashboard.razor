@@ -16,100 +16,108 @@
 </div>
 
 <!-- Date Filters -->
-<div class="mb-4 rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:mb-6 md:p-4">
+<div class="mb-4 rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:mb-6 md:p-4" style="overflow: visible;">
     <!-- Header -->
     <div class="mb-3">
         <h2 class="text-sm font-bold text-gray-800 md:text-base">Dashboard Filters</h2>
     </div>
 
-    <!-- Responsive Layout -->
-    <div class="flex flex-col-reverse gap-4 md:grid md:grid-cols-2 md:items-center md:gap-4">
-        <!-- Left: Filters and Buttons (on desktop), but moves below Current View on small screens -->
-        <div class="flex flex-wrap justify-start gap-3 sm:flex-nowrap sm:justify-start">
-            <!-- From Date -->
-            <div class="flex w-full flex-col gap-1 sm:w-auto">
-                <label class="text-xs font-medium text-gray-600">From Date:</label>
+    <!-- Filters and Buttons Row -->
+    <div class="mb-3 flex flex-wrap items-end justify-start gap-2 sm:gap-3" style="overflow: visible;">
+        <!-- From Date -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">From Date:</label>
+            <div class="group relative w-full">
                 <input type="date" value="@(FromDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnFromDateChanged"
-                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm" />
-            </div>
-
-            <!-- To Date -->
-            <div class="flex w-full flex-col gap-1 sm:w-auto">
-                <label class="text-xs font-medium text-gray-600">To Date:</label>
-                <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
-                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm" />
-            </div>
-
-            <!-- Month Filter -->
-            <div class="flex w-full flex-col gap-1 sm:w-auto">
-                <label class="text-xs font-medium text-gray-600">Month:</label>
-                <select value="@SelectedMonth" @onchange="OnMonthChanged"
-                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm">
-                    <option value="">All Months</option>
-                    <option value="current">This Month</option>
-                    <option value="previous">Previous Month</option>
-                    @for (int i = 1; i <= 12; i++)
-                    {
-                        <option value="@i">@((new DateTime(DateTime.Now.Year, i, 1)).ToString("MMMM"))</option>
-                    }
-                </select>
-            </div>
-
-            <!-- Year Filter -->
-            <div class="flex w-full flex-col gap-1 sm:w-auto">
-                <label class="text-xs font-medium text-gray-600">Year:</label>
-                <select value="@SelectedYear" @onchange="OnYearChanged"
-                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm">
-                    <option value="">All Years</option>
-                    <option value="current">This Year</option>
-                    <option value="previous">Previous Year</option>
-                    @for (int year = DateTime.Now.Year; year >= DateTime.Now.Year - 5; year--)
-                    {
-                        <option value="@year">@year</option>
-                    }
-                </select>
-            </div>
-
-            <!-- Quick Select -->
-            <div class="flex w-full flex-col gap-1 sm:w-auto">
-                <label class="text-xs font-medium text-gray-600">Quick Select:</label>
-                <select value="@QuickSelect" @onchange="OnQuickSelectChanged"
-                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 md:px-3 md:py-2 md:text-sm">
-                    <option value="">Select Range</option>
-                    <option value="today">This Day</option>
-                    <option value="week">This Week</option>
-                    <option value="month">This Month</option>
-                    <option value="year">This Year</option>
-                </select>
-            </div>
-
-            <!-- Apply Filter -->
-            <div class="flex w-full items-end justify-start gap-2 sm:w-auto sm:justify-end">
-                <!-- Clear Filter -->
-                <button @onclick="ClearFilters"
-                        class="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-gray-500 px-3 py-1.5 font-semibold text-white text-[11px] shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:text-[12px] md:gap-2 md:px-4 md:py-2">
-                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Clear
-                </button>
-                <button @onclick="ApplyFilters"
-                        class="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-blue-600 px-3 py-1.5 font-semibold text-white text-[11px] shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:text-[12px] md:gap-2 md:px-4 md:py-2">
-                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    Apply Filter
-                </button>
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
+                <span class="tooltip-delay">Select the start date for filtering dashboard statistics</span>
             </div>
         </div>
 
-        <!-- Right: Current View (on desktop), but moves above filters on small screens -->
-        <div class="flex justify-end md:items-center md:justify-end">
-            <div class="text-right">
-                <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
-                <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
+        <!-- To Date -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">To Date:</label>
+            <div class="group relative w-full">
+                <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
+                <span class="tooltip-delay">Select the end date for filtering dashboard statistics</span>
             </div>
+        </div>
+
+        <!-- Month Filter -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Month:</label>
+            <select value="@SelectedMonth" @onchange="OnMonthChanged"
+                    class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                <option value="">All Months</option>
+                <option value="current">This Month</option>
+                <option value="previous">Previous Month</option>
+                @for (int i = 1; i <= 12; i++)
+                {
+                    <option value="@i">@((new DateTime(DateTime.Now.Year, i, 1)).ToString("MMMM"))</option>
+                }
+            </select>
+        </div>
+
+        <!-- Year Filter -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Year:</label>
+            <select value="@SelectedYear" @onchange="OnYearChanged"
+                    class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                <option value="">All Years</option>
+                <option value="current">This Year</option>
+                <option value="previous">Previous Year</option>
+                @for (int year = DateTime.Now.Year; year >= DateTime.Now.Year - 5; year--)
+                {
+                    <option value="@year">@year</option>
+                }
+            </select>
+        </div>
+
+        <!-- Quick Select -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Quick Select:</label>
+            <select value="@QuickSelect" @onchange="OnQuickSelectChanged"
+                    class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                <option value="">Select Range</option>
+                <option value="today">This Day</option>
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="year">This Year</option>
+            </select>
+        </div>
+
+        <!-- Clear Filter Button -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
+            <button @onclick="ClearFilters"
+                    class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-gray-500 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
+                <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+            </button>
+        </div>
+
+        <!-- Apply Filter Button -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
+            <button @onclick="ApplyFilters"
+                    class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-blue-600 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
+                <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                          d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Apply Filter
+            </button>
+        </div>
+    </div>
+
+    <!-- Current View Row -->
+    <div class="flex justify-start">
+        <div class="text-left">
+            <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
+            <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
         </div>
     </div>
 </div>
@@ -118,7 +126,7 @@
 <!-- Stats Cards -->
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:mb-8 md:gap-6 lg:grid-cols-4">
     <!-- Total Enrolled -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Enrolled</p>
@@ -134,10 +142,11 @@
         <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,40 40,35 80,30 120,25 160,30 200,35" fill="none" stroke="#3b82f6" stroke-width="2" />
         </svg>
+        <span class="tooltip-delay">Total number of students currently enrolled in the school</span>
     </div>
 
     <!-- Total Employees -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Employees</p>
@@ -153,10 +162,11 @@
         <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,35 40,30 80,28 120,32 160,29 200,33" fill="none" stroke="#9333ea" stroke-width="2" />
         </svg>
+        <span class="tooltip-delay">Total number of active employees in the system</span>
     </div>
 
     <!-- Pending Applications -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Pending Applications</p>
@@ -172,10 +182,11 @@
         <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,30 40,25 80,35 120,28 160,32 200,30" fill="none" stroke="#ca8a04" stroke-width="2" />
         </svg>
+        <span class="tooltip-delay">Number of student applications awaiting review and approval</span>
     </div>
 
     <!-- Total Tuition Collected -->
-    <div class="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Tuition Collected</p>
@@ -191,6 +202,7 @@
         <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,45 40,40 80,35 120,30 160,32 200,28" fill="none" stroke="#16a34a" stroke-width="2" />
         </svg>
+        <span class="tooltip-delay">Total amount of tuition fees collected from all students</span>
     </div>
 </div>
 
@@ -328,23 +340,19 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Show loading screen when actually loading data
-        LoadingService.ShowLoading("Loading...");
+        // Hide loading immediately - dashboard loads data inline (no full-screen loading)
+        // This ensures smooth transition from login without showing "Loading dashboard..."
+        LoadingService.HideLoading();
         
-        // Initialize dashboard data
-        await InitializeDashboard();
-    }
-
-    private async Task InitializeDashboard()
-    {
         try
         {
+            // Load dashboard data inline (no loading screen)
             await LoadDashboardStatistics();
         }
-        finally
+        catch (Exception ex)
         {
-            // Always hide loading screen after data loading is complete
-            LoadingService.HideLoading();
+            System.Diagnostics.Debug.WriteLine($"Error initializing dashboard: {ex.Message}");
+            // Error handled inline - no loading screen needed
         }
     }
 

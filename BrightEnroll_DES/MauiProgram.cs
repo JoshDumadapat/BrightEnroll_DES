@@ -57,25 +57,44 @@ namespace BrightEnroll_DES
             // Register School Year Service
             builder.Services.AddSingleton<SchoolYearService>();
 
-            // Register EF Core DbContext
-            builder.Services.AddDbContext<AppDbContext>(options =>
+            // --- UNIFIED LOCAL + CLOUD DATABASE SETUP ---
+            // Get connection strings
+            var configuration = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                .Build();
+
+            var localConnectionString = configuration.GetConnectionString("DefaultConnection");
+            
+            // Fallback to default LocalDB connection if not found
+            if (string.IsNullOrWhiteSpace(localConnectionString))
             {
-                // Get connection string from configuration
-                var configuration = new ConfigurationBuilder()
-                    .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                    .Build();
+                localConnectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
+            }
 
-                var connectionString = configuration.GetConnectionString("DefaultConnection");
-                
-                // Fallback to default LocalDB connection if not found
-                if (string.IsNullOrWhiteSpace(connectionString))
-                {
-                    connectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
-                }
-
-                options.UseSqlServer(connectionString);
+            // Register LOCAL AppDbContext as primary (scoped) - always used for operations
+            builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(localConnectionString);
             });
+
+
+            // Cloud connection string (MonsterASP.net)
+            string cloudConnectionString = "Server=db33104.public.databaseasp.net; Database=db33104; User Id=db33104; Password=Q_w93nD=+F7k; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;";
+
+            // Register CLOUD AppDbContextFactory for cloud sync operations
+            builder.Services.AddDbContextFactory<AppDbContext>(options =>
+            {
+                options.UseSqlServer(cloudConnectionString);
+            }, ServiceLifetime.Singleton);
+
+            // Register Connectivity Service
+            builder.Services.AddSingleton<IConnectivityService, ConnectivityService>();
+
+            // Register Database Sync Service
+            builder.Services.AddSingleton<IDatabaseSyncService, DatabaseSyncService>();
+
+
 
             // Register StudentService (scoped for EF Core DbContext)
             builder.Services.AddScoped<StudentService>();
@@ -93,12 +112,15 @@ namespace BrightEnroll_DES
 
             var app = builder.Build();
 
+            // Set service provider in AppDbContext for auto-sync functionality
+            AppDbContext.SetServiceProvider(app.Services);
+
             // Initialize database and seed initial admin user on startup
             try
             {
                 var dbConnection = app.Services.GetRequiredService<DBConnection>();
                 
-                // Get connection string for initializer
+                // Get connection string for initializer (use local)
                 var connectionString = dbConnection.GetConnection().ConnectionString;
                 var initializer = new DatabaseInitializer(connectionString);
                 
@@ -111,6 +133,71 @@ namespace BrightEnroll_DES
                     var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
                     Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
                 }
+
+                // Start connectivity monitoring and auto-sync
+                var connectivityService = app.Services.GetRequiredService<IConnectivityService>();
+                var syncService = app.Services.GetRequiredService<IDatabaseSyncService>();
+                
+                connectivityService.StartMonitoring();
+                
+                // Subscribe to connectivity changes for bidirectional auto-sync
+                connectivityService.ConnectivityChanged += (sender, isConnected) =>
+                {
+                    if (isConnected)
+                    {
+                        // When connection is restored, do bidirectional sync
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                // First, sync local changes to cloud
+                                await syncService.TrySyncToCloudAsync();
+                                
+                                // Then, check if we need to pull from cloud (in case cloud has newer data)
+                                var isLocalEmpty = await syncService.IsLocalDatabaseEmptyAsync();
+                                if (isLocalEmpty)
+                                {
+                                    // If local is empty, pull from cloud
+                                    await syncService.TrySyncFromCloudAsync();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Error syncing: {ex.Message}");
+                            }
+                        });
+                    }
+                };
+
+                // Initial connectivity check and bidirectional sync if online
+                _ = Task.Run(async () =>
+                {
+                    var isConnected = await connectivityService.CheckConnectivityAsync();
+                    if (isConnected)
+                    {
+                        try
+                        {
+                            // Check if local database is empty (new device)
+                            var isLocalEmpty = await syncService.IsLocalDatabaseEmptyAsync();
+                            
+                            if (isLocalEmpty)
+                            {
+                                // New device: Pull all data from cloud to local first
+                                System.Diagnostics.Debug.WriteLine("Local database is empty, pulling data from cloud...");
+                                await syncService.TrySyncFromCloudAsync();
+                            }
+                            else
+                            {
+                                // Existing device: Sync local changes to cloud
+                                await syncService.TrySyncToCloudAsync();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error in initial sync: {ex.Message}");
+                        }
+                    }
+                });
             }
             catch (Exception ex)
             {

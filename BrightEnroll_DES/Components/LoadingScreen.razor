@@ -4,7 +4,7 @@
 
 @if (LoadingService.IsLoading)
 {
-    <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-white">
+    <div class="fixed inset-0 z-[9999] flex items-center justify-center bg-white" style="transition: opacity 0.2s ease-in-out;">
         <div class="flex flex-col items-center gap-4">
             <!-- Spinner -->
             <div class="relative">
@@ -21,14 +21,29 @@
 }
 
 @code {
+    private bool _isLoading = false;
+    
     protected override void OnInitialized()
     {
-        LoadingService.OnLoadingStateChanged += StateHasChanged;
+        _isLoading = LoadingService.IsLoading;
+        LoadingService.OnLoadingStateChanged += OnLoadingStateChanged;
+    }
+
+    private void OnLoadingStateChanged()
+    {
+        // Only update if state actually changed to prevent unnecessary re-renders
+        var newLoadingState = LoadingService.IsLoading;
+        if (_isLoading != newLoadingState)
+        {
+            _isLoading = newLoadingState;
+            // Use InvokeAsync to ensure UI thread update
+            InvokeAsync(StateHasChanged);
+        }
     }
 
     public void Dispose()
     {
-        LoadingService.OnLoadingStateChanged -= StateHasChanged;
+        LoadingService.OnLoadingStateChanged -= OnLoadingStateChanged;
     }
 }
 

@@ -1,9 +1,15 @@
 ﻿@inherits LayoutComponentBase
+@implements IDisposable
+@using System.Threading.Tasks
 @inject NavigationManager Navigation
 @inject BrightEnroll_DES.Services.AuthFunction.IAuthService AuthService
+@inject BrightEnroll_DES.Services.IConnectivityService ConnectivityService
 
 <!-- Loading Screen -->
 <LoadingScreen />
+
+<!-- Connectivity Toast -->
+<ConnectivityToast Show="@showConnectivityToast" IsOnline="@isOnline" Message="@connectivityMessage" />
 
 <div class="page paddin-0">
     <!-- Mobile Overlay -->
@@ -28,47 +34,51 @@
             <!-- Top Bar with Rounded Card -->
             <div class="p-4">
                 <div class="rounded-xl border border-gray-200 bg-white px-4 md:px-8 py-3 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <!-- Left Side: Burger Menu (Mobile) + User Profile Dropdown -->
-                        <div class="flex items-center gap-3 md:gap-4">
-                            <button @onclick="ToggleSidebar" class="md:hidden p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none">
+                    <div class="flex items-center justify-between gap-4">
+                        <!-- Left Side: Burger Menu (Mobile Only) -->
+                        <div class="md:hidden">
+                            <button @onclick="ToggleSidebar" class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors focus:outline-none">
                                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
                                 </svg>
                             </button>
-
-                            <!-- User Profile -->
-                            <div class="flex items-center gap-3 md:gap-4">
-                                <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-gray-200 hover:ring-blue-400 transition-all duration-200" />
-                                <div class="text-left">
-                                    <p class="text-sm md:text-base font-semibold text-gray-800">@GetUserDisplayName()</p>
-                                    <p class="text-xs md:text-sm text-gray-500">@GetUserRole()</p>
-                                </div>
-                            </div>
                         </div>
 
-                        <!-- Right Side: Icons + Dropdown -->
-                        <div class="flex items-center gap-3 md:gap-4">
+                        <!-- Right Side: Notification + Profile (Always Right-Aligned) -->
+                        <div class="flex items-center justify-end gap-0 ml-auto">
                             <!-- Notification Icon with Badge -->
-                            <button type="button" @onclick="HandleNotifications" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                                </svg>
-                                @if (notificationCount > 0)
-                                {
-                                    <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                                        @(notificationCount > 9 ? "9+" : notificationCount.ToString())
-                                    </span>
-                                }
-                            </button>
-
-                            <!-- Dropdown Icon -->
-                            <div class="relative">
-                                <button type="button" @onclick="ToggleDropdown" class="cursor-pointer p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                    <svg class="h-5 w-5 md:h-6 md:w-6 transition-transform duration-200 @(isDropdownOpen ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+                            <div class="group relative">
+                                <button type="button" @onclick="HandleNotifications" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                                     </svg>
+                                    @if (notificationCount > 0)
+                                    {
+                                        <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                            @(notificationCount > 9 ? "9+" : notificationCount.ToString())
+                                        </span>
+                                    }
                                 </button>
+                                <span class="tooltip-delay">View notifications</span>
+                            </div>
+
+                            <!-- Partition -->
+                            <div class="h-8 w-px bg-gray-300 mx-2"></div>
+
+                            <!-- User Profile with Dropdown -->
+                            <div class="relative flex items-center gap-3 md:gap-4 px-3 md:px-4">
+                                <div class="flex items-center gap-3 md:gap-4">
+                                    <div class="text-right">
+                                        <p class="text-sm md:text-base font-semibold text-gray-800">@GetUserDisplayName()</p>
+                                        <p class="text-xs md:text-sm text-gray-500">@GetUserRole()</p>
+                                    </div>
+                                    <div class="group relative">
+                                        <button type="button" @onclick="ToggleDropdown" class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-full">
+                                            <img src="/images/profile.jpg" alt="User Avatar" class="h-10 w-10 md:h-12 md:w-12 rounded-full object-cover ring-2 ring-gray-200 hover:ring-blue-400 transition-all duration-200" />
+                                        </button>
+                                        <span class="tooltip-delay">View profile menu</span>
+                                    </div>
+                                </div>
 
                                 <!-- Dropdown Menu -->
                                 @if (isDropdownOpen)
@@ -136,10 +146,10 @@
                 </p>
 
                 <div class="flex justify-end gap-2" style="margin-top: 20px;">
-                    <button type="button" @onclick="CloseLogoutModal" @onclick:stopPropagation="true" class="rounded-full border border-gray-300 bg-transparent px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all" style="cursor: pointer; border: 1px solid #d1d5db; background-color: transparent;">
+                    <button type="button" @onclick="CloseLogoutModal" @onclick:stopPropagation="true" class="rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-all" style="cursor: pointer; border: 1px solid #d1d5db; background-color: transparent;">
                         Cancel
                     </button>
-                    <button type="button" @onclick="ConfirmLogout" @onclick:stopPropagation="true" class="rounded-full text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 8px 20px; margin: 0; border: none; cursor: pointer;">
+                    <button type="button" @onclick="ConfirmLogout" @onclick:stopPropagation="true" class="rounded-lg text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 8px 20px; margin: 0; border: none; cursor: pointer;">
                         Logout
                     </button>
                 </div>
@@ -153,6 +163,46 @@
     private bool isSidebarOpen = false;
     private int notificationCount = 3; // Example: You can bind this to actual notification data
     private bool showLogoutModal = false;
+    
+    // Connectivity toast state
+    private bool showConnectivityToast = false;
+    private bool isOnline = false;
+    private string connectivityMessage = "";
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        
+        // Subscribe to connectivity changes (only show toast on connection changes, not on initial load)
+        ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+    }
+
+    private void OnConnectivityChanged(object? sender, bool isConnected)
+    {
+        // Only show toast if initial toast has been shown (connection change, not initial load)
+        if (ConnectivityService.HasShownInitialToast)
+        {
+            isOnline = isConnected;
+            connectivityMessage = isConnected 
+                ? "You are now online. Data will sync to cloud." 
+                : "Offline. Changes saved locally, will sync when online.";
+            
+            showConnectivityToast = true;
+            InvokeAsync(StateHasChanged);
+            
+            // Auto-hide after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                showConnectivityToast = false;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+    }
 
     private void ToggleSidebar()
     {

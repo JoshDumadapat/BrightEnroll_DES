@@ -1,0 +1,81 @@
+﻿@if (Show)
+{
+    <div class="-translate-x-1/2 z-[100] toast-slide-in-bottom fixed bottom-4 left-1/2 transform">
+        @if (IsOnline)
+        {
+            <!-- Online Toast -->
+            <div class="flex min-w-[280px] max-w-md items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 shadow-lg">
+                <!-- Online Icon -->
+                <div class="flex-shrink-0">
+                    <div class="flex h-5 w-5 items-center justify-center rounded-full bg-green-500">
+                        <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="flex-1">
+                    <p class="text-xs font-medium text-gray-800">@Message</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Offline Toast -->
+            <div class="flex min-w-[280px] max-w-md items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 shadow-lg">
+                <!-- Offline Icon -->
+                <div class="flex-shrink-0">
+                    <div class="flex h-5 w-5 items-center justify-center rounded-full bg-red-500">
+                        <svg class="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="flex-1">
+                    <p class="text-xs font-medium text-gray-800">@Message</p>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@implements IDisposable
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public bool IsOnline { get; set; }
+    [Parameter] public string Message { get; set; } = "";
+    [Parameter] public int Duration { get; set; } = 5000; 
+
+    private System.Threading.Timer? _timer;
+
+    protected override void OnParametersSet()
+    {
+        if (Show && Duration > 0)
+        {
+            _timer?.Dispose();
+            _timer = new System.Threading.Timer(_ =>
+            {
+                InvokeAsync(() =>
+                {
+                    Show = false;
+                    StateHasChanged();
+                });
+            }, null, Duration, Timeout.Infinite);
+        }
+        else if (!Show)
+        {
+            _timer?.Dispose();
+            _timer = null;
+        }
+    }
+
+    public void Dispose()
+    {
+        _timer?.Dispose();
+    }
+}
+

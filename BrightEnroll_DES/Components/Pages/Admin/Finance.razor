@@ -2,6 +2,7 @@
 @layout Components.Layout.MainLayout
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Services.Finance.FeeService FeeService
+@inject ILoadingService LoadingService
 @inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
 
 @using BrightEnroll_DES.Components.Pages.Admin.FinanceComponents
@@ -46,6 +47,7 @@
         @if (activeTab == "FeeSetup")
         {
             <FeeSetup FeeList="FeeList" 
+                      IsLoading="isLoadingFees"
                       OnFeeAdded="HandleFeeAdded" 
                       OnFeeUpdated="HandleFeeUpdated" />
         }
@@ -74,6 +76,7 @@
 
     // Fee Setup Data
     private List<FeeModel> FeeList = new();
+    private bool isLoadingFees = true; // Inline loading state
     
     // Toast notification
     private bool showToast = false;
@@ -155,61 +158,74 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadFeesAsync();
-    }
-
-    private async Task LoadFeesAsync()
-    {
+        // Load fees inline (no full-screen loading - uses inline loading indicator)
+        isLoadingFees = true;
         try
         {
-            var fees = await FeeService.GetAllFeesAsync();
-            
-            // Map Fee entities to FeeModel for UI
-            FeeList = fees.Select(f => new FeeModel
-            {
-                GradeLevel = f.GradeLevel?.GradeLevelName ?? "N/A",
-                TuitionFee = f.TuitionFee,
-                MiscFee = f.MiscFee,
-                OtherFee = f.OtherFee,
-                TuitionBreakdown = f.Breakdowns
-                    .Where(b => b.BreakdownType == "Tuition")
-                    .OrderBy(b => b.DisplayOrder)
-                    .Select(b => new FeeBreakdownItem
-                    {
-                        Name = b.ItemName,
-                        AmountString = b.Amount.ToString("N2")
-                    }).ToList(),
-                MiscBreakdown = f.Breakdowns
-                    .Where(b => b.BreakdownType == "Misc")
-                    .OrderBy(b => b.DisplayOrder)
-                    .Select(b => new FeeBreakdownItem
-                    {
-                        Name = b.ItemName,
-                        AmountString = b.Amount.ToString("N2")
-                    }).ToList(),
-                OtherBreakdown = f.Breakdowns
-                    .Where(b => b.BreakdownType == "Other")
-                    .OrderBy(b => b.DisplayOrder)
-                    .Select(b => new FeeBreakdownItem
-                    {
-                        Name = b.ItemName,
-                        AmountString = b.Amount.ToString("N2")
-                    }).ToList()
-            }).ToList();
+            await LoadFeesAsync();
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading fees: {Message}", ex.Message);
             FeeList = new List<FeeModel>();
-            
-            // Show error toast
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load fees: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
         }
         finally
         {
+            isLoadingFees = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task LoadFeesAsync()
+    {
+        // Add timeout to prevent infinite loading
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            try
+            {
+                var fees = await FeeService.GetAllFeesAsync();
+                
+                // Map Fee entities to FeeModel for UI
+                FeeList = fees.Select(f => new FeeModel
+                {
+                    GradeLevel = f.GradeLevel?.GradeLevelName ?? "N/A",
+                    TuitionFee = f.TuitionFee,
+                    MiscFee = f.MiscFee,
+                    OtherFee = f.OtherFee,
+                    TuitionBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Tuition")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList(),
+                    MiscBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Misc")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList(),
+                    OtherBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Other")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList()
+                }).ToList();
+            }
+            catch (OperationCanceledException)
+            {
+                Logger?.LogError("Timeout loading fees: Operation took too long (10 seconds)");
+                throw new TimeoutException("Loading fees timed out. The service may not be properly connected.");
+            }
         }
     }
 

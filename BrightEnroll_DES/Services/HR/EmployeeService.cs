@@ -304,6 +304,181 @@ public class EmployeeService
             throw new Exception($"Failed to fetch employee: {ex.Message}", ex);
         }
     }
+
+    // Simplified duplicate detection: Only checks First Name + Last Name
+    // If First Name + Last Name matches existing record, show duplicate modal
+    // Email and Contact Number have separate real-time duplicate detection
+    // Returns duplicate information if found, null otherwise
+    public async Task<EmployeeDuplicateCheckResult?> CheckForDuplicateEmployeeAsync(EmployeeRegistrationData employeeData)
+    {
+        try
+        {
+            // Validate required fields for duplicate check
+            if (string.IsNullOrWhiteSpace(employeeData.FirstName) ||
+                string.IsNullOrWhiteSpace(employeeData.LastName))
+            {
+                // Cannot perform duplicate check without first and last name
+                return null;
+            }
+
+            // Normalize name fields for comparison (trim and case-insensitive)
+            var normalizedFirstName = employeeData.FirstName.Trim().ToLowerInvariant();
+            var normalizedLastName = employeeData.LastName.Trim().ToLowerInvariant();
+
+            // Query database for potential duplicates by First Name + Last Name ONLY
+            // This is the simplified check - if First + Last name match, show modal
+            var potentialDuplicate = await _context.Users
+                .Where(u => 
+                    u.FirstName.ToLower() == normalizedFirstName &&
+                    u.LastName.ToLower() == normalizedLastName)
+                .Select(u => new
+                {
+                    u.UserId,
+                    u.FirstName,
+                    u.MidName,
+                    u.LastName,
+                    u.Suffix,
+                    u.Birthdate,
+                    u.Email,
+                    u.ContactNum,
+                    u.UserRole,
+                    u.SystemId
+                })
+                .FirstOrDefaultAsync();
+
+            // If no potential duplicate found by first and last name, return null
+            if (potentialDuplicate == null)
+            {
+                return new EmployeeDuplicateCheckResult { IsDuplicate = false };
+            }
+
+            // Get related data for this user to show in modal
+            var address = await _context.EmployeeAddresses
+                .FirstOrDefaultAsync(a => a.UserId == potentialDuplicate.UserId);
+
+            // First Name + Last Name match found - show duplicate modal
+            // Modal will display all details for user to review
+            return new EmployeeDuplicateCheckResult
+            {
+                IsDuplicate = true,
+                ExistingEmployeeId = potentialDuplicate.UserId,
+                ExistingSystemId = potentialDuplicate.SystemId ?? "N/A",
+                ExistingFullName = $"{potentialDuplicate.FirstName} {potentialDuplicate.MidName ?? ""} {potentialDuplicate.LastName}".Trim() + 
+                                  (string.IsNullOrWhiteSpace(potentialDuplicate.Suffix) ? "" : $" {potentialDuplicate.Suffix}"),
+                ExistingEmail = potentialDuplicate.Email ?? "N/A",
+                ExistingContactNumber = potentialDuplicate.ContactNum ?? "N/A",
+                ExistingBirthDate = potentialDuplicate.Birthdate,
+                ExistingAddress = address != null ? FormatAddress(address) : "No address on file"
+            };
+
+            // No duplicate found
+            return new EmployeeDuplicateCheckResult { IsDuplicate = false };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error checking for duplicate employee: {Message}", ex.Message);
+            throw new Exception($"Failed to check for duplicate employee: {ex.Message}", ex);
+        }
+    }
+
+    // Updates existing employee's contact number and/or email
+    // This is used when a duplicate is found and user wants to update contact info instead of creating new record
+    public async Task<bool> UpdateEmployeeContactInfoAsync(int employeeId, string? newContactNumber, string? newEmail)
+    {
+        try
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                // Get existing user
+                var user = await _userRepository.GetByIdAsync(employeeId);
+                if (user == null)
+                {
+                    _logger?.LogWarning("Employee with ID {EmployeeId} not found for contact update", employeeId);
+                    return false;
+                }
+
+                // Update contact number if provided
+                if (!string.IsNullOrWhiteSpace(newContactNumber))
+                {
+                    user.contact_num = newContactNumber.Trim();
+                }
+
+                // Update email if provided
+                if (!string.IsNullOrWhiteSpace(newEmail))
+                {
+                    // Check if new email is already used by another employee
+                    var emailExists = await _userRepository.ExistsByEmailAsync(newEmail);
+                    if (emailExists)
+                    {
+                        // Check if it's the same employee
+                        var existingUser = await _userRepository.GetByEmailAsync(newEmail);
+                        if (existingUser == null || existingUser.user_ID != employeeId)
+                        {
+                            _logger?.LogWarning("Email {Email} is already in use by another employee", newEmail);
+                            throw new Exception($"Email {newEmail} is already registered to another employee.");
+                        }
+                    }
+                    user.email = newEmail.Trim();
+                }
+
+                // Save changes
+                await _userRepository.UpdateAsync(user);
+                _logger?.LogInformation("Contact information updated for employee ID {EmployeeId}", employeeId);
+
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger?.LogError(ex, "Error updating employee contact info: {Message}", ex.Message);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error updating employee contact info: {Message}", ex.Message);
+            throw new Exception($"Failed to update employee contact info: {ex.Message}", ex);
+        }
+    }
+
+    // Helper method to format address for display
+    private string FormatAddress(EmployeeAddress address)
+    {
+        var parts = new List<string>();
+        
+        if (!string.IsNullOrWhiteSpace(address.HouseNo))
+            parts.Add(address.HouseNo);
+        if (!string.IsNullOrWhiteSpace(address.StreetName))
+            parts.Add(address.StreetName);
+        if (!string.IsNullOrWhiteSpace(address.Barangay))
+            parts.Add(address.Barangay);
+        if (!string.IsNullOrWhiteSpace(address.City))
+            parts.Add(address.City);
+        if (!string.IsNullOrWhiteSpace(address.Province))
+            parts.Add(address.Province);
+        if (!string.IsNullOrWhiteSpace(address.Country))
+            parts.Add(address.Country);
+        if (!string.IsNullOrWhiteSpace(address.ZipCode))
+            parts.Add($"ZIP: {address.ZipCode}");
+
+        return parts.Any() ? string.Join(", ", parts) : "No address on file";
+    }
+}
+
+// DTO for duplicate check results
+public class EmployeeDuplicateCheckResult
+{
+    public bool IsDuplicate { get; set; }
+    public int? ExistingEmployeeId { get; set; }
+    public string ExistingSystemId { get; set; } = string.Empty;
+    public string ExistingFullName { get; set; } = string.Empty;
+    public string ExistingEmail { get; set; } = string.Empty;
+    public string ExistingContactNumber { get; set; } = string.Empty;
+    public DateTime ExistingBirthDate { get; set; }
+    public string ExistingAddress { get; set; } = string.Empty;
 }
 
 // DTO for displaying employee data in the HR table

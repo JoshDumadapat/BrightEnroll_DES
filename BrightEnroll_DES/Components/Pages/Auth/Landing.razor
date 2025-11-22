@@ -4,7 +4,7 @@
 @inject NavigationManager Navigation
 
 <!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" Type="@ToastType.Success" OnClose="CloseToast" Duration="3000" />
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
 
 <div class="flex min-h-screen w-full items-center justify-center bg-white px-4 py-8">
     <div class="flex w-full max-w-md flex-col items-center">
@@ -33,20 +33,25 @@
 @code {
     private bool showToast = false;
     private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
 
     protected override void OnInitialized()
     {
-        // Check for toast parameter in query string
+        // Check for toast parameter in query string (only for success/error, not for cancel)
         var uri = new Uri(Navigation.Uri);
         var query = ParseQueryString(uri.Query);
         
         if (query.TryGetValue("toast", out var toastValue))
         {
+            // Explicitly ignore cancel transactions - no toast should be shown
             if (toastValue == "registration_cancelled")
             {
-                toastMessage = "Registration cancelled successfully.";
-                showToast = true;
+                // Clean up URL immediately and do nothing - cancel transactions don't show toasts
+                Navigation.NavigateTo("/", forceLoad: false);
+                return;
             }
+            
+            // Handle other toast types (success/error) if needed in the future
         }
     }
 

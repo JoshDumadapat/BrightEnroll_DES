@@ -37,19 +37,19 @@
     <div class="overflow-hidden rounded-xl bg-white shadow">
         @if (SelectedTab == TabType.NewApplicants)
         {
-            <NewApplicant Students="Applicants" RowsPerPage="RowsPerPage" />
+            <NewApplicant Students="Applicants" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
         }
         else if (SelectedTab == TabType.ForEnrollment)
         {
-            <ForEnrollment Students="ForEnrollmentStudents" RowsPerPage="RowsPerPage" />
+            <ForEnrollment Students="ForEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
         }
         else if (SelectedTab == TabType.ReEnrollment)
         {
-            <ReEnrollment Students="ReEnrollmentStudents" RowsPerPage="RowsPerPage" />
+            <ReEnrollment Students="ReEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
         }
         else if (SelectedTab == TabType.EnrolledStudent)
         {
-            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" />
+            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
         }
     </div>
 </div>
@@ -131,11 +131,20 @@
     };
 
     private List<EnrolledStudent> EnrolledStudents = new();
+    private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadNewApplicantsAsync();
-        await LoadEnrolledStudentsAsync();
+        isLoading = true;
+        try
+        {
+            await LoadNewApplicantsAsync();
+            await LoadEnrolledStudentsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task LoadNewApplicantsAsync()

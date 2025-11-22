@@ -19,6 +19,7 @@ namespace BrightEnroll_DES.Services.Repositories
         Task<int> UpdateAsync(User user);
         Task<int> DeleteAsync(int userId);
         Task<bool> ExistsByEmailAsync(string email);
+        Task<bool> ExistsByContactNumberAsync(string contactNumber);
         Task<bool> ExistsBySystemIdAsync(string systemId);
         Task<bool> ExistsByIdAsync(int userId);
         Task<string> GetNextSystemIdAsync();
@@ -275,6 +276,49 @@ namespace BrightEnroll_DES.Services.Repositories
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error checking if user exists by email: {Message}", ex.Message);
+                return false;
+            }
+        }
+
+        // Checks if user exists by contact number using EF Core ORM
+        // Normalizes contact numbers for comparison (removes spaces, dashes, etc.)
+        public async Task<bool> ExistsByContactNumberAsync(string contactNumber)
+        {
+            if (string.IsNullOrWhiteSpace(contactNumber))
+            {
+                return false;
+            }
+
+            try
+            {
+                // Normalize contact number (remove spaces, dashes, etc.)
+                var normalizedContact = contactNumber.Trim().Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+                var sanitizedContact = SanitizeString(normalizedContact, 20);
+                
+                // Get all contact numbers from database
+                var allContacts = await _context.Users
+                    .Where(u => u.ContactNum != null && u.ContactNum != "")
+                    .Select(u => u.ContactNum)
+                    .ToListAsync();
+                
+                // Check if any normalized contact matches
+                foreach (var existingContact in allContacts)
+                {
+                    if (!string.IsNullOrWhiteSpace(existingContact))
+                    {
+                        var normalizedExisting = existingContact.Trim().Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+                        if (normalizedExisting == sanitizedContact)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error checking if user exists by contact number: {Message}", ex.Message);
                 return false;
             }
         }

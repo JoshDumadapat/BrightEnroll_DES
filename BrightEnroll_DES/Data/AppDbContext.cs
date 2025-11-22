@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using BrightEnroll_DES.Data.Models;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using System;
 
 namespace BrightEnroll_DES.Data;
 
@@ -31,8 +33,43 @@ public class AppDbContext : DbContext
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
 
+    private static IServiceProvider? _staticServiceProvider;
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
+    }
+
+    // Set service provider for sync functionality (called from MauiProgram)
+    public static void SetServiceProvider(IServiceProvider serviceProvider)
+    {
+        _staticServiceProvider = serviceProvider;
+    }
+
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await base.SaveChangesAsync(cancellationToken);
+        
+        // Auto-sync to cloud if online (fire and forget to avoid blocking)
+        if (_staticServiceProvider != null)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var syncService = _staticServiceProvider.GetService<BrightEnroll_DES.Services.IDatabaseSyncService>();
+                    if (syncService != null)
+                    {
+                        await syncService.TrySyncToCloudAsync();
+                    }
+                }
+                catch
+                {
+                    // Silently fail - sync will happen on next connectivity restore
+                }
+            });
+        }
+        
+        return result;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
