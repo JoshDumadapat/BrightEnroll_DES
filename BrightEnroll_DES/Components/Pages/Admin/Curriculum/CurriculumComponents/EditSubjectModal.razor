@@ -1,0 +1,121 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+
+@if (Show)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="OnClose">
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-yellow-500 px-6 py-2">
+                <h3 class="text-lg font-semibold text-white">Edit Subject</h3>
+                <button @onclick="OnClose" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 rounded-b-2xl">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Subject Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Subject Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Subject.Name" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Subject.GradeLevel" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Grade</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                            </select>
+                        </div>
+
+                        <!-- Linked Sections -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Linked Sections <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Saturn"))" @onchange="@((e) => ToggleSection("Saturn"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Saturn</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Uranus"))" @onchange="@((e) => ToggleSection("Uranus"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Uranus</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Jupiter"))" @onchange="@((e) => ToggleSection("Jupiter"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Jupiter</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Description
+                            </label>
+                            <textarea @bind="Subject.Description" 
+                                     rows="3"
+                                     placeholder="Enter description..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="OnClose" class="rounded-lg border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Subject Subject { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private void ToggleSection(string sectionName)
+    {
+        if (Subject.LinkedSections.Contains(sectionName))
+        {
+            Subject.LinkedSections.Remove(sectionName);
+        }
+        else
+        {
+            Subject.LinkedSections.Add(sectionName);
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleSubmit()
+    {
+        await OnSubmit.InvokeAsync();
+    }
+}
+

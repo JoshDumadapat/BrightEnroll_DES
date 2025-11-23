@@ -235,7 +235,7 @@ public class StudentService
                 }
                 
                 // Rollback transaction only once and mark as rolled back
-                if (!transactionRolledBack)
+                if (!transactionRolledBack && transaction != null)
                 {
                     try
                     {

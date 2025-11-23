@@ -1,4 +1,4 @@
-namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecordComponents;
+namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents;
 
 public class EnrollmentStatusData
 {

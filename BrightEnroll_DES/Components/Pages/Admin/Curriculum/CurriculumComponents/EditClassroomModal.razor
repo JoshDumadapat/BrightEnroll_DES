@@ -1,0 +1,138 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+
+@if (Show)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="OnClose">
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-yellow-500 px-6 py-2">
+                <h3 class="text-lg font-semibold text-white">Edit Classroom</h3>
+                <button @onclick="OnClose" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 rounded-b-2xl">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Room Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Room Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Classroom.RoomName" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Room Type -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Room Type <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Classroom.RoomType" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Room Type</option>
+                                <option value="Lecture Room">Lecture Room</option>
+                                <option value="Laboratory">Laboratory</option>
+                                <option value="Computer Laboratory">Computer Laboratory</option>
+                                <option value="Music Room">Music Room</option>
+                                <option value="Library Area">Library Area</option>
+                                <option value="Faculty Room">Faculty Room</option>
+                                <option value="Special Room (SPED)">Special Room (SPED)</option>
+                            </select>
+                        </div>
+
+                        <!-- Capacity -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Capacity <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" @bind="Classroom.Capacity" 
+                                   min="1"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Building -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Building <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Classroom.BuildingName" 
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Floor Number -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Floor Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" @bind="Classroom.FloorNumber" 
+                                   min="0"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                   required />
+                        </div>
+
+                        <!-- Available Status -->
+                        <div class="flex items-center">
+                            <label class="flex items-center">
+                                <input type="checkbox" @bind="Classroom.IsActive" 
+                                       class="mr-2 rounded border-gray-300" />
+                                <span class="text-sm font-medium text-gray-700">Available</span>
+                            </label>
+                            <span class="ml-2 text-xs text-gray-500">(Available for scheduling)</span>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Notes
+                            </label>
+                            <textarea @bind="Classroom.Notes" 
+                                     rows="3"
+                                     placeholder="Enter additional remarks..."
+                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"></textarea>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(ValidationError))
+                    {
+                        <div class="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2">
+                            <p class="text-sm text-red-600">@ValidationError</p>
+                        </div>
+                    }
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="OnClose" class="rounded-lg border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                            Save
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Classroom Classroom { get; set; } = new();
+    [Parameter] public string ValidationError { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private async Task HandleSubmit()
+    {
+        await OnSubmit.InvokeAsync();
+    }
+}
+

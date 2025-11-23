@@ -1,0 +1,791 @@
+@page "/curriculum-management"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Services
+@using DataModels = BrightEnroll_DES.Data.Models
+@using Microsoft.Extensions.Logging
+@inject CurriculumService CurriculumService
+@inject ILogger<Curriculum> Logger
+
+<PageTitle>Curriculum</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Curriculum</h1>
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("classrooms")'
+                    class="@GetTabClasses("classrooms")">
+                Classroom
+            </button>
+            <button @onclick='() => SetActiveTab("sections")'
+                    class="@GetTabClasses("sections")">
+                Sections
+            </button>
+            <button @onclick='() => SetActiveTab("subjects")'
+                    class="@GetTabClasses("subjects")">
+                Subjects
+            </button>
+            <button @onclick='() => SetActiveTab("teachers")'
+                    class="@GetTabClasses("teachers")">
+                Teacher Assignment
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (ActiveTab == "classrooms")
+        {
+            <Classrooms ClassroomsList="Classrooms" 
+                       OnAddClassroom="OpenAddClassroomModal" 
+                       OnEditClassroom="OpenEditClassroomModal" 
+                       OnToggleStatus="ToggleClassroomStatus" />
+        }
+        else if (ActiveTab == "sections")
+        {
+            <Sections SectionsList="Sections" 
+                     OnAddSection="OpenAddSectionModal" 
+                     OnEditSection="OpenEditSectionModal" />
+        }
+        else if (ActiveTab == "subjects")
+        {
+            <Subjects SubjectsList="Subjects" 
+                     OnAddSubject="OpenAddSubjectModal" 
+                     OnEditSubject="OpenEditSubjectModal" />
+        }
+        else if (ActiveTab == "teachers")
+        {
+            <TeacherAssignment Assignments="Assignments" 
+                              OnAddAssignment="OpenAddAssignmentModal" 
+                              OnEditAssignment="OpenEditAssignmentModal" />
+        }
+    </div>
+</div>
+
+<!-- Modals -->
+<AddClassroomModal Show="ShowAddClassroomModal" 
+                   Classroom="NewClassroom" 
+                   ValidationError="@ClassroomValidationError"
+                   OnClose="CloseAddClassroomModal" 
+                   OnSubmit="HandleAddClassroom" />
+
+<EditClassroomModal Show="ShowEditClassroomModal" 
+                    Classroom="EditingClassroom" 
+                    ValidationError="@ClassroomValidationError"
+                    OnClose="CloseEditClassroomModal" 
+                    OnSubmit="HandleEditClassroom" />
+
+<AddSectionModal Show="ShowAddSectionModal" 
+                 Section="NewSection" 
+                 OnClose="CloseAddSectionModal" 
+                 OnSubmit="HandleAddSection" />
+
+<EditSectionModal Show="ShowEditSectionModal" 
+                  Section="EditingSection" 
+                  OnClose="CloseEditSectionModal" 
+                  OnSubmit="HandleEditSection" />
+
+<AddSubjectModal Show="ShowAddSubjectModal" 
+                 Subject="NewSubject" 
+                 OnClose="CloseAddSubjectModal" 
+                 OnSubmit="HandleAddSubject" />
+
+<EditSubjectModal Show="ShowEditSubjectModal" 
+                  Subject="EditingSubject" 
+                  OnClose="CloseEditSubjectModal" 
+                  OnSubmit="HandleEditSubject" />
+
+<AddAssignmentModal Show="ShowAddAssignmentModal" 
+                    Assignment="NewAssignment" 
+                    OnClose="CloseAddAssignmentModal" 
+                    OnSubmit="HandleAddAssignment" />
+
+<EditAssignmentModal Show="ShowEditAssignmentModal" 
+                     Assignment="EditingAssignment" 
+                     OnClose="CloseEditAssignmentModal" 
+                     OnSubmit="HandleEditAssignment" />
+
+@code {
+    private string ActiveTab = "classrooms";
+    
+    // Modal visibility flags
+    private bool ShowAddSectionModal = false;
+    private bool ShowEditSectionModal = false;
+    private bool ShowAddSubjectModal = false;
+    private bool ShowEditSubjectModal = false;
+    private bool ShowAddAssignmentModal = false;
+    private bool ShowEditAssignmentModal = false;
+    private bool ShowAddClassroomModal = false;
+    private bool ShowEditClassroomModal = false;
+    
+    // Data objects (UI models)
+    private Section NewSection = new();
+    private Section EditingSection = new();
+    private Subject NewSubject = new();
+    private Subject EditingSubject = new();
+    private TeacherAssignmentModel NewAssignment = new();
+    private TeacherAssignmentModel EditingAssignment = new();
+    private Classroom NewClassroom = new();
+    private Classroom EditingClassroom = new();
+    
+    private string ClassroomValidationError = "";
+
+    // Database data
+    private List<DataModels.Classroom> DbClassrooms = new();
+    private List<DataModels.Section> DbSections = new();
+    private List<DataModels.Subject> DbSubjects = new();
+    private List<DataModels.TeacherSectionAssignment> DbAssignments = new();
+    private List<DataModels.GradeLevel> GradeLevels = new();
+    private List<DataModels.UserEntity> Teachers = new();
+
+    // UI display lists (mapped from database)
+    private List<Classroom> Classrooms = new();
+    private List<Section> Sections = new();
+    private List<Subject> Subjects = new();
+    private List<TeacherAssignmentModel> Assignments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            // Load from database
+            DbClassrooms = await CurriculumService.GetAllClassroomsAsync();
+            DbSections = await CurriculumService.GetAllSectionsAsync();
+            DbSubjects = await CurriculumService.GetAllSubjectsAsync();
+            DbAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+            GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+            Teachers = await CurriculumService.GetTeachersAsync();
+
+            // Map to UI models
+            Classrooms = DbClassrooms.Select(c => new Classroom
+            {
+                ClassroomID = c.RoomId,
+                RoomName = c.RoomName,
+                RoomType = c.RoomType ?? "",
+                BuildingName = c.BuildingName ?? "",
+                FloorNumber = c.FloorNumber ?? 0,
+                Capacity = c.Capacity,
+                IsActive = c.Status == "Active",
+                Notes = c.Notes ?? ""
+            }).ToList();
+
+            Sections = DbSections.Select(s => new Section
+            {
+                Id = $"SEC-{s.SectionId:D3}",
+                Name = s.SectionName,
+                GradeLevel = s.GradeLevel?.GradeLevelName ?? "",
+                Classroom = s.Classroom?.RoomName ?? "",
+                Capacity = s.Capacity,
+                HomeroomTeacher = GetHomeroomTeacher(s.SectionId),
+                Notes = s.Notes ?? ""
+            }).ToList();
+
+            Subjects = await MapSubjectsToUIAsync();
+
+            Assignments = await MapAssignmentsToUIAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading curriculum data");
+        }
+    }
+
+    private string GetHomeroomTeacher(int sectionId)
+    {
+        var assignment = DbAssignments
+            .FirstOrDefault(a => a.SectionId == sectionId && a.Role.ToLower() == "adviser");
+        return assignment?.Teacher != null 
+            ? $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}" 
+            : "";
+    }
+
+    private async Task<List<Subject>> MapSubjectsToUIAsync()
+    {
+        var uiSubjects = new List<Subject>();
+        foreach (var dbSubject in DbSubjects)
+        {
+            var linkedSections = await CurriculumService.GetSubjectSectionsBySubjectIdAsync(dbSubject.SubjectId);
+            uiSubjects.Add(new Subject
+            {
+                Id = $"SUB-{dbSubject.SubjectId:D3}",
+                Name = dbSubject.SubjectName,
+                GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
+                LinkedSections = linkedSections.Select(ls => ls.Section?.SectionName ?? "").ToList(),
+                Description = dbSubject.Description ?? ""
+            });
+        }
+        return uiSubjects;
+    }
+
+    private async Task<List<TeacherAssignmentModel>> MapAssignmentsToUIAsync()
+    {
+        var uiAssignments = new List<TeacherAssignmentModel>();
+        foreach (var dbAssignment in DbAssignments)
+        {
+            var schedules = await CurriculumService.GetAllClassSchedulesAsync();
+            var assignmentSchedules = schedules.Where(s => s.AssignmentId == dbAssignment.AssignmentId).ToList();
+            
+            var scheduleText = string.Join(", ", assignmentSchedules.Select(s => 
+                $"{s.DayOfWeek} {s.StartTime:hh\\:mm}-{s.EndTime:hh\\:mm}"));
+            
+            uiAssignments.Add(new TeacherAssignmentModel
+            {
+                Id = $"ASG-{dbAssignment.AssignmentId:D3}",
+                TeacherName = dbAssignment.Teacher != null 
+                    ? $"{dbAssignment.Teacher.FirstName} {dbAssignment.Teacher.LastName}" 
+                    : "",
+                Grade = dbAssignment.Section?.GradeLevel?.GradeLevelName ?? "",
+                Subject = dbAssignment.Subject?.SubjectName ?? "",
+                Section = dbAssignment.Section?.SectionName ?? "",
+                Schedule = scheduleText,
+                Classroom = assignmentSchedules.FirstOrDefault()?.Room?.RoomName ?? "",
+                Time = scheduleText,
+                SelectedDays = assignmentSchedules.Select(s => s.DayOfWeek).ToList()
+            });
+        }
+        return uiAssignments;
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        ActiveTab = tab;
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = ActiveTab == tab;
+        
+        return tab switch
+        {
+            "sections" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            "subjects" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600"
+                : "px-3 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
+            "teachers" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            "classrooms" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600"
+                : "px-3 py-2 text-sm font-semibold text-indigo-600 transition-colors duration-200 hover:text-indigo-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    // Section Modal Methods
+    private void OpenAddSectionModal()
+    {
+        NewSection = new Section();
+        ShowAddSectionModal = true;
+    }
+
+    private void CloseAddSectionModal()
+    {
+        ShowAddSectionModal = false;
+        NewSection = new Section();
+    }
+
+    private void OpenEditSectionModal(Section section)
+    {
+        EditingSection = new Section
+        {
+            Id = section.Id,
+            Name = section.Name,
+            GradeLevel = section.GradeLevel,
+            Classroom = section.Classroom,
+            Capacity = section.Capacity,
+            HomeroomTeacher = section.HomeroomTeacher,
+            Notes = section.Notes
+        };
+        ShowEditSectionModal = true;
+    }
+
+    private void CloseEditSectionModal()
+    {
+        ShowEditSectionModal = false;
+        EditingSection = new Section();
+    }
+
+    private async Task HandleAddSection()
+    {
+        try
+        {
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == NewSection.GradeLevel);
+            var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == NewSection.Classroom);
+
+            if (gradeLevel == null)
+            {
+                Logger.LogWarning("Grade level not found: {GradeLevel}", NewSection.GradeLevel);
+                return;
+            }
+
+            var dbSection = new DataModels.Section
+            {
+                SectionName = NewSection.Name,
+                GradeLevelId = gradeLevel.GradeLevelId,
+                ClassroomId = classroom?.RoomId,
+                Capacity = NewSection.Capacity,
+                Notes = NewSection.Notes
+            };
+
+            await CurriculumService.CreateSectionAsync(dbSection);
+            await LoadDataAsync();
+            CloseAddSectionModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding section");
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleEditSection()
+    {
+        try
+        {
+            var sectionId = int.Parse(EditingSection.Id.Replace("SEC-", ""));
+            var dbSection = await CurriculumService.GetSectionByIdAsync(sectionId);
+            
+            if (dbSection != null)
+            {
+                var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSection.GradeLevel);
+                var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == EditingSection.Classroom);
+
+                dbSection.SectionName = EditingSection.Name;
+                dbSection.GradeLevelId = gradeLevel?.GradeLevelId ?? dbSection.GradeLevelId;
+                dbSection.ClassroomId = classroom?.RoomId;
+                dbSection.Capacity = EditingSection.Capacity;
+                dbSection.Notes = EditingSection.Notes;
+
+                await CurriculumService.UpdateSectionAsync(dbSection);
+                await LoadDataAsync();
+            }
+            CloseEditSectionModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error editing section");
+        }
+        StateHasChanged();
+    }
+
+    // Subject Modal Methods
+    private void OpenAddSubjectModal()
+    {
+        NewSubject = new Subject();
+        ShowAddSubjectModal = true;
+    }
+
+    private void CloseAddSubjectModal()
+    {
+        ShowAddSubjectModal = false;
+        NewSubject = new Subject();
+    }
+
+    private void OpenEditSubjectModal(Subject subject)
+    {
+        EditingSubject = new Subject
+        {
+            Id = subject.Id,
+            Name = subject.Name,
+            GradeLevel = subject.GradeLevel,
+            LinkedSections = new List<string>(subject.LinkedSections),
+            Description = subject.Description
+        };
+        ShowEditSubjectModal = true;
+    }
+
+    private void CloseEditSubjectModal()
+    {
+        ShowEditSubjectModal = false;
+        EditingSubject = new Subject();
+    }
+
+    private async Task HandleAddSubject()
+    {
+        try
+        {
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == NewSubject.GradeLevel);
+            if (gradeLevel == null)
+            {
+                Logger.LogWarning("Grade level not found: {GradeLevel}", NewSubject.GradeLevel);
+                return;
+            }
+
+            var dbSubject = new DataModels.Subject
+            {
+                SubjectName = NewSubject.Name,
+                GradeLevelId = gradeLevel.GradeLevelId,
+                Description = NewSubject.Description
+            };
+
+            var createdSubject = await CurriculumService.CreateSubjectAsync(dbSubject);
+
+            // Link to sections
+            var sectionIds = new List<int>();
+            foreach (var sectionName in NewSubject.LinkedSections)
+            {
+                var section = DbSections.FirstOrDefault(s => s.SectionName == sectionName);
+                if (section != null)
+                {
+                    sectionIds.Add(section.SectionId);
+                }
+            }
+            await CurriculumService.UpdateSubjectSectionLinksAsync(createdSubject.SubjectId, sectionIds);
+
+            await LoadDataAsync();
+            CloseAddSubjectModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding subject");
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleEditSubject()
+    {
+        try
+        {
+            var subjectId = int.Parse(EditingSubject.Id.Replace("SUB-", ""));
+            var dbSubject = await CurriculumService.GetSubjectByIdAsync(subjectId);
+            
+            if (dbSubject != null)
+            {
+                var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSubject.GradeLevel);
+                
+                dbSubject.SubjectName = EditingSubject.Name;
+                dbSubject.GradeLevelId = gradeLevel?.GradeLevelId ?? dbSubject.GradeLevelId;
+                dbSubject.Description = EditingSubject.Description;
+
+                await CurriculumService.UpdateSubjectAsync(dbSubject);
+
+                // Update section links
+                var sectionIds = new List<int>();
+                foreach (var sectionName in EditingSubject.LinkedSections)
+                {
+                    var section = DbSections.FirstOrDefault(s => s.SectionName == sectionName);
+                    if (section != null)
+                    {
+                        sectionIds.Add(section.SectionId);
+                    }
+                }
+                await CurriculumService.UpdateSubjectSectionLinksAsync(dbSubject.SubjectId, sectionIds);
+
+                await LoadDataAsync();
+            }
+            CloseEditSubjectModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error editing subject");
+        }
+        StateHasChanged();
+    }
+
+    // Assignment Modal Methods
+    private void OpenAddAssignmentModal()
+    {
+        NewAssignment = new TeacherAssignmentModel();
+        ShowAddAssignmentModal = true;
+    }
+
+    private void CloseAddAssignmentModal()
+    {
+        ShowAddAssignmentModal = false;
+        NewAssignment = new TeacherAssignmentModel();
+    }
+
+    private void OpenEditAssignmentModal(TeacherAssignmentModel assignment)
+    {
+        EditingAssignment = new TeacherAssignmentModel
+        {
+            Id = assignment.Id,
+            TeacherName = assignment.TeacherName,
+            Grade = assignment.Grade,
+            Subject = assignment.Subject,
+            Section = assignment.Section,
+            Schedule = assignment.Schedule,
+            Classroom = assignment.Classroom,
+            Time = assignment.Time,
+            SelectedDays = new List<string>(assignment.SelectedDays)
+        };
+        ShowEditAssignmentModal = true;
+    }
+
+    private void CloseEditAssignmentModal()
+    {
+        ShowEditAssignmentModal = false;
+        EditingAssignment = new TeacherAssignmentModel();
+    }
+
+    private async Task HandleAddAssignment()
+    {
+        try
+        {
+            var teacher = Teachers.FirstOrDefault(t => 
+                $"{t.FirstName} {t.LastName}" == NewAssignment.TeacherName);
+            var section = DbSections.FirstOrDefault(s => s.SectionName == NewAssignment.Section);
+            var subject = DbSubjects.FirstOrDefault(s => s.SubjectName == NewAssignment.Subject);
+
+            if (teacher == null || section == null)
+            {
+                Logger.LogWarning("Teacher or section not found");
+                return;
+            }
+
+            var dbAssignment = new DataModels.TeacherSectionAssignment
+            {
+                TeacherId = teacher.UserId,
+                SectionId = section.SectionId,
+                SubjectId = subject?.SubjectId,
+                Role = subject == null ? "adviser" : "subject_teacher"
+            };
+
+            var createdAssignment = await CurriculumService.CreateTeacherAssignmentAsync(dbAssignment);
+
+            // Create schedules for selected days
+            if (!string.IsNullOrEmpty(NewAssignment.Time) && NewAssignment.SelectedDays.Any())
+            {
+                var timeParts = NewAssignment.Time.Split(" - ");
+                if (timeParts.Length == 2 && TimeSpan.TryParse(timeParts[0], out var startTime) 
+                    && TimeSpan.TryParse(timeParts[1], out var endTime))
+                {
+                    var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == NewAssignment.Classroom);
+                    if (classroom != null)
+                    {
+                        foreach (var day in NewAssignment.SelectedDays)
+                        {
+                            var schedule = new DataModels.ClassSchedule
+                            {
+                                AssignmentId = createdAssignment.AssignmentId,
+                                DayOfWeek = day,
+                                StartTime = startTime,
+                                EndTime = endTime,
+                                RoomId = classroom.RoomId
+                            };
+                            await CurriculumService.CreateClassScheduleAsync(schedule);
+                        }
+                    }
+                }
+            }
+
+            await LoadDataAsync();
+            CloseAddAssignmentModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding assignment");
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleEditAssignment()
+    {
+        try
+        {
+            var assignmentId = int.Parse(EditingAssignment.Id.Replace("ASG-", ""));
+            var dbAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(assignmentId);
+            
+            if (dbAssignment != null)
+            {
+                var teacher = Teachers.FirstOrDefault(t => 
+                    $"{t.FirstName} {t.LastName}" == EditingAssignment.TeacherName);
+                var section = DbSections.FirstOrDefault(s => s.SectionName == EditingAssignment.Section);
+                var subject = DbSubjects.FirstOrDefault(s => s.SubjectName == EditingAssignment.Subject);
+
+                if (teacher != null) dbAssignment.TeacherId = teacher.UserId;
+                if (section != null) dbAssignment.SectionId = section.SectionId;
+                if (subject != null) dbAssignment.SubjectId = subject.SubjectId;
+                dbAssignment.Role = subject == null ? "adviser" : "subject_teacher";
+
+                await CurriculumService.UpdateTeacherAssignmentAsync(dbAssignment);
+                await LoadDataAsync();
+            }
+            CloseEditAssignmentModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error editing assignment");
+        }
+        StateHasChanged();
+    }
+
+    // Classroom Modal Methods
+    private void OpenAddClassroomModal()
+    {
+        NewClassroom = new Classroom();
+        ClassroomValidationError = "";
+        ShowAddClassroomModal = true;
+    }
+
+    private void CloseAddClassroomModal()
+    {
+        ShowAddClassroomModal = false;
+        NewClassroom = new Classroom();
+        ClassroomValidationError = "";
+    }
+
+    private void OpenEditClassroomModal(Classroom classroom)
+    {
+        EditingClassroom = new Classroom
+        {
+            ClassroomID = classroom.ClassroomID,
+            RoomName = classroom.RoomName,
+            RoomType = classroom.RoomType,
+            BuildingName = classroom.BuildingName,
+            FloorNumber = classroom.FloorNumber,
+            Capacity = classroom.Capacity,
+            IsActive = classroom.IsActive,
+            Notes = classroom.Notes
+        };
+        ClassroomValidationError = "";
+        ShowEditClassroomModal = true;
+    }
+
+    private void CloseEditClassroomModal()
+    {
+        ShowEditClassroomModal = false;
+        EditingClassroom = new Classroom();
+        ClassroomValidationError = "";
+    }
+
+    private async Task HandleAddClassroom()
+    {
+        ClassroomValidationError = "";
+
+        // Validation
+        if (string.IsNullOrWhiteSpace(NewClassroom.RoomName))
+        {
+            ClassroomValidationError = "Room Name is required.";
+            StateHasChanged();
+            return;
+        }
+
+        if (NewClassroom.Capacity <= 0)
+        {
+            ClassroomValidationError = "Capacity must be a positive number.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for duplicate room in same building and floor
+        if (DbClassrooms.Any(c => c.RoomName.Equals(NewClassroom.RoomName, StringComparison.OrdinalIgnoreCase) 
+                                && c.BuildingName == NewClassroom.BuildingName 
+                                && c.FloorNumber == NewClassroom.FloorNumber))
+        {
+            ClassroomValidationError = "Room already exists in this building & floor.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var dbClassroom = new DataModels.Classroom
+            {
+                RoomName = NewClassroom.RoomName,
+                RoomType = NewClassroom.RoomType,
+                BuildingName = NewClassroom.BuildingName,
+                FloorNumber = NewClassroom.FloorNumber,
+                Capacity = NewClassroom.Capacity,
+                Status = NewClassroom.IsActive ? "Active" : "Inactive",
+                Notes = NewClassroom.Notes
+            };
+
+            await CurriculumService.CreateClassroomAsync(dbClassroom);
+            await LoadDataAsync();
+            CloseAddClassroomModal();
+        }
+        catch (Exception ex)
+        {
+            ClassroomValidationError = $"Error saving classroom: {ex.Message}";
+            Logger.LogError(ex, "Error adding classroom");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task HandleEditClassroom()
+    {
+        ClassroomValidationError = "";
+
+        // Validation
+        if (string.IsNullOrWhiteSpace(EditingClassroom.RoomName))
+        {
+            ClassroomValidationError = "Room Name is required.";
+            StateHasChanged();
+            return;
+        }
+
+        if (EditingClassroom.Capacity <= 0)
+        {
+            ClassroomValidationError = "Capacity must be a positive number.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for duplicate room (excluding current room)
+        if (DbClassrooms.Any(c => c.RoomId != EditingClassroom.ClassroomID 
+                                && c.RoomName.Equals(EditingClassroom.RoomName, StringComparison.OrdinalIgnoreCase) 
+                                && c.BuildingName == EditingClassroom.BuildingName 
+                                && c.FloorNumber == EditingClassroom.FloorNumber))
+        {
+            ClassroomValidationError = "Room already exists in this building & floor.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var dbClassroom = await CurriculumService.GetClassroomByIdAsync(EditingClassroom.ClassroomID);
+            if (dbClassroom != null)
+            {
+                dbClassroom.RoomName = EditingClassroom.RoomName;
+                dbClassroom.RoomType = EditingClassroom.RoomType;
+                dbClassroom.BuildingName = EditingClassroom.BuildingName;
+                dbClassroom.FloorNumber = EditingClassroom.FloorNumber;
+                dbClassroom.Capacity = EditingClassroom.Capacity;
+                dbClassroom.Status = EditingClassroom.IsActive ? "Active" : "Inactive";
+                dbClassroom.Notes = EditingClassroom.Notes;
+
+                await CurriculumService.UpdateClassroomAsync(dbClassroom);
+                await LoadDataAsync();
+            }
+            CloseEditClassroomModal();
+        }
+        catch (Exception ex)
+        {
+            ClassroomValidationError = $"Error updating classroom: {ex.Message}";
+            Logger.LogError(ex, "Error editing classroom");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ToggleClassroomStatus(Classroom classroom)
+    {
+        try
+        {
+            var dbClassroom = await CurriculumService.GetClassroomByIdAsync(classroom.ClassroomID);
+            if (dbClassroom != null)
+            {
+                dbClassroom.Status = classroom.IsActive ? "Inactive" : "Active";
+                await CurriculumService.UpdateClassroomAsync(dbClassroom);
+                await LoadDataAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling classroom status");
+        }
+        StateHasChanged();
+    }
+}
+

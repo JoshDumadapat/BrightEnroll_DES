@@ -370,9 +370,6 @@ public class EmployeeService
                 ExistingBirthDate = potentialDuplicate.Birthdate,
                 ExistingAddress = address != null ? FormatAddress(address) : "No address on file"
             };
-
-            // No duplicate found
-            return new EmployeeDuplicateCheckResult { IsDuplicate = false };
         }
         catch (Exception ex)
         {
@@ -441,6 +438,140 @@ public class EmployeeService
         {
             _logger?.LogError(ex, "Error updating employee contact info: {Message}", ex.Message);
             throw new Exception($"Failed to update employee contact info: {ex.Message}", ex);
+        }
+    }
+
+    // Gets the inactive reason from the most recent status log entry
+    public async Task<string?> GetInactiveReasonAsync(int userId)
+    {
+        try
+        {
+            var statusLog = await _context.UserStatusLogs
+                .Where(log => log.UserId == userId && 
+                             log.NewStatus.ToLower() == "inactive")
+                .OrderByDescending(log => log.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            // Return the reason even if it's null or empty (let the UI handle display)
+            var reason = statusLog?.Reason;
+            _logger?.LogInformation("Fetched inactive reason for user {UserId}: {Reason}", userId, reason ?? "null");
+            return reason;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching inactive reason for user {UserId}: {Message}", userId, ex.Message);
+            return null;
+        }
+    }
+
+    // Updates employee information (excluding salary info)
+    public async Task<bool> UpdateEmployeeInfoAsync(int userId, EmployeeUpdateData updateData)
+    {
+        try
+        {
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
+            {
+                // Get existing user
+                var user = await _userRepository.GetByIdAsync(userId);
+                if (user == null)
+                {
+                    _logger?.LogWarning("User with ID {UserId} not found for update", userId);
+                    return false;
+                }
+
+                // Update user information
+                user.first_name = updateData.FirstName;
+                user.mid_name = string.IsNullOrWhiteSpace(updateData.MiddleName) ? null : updateData.MiddleName;
+                user.last_name = updateData.LastName;
+                user.suffix = string.IsNullOrWhiteSpace(updateData.Suffix) ? null : updateData.Suffix;
+                user.birthdate = updateData.BirthDate ?? user.birthdate;
+                user.age = (byte)(updateData.Age ?? user.age);
+                user.gender = updateData.Sex;
+                user.contact_num = updateData.ContactNumber;
+                user.email = updateData.Email;
+                user.user_role = updateData.Role;
+
+                await _userRepository.UpdateAsync(user);
+                _logger?.LogInformation("User information updated for user ID: {UserId}", userId);
+
+                // Update address
+                var address = await _context.EmployeeAddresses.FirstOrDefaultAsync(a => a.UserId == userId);
+                if (address != null)
+                {
+                    address.HouseNo = string.IsNullOrWhiteSpace(updateData.HouseNo) ? null : updateData.HouseNo;
+                    address.StreetName = string.IsNullOrWhiteSpace(updateData.StreetName) ? null : updateData.StreetName;
+                    address.Barangay = string.IsNullOrWhiteSpace(updateData.Barangay) ? null : updateData.Barangay;
+                    address.City = string.IsNullOrWhiteSpace(updateData.City) ? null : updateData.City;
+                    address.Province = string.IsNullOrWhiteSpace(updateData.Province) ? null : updateData.Province;
+                    address.Country = string.IsNullOrWhiteSpace(updateData.Country) ? null : updateData.Country;
+                    address.ZipCode = string.IsNullOrWhiteSpace(updateData.ZipCode) ? null : updateData.ZipCode;
+                }
+                else
+                {
+                    // Create new address if it doesn't exist
+                    address = new EmployeeAddress
+                    {
+                        UserId = userId,
+                        HouseNo = string.IsNullOrWhiteSpace(updateData.HouseNo) ? null : updateData.HouseNo,
+                        StreetName = string.IsNullOrWhiteSpace(updateData.StreetName) ? null : updateData.StreetName,
+                        Barangay = string.IsNullOrWhiteSpace(updateData.Barangay) ? null : updateData.Barangay,
+                        City = string.IsNullOrWhiteSpace(updateData.City) ? null : updateData.City,
+                        Province = string.IsNullOrWhiteSpace(updateData.Province) ? null : updateData.Province,
+                        Country = string.IsNullOrWhiteSpace(updateData.Country) ? null : updateData.Country,
+                        ZipCode = string.IsNullOrWhiteSpace(updateData.ZipCode) ? null : updateData.ZipCode
+                    };
+                    _context.EmployeeAddresses.Add(address);
+                }
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation("Employee address updated for user ID: {UserId}", userId);
+
+                // Update emergency contact
+                var emergencyContact = await _context.EmployeeEmergencyContacts.FirstOrDefaultAsync(e => e.UserId == userId);
+                if (emergencyContact != null)
+                {
+                    emergencyContact.FirstName = updateData.EmergencyContactFirstName;
+                    emergencyContact.MiddleName = string.IsNullOrWhiteSpace(updateData.EmergencyContactMiddleName) ? null : updateData.EmergencyContactMiddleName;
+                    emergencyContact.LastName = updateData.EmergencyContactLastName;
+                    emergencyContact.Suffix = string.IsNullOrWhiteSpace(updateData.EmergencyContactSuffix) ? null : updateData.EmergencyContactSuffix;
+                    emergencyContact.Relationship = string.IsNullOrWhiteSpace(updateData.EmergencyContactRelationship) ? null : updateData.EmergencyContactRelationship;
+                    emergencyContact.ContactNumber = string.IsNullOrWhiteSpace(updateData.EmergencyContactNumber) ? null : updateData.EmergencyContactNumber;
+                    emergencyContact.Address = string.IsNullOrWhiteSpace(updateData.EmergencyContactAddress) ? null : updateData.EmergencyContactAddress;
+                }
+                else
+                {
+                    // Create new emergency contact if it doesn't exist
+                    emergencyContact = new EmployeeEmergencyContact
+                    {
+                        UserId = userId,
+                        FirstName = updateData.EmergencyContactFirstName,
+                        MiddleName = string.IsNullOrWhiteSpace(updateData.EmergencyContactMiddleName) ? null : updateData.EmergencyContactMiddleName,
+                        LastName = updateData.EmergencyContactLastName,
+                        Suffix = string.IsNullOrWhiteSpace(updateData.EmergencyContactSuffix) ? null : updateData.EmergencyContactSuffix,
+                        Relationship = string.IsNullOrWhiteSpace(updateData.EmergencyContactRelationship) ? null : updateData.EmergencyContactRelationship,
+                        ContactNumber = string.IsNullOrWhiteSpace(updateData.EmergencyContactNumber) ? null : updateData.EmergencyContactNumber,
+                        Address = string.IsNullOrWhiteSpace(updateData.EmergencyContactAddress) ? null : updateData.EmergencyContactAddress
+                    };
+                    _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                }
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation("Emergency contact updated for user ID: {UserId}", userId);
+
+                await transaction.CommitAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger?.LogError(ex, "Error updating employee info: {Message}", ex.Message);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error updating employee info: {Message}", ex.Message);
+            throw new Exception($"Failed to update employee info: {ex.Message}", ex);
         }
     }
 
@@ -534,5 +665,39 @@ public class EmployeeRegistrationData
     // Salary info - saved to tbl_salary_info
     public decimal BaseSalary { get; set; }
     public decimal Allowance { get; set; }
+}
+
+// DTO for updating employee information (excluding salary)
+public class EmployeeUpdateData
+{
+    // Personal info
+    public string FirstName { get; set; } = string.Empty;
+    public string MiddleName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string Suffix { get; set; } = string.Empty;
+    public DateTime? BirthDate { get; set; }
+    public int? Age { get; set; }
+    public string Sex { get; set; } = string.Empty;
+    public string ContactNumber { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+
+    // Address info
+    public string HouseNo { get; set; } = string.Empty;
+    public string StreetName { get; set; } = string.Empty;
+    public string Province { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string Barangay { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+    public string ZipCode { get; set; } = string.Empty;
+
+    // Emergency contact info
+    public string EmergencyContactFirstName { get; set; } = string.Empty;
+    public string EmergencyContactMiddleName { get; set; } = string.Empty;
+    public string EmergencyContactLastName { get; set; } = string.Empty;
+    public string EmergencyContactSuffix { get; set; } = string.Empty;
+    public string EmergencyContactRelationship { get; set; } = string.Empty;
+    public string EmergencyContactNumber { get; set; } = string.Empty;
+    public string EmergencyContactAddress { get; set; } = string.Empty;
 }
 

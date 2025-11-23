@@ -57,7 +57,7 @@ namespace BrightEnroll_DES
             // Register School Year Service
             builder.Services.AddSingleton<SchoolYearService>();
 
-            // --- UNIFIED LOCAL + CLOUD DATABASE SETUP ---
+            // --- LOCAL DATABASE SETUP ---
             // Get connection strings
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
@@ -72,27 +72,14 @@ namespace BrightEnroll_DES
                 localConnectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
             }
 
-            // Register LOCAL AppDbContext as primary (scoped) - always used for operations
+            // Register LOCAL LocalDbContext as primary (scoped) - always used for operations
             builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
             {
                 options.UseSqlServer(localConnectionString);
             });
 
-
-            // Cloud connection string (MonsterASP.net)
-            string cloudConnectionString = "Server=db33104.public.databaseasp.net; Database=db33104; User Id=db33104; Password=Q_w93nD=+F7k; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;";
-
-            // Register CLOUD AppDbContextFactory for cloud sync operations
-            builder.Services.AddDbContextFactory<AppDbContext>(options =>
-            {
-                options.UseSqlServer(cloudConnectionString);
-            }, ServiceLifetime.Singleton);
-
             // Register Connectivity Service
             builder.Services.AddSingleton<IConnectivityService, ConnectivityService>();
-
-            // Register Database Sync Service
-            builder.Services.AddSingleton<IDatabaseSyncService, DatabaseSyncService>();
 
 
 
@@ -104,6 +91,9 @@ namespace BrightEnroll_DES
             
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
+            
+            // Register CurriculumService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<CurriculumService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -112,98 +102,49 @@ namespace BrightEnroll_DES
 
             var app = builder.Build();
 
-            // Set service provider in AppDbContext for auto-sync functionality
-            AppDbContext.SetServiceProvider(app.Services);
-
             // Initialize database and seed initial admin user on startup
-            try
+            // CRITICAL FIX: Use ConfigureAwait(false) to avoid deadlocks in MAUI/Blazor
+            // Run initialization asynchronously without blocking the UI thread
+            _ = Task.Run(async () =>
             {
-                var dbConnection = app.Services.GetRequiredService<DBConnection>();
-                
-                // Get connection string for initializer (use local)
-                var connectionString = dbConnection.GetConnection().ConnectionString;
-                var initializer = new DatabaseInitializer(connectionString);
-                
-                // Automatically create database and tables if they don't exist
-                Task.Run(async () => await initializer.InitializeDatabaseAsync()).Wait();
-                
-                // Seed initial admin user - create a scope for DbContext
-                using (var scope = app.Services.CreateScope())
+                try
                 {
-                    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-                    Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
+                    var dbConnection = app.Services.GetRequiredService<DBConnection>();
+                    
+                    // Get connection string for initializer (use local)
+                    var connectionString = dbConnection.GetConnection().ConnectionString;
+                    var initializer = new DatabaseInitializer(connectionString);
+                    
+                    // Automatically create database and tables if they don't exist
+                    await initializer.InitializeDatabaseAsync().ConfigureAwait(false);
+                    
+                    // Seed initial admin user - create a scope for DbContext
+                    try
+                    {
+                        using (var scope = app.Services.CreateScope())
+                        {
+                            var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                            await seeder.SeedInitialAdminAsync().ConfigureAwait(false);
+                            System.Diagnostics.Debug.WriteLine("Admin user seeded successfully");
+                        }
+                    }
+                    catch (Exception seederEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error seeding admin user: {seederEx.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Stack trace: {seederEx.StackTrace}");
+                        // Don't throw - continue with app startup even if seeder fails
+                    }
                 }
-
-                // Start connectivity monitoring and auto-sync
-                var connectivityService = app.Services.GetRequiredService<IConnectivityService>();
-                var syncService = app.Services.GetRequiredService<IDatabaseSyncService>();
-                
-                connectivityService.StartMonitoring();
-                
-                // Subscribe to connectivity changes for bidirectional auto-sync
-                connectivityService.ConnectivityChanged += (sender, isConnected) =>
+                catch (Exception ex)
                 {
-                    if (isConnected)
-                    {
-                        // When connection is restored, do bidirectional sync
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                // First, sync local changes to cloud
-                                await syncService.TrySyncToCloudAsync();
-                                
-                                // Then, check if we need to pull from cloud (in case cloud has newer data)
-                                var isLocalEmpty = await syncService.IsLocalDatabaseEmptyAsync();
-                                if (isLocalEmpty)
-                                {
-                                    // If local is empty, pull from cloud
-                                    await syncService.TrySyncFromCloudAsync();
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Error syncing: {ex.Message}");
-                            }
-                        });
-                    }
-                };
-
-                // Initial connectivity check and bidirectional sync if online
-                _ = Task.Run(async () =>
-                {
-                    var isConnected = await connectivityService.CheckConnectivityAsync();
-                    if (isConnected)
-                    {
-                        try
-                        {
-                            // Check if local database is empty (new device)
-                            var isLocalEmpty = await syncService.IsLocalDatabaseEmptyAsync();
-                            
-                            if (isLocalEmpty)
-                            {
-                                // New device: Pull all data from cloud to local first
-                                System.Diagnostics.Debug.WriteLine("Local database is empty, pulling data from cloud...");
-                                await syncService.TrySyncFromCloudAsync();
-                            }
-                            else
-                            {
-                                // Existing device: Sync local changes to cloud
-                                await syncService.TrySyncToCloudAsync();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Error in initial sync: {ex.Message}");
-                        }
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't crash the app
-                System.Diagnostics.Debug.WriteLine($"Error initializing database: {ex.Message}");
-            }
+                    // Log error but don't crash the app
+                    var loggerFactory = app.Services.GetService<ILoggerFactory>();
+                    var logger = loggerFactory?.CreateLogger("MauiProgram");
+                    logger?.LogError(ex, "Error initializing database: {Message}", ex.Message);
+                    System.Diagnostics.Debug.WriteLine($"Error initializing database: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                }
+            });
 
             return app;
         }

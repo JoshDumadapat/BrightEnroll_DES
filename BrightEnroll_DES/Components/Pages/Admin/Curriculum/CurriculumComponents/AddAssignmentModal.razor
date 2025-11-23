@@ -1,0 +1,176 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+
+@if (Show)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="OnClose">
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2">
+                <h3 class="text-lg font-semibold text-white">Assign New Teacher</h3>
+                <button @onclick="OnClose" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 rounded-b-2xl">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Teacher -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Teacher <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Assignment.TeacherName" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Teacher</option>
+                                <option value="Mrs. Santos">Mrs. Santos</option>
+                                <option value="Mrs. Cruz">Mrs. Cruz</option>
+                                <option value="Mr. John Doe">Mr. John Doe</option>
+                                <option value="Ms. Reyes">Ms. Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Section -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Section <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Assignment.Section" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Classroom -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Classroom <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Assignment.Classroom" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade level <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Assignment.Grade" 
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Select Subject -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Subject <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Assignment.Subject" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Subject</option>
+                                <option value="Math">Math</option>
+                                <option value="English">English</option>
+                                <option value="Science">Science</option>
+                                <option value="Filipino">Filipino</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Time -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Time <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Assignment.Time" 
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                                    required>
+                                <option value="">Select Time</option>
+                                <option value="8:00am - 9:00am">8:00am - 9:00am</option>
+                                <option value="9:00am - 10:00am">9:00am - 10:00am</option>
+                                <option value="10:00am - 11:00am">10:00am - 11:00am</option>
+                                <option value="11:00am - 12:00pm">11:00am - 12:00pm</option>
+                            </select>
+                        </div>
+
+                        <!-- Select Day -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Select Day <span class="text-red-500">*</span>
+                            </label>
+                            <div class="flex gap-4">
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("M"))" @onchange="@((e) => ToggleDay("M"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">M</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("T"))" @onchange="@((e) => ToggleDay("T"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">T</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("W"))" @onchange="@((e) => ToggleDay("W"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">W</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("TH"))" @onchange="@((e) => ToggleDay("TH"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">TH</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("F"))" @onchange="@((e) => ToggleDay("F"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">F</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("Sat"))" @onchange="@((e) => ToggleDay("Sat"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sat</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" checked="@(Assignment.SelectedDays.Contains("Sun"))" @onchange="@((e) => ToggleDay("Sun"))" class="mr-2 rounded border-gray-300" />
+                                    <span class="text-sm text-gray-700">Sun</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button type="button" @onclick="OnClose" class="rounded-lg border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                            Cancel
+                        </button>
+                        <button type="submit" class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                            Add
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public TeacherAssignmentModel Assignment { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private void ToggleDay(string day)
+    {
+        if (Assignment.SelectedDays.Contains(day))
+        {
+            Assignment.SelectedDays.Remove(day);
+        }
+        else
+        {
+            Assignment.SelectedDays.Add(day);
+        }
+        StateHasChanged();
+    }
+
+    private async Task HandleSubmit()
+    {
+        await OnSubmit.InvokeAsync();
+    }
+}
+

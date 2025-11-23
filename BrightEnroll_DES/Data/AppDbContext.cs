@@ -1,8 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using BrightEnroll_DES.Data.Models;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using System;
 
 namespace BrightEnroll_DES.Data;
 
@@ -33,43 +30,17 @@ public class AppDbContext : DbContext
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
 
-    private static IServiceProvider? _staticServiceProvider;
+    // Curriculum tables
+    public DbSet<Classroom> Classrooms { get; set; }
+    public DbSet<Section> Sections { get; set; }
+    public DbSet<Subject> Subjects { get; set; }
+    public DbSet<SubjectSection> SubjectSections { get; set; }
+    public DbSet<TeacherSectionAssignment> TeacherSectionAssignments { get; set; }
+    public DbSet<ClassSchedule> ClassSchedules { get; set; }
+    public DbSet<Building> Buildings { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
-    }
-
-    // Set service provider for sync functionality (called from MauiProgram)
-    public static void SetServiceProvider(IServiceProvider serviceProvider)
-    {
-        _staticServiceProvider = serviceProvider;
-    }
-
-    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        var result = await base.SaveChangesAsync(cancellationToken);
-        
-        // Auto-sync to cloud if online (fire and forget to avoid blocking)
-        if (_staticServiceProvider != null)
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var syncService = _staticServiceProvider.GetService<BrightEnroll_DES.Services.IDatabaseSyncService>();
-                    if (syncService != null)
-                    {
-                        await syncService.TrySyncToCloudAsync();
-                    }
-                }
-                catch
-                {
-                    // Silently fail - sync will happen on next connectivity restore
-                }
-            });
-        }
-        
-        return result;
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -203,6 +174,117 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ChangedBy)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure Curriculum entities
+        modelBuilder.Entity<Classroom>(entity =>
+        {
+            entity.HasKey(e => e.RoomId);
+            entity.ToTable("tbl_Classrooms");
+            entity.HasIndex(e => e.RoomName);
+            entity.HasIndex(e => e.Status);
+        });
+
+        modelBuilder.Entity<Section>(entity =>
+        {
+            entity.HasKey(e => e.SectionId);
+            entity.ToTable("tbl_Sections");
+            entity.HasIndex(e => e.SectionName);
+            entity.HasIndex(e => e.GradeLevelId);
+            entity.HasIndex(e => e.ClassroomId);
+
+            entity.HasOne(s => s.GradeLevel)
+                  .WithMany()
+                  .HasForeignKey(s => s.GradeLevelId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(s => s.Classroom)
+                  .WithMany(c => c.Sections)
+                  .HasForeignKey(s => s.ClassroomId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Subject>(entity =>
+        {
+            entity.HasKey(e => e.SubjectId);
+            entity.ToTable("tbl_Subjects");
+            entity.HasIndex(e => e.SubjectName);
+            entity.HasIndex(e => e.GradeLevelId);
+
+            entity.HasOne(s => s.GradeLevel)
+                  .WithMany()
+                  .HasForeignKey(s => s.GradeLevelId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SubjectSection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_SubjectSection");
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.SubjectId);
+
+            entity.HasOne(ss => ss.Section)
+                  .WithMany(s => s.SubjectSections)
+                  .HasForeignKey(ss => ss.SectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ss => ss.Subject)
+                  .WithMany(s => s.SubjectSections)
+                  .HasForeignKey(ss => ss.SubjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TeacherSectionAssignment>(entity =>
+        {
+            entity.HasKey(e => e.AssignmentId);
+            entity.ToTable("tbl_TeacherSectionAssignment");
+            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.SubjectId);
+            entity.HasIndex(e => e.Role);
+
+            entity.HasOne(a => a.Teacher)
+                  .WithMany()
+                  .HasForeignKey(a => a.TeacherId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Section)
+                  .WithMany(s => s.TeacherAssignments)
+                  .HasForeignKey(a => a.SectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(a => a.Subject)
+                  .WithMany(s => s.TeacherAssignments)
+                  .HasForeignKey(a => a.SubjectId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ClassSchedule>(entity =>
+        {
+            entity.HasKey(e => e.ScheduleId);
+            entity.ToTable("tbl_ClassSchedule");
+            entity.HasIndex(e => e.AssignmentId);
+            entity.HasIndex(e => e.RoomId);
+            entity.HasIndex(e => e.DayOfWeek);
+            entity.HasIndex(e => new { e.AssignmentId, e.DayOfWeek, e.StartTime, e.EndTime });
+
+            entity.HasOne(s => s.Assignment)
+                  .WithMany(a => a.ClassSchedules)
+                  .HasForeignKey(s => s.AssignmentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(s => s.Room)
+                  .WithMany(r => r.ClassSchedules)
+                  .HasForeignKey(s => s.RoomId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Building>(entity =>
+        {
+            entity.HasKey(e => e.BuildingId);
+            entity.ToTable("tbl_Buildings");
+            entity.HasIndex(e => e.BuildingName);
         });
     }
 }

@@ -1,115 +1,227 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.HRComponents
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.HR
+@inject EmployeeService EmployeeService
+@inject ILoadingService LoadingService
 @* Employee Info Tab Content *@
+
+<!-- Toast Notification -->
+@if (!string.IsNullOrEmpty(toastMessage))
+{
+    <div class="mb-4 rounded-lg @(toastType == "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200") p-4">
+        <p class="text-sm @(toastType == "success" ? "text-green-700" : "text-red-700")">@toastMessage</p>
+    </div>
+}
 
 <!-- All Information in One Card -->
 <div class="overflow-hidden rounded-xl bg-white shadow">
     <div class="px-6 py-6">
+        <!-- Inactive Reason Display (if employee is inactive) -->
+        @if (EmployeeData?.Status?.Equals("Inactive", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            <div class="mb-4 rounded-lg border border-gray-200 bg-white p-4">
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0">
+                        <svg class="h-5 w-5 text-red-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <p class="mb-2 text-sm font-semibold text-red-700">Inactive Reason</p>
+                        <input type="text" 
+                               value="@(string.IsNullOrWhiteSpace(_displayInactiveReason) ? "No reason provided" : _displayInactiveReason)" 
+                               readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 cursor-default" />
+                    </div>
+                </div>
+            </div>
+        }
+
+
         <!-- Personal Information Section -->
         <div class="mb-6">
             <h2 class="text-lg font-bold text-blue-600 mb-4">Personal Information</h2>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         First Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.FirstName ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.FirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.FirstName ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.MiddleName) ? "N/A" : EmployeeData.MiddleName)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Middle Name</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.MiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.MiddleName) ? "N/A" : EmployeeData.MiddleName)
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Last Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.LastName ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.LastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.LastName ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Suffix</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.Suffix) ? "N/A" : EmployeeData.Suffix)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Suffix</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.Suffix" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.Suffix) ? "N/A" : EmployeeData.Suffix)
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Birth Date <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.BirthDate?.ToString("M / d / yyyy") ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="date" value="@(editData.BirthDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="@((ChangeEventArgs e) => { if (DateTime.TryParse(e.Value?.ToString(), out var date)) editData.BirthDate = date; })" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.BirthDate?.ToString("M / d / yyyy") ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Age <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Age?.ToString() ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="number" @bind="editData.Age" min="1" max="100" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Age?.ToString() ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Sex <span class="text-red-500">*</span>
                     </label>
-                    <div class="flex items-center gap-4 sm:gap-6 pt-1 sm:pt-2">
-                        <label class="flex items-center">
-                            <input type="radio" checked="@(EmployeeData?.Gender?.Equals("Male", StringComparison.OrdinalIgnoreCase) == true)" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
-                            <span class="ml-2 text-xs sm:text-sm text-gray-700">Male</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" checked="@(EmployeeData?.Gender?.Equals("Female", StringComparison.OrdinalIgnoreCase) == true)" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
-                            <span class="ml-2 text-xs sm:text-sm text-gray-700">Female</span>
-                        </label>
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <div class="flex items-center gap-4 sm:gap-6 pt-1 sm:pt-2">
+                            <label class="flex items-center">
+                                <input type="radio" name="sex" value="Male" checked="@(editData.Sex == "Male")" @onchange="@((ChangeEventArgs e) => editData.Sex = e.Value?.ToString() ?? "")" class="w-4 h-4 text-blue-600 border-gray-300" />
+                                <span class="ml-2 text-xs sm:text-sm text-gray-800">Male</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="sex" value="Female" checked="@(editData.Sex == "Female")" @onchange="@((ChangeEventArgs e) => editData.Sex = e.Value?.ToString() ?? "")" class="w-4 h-4 text-blue-600 border-gray-300" />
+                                <span class="ml-2 text-xs sm:text-sm text-gray-800">Female</span>
+                            </label>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="flex items-center gap-4 sm:gap-6 pt-1 sm:pt-2">
+                            <label class="flex items-center">
+                                <input type="radio" checked="@(EmployeeData?.Gender?.Equals("Male", StringComparison.OrdinalIgnoreCase) == true)" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                                <span class="ml-2 text-xs sm:text-sm text-gray-800">Male</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" checked="@(EmployeeData?.Gender?.Equals("Female", StringComparison.OrdinalIgnoreCase) == true)" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                                <span class="ml-2 text-xs sm:text-sm text-gray-800">Female</span>
+                            </label>
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Contact Number <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.ContactNumber ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.ContactNumber" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.ContactNumber ?? "N/A")
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Email <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Email ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="email" @bind="editData.Email" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Email ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Role <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Role ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.Role" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Role ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         System ID <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         @(EmployeeData?.SystemId ?? "N/A")
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Date Hired <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         @(EmployeeData?.DateHired?.ToString("M / d / yyyy") ?? "N/A")
                     </div>
                 </div>
@@ -124,64 +236,113 @@
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">House No./Street</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.HouseNo) ? "N/A" : EmployeeData.HouseNo)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">House No./Street</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.HouseNo" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.HouseNo) ? "N/A" : EmployeeData.HouseNo)
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Street Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.StreetName) ? "N/A" : EmployeeData.StreetName)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Street Name</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.StreetName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.StreetName) ? "N/A" : EmployeeData.StreetName)
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Barangay <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Barangay ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.Barangay" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Barangay ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Municipality/City <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.City ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.City" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.City ?? "N/A")
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Province <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Province ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.Province" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Province ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Country <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.Country ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.Country" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.Country ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         ZIP Code <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.ZipCode ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.ZipCode" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.ZipCode ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Formatted Address
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         @(EmployeeData?.FormattedAddress ?? "N/A")
                     </div>
                 </div>
@@ -196,100 +357,304 @@
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         First Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.EmergencyContactFirstName ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactFirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.EmergencyContactFirstName ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactMiddleName) ? "N/A" : EmployeeData.EmergencyContactMiddleName)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Middle Name</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactMiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactMiddleName) ? "N/A" : EmployeeData.EmergencyContactMiddleName)
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Last Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.EmergencyContactLastName ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactLastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.EmergencyContactLastName ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Suffix</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactSuffix) ? "N/A" : EmployeeData.EmergencyContactSuffix)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Suffix</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactSuffix" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactSuffix) ? "N/A" : EmployeeData.EmergencyContactSuffix)
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Relationship <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.EmergencyContactRelationship ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactRelationship" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.EmergencyContactRelationship ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Contact Number <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(EmployeeData?.EmergencyContactNumber ?? "N/A")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactNumber" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(EmployeeData?.EmergencyContactNumber ?? "N/A")
+                        </div>
+                    }
                 </div>
                 <div class="sm:col-span-2">
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Address</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactAddress) ? "N/A" : EmployeeData.EmergencyContactAddress)
-                    </div>
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Address</label>
+                    @if (isEditMode)
+                    {
+                        <input type="text" @bind="editData.EmergencyContactAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
+                            @(string.IsNullOrEmpty(EmployeeData?.EmergencyContactAddress) ? "N/A" : EmployeeData.EmergencyContactAddress)
+                        </div>
+                    }
                 </div>
             </div>
         </div>
 
         <hr class="my-6 sm:my-8 border-gray-200" />
 
-        <!-- Salary Information Section -->
+        <!-- Salary Information Section (Read-only) -->
         <div>
             <h2 class="text-lg sm:text-xl font-bold text-blue-600 mb-4 sm:mb-6">Salary Information</h2>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
                         Base Salary <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         ₱@(EmployeeData?.BaseSalary?.ToString("N2") ?? "0.00")
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Allowance</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Allowance</label>
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         ₱@(EmployeeData?.Allowance?.ToString("N2") ?? "0.00")
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Total Salary</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base font-semibold text-gray-700">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Total Salary</label>
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base font-semibold text-gray-800">
                         ₱@(EmployeeData?.TotalSalary?.ToString("N2") ?? "0.00")
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Date Effective</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                    <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Date Effective</label>
+                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
                         @(EmployeeData?.SalaryDateEffective?.ToString("M / d / yyyy") ?? "N/A")
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Edit buttons at the bottom (shown when in edit mode) -->
+        @if (isEditMode)
+        {
+            <div class="mt-8 pt-6 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button @onclick="CancelEdit" class="flex items-center gap-2 rounded-lg bg-gray-500 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                </button>
+                <button @onclick="SaveChanges" disabled="@isSaving" class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isSaving)
+                    {
+                        <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Update</span>
+                    }
+                </button>
+            </div>
+        }
     </div>
 </div>
 
 @code {
     [Parameter]
     public EmployeeDataView? EmployeeData { get; set; }
-}
 
+    [Parameter]
+    public string? InactiveReason { get; set; }
+
+    [Parameter]
+    public EventCallback OnDataUpdated { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnEditModeChanged { get; set; }
+
+    public bool isEditMode { get; private set; } = false;
+    private bool isSaving = false;
+    private EmployeeUpdateData editData = new();
+    private string toastMessage = "";
+    private string toastType = "success";
+    private string? _displayInactiveReason;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EmployeeData != null && !isEditMode)
+        {
+            LoadDataToEditForm();
+        }
+        
+        // Always fetch inactive reason directly from database when employee is inactive
+        if (EmployeeData?.Status?.Equals("Inactive", StringComparison.OrdinalIgnoreCase) == true && EmployeeData != null)
+        {
+            // Fetch directly from tbl_user_status_logs table to ensure we have the latest data
+            _displayInactiveReason = await EmployeeService.GetInactiveReasonAsync(EmployeeData.UserId);
+        }
+        else
+        {
+            _displayInactiveReason = null;
+        }
+    }
+
+    private void LoadDataToEditForm()
+    {
+        if (EmployeeData == null) return;
+
+        editData = new EmployeeUpdateData
+        {
+            FirstName = EmployeeData.FirstName ?? "",
+            MiddleName = EmployeeData.MiddleName ?? "",
+            LastName = EmployeeData.LastName ?? "",
+            Suffix = EmployeeData.Suffix ?? "",
+            BirthDate = EmployeeData.BirthDate,
+            Age = EmployeeData.Age,
+            Sex = EmployeeData.Gender ?? "",
+            ContactNumber = EmployeeData.ContactNumber ?? "",
+            Email = EmployeeData.Email ?? "",
+            Role = EmployeeData.Role ?? "",
+            HouseNo = EmployeeData.HouseNo ?? "",
+            StreetName = EmployeeData.StreetName ?? "",
+            Barangay = EmployeeData.Barangay ?? "",
+            City = EmployeeData.City ?? "",
+            Province = EmployeeData.Province ?? "",
+            Country = EmployeeData.Country ?? "",
+            ZipCode = EmployeeData.ZipCode ?? "",
+            EmergencyContactFirstName = EmployeeData.EmergencyContactFirstName ?? "",
+            EmergencyContactMiddleName = EmployeeData.EmergencyContactMiddleName ?? "",
+            EmergencyContactLastName = EmployeeData.EmergencyContactLastName ?? "",
+            EmergencyContactSuffix = EmployeeData.EmergencyContactSuffix ?? "",
+            EmergencyContactRelationship = EmployeeData.EmergencyContactRelationship ?? "",
+            EmergencyContactNumber = EmployeeData.EmergencyContactNumber ?? "",
+            EmergencyContactAddress = EmployeeData.EmergencyContactAddress ?? ""
+        };
+    }
+
+    public void EnableEditMode()
+    {
+        isEditMode = true;
+        LoadDataToEditForm();
+        toastMessage = "";
+        OnEditModeChanged.InvokeAsync(true);
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        isEditMode = false;
+        LoadDataToEditForm();
+        toastMessage = "";
+        OnEditModeChanged.InvokeAsync(false);
+        StateHasChanged();
+    }
+
+    private async Task SaveChanges()
+    {
+        if (EmployeeData == null) return;
+
+        try
+        {
+            isSaving = true;
+            StateHasChanged();
+
+            var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, editData);
+
+            if (success)
+            {
+                toastMessage = "Employee information updated successfully!";
+                toastType = "success";
+                isEditMode = false;
+                
+                // Notify parent to refresh data
+                await OnDataUpdated.InvokeAsync();
+                await OnEditModeChanged.InvokeAsync(false);
+                StateHasChanged();
+            }
+            else
+            {
+                toastMessage = "Failed to update employee information. Please try again.";
+                toastType = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            toastMessage = $"Error updating employee information: {ex.Message}";
+            toastType = "error";
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+}
