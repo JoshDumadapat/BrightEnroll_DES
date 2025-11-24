@@ -1,4 +1,7 @@
-﻿@code {
+﻿@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+
+@code {
     [Parameter] public EventCallback OnNavigate { get; set; }
     [Parameter] public EventCallback OnLogout { get; set; }
 
@@ -11,6 +14,9 @@
     {
         await OnLogout.InvokeAsync();
     }
+
+    private bool IsTeacher => AuthService.CurrentUser?.user_role == "Teacher";
+    private bool IsAdmin => AuthService.CurrentUser?.user_role == "Admin" || AuthService.CurrentUser?.user_role == "System Admin";
 }
 
 <div class="flex h-full w-full min-w-[200px] flex-col bg-white">
@@ -20,95 +26,182 @@
     </div>
 
     <nav class="m-0 flex flex-1 flex-col gap-1 pl-2">
-        <NavLink href="/dashboard" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
-            </div>
+        @if (IsTeacher)
+        {
+            <!-- Teacher Menu -->
+            <NavLink href="/teacher/dashboard" Match="NavLinkMatch.All" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/teacher/my-classes" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">My Classes</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">My Classes</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/enrollment" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/enrollment.png" alt="Enrollment" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/enrollmentfocused.png" alt="Enrollment" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Enrollment</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Enrollment</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/teacher/my-students" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">My Students</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">My Students</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/student-record" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/studrec.png" alt="Student Record" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/studrecfocused.png" alt="Student Record" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Student Record</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Student Record</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/teacher/grade-entry" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Grade Entry</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Grade Entry</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/academics" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/acad.png" alt="Academics" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/acadfocused.png" alt="Academics" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Academics</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Academics</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/teacher/my-schedule" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">My Schedule</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">My Schedule</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/finance" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/finance.png" alt="Finance" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/financefocused.png" alt="Finance" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Finance</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Finance</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/teacher/reports" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Reports</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Reports</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+        else
+        {
+            <!-- Admin Menu -->
+            <NavLink href="/dashboard" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/human-resource" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/hr.png" alt="Human Resource" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/hrfocused.png" alt="Human Resource" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Human Resource</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Human Resource</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/enrollment" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/enrollment.png" alt="Enrollment" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/enrollmentfocused.png" alt="Enrollment" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Enrollment</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Enrollment</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/archive" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
-                </svg>
-                <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
-                </svg>
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Archive</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Archive</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/student-record" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/studrec.png" alt="Student Record" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/studrecfocused.png" alt="Student Record" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Student Record</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Student Record</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
-        <NavLink href="/audit-log" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Audit Log</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Audit Log</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+            <NavLink href="/academics" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/acad.png" alt="Academics" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/acadfocused.png" alt="Academics" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Academics</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Academics</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
+            <NavLink href="/finance" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/finance.png" alt="Finance" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/financefocused.png" alt="Finance" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Finance</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Finance</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/human-resource" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/hr.png" alt="Human Resource" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/hrfocused.png" alt="Human Resource" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Human Resource</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Human Resource</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/archive" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Archive</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Archive</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/audit-log" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Audit Log</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Audit Log</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        <!-- Settings (Available to all roles) -->
         <NavLink href="/settings" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
             <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                 <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
@@ -125,6 +218,7 @@
             <div class="nav-indicator"></div>
         </NavLink>
 
+        <!-- Logout (Available to all roles) -->
         <button type="button" @onclick="HandleLogout" @onclick:preventDefault="true" class="nav-link relative block w-full text-left">
             <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                 <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
@@ -138,7 +232,6 @@
             </div>
             <div class="nav-indicator"></div>
         </button>
-
     </nav>
 </div>
 

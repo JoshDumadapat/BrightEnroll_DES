@@ -22,10 +22,60 @@
 
     private void CheckAndRedirect()
     {
-        // If user is logged in and tries to navigate to login page, redirect to dashboard
-        if (AuthService.IsAuthenticated && Navigation.Uri.Contains("/login"))
+        var currentUri = Navigation.Uri;
+        var currentUser = AuthService.CurrentUser;
+
+        // If user is logged in and tries to navigate to login page, redirect to appropriate dashboard
+        if (AuthService.IsAuthenticated && currentUri.Contains("/login"))
         {
-            Navigation.NavigateTo("/admin/dashboard", forceLoad: true);
+            if (currentUser?.user_role == "Teacher")
+            {
+                Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
+            }
+            else
+            {
+                Navigation.NavigateTo("/dashboard", forceLoad: true);
+            }
+            return;
+        }
+
+        // Redirect teachers trying to access admin pages to teacher dashboard
+        if (AuthService.IsAuthenticated && currentUser?.user_role == "Teacher")
+        {
+            // List of admin-only routes
+            var adminRoutes = new[] 
+            { 
+                "/dashboard", 
+                "/enrollment", 
+                "/student-record", 
+                "/academics", 
+                "/finance", 
+                "/human-resource", 
+                "/archive", 
+                "/audit-log" 
+            };
+
+            // Check if current path starts with any admin route
+            var uri = new Uri(currentUri);
+            var path = uri.AbsolutePath;
+            
+            if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)))
+            {
+                Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
+            }
+        }
+
+        // Redirect admins trying to access teacher pages to admin dashboard
+        if (AuthService.IsAuthenticated && 
+            (currentUser?.user_role == "Admin" || currentUser?.user_role == "System Admin"))
+        {
+            var uri = new Uri(currentUri);
+            var path = uri.AbsolutePath;
+            
+            if (path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/dashboard", forceLoad: true);
+            }
         }
     }
 

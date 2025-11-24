@@ -1,0 +1,328 @@
+@page "/teacher/reports"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+
+<PageTitle>Reports</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Reports</h1>
+            <p class="mt-1 text-sm text-gray-600">Generate and view grade reports</p>
+        </div>
+        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+</div>
+
+<!-- Report Types -->
+<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <!-- Class Performance Report -->
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center gap-3">
+            <div class="rounded-lg bg-blue-100 p-3">
+                <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-800">Class Performance</h3>
+        </div>
+        <p class="mb-4 text-sm text-gray-600">View overall class performance and statistics</p>
+        <button @onclick="() => SelectReportType(ReportType.ClassPerformance)" class="w-full rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700">
+            Generate Report
+        </button>
+    </div>
+
+    <!-- Student Grade Report -->
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center gap-3">
+            <div class="rounded-lg bg-green-100 p-3">
+                <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-800">Student Grades</h3>
+        </div>
+        <p class="mb-4 text-sm text-gray-600">Generate individual student grade reports</p>
+        <button @onclick="() => SelectReportType(ReportType.StudentGrades)" class="w-full rounded-full bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-green-700">
+            Generate Report
+        </button>
+    </div>
+
+    <!-- Subject Summary Report -->
+    <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+        <div class="mb-4 flex items-center gap-3">
+            <div class="rounded-lg bg-purple-100 p-3">
+                <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            <h3 class="text-lg font-bold text-gray-800">Subject Summary</h3>
+        </div>
+        <p class="mb-4 text-sm text-gray-600">View summary of all subjects taught</p>
+        <button @onclick="() => SelectReportType(ReportType.SubjectSummary)" class="w-full rounded-full bg-purple-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-purple-700">
+            Generate Report
+        </button>
+    </div>
+</div>
+
+<!-- Report Generation Form -->
+@if (SelectedReportType != ReportType.None)
+{
+    <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <div class="mb-6 flex items-center justify-between">
+            <h2 class="text-xl font-bold text-gray-800">@GetReportTitle()</h2>
+            <button @onclick="ClearSelection" class="text-sm text-gray-600 hover:text-gray-800">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
+                <select @bind="ReportSchoolYear" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                    <option value="">Select School Year</option>
+                    <option value="2023-2024">2023-2024</option>
+                    <option value="2024-2025">2024-2025</option>
+                </select>
+            </div>
+
+            @if (SelectedReportType != ReportType.SubjectSummary)
+            {
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Class</label>
+                    <select @bind="ReportClass" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Class</option>
+                        <option value="Grade 7-A">Grade 7 - Section A</option>
+                        <option value="Grade 7-B">Grade 7 - Section B</option>
+                        <option value="Grade 8-A">Grade 8 - Section A</option>
+                    </select>
+                </div>
+            }
+
+            @if (SelectedReportType != ReportType.SubjectSummary)
+            {
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Subject</label>
+                    <select @bind="ReportSubject" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Subject</option>
+                        <option value="Mathematics">Mathematics</option>
+                        <option value="Science">Science</option>
+                        <option value="English">English</option>
+                    </select>
+                </div>
+            }
+
+            @if (SelectedReportType == ReportType.StudentGrades)
+            {
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Student (Optional)</label>
+                    <input type="text" @bind="ReportStudent" placeholder="Enter student name or ID" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                </div>
+            }
+
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Grading Period</label>
+                <select @bind="ReportPeriod" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                    <option value="All">All Quarters</option>
+                    <option value="1st">1st Quarter</option>
+                    <option value="2nd">2nd Quarter</option>
+                    <option value="3rd">3rd Quarter</option>
+                    <option value="4th">4th Quarter</option>
+                    <option value="Final">Final Grades</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+            <button @onclick="PreviewReport" class="flex items-center gap-2 rounded-full border border-blue-600 bg-transparent px-6 py-2.5 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Preview
+            </button>
+            <button @onclick="GenerateReport" class="flex items-center gap-2 rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Generate & Download
+            </button>
+        </div>
+    </div>
+}
+
+<!-- Recent Reports -->
+<div class="mt-6 rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-800">Recent Reports</h2>
+    </div>
+    <div class="divide-y divide-gray-200">
+        @foreach (var report in RecentReports)
+        {
+            <div class="flex items-center justify-between p-6 hover:bg-gray-50">
+                <div class="flex items-center gap-4">
+                    <div class="rounded-lg bg-gray-100 p-3">
+                        <svg class="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold text-gray-800">@report.Title</h3>
+                        <p class="text-sm text-gray-600">Generated on @report.GeneratedDate.ToString("MMM dd, yyyy")</p>
+                    </div>
+                </div>
+                <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+                    Download
+                </button>
+            </div>
+        }
+    </div>
+    
+    @if (!RecentReports.Any())
+    {
+        <div class="py-12 text-center text-gray-500">
+            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p>No recent reports</p>
+        </div>
+    }
+</div>
+
+@code {
+    private ReportType SelectedReportType { get; set; } = ReportType.None;
+    private string ReportSchoolYear { get; set; } = string.Empty;
+    private string ReportClass { get; set; } = string.Empty;
+    private string ReportSubject { get; set; } = string.Empty;
+    private string ReportStudent { get; set; } = string.Empty;
+    private string ReportPeriod { get; set; } = "All";
+
+    private List<ReportInfo> RecentReports { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is a teacher
+        if (AuthService.CurrentUser?.user_role != "Teacher")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading reports...");
+        
+        try
+        {
+            await LoadRecentReports();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadRecentReports()
+    {
+        // TODO: Load from database
+        await Task.Delay(500);
+
+        RecentReports = new List<ReportInfo>
+        {
+            new ReportInfo { Title = "Grade 7-A Mathematics - 1st Quarter", GeneratedDate = DateTime.Now.AddDays(-2) },
+            new ReportInfo { Title = "Grade 8-A Science - Final Grades", GeneratedDate = DateTime.Now.AddDays(-5) },
+            new ReportInfo { Title = "Class Performance Summary - Grade 7-B", GeneratedDate = DateTime.Now.AddDays(-7) }
+        };
+    }
+
+    private void SelectReportType(ReportType type)
+    {
+        SelectedReportType = type;
+        ReportSchoolYear = string.Empty;
+        ReportClass = string.Empty;
+        ReportSubject = string.Empty;
+        ReportStudent = string.Empty;
+        ReportPeriod = "All";
+    }
+
+    private void ClearSelection()
+    {
+        SelectedReportType = ReportType.None;
+    }
+
+    private string GetReportTitle()
+    {
+        return SelectedReportType switch
+        {
+            ReportType.ClassPerformance => "Class Performance Report",
+            ReportType.StudentGrades => "Student Grade Report",
+            ReportType.SubjectSummary => "Subject Summary Report",
+            _ => "Report"
+        };
+    }
+
+    private async Task PreviewReport()
+    {
+        LoadingService.ShowLoading("Generating preview...");
+        
+        try
+        {
+            // TODO: Generate preview
+            await Task.Delay(1000);
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task GenerateReport()
+    {
+        LoadingService.ShowLoading("Generating report...");
+        
+        try
+        {
+            // TODO: Generate and download report
+            await Task.Delay(1500);
+            
+            // Add to recent reports
+            RecentReports.Insert(0, new ReportInfo 
+            { 
+                Title = GetReportTitle(), 
+                GeneratedDate = DateTime.Now 
+            });
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/teacher/dashboard");
+    }
+
+    public enum ReportType
+    {
+        None,
+        ClassPerformance,
+        StudentGrades,
+        SubjectSummary
+    }
+
+    public class ReportInfo
+    {
+        public string Title { get; set; } = string.Empty;
+        public DateTime GeneratedDate { get; set; }
+    }
+}

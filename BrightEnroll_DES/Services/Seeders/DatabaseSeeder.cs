@@ -24,6 +24,8 @@ namespace BrightEnroll_DES.Services.Seeders
                 var exists = await _userRepository.ExistsBySystemIdAsync("BDES-0001");
                 if (exists)
                 {
+                    // Admin exists, check for teacher account
+                    await SeedTestTeacherAsync();
                     return;
                 }
 
@@ -111,10 +113,115 @@ namespace BrightEnroll_DES.Services.Seeders
                     await transaction.RollbackAsync();
                     throw new Exception($"Failed to create admin employee records: {ex.Message}", ex);
                 }
+
+                // Seed test teacher account
+                await SeedTestTeacherAsync();
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error seeding initial admin: {ex.Message}", ex);
+            }
+        }
+
+        private async Task SeedTestTeacherAsync()
+        {
+            try
+            {
+                // Check if teacher account already exists
+                var exists = await _userRepository.ExistsBySystemIdAsync("BDES-1001");
+                if (exists)
+                {
+                    return;
+                }
+
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword("Teacher123456");
+
+                DateTime birthdate = new DateTime(1995, 5, 15);
+                DateTime today = DateTime.Today;
+                byte age = (byte)(today.Year - birthdate.Year);
+                if (birthdate.Date > today.AddYears(-age)) age--;
+
+                var teacherUser = new User
+                {
+                    system_ID = "BDES-1001",
+                    first_name = "Maria",
+                    mid_name = "Santos",
+                    last_name = "Garcia",
+                    suffix = null,
+                    birthdate = birthdate,
+                    age = age,
+                    gender = "female",
+                    contact_num = "09171234567",
+                    user_role = "Teacher",
+                    email = "maria.garcia@brightenroll.com",
+                    password = hashedPassword,
+                    date_hired = DateTime.Now.AddMonths(-6),
+                    status = "active"
+                };
+
+                // InsertAsync now returns the generated UserId directly (EF Core)
+                int userId = await _userRepository.InsertAsync(teacherUser);
+
+                // Create teacher-related records in a transaction
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Add employee address
+                    var address = new EmployeeAddress
+                    {
+                        UserId = userId,
+                        HouseNo = "456",
+                        StreetName = "School Avenue",
+                        Province = "Davao del Sur",
+                        City = "Davao City",
+                        Barangay = "Ma-a",
+                        Country = "Philippines",
+                        ZipCode = "8000"
+                    };
+
+                    _context.EmployeeAddresses.Add(address);
+                    await _context.SaveChangesAsync();
+
+                    // Add emergency contact info
+                    var emergencyContact = new EmployeeEmergencyContact
+                    {
+                        UserId = userId,
+                        FirstName = "Juan",
+                        MiddleName = null,
+                        LastName = "Garcia",
+                        Suffix = null,
+                        Relationship = "Spouse",
+                        ContactNumber = "09189876543",
+                        Address = "456 School Avenue, Ma-a, Davao City, Davao del Sur"
+                    };
+
+                    _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                    await _context.SaveChangesAsync();
+
+                    // Add salary information
+                    var salaryInfo = new SalaryInfo
+                    {
+                        UserId = userId,
+                        BaseSalary = 35000.00m,
+                        Allowance = 3000.00m,
+                        DateEffective = DateTime.Today.AddMonths(-6),
+                        IsActive = true
+                    };
+
+                    _context.SalaryInfos.Add(salaryInfo);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    throw new Exception($"Failed to create teacher employee records: {ex.Message}", ex);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding test teacher: {ex.Message}", ex);
             }
         }
     }
