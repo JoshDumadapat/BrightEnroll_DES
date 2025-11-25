@@ -1,5 +1,4 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.EnrollmentComponents
-@using BrightEnroll_DES.Components.Pages.Admin
 @* Enrolled Student Component with Filters *@
 
 <!-- Filters -->
@@ -80,7 +79,7 @@
     <tbody class="divide-y">
         @if (Students != null && Students.Any())
         {
-            @foreach (var student in PaginatedStudents)
+            @foreach (var student in Students)
             {
                 <tr class="transition hover:bg-gray-50">
                     <td class="px-4 py-3">@student.Id</td>
@@ -125,13 +124,23 @@
     </tbody>
 </table>
 
-<!-- Footer with Pagination -->
-<Pagination TotalItems="@FilteredStudents.Count" 
-            CurrentPage="@CurrentPage" 
-            RowsPerPage="@RowsPerPage"
-            ItemName="enrolled students"
-            OnPageChanged="HandlePageChanged"
-            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+<!-- Footer -->
+<div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+    <span>@($"{Students?.Count ?? 0} of {(Students?.Count ?? 0)} enrolled students")</span>
+    <div class="flex items-center gap-2">
+        <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+        <span>...</span>
+        <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+        <span class="ml-4">Show</span>
+        <select @bind="RowsPerPage" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+            <option value="5">5 rows</option>
+            <option value="10">10 rows</option>
+            <option value="20">20 rows</option>
+        </select>
+    </div>
+</div>
 
 @code {
     [Parameter]
@@ -147,69 +156,6 @@
     private string StatusFilter { get; set; } = "";
     private string DocumentStatusFilter { get; set; } = "";
 
-    // Pagination state
-    private int CurrentPage { get; set; } = 1;
-
-    // Computed property for filtered students
-    private List<EnrolledStudent> FilteredStudents
-    {
-        get
-        {
-            if (Students == null || !Students.Any())
-                return new List<EnrolledStudent>();
-
-            var filtered = Students.AsEnumerable();
-
-            // Search filter
-            if (!string.IsNullOrWhiteSpace(SearchText))
-            {
-                filtered = filtered.Where(s => 
-                    s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
-            }
-
-            // LRN status filter
-            if (!string.IsNullOrWhiteSpace(LRNStatusFilter))
-            {
-                filtered = filtered.Where(s => s.LRN == LRNStatusFilter);
-            }
-
-            // Grade filter
-            if (!string.IsNullOrWhiteSpace(GradeFilter))
-            {
-                filtered = filtered.Where(s => s.GradeLevel == GradeFilter);
-            }
-
-            // Status filter
-            if (!string.IsNullOrWhiteSpace(StatusFilter))
-            {
-                filtered = filtered.Where(s => s.Status == StatusFilter);
-            }
-
-            // Document status filter
-            if (!string.IsNullOrWhiteSpace(DocumentStatusFilter))
-            {
-                filtered = filtered.Where(s => s.Documents == DocumentStatusFilter);
-            }
-
-            return filtered.ToList();
-        }
-    }
-
-    // Computed property for paginated students
-    private List<EnrolledStudent> PaginatedStudents
-    {
-        get
-        {
-            var filtered = FilteredStudents;
-            return filtered
-                .Skip((CurrentPage - 1) * RowsPerPage)
-                .Take(RowsPerPage)
-                .ToList();
-        }
-    }
-
     private void ClearFilters()
     {
         SearchText = "";
@@ -217,21 +163,6 @@
         GradeFilter = "";
         StatusFilter = "";
         DocumentStatusFilter = "";
-        CurrentPage = 1;
-        StateHasChanged();
-    }
-
-    private void HandlePageChanged(int page)
-    {
-        CurrentPage = page;
-        StateHasChanged();
-    }
-
-    private void HandleRowsPerPageChanged(int rowsPerPage)
-    {
-        RowsPerPage = rowsPerPage;
-        CurrentPage = 1;
-        StateHasChanged();
     }
 
     private void ExportPDF()

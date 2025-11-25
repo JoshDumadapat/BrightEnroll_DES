@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using BrightEnroll_DES.Models.ValidationAttributes;
 
 namespace BrightEnroll_DES.Models;
 
@@ -48,15 +47,10 @@ public class StudentRegistrationModel
     public bool SameAsCurrentAddress { get; set; } = false;
     public string PermanentHouseNo { get; set; } = "";
     public string PermanentStreetName { get; set; } = "";
-    [RequiredIfNotSameAddress(ErrorMessage = "Permanent Address - Barangay is required")]
     public string PermanentBarangay { get; set; } = "";
-    [RequiredIfNotSameAddress(ErrorMessage = "Permanent Address - City is required")]
     public string PermanentCity { get; set; } = "";
-    [RequiredIfNotSameAddress(ErrorMessage = "Permanent Address - Province is required")]
     public string PermanentProvince { get; set; } = "";
-    [RequiredIfNotSameAddress(ErrorMessage = "Permanent Address - Country is required")]
     public string PermanentCountry { get; set; } = "";
-    [RequiredIfNotSameAddress(ErrorMessage = "Permanent Address - ZIP code is required")]
     public string PermanentZipCode { get; set; } = "";
     
     // Guardian Information

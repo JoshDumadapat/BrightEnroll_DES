@@ -2,11 +2,8 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
-using BrightEnroll_DES.Components;
 using BrightEnroll_DES.Services;
-using BrightEnroll_DES.Services.Finance;
 using BrightEnroll_DES.Models;
-using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Components.Pages.Auth.Handlers;
 using System;
 using System.Linq;
@@ -18,8 +15,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private AddressService AddressService { get; set; } = null!;
     [Inject] private SchoolYearService SchoolYearService { get; set; } = null!;
-    [Inject] private StudentService StudentService { get; set; } = null!;
-    [Inject] private FeeService FeeService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
@@ -34,11 +29,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private string confirmModalTitle = "";
     private string confirmModalMessage = "";
     private string confirmModalType = ""; // "submit" or "cancel"
-    private bool showValidationModal = false;
-    private List<string> missingFields = new();
     private bool showToast = false;
     private string toastMessage = "";
-    private ToastType toastType = ToastType.Success;
     private string newSchoolYear = "";
     private string startYear = "";
     private string endYear = "";
@@ -46,7 +38,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private string schoolYearValidationError = "";
     private List<string> availableSchoolYears = new();
     private List<int> availableStartYears = new();
-    private List<GradeLevel> availableGradeLevels = new();
     
     // Address handlers
     private CurrentAddressHandler? currentAddressHandler;
@@ -57,11 +48,10 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private List<string> filteredPlaceOfBirthCities = new();
     private string placeOfBirthSearchText = "";
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         editContext = new EditContext(registrationModel);
         LoadSchoolYears(); // This will also call LoadAvailableStartYears()
-        await LoadGradeLevelsAsync(); // Load grade levels from database
         registrationModel.StudentType = ""; // Initialize to trigger requirements update
         dotNetRef = DotNetObjectReference.Create(this);
         
@@ -107,29 +97,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             // Validate the form - this will show validation errors
             var isValid = editContext.Validate();
             
-            // Notify all required fields to ensure validation state is updated
-            if (!isValid)
-            {
-                // Explicitly notify dropdown fields to trigger validation display
-                // This ensures validation messages are properly associated with the fields
-                var placeOfBirthField = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PlaceOfBirth));
-                editContext.NotifyFieldChanged(placeOfBirthField);
-                
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentBarangay)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentProvince)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCity)));
-                
-                // Notify permanent address fields if SameAsCurrentAddress is false
-                if (!registrationModel.SameAsCurrentAddress)
-                {
-                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-                }
-            }
-            
             if (isValid)
             {
                 // Show confirmation modal
@@ -141,102 +108,12 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             }
             else
             {
-                // Collect all validation errors
-                CollectMissingFields();
-                // Show validation error modal
-                showValidationModal = true;
-                // Force UI update to show validation errors
+                // If invalid, update UI to show validation errors
                 StateHasChanged();
             }
         }
         
         return Task.CompletedTask;
-    }
-
-    private void CollectMissingFields()
-    {
-        missingFields.Clear();
-        
-        if (editContext == null) return;
-        
-        // Get all fields with validation errors
-        var modelType = editContext.Model.GetType();
-        var properties = modelType.GetProperties();
-        
-        foreach (var property in properties)
-        {
-            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, property.Name);
-            var validationMessages = editContext.GetValidationMessages(fieldIdentifier);
-            
-            if (validationMessages.Any())
-            {
-                // Get user-friendly field name
-                var fieldName = GetFieldDisplayName(property.Name);
-                if (!string.IsNullOrWhiteSpace(fieldName) && !missingFields.Contains(fieldName))
-                {
-                    missingFields.Add(fieldName);
-                }
-            }
-        }
-    }
-
-    private string ExtractFieldName(string validationMessage)
-    {
-        // Try to extract field name from common validation message patterns
-        if (validationMessage.Contains("required"))
-        {
-            // Look for field name before "is required"
-            var parts = validationMessage.Split(new[] { " is required", " is required.", " field is required" }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length > 0)
-            {
-                return parts[0].Trim();
-            }
-        }
-        return validationMessage;
-    }
-
-    private string GetFieldDisplayName(string fieldName)
-    {
-        // Map field names to user-friendly display names
-        var fieldNameMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "FirstName", "First Name" },
-            { "LastName", "Last Name" },
-            { "MiddleName", "Middle Name" },
-            { "BirthDate", "Birth Date" },
-            { "Age", "Age" },
-            { "PlaceOfBirth", "Place of Birth" },
-            { "Sex", "Sex" },
-            { "MotherTongue", "Mother Tongue" },
-            { "CurrentBarangay", "Current Address - Barangay" },
-            { "CurrentProvince", "Current Address - Province" },
-            { "CurrentCity", "Current Address - City" },
-            { "CurrentCountry", "Current Address - Country" },
-            { "CurrentZipCode", "Current Address - ZIP Code" },
-            { "PermanentBarangay", "Permanent Address - Barangay" },
-            { "PermanentProvince", "Permanent Address - Province" },
-            { "PermanentCity", "Permanent Address - City" },
-            { "PermanentCountry", "Permanent Address - Country" },
-            { "PermanentZipCode", "Permanent Address - ZIP Code" },
-            { "GuardianFirstName", "Guardian - First Name" },
-            { "GuardianLastName", "Guardian - Last Name" },
-            { "GuardianContactNumber", "Guardian - Contact Number" },
-            { "GuardianRelationship", "Guardian - Relationship" },
-            { "StudentType", "Student Type" },
-            { "LearnerReferenceNo", "Learner Reference Number" },
-            { "SchoolYear", "School Year" },
-            { "GradeToEnroll", "Grade to Enroll" },
-            { "AgreeToTerms", "Terms and Conditions Agreement" }
-        };
-        
-        return fieldNameMap.TryGetValue(fieldName, out var displayName) ? displayName : fieldName;
-    }
-
-    private void CloseValidationModal()
-    {
-        showValidationModal = false;
-        missingFields.Clear();
-        StateHasChanged();
     }
 
     private async Task SubmitRegistration()
@@ -246,77 +123,19 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         
         try
         {
-            // Map StudentRegistrationModel to StudentRegistrationData
-            var studentData = new StudentRegistrationData
-            {
-                // Student Information
-                FirstName = registrationModel.FirstName,
-                MiddleName = registrationModel.MiddleName,
-                LastName = registrationModel.LastName,
-                Suffix = registrationModel.Suffix,
-                BirthDate = registrationModel.BirthDate ?? DateTime.Now,
-                Age = registrationModel.Age,
-                PlaceOfBirth = registrationModel.PlaceOfBirth,
-                Sex = registrationModel.Sex,
-                MotherTongue = registrationModel.MotherTongue,
-                IsIPCommunity = registrationModel.IsIPCommunity,
-                IPCommunitySpecify = registrationModel.IPCommunitySpecify,
-                Is4PsBeneficiary = registrationModel.Is4PsBeneficiary,
-                FourPsHouseholdId = registrationModel.FourPsHouseholdId,
-
-                // Current Address
-                CurrentHouseNo = registrationModel.CurrentHouseNo,
-                CurrentStreetName = registrationModel.CurrentStreetName,
-                CurrentBarangay = registrationModel.CurrentBarangay,
-                CurrentCity = registrationModel.CurrentCity,
-                CurrentProvince = registrationModel.CurrentProvince,
-                CurrentCountry = registrationModel.CurrentCountry,
-                CurrentZipCode = registrationModel.CurrentZipCode,
-
-                // Permanent Address
-                PermanentHouseNo = registrationModel.PermanentHouseNo,
-                PermanentStreetName = registrationModel.PermanentStreetName,
-                PermanentBarangay = registrationModel.PermanentBarangay,
-                PermanentCity = registrationModel.PermanentCity,
-                PermanentProvince = registrationModel.PermanentProvince,
-                PermanentCountry = registrationModel.PermanentCountry,
-                PermanentZipCode = registrationModel.PermanentZipCode,
-
-                // Guardian Information
-                GuardianFirstName = registrationModel.GuardianFirstName,
-                GuardianMiddleName = registrationModel.GuardianMiddleName,
-                GuardianLastName = registrationModel.GuardianLastName,
-                GuardianSuffix = registrationModel.GuardianSuffix,
-                GuardianContactNumber = registrationModel.GuardianContactNumber,
-                GuardianRelationship = registrationModel.GuardianRelationship,
-
-                // Enrollment Details
-                StudentType = registrationModel.StudentType,
-                LearnerReferenceNo = registrationModel.LearnerReferenceNo,
-                SchoolYear = registrationModel.SchoolYear,
-                GradeToEnroll = registrationModel.GradeToEnroll
-            };
-
-            // Register student using StudentService
-            var registeredStudent = await StudentService.RegisterStudentAsync(studentData);
+            // Show loading for 1 second before submitting
+            await Task.Delay(1000);
+            
+            // TODO: Backend team will implement API call
+            // await Task.Delay(2000); // Simulate API call
             
             // Success - navigate to login page, toast will show on destination page
             Navigation.NavigateTo("/login?toast=registration_submitted");
         }
         catch (Exception ex)
         {
-            // Handle error - show error message to user
-            // Log full exception details for debugging
+            // Handle error
             Console.WriteLine($"Error submitting registration: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-            if (ex.InnerException != null)
-            {
-                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-            }
-            
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Registration failed: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
             isSubmitting = false;
             StateHasChanged();
         }
@@ -383,11 +202,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     {
         // Auto-check the terms checkbox when "I Understand" is clicked
         registrationModel.AgreeToTerms = true;
-        // Notify EditContext that AgreeToTerms field has changed to clear validation errors
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.AgreeToTerms)));
-        }
         StateHasChanged();
     }
 
@@ -400,21 +214,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         LoadAvailableStartYears();
     }
 
-    private async Task LoadGradeLevelsAsync()
-    {
-        try
-        {
-            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
-            availableGradeLevels = gradeLevels.OrderBy(g => g.GradeLevelId).ToList();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading grade levels: {ex.Message}");
-            // Fallback to empty list if database fetch fails
-            availableGradeLevels = new List<GradeLevel>();
-        }
-    }
-
     private void CalculateAge()
     {
         if (registrationModel.BirthDate.HasValue)
@@ -423,30 +222,14 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             var age = today.Year - registrationModel.BirthDate.Value.Year;
             if (registrationModel.BirthDate.Value.Date > today.AddYears(-age)) age--;
             registrationModel.Age = age;
-            
-            // Notify EditContext that Age field has changed so validation errors are cleared
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age)));
-            }
         }
-        else
-        {
-            // Clear age if birth date is cleared
-            registrationModel.Age = null;
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age)));
-            }
-        }
-        StateHasChanged();
     }
 
     private void HandleLRNChange()
     {
         if (registrationModel.HasLRN == "No")
         {
-            registrationModel.LearnerReferenceNo = "N/A";
+            registrationModel.LearnerReferenceNo = "Pending";
         }
     }
 
@@ -454,24 +237,14 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     {
         if (registrationModel.HasLRN == "No")
         {
-            registrationModel.LearnerReferenceNo = "N/A";
-            // Notify EditContext that LRN field has changed to clear validation errors
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.LearnerReferenceNo)));
-            }
+            registrationModel.LearnerReferenceNo = "Pending";
         }
         else if (registrationModel.HasLRN == "Yes")
         {
-            // Clear the field if it was "N/A" so user can enter their LRN
-            if (registrationModel.LearnerReferenceNo == "N/A")
+            // Clear the field if it was "Pending" so user can enter their LRN
+            if (registrationModel.LearnerReferenceNo == "Pending")
             {
                 registrationModel.LearnerReferenceNo = "";
-            }
-            // Notify EditContext that LRN field has changed
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.LearnerReferenceNo)));
             }
         }
         StateHasChanged();
@@ -699,54 +472,10 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private void FilterCities() => currentAddressHandler?.FilterCities();
     private void FilterProvinces() => currentAddressHandler?.FilterProvinces();
     private void FilterCountries() => currentAddressHandler?.FilterCountries();
-    private void SelectBarangay(string barangay)
-    {
-        currentAddressHandler?.SelectBarangay(barangay);
-        if (editContext != null)
-        {
-            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentBarangay));
-            editContext.NotifyFieldChanged(fieldIdentifier);
-            // Notify EditContext about auto-set Country and ZipCode
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentZipCode)));
-        }
-        StateHasChanged();
-    }
-    private void SelectCity(string city)
-    {
-        currentAddressHandler?.SelectCity(city);
-        if (editContext != null)
-        {
-            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCity));
-            editContext.NotifyFieldChanged(fieldIdentifier);
-            // Notify EditContext about auto-set Country and ZipCode
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentZipCode)));
-        }
-        StateHasChanged();
-    }
-    private void SelectProvince(string province)
-    {
-        currentAddressHandler?.SelectProvince(province);
-        if (editContext != null)
-        {
-            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentProvince));
-            editContext.NotifyFieldChanged(fieldIdentifier);
-            // Notify EditContext about auto-set Country (ZipCode is cleared when province changes)
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentZipCode)));
-        }
-        StateHasChanged();
-    }
-    private void SelectCountry(string country)
-    {
-        currentAddressHandler?.SelectCountry(country);
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCountry)));
-        }
-        StateHasChanged();
-    }
+    private void SelectBarangay(string barangay) => currentAddressHandler?.SelectBarangay(barangay);
+    private void SelectCity(string city) => currentAddressHandler?.SelectCity(city);
+    private void SelectProvince(string province) => currentAddressHandler?.SelectProvince(province);
+    private void SelectCountry(string country) => currentAddressHandler?.SelectCountry(country);
     
     private void HandleCurrentCountryChange()
     {
@@ -757,15 +486,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             registrationModel.CurrentCity = "";
             registrationModel.CurrentBarangay = "";
             registrationModel.CurrentZipCode = "";
-            
-            // Notify EditContext about cleared fields
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentProvince)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCity)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentBarangay)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentZipCode)));
-            }
         }
     }
     
@@ -840,64 +560,10 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private void FilterPermanentCities() => permanentAddressHandler?.FilterCities();
     private void FilterPermanentProvinces() => permanentAddressHandler?.FilterProvinces();
     private void FilterPermanentCountries() => permanentAddressHandler?.FilterCountries();
-    private void SelectPermanentBarangay(string barangay)
-    {
-        permanentAddressHandler?.SelectBarangay(barangay);
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-            // Notify about auto-set fields
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-        }
-        StateHasChanged();
-    }
-    
-    private void SelectPermanentCity(string city)
-    {
-        permanentAddressHandler?.SelectCity(city);
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-            // Notify about auto-set fields
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-        }
-        StateHasChanged();
-    }
-    
-    private void SelectPermanentProvince(string province)
-    {
-        permanentAddressHandler?.SelectProvince(province);
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-            // Notify about auto-set fields
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-        }
-        StateHasChanged();
-    }
-    
-    private void SelectPermanentCountry(string country)
-    {
-        permanentAddressHandler?.SelectCountry(country);
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            // If country changed, notify about cleared fields
-            if (country != "Philippines")
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-            }
-        }
-        StateHasChanged();
-    }
+    private void SelectPermanentBarangay(string barangay) => permanentAddressHandler?.SelectBarangay(barangay);
+    private void SelectPermanentCity(string city) => permanentAddressHandler?.SelectCity(city);
+    private void SelectPermanentProvince(string province) => permanentAddressHandler?.SelectProvince(province);
+    private void SelectPermanentCountry(string country) => permanentAddressHandler?.SelectCountry(country);
     
     private void HandlePermanentCountryChange()
     {
@@ -908,125 +574,17 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             registrationModel.PermanentCity = "";
             registrationModel.PermanentBarangay = "";
             registrationModel.PermanentZipCode = "";
-            
-            // Notify EditContext of field changes
-            if (editContext != null)
-            {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-            }
         }
-        
-        // Notify EditContext about all permanent address fields to trigger validation
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-        }
-        StateHasChanged();
     }
     
-    // Returns CSS class for permanent address dropdown based on validation
-    private string GetPermanentDropdownClass(string fieldName)
-    {
-        if (editContext == null) 
-        {
-            var baseClass = "flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
-            if (registrationModel.SameAsCurrentAddress)
-            {
-                return $"{baseClass} bg-gray-100 cursor-not-allowed";
-            }
-            return baseClass;
-        }
-
-        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, fieldName);
-        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
-        var isModified = editContext.IsModified(fieldIdentifier);
-        
-        var baseClassWithState = "flex w-full cursor-pointer items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
-        
-        if (registrationModel.SameAsCurrentAddress)
-        {
-            baseClassWithState = $"{baseClassWithState} bg-gray-100 cursor-not-allowed";
-        }
-        
-        if (hasError)
-        {
-            return $"{baseClassWithState} border-red-500 focus-within:border-red-500";
-        }
-        
-        // Show green border for valid fields that have been modified
-        if (isModified && !hasError && !registrationModel.SameAsCurrentAddress)
-        {
-            return $"{baseClassWithState} border-green-500 focus-within:border-green-500";
-        }
-        
-        return $"{baseClassWithState} border-gray-300 focus-within:border-blue-500";
-    }
-
     private string GetPermanentCountryClass()
     {
-        if (editContext == null)
-        {
-            var defaultBaseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base";
-            if (registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)
-            {
-                return $"{defaultBaseClass} bg-gray-100 cursor-not-allowed";
-            }
-            return defaultBaseClass;
-        }
-
-        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry));
-        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
-        
-        var baseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border rounded-lg focus:outline-none focus:ring-0 text-sm sm:text-base";
-        
+        var baseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base";
         if (registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)
         {
-            baseClass = $"{baseClass} bg-gray-100 cursor-not-allowed";
+            return $"{baseClass} bg-gray-100 cursor-not-allowed";
         }
-        
-        if (hasError)
-        {
-            return $"{baseClass} border-red-500 focus:border-red-500";
-        }
-        
-        return $"{baseClass} border-gray-300 focus:border-blue-500";
-    }
-
-    private string GetPermanentZipCodeClass()
-    {
-        if (editContext == null)
-        {
-            var defaultBaseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none focus:ring-0 text-sm sm:text-base";
-            if (registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)
-            {
-                return $"{defaultBaseClass} bg-gray-100 cursor-not-allowed";
-            }
-            return defaultBaseClass;
-        }
-
-        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode));
-        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
-        
-        var baseClass = "w-full px-3 py-2 sm:px-4 sm:py-2.5 border rounded-lg focus:outline-none focus:ring-0 text-sm sm:text-base";
-        
-        if (registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)
-        {
-            baseClass = $"{baseClass} bg-gray-100 cursor-not-allowed";
-        }
-        
-        if (hasError)
-        {
-            return $"{baseClass} border-red-500 focus:border-red-500";
-        }
-        
-        return $"{baseClass} border-gray-300 focus:border-blue-500";
+        return baseClass;
     }
 
     // Format name to capitalize first letter of each word, rest lowercase
@@ -1130,11 +688,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         registrationModel.PlaceOfBirth = city;
         placeOfBirthSearchText = "";
         showPlaceOfBirthDropdown = false;
-        if (editContext != null)
-        {
-            var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PlaceOfBirth));
-            editContext.NotifyFieldChanged(fieldIdentifier);
-        }
         StateHasChanged();
     }
 
@@ -1162,18 +715,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             registrationModel.PermanentCountry = "";
             registrationModel.PermanentZipCode = "";
         }
-        
-        // Notify EditContext about all permanent address fields to trigger validation
-        // This ensures validation re-runs when checkbox state changes
-        if (editContext != null)
-        {
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.SameAsCurrentAddress)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentBarangay)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCity)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentProvince)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
-            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
-        }
         StateHasChanged();
     }
 
@@ -1189,82 +730,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     {
         // Called from JavaScript when clicking outside dropdowns
         CloseAllDropdowns();
-    }
-
-    // Returns CSS class for input fields based on validation
-    private string GetInputClass(string fieldName)
-    {
-        if (editContext == null) 
-            return "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
-
-        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, fieldName);
-        var hasError = editContext.GetValidationMessages(fieldIdentifier).Any();
-        var isModified = editContext.IsModified(fieldIdentifier);
-        
-        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
-        
-        if (hasError)
-        {
-            return $"{baseClass} border-red-500 focus:border-red-500";
-        }
-        
-        // Show green border for valid fields that have been modified
-        if (isModified && !hasError)
-        {
-            return $"{baseClass} border-green-500 focus:border-green-500";
-        }
-        
-        return $"{baseClass} border-gray-300 focus:border-blue-500";
-    }
-
-    // Returns CSS class for dropdown fields based on validation
-    private string GetDropdownClass(string fieldName)
-    {
-        var baseClass = "flex w-full cursor-pointer items-center justify-between rounded-lg border bg-white px-3 py-2 text-sm focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
-        
-        if (editContext == null) 
-            return $"{baseClass} border-gray-300 focus-within:border-blue-500";
-
-        var fieldIdentifier = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, fieldName);
-        var validationMessages = editContext.GetValidationMessages(fieldIdentifier);
-        var hasError = validationMessages.Any();
-        var isModified = editContext.IsModified(fieldIdentifier);
-        
-        // Explicitly check for validation errors
-        if (hasError)
-        {
-            return $"{baseClass} border-red-500 focus-within:border-red-500";
-        }
-        
-        // Show green border for valid fields that have been modified
-        if (isModified && !hasError)
-        {
-            return $"{baseClass} border-green-500 focus-within:border-green-500";
-        }
-        
-        return $"{baseClass} border-gray-300 focus-within:border-blue-500";
-    }
-
-    // Returns CSS class for input fields with extra classes
-    private string GetInputClassWithExtra(string fieldName, string extraClasses = "")
-    {
-        var baseClass = GetInputClass(fieldName);
-        if (!string.IsNullOrWhiteSpace(extraClasses))
-        {
-            return $"{baseClass} {extraClasses}";
-        }
-        return baseClass;
-    }
-
-    // Returns CSS class for input fields that can be disabled
-    private string GetInputClassWithDisabled(string fieldName, bool isDisabled)
-    {
-        var baseClass = GetInputClass(fieldName);
-        if (isDisabled)
-        {
-            return $"{baseClass} bg-gray-100 cursor-not-allowed";
-        }
-        return baseClass;
     }
 }
 

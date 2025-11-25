@@ -19,15 +19,22 @@ namespace BrightEnroll_DES.Services.DBConnections
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
 
-        // Gets connection string from: 1) environment variable, 2) appsettings.json, 3) default LocalDB
+        /// <summary>
+        /// Gets the connection string from various sources in order of priority:
+        /// 1. Environment variable "ConnectionStrings__DefaultConnection"
+        /// 2. appsettings.json file (if available)
+        /// 3. Default LocalDB connection string
+        /// </summary>
         private string GetConnectionString()
         {
+            // Priority 1: Check environment variable
             var envConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
             if (!string.IsNullOrWhiteSpace(envConnectionString))
             {
                 return envConnectionString;
             }
 
+            // Priority 2: Try to read from appsettings.json
             try
             {
                 var builder = new ConfigurationBuilder()
@@ -44,12 +51,15 @@ namespace BrightEnroll_DES.Services.DBConnections
             }
             catch
             {
-                // appsettings.json not found, use default
+                // If appsettings.json doesn't exist or can't be read, continue to default
             }
+
+            // Priority 3: Build connection string from environment variables or use default
             var server = Environment.GetEnvironmentVariable("DB_SERVER") ?? "(localdb)\\MSSQLLocalDB";
             var database = Environment.GetEnvironmentVariable("DB_DATABASE") ?? "DB_BrightEnroll_DES";
             var integratedSecurity = Environment.GetEnvironmentVariable("DB_INTEGRATED_SECURITY") ?? "True";
 
+            // Build connection string dynamically
             var connectionStringBuilder = new SqlConnectionStringBuilder
             {
                 DataSource = server,

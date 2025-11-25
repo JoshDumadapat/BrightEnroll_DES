@@ -1,13 +1,14 @@
-using BrightEnroll_DES.Data;
-using BrightEnroll_DES.Data.Models;
+using System.Data;
 using BrightEnroll_DES.Models;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using System.Text.RegularExpressions;
+using BrightEnroll_DES.Services.DBConnections;
+using Microsoft.Data.SqlClient;
 
 namespace BrightEnroll_DES.Services.Repositories
 {
-    // Repository interface for user operations - uses EF Core ORM for security
+    /// <summary>
+    /// Repository for User entity operations
+    /// Implements ORM-like patterns with SQL injection protection
+    /// </summary>
     public interface IUserRepository
     {
         Task<User?> GetByIdAsync(int userId);
@@ -21,38 +22,45 @@ namespace BrightEnroll_DES.Services.Repositories
         Task<bool> ExistsByEmailAsync(string email);
         Task<bool> ExistsBySystemIdAsync(string systemId);
         Task<bool> ExistsByIdAsync(int userId);
-        Task<string> GetNextSystemIdAsync();
     }
 
-    public class UserRepository : IUserRepository
+    public class UserRepository : BaseRepository, IUserRepository
     {
-        private readonly AppDbContext _context;
-        private readonly ILogger<UserRepository>? _logger;
-
-        public UserRepository(AppDbContext context, ILogger<UserRepository>? logger = null)
+        public UserRepository(DBConnection dbConnection) : base(dbConnection)
         {
-            _context = context ?? throw new ArgumentNullException(nameof(context));
-            _logger = logger;
         }
 
-        // Gets user by ID using EF Core ORM
+        /// <summary>
+        /// Retrieves a user by their primary key (user_ID)
+        /// Uses parameterized query to prevent SQL injection
+        /// </summary>
         public async Task<User?> GetByIdAsync(int userId)
         {
-            try
-            {
-                var userEntity = await _context.Users
-                    .FirstOrDefaultAsync(u => u.UserId == userId);
+            const string query = @"
+                SELECT [user_ID], [system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                       [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired]
+                FROM [dbo].[tbl_Users] 
+                WHERE [user_ID] = @UserId";
 
-                return userEntity != null ? MapEntityToUser(userEntity) : null;
-            }
-            catch (Exception ex)
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error getting user by ID {UserId}: {Message}", userId, ex.Message);
-                throw new Exception($"Failed to get user by ID: {ex.Message}", ex);
+                CreateParameter("@UserId", userId, SqlDbType.Int)
+            };
+
+            var dataTable = await ExecuteQueryAsync(query, parameters);
+
+            if (dataTable.Rows.Count == 0)
+            {
+                return null;
             }
+
+            return MapDataRowToUser(dataTable.Rows[0]);
         }
 
-        // Gets user by email using EF Core ORM
+        /// <summary>
+        /// Retrieves a user by email address
+        /// Email is validated and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<User?> GetByEmailAsync(string email)
         {
             if (!IsValidEmail(email))
@@ -60,22 +68,31 @@ namespace BrightEnroll_DES.Services.Repositories
                 throw new ArgumentException("Invalid email format", nameof(email));
             }
 
-            try
-            {
-                var sanitizedEmail = SanitizeString(email, 150);
-                var userEntity = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == sanitizedEmail);
+            const string query = @"
+                SELECT [user_ID], [system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                       [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired]
+                FROM [dbo].[tbl_Users] 
+                WHERE [email] = @Email";
 
-                return userEntity != null ? MapEntityToUser(userEntity) : null;
-            }
-            catch (Exception ex)
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error getting user by email {Email}: {Message}", email, ex.Message);
-                throw new Exception($"Failed to get user by email: {ex.Message}", ex);
+                CreateParameter("@Email", SanitizeString(email, 150), SqlDbType.VarChar)
+            };
+
+            var dataTable = await ExecuteQueryAsync(query, parameters);
+
+            if (dataTable.Rows.Count == 0)
+            {
+                return null;
             }
+
+            return MapDataRowToUser(dataTable.Rows[0]);
         }
 
-        // Gets user by system ID using EF Core ORM
+        /// <summary>
+        /// Retrieves a user by system ID
+        /// System ID is sanitized and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<User?> GetBySystemIdAsync(string systemId)
         {
             if (string.IsNullOrWhiteSpace(systemId))
@@ -83,22 +100,31 @@ namespace BrightEnroll_DES.Services.Repositories
                 throw new ArgumentException("System ID cannot be null or empty", nameof(systemId));
             }
 
-            try
-            {
-                var sanitizedSystemId = SanitizeString(systemId, 50);
-                var userEntity = await _context.Users
-                    .FirstOrDefaultAsync(u => u.SystemId == sanitizedSystemId);
+            const string query = @"
+                SELECT [user_ID], [system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                       [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired]
+                FROM [dbo].[tbl_Users] 
+                WHERE [system_ID] = @SystemId";
 
-                return userEntity != null ? MapEntityToUser(userEntity) : null;
-            }
-            catch (Exception ex)
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error getting user by system ID {SystemId}: {Message}", systemId, ex.Message);
-                throw new Exception($"Failed to get user by system ID: {ex.Message}", ex);
+                CreateParameter("@SystemId", SanitizeString(systemId, 50), SqlDbType.VarChar)
+            };
+
+            var dataTable = await ExecuteQueryAsync(query, parameters);
+
+            if (dataTable.Rows.Count == 0)
+            {
+                return null;
             }
+
+            return MapDataRowToUser(dataTable.Rows[0]);
         }
 
-        // Gets user by email or system ID (for login) using EF Core ORM
+        /// <summary>
+        /// Retrieves a user by email or system ID
+        /// Both inputs are validated and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<User?> GetByEmailOrSystemIdAsync(string emailOrSystemId)
         {
             if (string.IsNullOrWhiteSpace(emailOrSystemId))
@@ -106,40 +132,54 @@ namespace BrightEnroll_DES.Services.Repositories
                 throw new ArgumentException("Email or System ID cannot be null or empty", nameof(emailOrSystemId));
             }
 
-            try
-            {
-                var sanitizedInput = SanitizeString(emailOrSystemId, 150);
-                var userEntity = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == sanitizedInput || u.SystemId == sanitizedInput);
+            const string query = @"
+                SELECT [user_ID], [system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                       [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired]
+                FROM [dbo].[tbl_Users] 
+                WHERE [email] = @EmailOrSystemId OR [system_ID] = @EmailOrSystemId";
 
-                return userEntity != null ? MapEntityToUser(userEntity) : null;
-            }
-            catch (Exception ex)
+            var sanitizedInput = SanitizeString(emailOrSystemId, 150);
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error getting user by email or system ID: {Message}", ex.Message);
-                throw new Exception($"Failed to get user: {ex.Message}", ex);
+                CreateParameter("@EmailOrSystemId", sanitizedInput, SqlDbType.VarChar)
+            };
+
+            var dataTable = await ExecuteQueryAsync(query, parameters);
+
+            if (dataTable.Rows.Count == 0)
+            {
+                return null;
             }
+
+            return MapDataRowToUser(dataTable.Rows[0]);
         }
 
-        // Gets all users using EF Core ORM
+        /// <summary>
+        /// Retrieves all users from the database
+        /// </summary>
         public async Task<IEnumerable<User>> GetAllAsync()
         {
-            try
-            {
-                var userEntities = await _context.Users
-                    .OrderBy(u => u.UserId)
-                    .ToListAsync();
+            const string query = @"
+                SELECT [user_ID], [system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                       [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired]
+                FROM [dbo].[tbl_Users] 
+                ORDER BY [user_ID]";
 
-                return userEntities.Select(MapEntityToUser).ToList();
-            }
-            catch (Exception ex)
+            var dataTable = await ExecuteQueryAsync(query);
+
+            var users = new List<User>();
+            foreach (DataRow row in dataTable.Rows)
             {
-                _logger?.LogError(ex, "Error getting all users: {Message}", ex.Message);
-                throw new Exception($"Failed to get all users: {ex.Message}", ex);
+                users.Add(MapDataRowToUser(row));
             }
+
+            return users;
         }
 
-        // Creates a new user using EF Core ORM
+        /// <summary>
+        /// Inserts a new user into the database
+        /// All fields are validated and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<int> InsertAsync(User user)
         {
             if (user == null)
@@ -149,39 +189,38 @@ namespace BrightEnroll_DES.Services.Repositories
 
             ValidateUser(user);
 
-            try
-            {
-                var userEntity = new UserEntity
-                {
-                    SystemId = SanitizeString(user.system_ID, 50),
-                    FirstName = SanitizeString(user.first_name, 50),
-                    MidName = string.IsNullOrWhiteSpace(user.mid_name) ? null : SanitizeString(user.mid_name, 50),
-                    LastName = SanitizeString(user.last_name, 50),
-                    Suffix = string.IsNullOrWhiteSpace(user.suffix) ? null : SanitizeString(user.suffix, 10),
-                    Birthdate = user.birthdate,
-                    Age = user.age,
-                    Gender = SanitizeString(user.gender, 20),
-                    ContactNum = SanitizeString(user.contact_num, 20),
-                    UserRole = SanitizeString(user.user_role, 50),
-                    Email = SanitizeString(user.email, 150),
-                    Password = user.password, // Password is already hashed, no sanitization needed
-                    DateHired = user.date_hired,
-                    Status = string.IsNullOrWhiteSpace(user.status) ? "active" : SanitizeString(user.status, 20)
-                };
+            const string query = @"
+                INSERT INTO [dbo].[tbl_Users] 
+                    ([system_ID], [first_name], [mid_name], [last_name], [suffix], 
+                     [birthdate], [age], [gender], [contact_num], [user_role], [email], [password], [date_hired])
+                VALUES 
+                    (@SystemId, @FirstName, @MidName, @LastName, @Suffix, 
+                     @Birthdate, @Age, @Gender, @ContactNum, @UserRole, @Email, @Password, @DateHired)";
 
-                _context.Users.Add(userEntity);
-                await _context.SaveChangesAsync();
-
-                return userEntity.UserId; // Return the generated ID
-            }
-            catch (Exception ex)
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error inserting user: {Message}", ex.Message);
-                throw new Exception($"Failed to insert user: {ex.Message}", ex);
-            }
+                CreateParameter("@SystemId", SanitizeString(user.system_ID, 50), SqlDbType.VarChar),
+                CreateParameter("@FirstName", SanitizeString(user.first_name, 50), SqlDbType.VarChar),
+                CreateParameter("@MidName", string.IsNullOrWhiteSpace(user.mid_name) ? DBNull.Value : SanitizeString(user.mid_name, 50), SqlDbType.VarChar),
+                CreateParameter("@LastName", SanitizeString(user.last_name, 50), SqlDbType.VarChar),
+                CreateParameter("@Suffix", string.IsNullOrWhiteSpace(user.suffix) ? DBNull.Value : SanitizeString(user.suffix, 10), SqlDbType.VarChar),
+                CreateParameter("@Birthdate", user.birthdate, SqlDbType.Date),
+                CreateParameter("@Age", user.age, SqlDbType.TinyInt),
+                CreateParameter("@Gender", SanitizeString(user.gender, 20), SqlDbType.VarChar),
+                CreateParameter("@ContactNum", SanitizeString(user.contact_num, 20), SqlDbType.VarChar),
+                CreateParameter("@UserRole", SanitizeString(user.user_role, 50), SqlDbType.VarChar),
+                CreateParameter("@Email", SanitizeString(user.email, 150), SqlDbType.VarChar),
+                CreateParameter("@Password", user.password, SqlDbType.VarChar), // Already hashed, no sanitization needed
+                CreateParameter("@DateHired", user.date_hired, SqlDbType.DateTime)
+            };
+
+            return await ExecuteNonQueryAsync(query, parameters);
         }
 
-        // Updates an existing user using EF Core ORM
+        /// <summary>
+        /// Updates an existing user in the database
+        /// All fields are validated and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<int> UpdateAsync(User user)
         {
             if (user == null)
@@ -191,74 +230,66 @@ namespace BrightEnroll_DES.Services.Repositories
 
             ValidateUser(user);
 
-            try
+            const string query = @"
+                UPDATE [dbo].[tbl_Users] 
+                SET [system_ID] = @SystemId,
+                    [first_name] = @FirstName,
+                    [mid_name] = @MidName,
+                    [last_name] = @LastName,
+                    [suffix] = @Suffix,
+                    [birthdate] = @Birthdate,
+                    [age] = @Age,
+                    [gender] = @Gender,
+                    [contact_num] = @ContactNum,
+                    [user_role] = @UserRole,
+                    [email] = @Email,
+                    [password] = @Password,
+                    [date_hired] = @DateHired
+                WHERE [user_ID] = @UserId";
+
+            var parameters = new[]
             {
-                var userEntity = await _context.Users.FindAsync(user.user_ID);
-                if (userEntity == null)
-                {
-                    throw new Exception($"User with ID {user.user_ID} not found");
-                }
+                CreateParameter("@UserId", user.user_ID, SqlDbType.Int),
+                CreateParameter("@SystemId", SanitizeString(user.system_ID, 50), SqlDbType.VarChar),
+                CreateParameter("@FirstName", SanitizeString(user.first_name, 50), SqlDbType.VarChar),
+                CreateParameter("@MidName", string.IsNullOrWhiteSpace(user.mid_name) ? DBNull.Value : SanitizeString(user.mid_name, 50), SqlDbType.VarChar),
+                CreateParameter("@LastName", SanitizeString(user.last_name, 50), SqlDbType.VarChar),
+                CreateParameter("@Suffix", string.IsNullOrWhiteSpace(user.suffix) ? DBNull.Value : SanitizeString(user.suffix, 10), SqlDbType.VarChar),
+                CreateParameter("@Birthdate", user.birthdate, SqlDbType.Date),
+                CreateParameter("@Age", user.age, SqlDbType.TinyInt),
+                CreateParameter("@Gender", SanitizeString(user.gender, 20), SqlDbType.VarChar),
+                CreateParameter("@ContactNum", SanitizeString(user.contact_num, 20), SqlDbType.VarChar),
+                CreateParameter("@UserRole", SanitizeString(user.user_role, 50), SqlDbType.VarChar),
+                CreateParameter("@Email", SanitizeString(user.email, 150), SqlDbType.VarChar),
+                CreateParameter("@Password", user.password, SqlDbType.VarChar),
+                CreateParameter("@DateHired", user.date_hired, SqlDbType.DateTime)
+            };
 
-                // Store original password to check if it changed
-                var originalPassword = userEntity.Password;
-                var newPassword = user.password; // Password is already hashed
-
-                // Update properties with sanitization
-                userEntity.SystemId = SanitizeString(user.system_ID, 50);
-                userEntity.FirstName = SanitizeString(user.first_name, 50);
-                userEntity.MidName = string.IsNullOrWhiteSpace(user.mid_name) ? null : SanitizeString(user.mid_name, 50);
-                userEntity.LastName = SanitizeString(user.last_name, 50);
-                userEntity.Suffix = string.IsNullOrWhiteSpace(user.suffix) ? null : SanitizeString(user.suffix, 10);
-                userEntity.Birthdate = user.birthdate;
-                userEntity.Age = user.age;
-                userEntity.Gender = SanitizeString(user.gender, 20);
-                userEntity.ContactNum = SanitizeString(user.contact_num, 20);
-                userEntity.UserRole = SanitizeString(user.user_role, 50);
-                userEntity.Email = SanitizeString(user.email, 150);
-                userEntity.Password = newPassword; // Password is already hashed
-                userEntity.DateHired = user.date_hired;
-                userEntity.Status = string.IsNullOrWhiteSpace(user.status) ? "active" : SanitizeString(user.status, 20);
-
-                // Explicitly mark Password as modified to ensure EF Core saves it
-                // This is important because EF Core might not detect the change if the hash looks similar
-                _context.Entry(userEntity).Property(u => u.Password).IsModified = true;
-
-                var rowsAffected = await _context.SaveChangesAsync();
-                
-                _logger?.LogInformation("User {UserId} updated successfully. Password changed: {PasswordChanged}", 
-                    user.user_ID, originalPassword != newPassword);
-                
-                return rowsAffected;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error updating user {UserId}: {Message}", user.user_ID, ex.Message);
-                throw new Exception($"Failed to update user: {ex.Message}", ex);
-            }
+            return await ExecuteNonQueryAsync(query, parameters);
         }
 
-        // Deletes a user by ID using EF Core ORM
+        /// <summary>
+        /// Deletes a user by their primary key
+        /// Uses parameterized query to prevent SQL injection
+        /// </summary>
         public async Task<int> DeleteAsync(int userId)
         {
-            try
-            {
-                var userEntity = await _context.Users.FindAsync(userId);
-                if (userEntity == null)
-                {
-                    return 0; // User not found, return 0 rows affected
-                }
+            const string query = @"
+                DELETE FROM [dbo].[tbl_Users] 
+                WHERE [user_ID] = @UserId";
 
-                _context.Users.Remove(userEntity);
-                return await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
+            var parameters = new[]
             {
-                _logger?.LogError(ex, "Error deleting user {UserId}: {Message}", userId, ex.Message);
-                throw new Exception($"Failed to delete user: {ex.Message}", ex);
-            }
+                CreateParameter("@UserId", userId, SqlDbType.Int)
+            };
+
+            return await ExecuteNonQueryAsync(query, parameters);
         }
 
-        // Checks if user exists by email using EF Core ORM
+        /// <summary>
+        /// Checks if a user exists by email
+        /// Email is validated and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<bool> ExistsByEmailAsync(string email)
         {
             if (!IsValidEmail(email))
@@ -266,20 +297,20 @@ namespace BrightEnroll_DES.Services.Repositories
                 return false;
             }
 
-            try
+            const string query = "SELECT COUNT(*) FROM [dbo].[tbl_Users] WHERE [email] = @Email";
+            var parameters = new[]
             {
-                var sanitizedEmail = SanitizeString(email, 150);
-                return await _context.Users
-                    .AnyAsync(u => u.Email == sanitizedEmail);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error checking if user exists by email: {Message}", ex.Message);
-                return false;
-            }
+                CreateParameter("@Email", SanitizeString(email, 150), SqlDbType.VarChar)
+            };
+
+            var result = await ExecuteScalarAsync(query, parameters);
+            return result != null && Convert.ToInt32(result) > 0;
         }
 
-        // Checks if user exists by system ID using EF Core ORM
+        /// <summary>
+        /// Checks if a user exists by system ID
+        /// System ID is sanitized and parameterized to prevent SQL injection
+        /// </summary>
         public async Task<bool> ExistsBySystemIdAsync(string systemId)
         {
             if (string.IsNullOrWhiteSpace(systemId))
@@ -287,99 +318,35 @@ namespace BrightEnroll_DES.Services.Repositories
                 return false;
             }
 
-            try
+            const string query = "SELECT COUNT(*) FROM [dbo].[tbl_Users] WHERE [system_ID] = @SystemId";
+            var parameters = new[]
             {
-                var sanitizedSystemId = SanitizeString(systemId, 50);
-                return await _context.Users
-                    .AnyAsync(u => u.SystemId == sanitizedSystemId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error checking if user exists by system ID: {Message}", ex.Message);
-                return false;
-            }
+                CreateParameter("@SystemId", SanitizeString(systemId, 50), SqlDbType.VarChar)
+            };
+
+            var result = await ExecuteScalarAsync(query, parameters);
+            return result != null && Convert.ToInt32(result) > 0;
         }
 
-        // Checks if user exists by ID using EF Core ORM
+        /// <summary>
+        /// Checks if a user exists by primary key
+        /// Uses parameterized query to prevent SQL injection
+        /// </summary>
         public async Task<bool> ExistsByIdAsync(int userId)
         {
-            try
+            const string query = "SELECT COUNT(*) FROM [dbo].[tbl_Users] WHERE [user_ID] = @UserId";
+            var parameters = new[]
             {
-                return await _context.Users
-                    .AnyAsync(u => u.UserId == userId);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error checking if user exists by ID: {Message}", ex.Message);
-                return false;
-            }
+                CreateParameter("@UserId", userId, SqlDbType.Int)
+            };
+
+            var result = await ExecuteScalarAsync(query, parameters);
+            return result != null && Convert.ToInt32(result) > 0;
         }
 
-        // Generates the next system ID in sequence (BDES-0001, BDES-0002, etc.) using EF Core ORM
-        // Finds the highest existing number and adds 1
-        // This method checks the database first to ensure no duplicate system IDs
-        public async Task<string> GetNextSystemIdAsync()
-        {
-            try
-            {
-                // Get all system IDs that match BDES- pattern
-                var bdesIds = await _context.Users
-                    .Where(u => u.SystemId.StartsWith("BDES-") && u.SystemId.Length >= 10)
-                    .Select(u => u.SystemId)
-                    .ToListAsync();
-
-                int maxNumber = 0;
-
-                // Extract numbers from BDES- IDs
-                foreach (var id in bdesIds)
-                {
-                    if (id.Length > 5)
-                    {
-                        var numberPart = id.Substring(5); // Get part after "BDES-"
-                        if (int.TryParse(numberPart, out int number))
-                        {
-                            if (number > maxNumber)
-                            {
-                                maxNumber = number;
-                            }
-                        }
-                    }
-                }
-
-                int nextNumber = maxNumber + 1;
-
-                // Format with 4 digits: 1 becomes BDES-0001, 2 becomes BDES-0002
-                string nextSystemId = $"BDES-{nextNumber:D4}";
-
-                // Double-check to ensure the generated ID doesn't already exist (safety check)
-                // This prevents race conditions where another process might have inserted the same ID
-                bool exists = await ExistsBySystemIdAsync(nextSystemId);
-                int retryCount = 0;
-                const int maxRetries = 100; // Prevent infinite loop
-
-                while (exists && retryCount < maxRetries)
-                {
-                    nextNumber++;
-                    nextSystemId = $"BDES-{nextNumber:D4}";
-                    exists = await ExistsBySystemIdAsync(nextSystemId);
-                    retryCount++;
-                }
-
-                if (retryCount >= maxRetries)
-                {
-                    throw new Exception("Unable to generate a unique system ID after multiple attempts. Please check the database.");
-                }
-
-                return nextSystemId;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error generating next system ID: {Message}", ex.Message);
-                throw new Exception($"Failed to generate system ID: {ex.Message}", ex);
-            }
-        }
-
-        // Validates user data before saving
+        /// <summary>
+        /// Validates user entity before database operations
+        /// </summary>
         private void ValidateUser(User user)
         {
             if (string.IsNullOrWhiteSpace(user.first_name))
@@ -404,60 +371,28 @@ namespace BrightEnroll_DES.Services.Repositories
                 throw new ArgumentException("Password is required", nameof(user));
         }
 
-        // Converts UserEntity to User model
-        private User MapEntityToUser(UserEntity entity)
+        /// <summary>
+        /// Maps a DataRow to a User entity
+        /// </summary>
+        private User MapDataRowToUser(DataRow row)
         {
             return new User
             {
-                user_ID = entity.UserId,
-                system_ID = entity.SystemId,
-                first_name = entity.FirstName,
-                mid_name = entity.MidName,
-                last_name = entity.LastName,
-                suffix = entity.Suffix,
-                birthdate = entity.Birthdate,
-                age = entity.Age,
-                gender = entity.Gender,
-                contact_num = entity.ContactNum,
-                user_role = entity.UserRole,
-                email = entity.Email,
-                password = entity.Password,
-                date_hired = entity.DateHired,
-                status = entity.Status
+                user_ID = Convert.ToInt32(row["user_ID"]),
+                system_ID = row["system_ID"].ToString() ?? string.Empty,
+                first_name = row["first_name"].ToString() ?? string.Empty,
+                mid_name = row["mid_name"] == DBNull.Value ? null : row["mid_name"].ToString(),
+                last_name = row["last_name"].ToString() ?? string.Empty,
+                suffix = row["suffix"] == DBNull.Value ? null : row["suffix"].ToString(),
+                birthdate = Convert.ToDateTime(row["birthdate"]),
+                age = Convert.ToByte(row["age"]),
+                gender = row["gender"].ToString() ?? string.Empty,
+                contact_num = row["contact_num"].ToString() ?? string.Empty,
+                user_role = row["user_role"].ToString() ?? string.Empty,
+                email = row["email"].ToString() ?? string.Empty,
+                password = row["password"].ToString() ?? string.Empty,
+                date_hired = Convert.ToDateTime(row["date_hired"])
             };
-        }
-
-        // Trims and limits string length (security sanitization)
-        private string SanitizeString(string? input, int maxLength = 255)
-        {
-            if (string.IsNullOrWhiteSpace(input))
-                return string.Empty;
-
-            var sanitized = input.Trim();
-
-            if (sanitized.Length > maxLength)
-            {
-                sanitized = sanitized.Substring(0, maxLength);
-            }
-
-            return sanitized;
-        }
-
-        // Checks if email format is valid
-        private bool IsValidEmail(string email)
-        {
-            if (string.IsNullOrWhiteSpace(email))
-                return false;
-
-            try
-            {
-                var addr = new System.Net.Mail.MailAddress(email);
-                return addr.Address == email;
-            }
-            catch
-            {
-                return false;
-            }
         }
     }
 }
