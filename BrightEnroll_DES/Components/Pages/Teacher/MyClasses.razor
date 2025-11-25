@@ -1,0 +1,210 @@
+@page "/teacher/my-classes"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Data.Models
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject ClassService ClassService
+
+<PageTitle>My Classes</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">My Classes</h1>
+            <p class="mt-1 text-sm text-gray-600">View and manage your assigned classes</p>
+        </div>
+        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div class="flex flex-wrap items-center gap-4">
+        <div class="flex-1 min-w-[200px]">
+            <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
+            <select @bind="SelectedSchoolYear" @bind:after="FilterClasses" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All School Years</option>
+                <option value="2023-2024">2023-2024</option>
+                <option value="2024-2025">2024-2025</option>
+            </select>
+        </div>
+        <div class="flex-1 min-w-[200px]">
+            <label class="mb-2 block text-sm font-medium text-gray-700">Search</label>
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterClasses" placeholder="Search class or subject..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+        </div>
+    </div>
+</div>
+
+<!-- Classes Grid -->
+<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+    @foreach (var classItem in FilteredClasses)
+    {
+        <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+            <div class="mb-4 flex items-start justify-between">
+                <div class="rounded-lg bg-blue-100 p-3">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                </div>
+                <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">@classItem.Status</span>
+            </div>
+            
+            <h3 class="mb-2 text-lg font-bold text-gray-800">@classItem.Subject</h3>
+            <p class="mb-4 text-sm text-gray-600">@classItem.GradeLevel - @classItem.Section</p>
+            
+            <div class="mb-4 space-y-2 text-sm text-gray-600">
+                <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span>@classItem.StudentCount students</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>@classItem.Schedule</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <span>@classItem.Room</span>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button @onclick="() => ViewClassDetails(classItem.Id)" class="flex-1 rounded-full border border-blue-600 bg-transparent px-4 py-2 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
+                    View Details
+                </button>
+                <button @onclick="() => EnterGrades(classItem.Id)" class="flex-1 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                    Enter Grades
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+@if (!FilteredClasses.Any())
+{
+    <div class="rounded-xl border border-gray-100 bg-white p-12 text-center shadow-sm">
+        <svg class="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <p class="text-gray-500">No classes found</p>
+    </div>
+}
+
+@code {
+    private string SelectedSchoolYear { get; set; } = string.Empty;
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private List<ClassInfo> Classes { get; set; } = new();
+    private List<ClassInfo> FilteredClasses { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is a teacher
+        if (AuthService.CurrentUser?.user_role != "Teacher")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading classes...");
+        
+        try
+        {
+            await LoadClasses();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadClasses()
+    {
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Load classes from database for the current teacher
+            var dbClasses = await ClassService.GetClassesByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                SelectedSchoolYear,
+                SearchTerm
+            );
+
+            // Convert database classes to display model
+            Classes = dbClasses.Select(c => new ClassInfo
+            {
+                Id = c.ClassId.ToString(),
+                Subject = c.Subject,
+                GradeLevel = c.GradeLevel,
+                Section = c.Section,
+                StudentCount = c.StudentCount,
+                Schedule = c.Schedule,
+                Room = c.Room,
+                Status = c.Status,
+                SchoolYear = c.SchoolYear
+            }).ToList();
+
+            FilteredClasses = Classes;
+        }
+        catch (Exception ex)
+        {
+            // Log error - in production, show user-friendly error message
+            System.Diagnostics.Debug.WriteLine($"Error loading classes: {ex.Message}");
+            Classes = new List<ClassInfo>();
+            FilteredClasses = Classes;
+        }
+    }
+
+    private async Task FilterClasses()
+    {
+        // Reload classes with filters applied
+        await LoadClasses();
+    }
+
+    private void ViewClassDetails(string classId)
+    {
+        // TODO: Navigate to class details page
+        Navigation.NavigateTo($"/teacher/class-details/{classId}");
+    }
+
+    private void EnterGrades(string classId)
+    {
+        Navigation.NavigateTo("/teacher/grade-entry");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/teacher/dashboard");
+    }
+
+    public class ClassInfo
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public string GradeLevel { get; set; } = string.Empty;
+        public string Section { get; set; } = string.Empty;
+        public int StudentCount { get; set; }
+        public string Schedule { get; set; } = string.Empty;
+        public string Room { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string SchoolYear { get; set; } = string.Empty;
+    }
+}
