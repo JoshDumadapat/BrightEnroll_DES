@@ -4,7 +4,10 @@ using Microsoft.Data.SqlClient;
 
 namespace BrightEnroll_DES.Services.Repositories
 {
-    // Base class for repositories - handles common DB operations with SQL injection protection
+    /// <summary>
+    /// Base repository implementation providing common database operations
+    /// with SQL injection protection through parameterized queries
+    /// </summary>
     public abstract class BaseRepository
     {
         protected readonly DBConnection _dbConnection;
@@ -14,28 +17,40 @@ namespace BrightEnroll_DES.Services.Repositories
             _dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
         }
 
-        // Executes SELECT query and returns DataTable - parameters are sanitized
+        /// <summary>
+        /// Executes a SELECT query and returns a DataTable
+        /// All parameters are automatically sanitized to prevent SQL injection
+        /// </summary>
         protected async Task<DataTable> ExecuteQueryAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteQueryAsync(query, parameters);
         }
 
-        // Executes INSERT/UPDATE/DELETE queries - parameters are sanitized
+        /// <summary>
+        /// Executes INSERT, UPDATE, DELETE queries
+        /// All parameters are automatically sanitized to prevent SQL injection
+        /// </summary>
         protected async Task<int> ExecuteNonQueryAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteNonQueryAsync(query, parameters);
         }
 
-        // Executes query that returns a single value - parameters are sanitized
+        /// <summary>
+        /// Executes a query that returns a single scalar value
+        /// All parameters are automatically sanitized to prevent SQL injection
+        /// </summary>
         protected async Task<object?> ExecuteScalarAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteScalarAsync(query, parameters);
         }
 
-        // Creates a SQL parameter with proper type handling
+        /// <summary>
+        /// Creates a SqlParameter with proper type and value handling
+        /// This ensures all user input is properly parameterized
+        /// </summary>
         protected SqlParameter CreateParameter(string parameterName, object? value, SqlDbType? dbType = null)
         {
             var parameter = new SqlParameter(parameterName, value ?? DBNull.Value);
@@ -48,7 +63,10 @@ namespace BrightEnroll_DES.Services.Repositories
             return parameter;
         }
 
-        // Validates query for dangerous SQL patterns (extra security layer)
+        /// <summary>
+        /// Validates SQL query to prevent common injection patterns
+        /// This is an additional security layer on top of parameterization
+        /// </summary>
         private void ValidateQuery(string query)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -56,6 +74,7 @@ namespace BrightEnroll_DES.Services.Repositories
                 throw new ArgumentException("Query cannot be null or empty", nameof(query));
             }
 
+            // Additional validation: Check for dangerous patterns
             var dangerousPatterns = new[]
             {
                 "; DROP",
@@ -80,7 +99,9 @@ namespace BrightEnroll_DES.Services.Repositories
             }
         }
 
-        // Trims and limits string length
+        /// <summary>
+        /// Sanitizes string input by trimming and limiting length
+        /// </summary>
         protected string SanitizeString(string? input, int maxLength = 255)
         {
             if (string.IsNullOrWhiteSpace(input))
@@ -96,7 +117,9 @@ namespace BrightEnroll_DES.Services.Repositories
             return sanitized;
         }
 
-        // Checks if email format is valid
+        /// <summary>
+        /// Validates email format
+        /// </summary>
         protected bool IsValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email))

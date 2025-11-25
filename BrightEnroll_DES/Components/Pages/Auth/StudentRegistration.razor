@@ -27,8 +27,8 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.FirstName" 
-                                       @bind-Value:after="() => { FormatFirstName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.FirstName))); StateHasChanged(); }"
-                                       class="@GetInputClass(nameof(registrationModel.FirstName))"
+                                       @bind-Value:after="FormatFirstName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="e.g. Juan" />
                             <ValidationMessage For="@(() => registrationModel.FirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -44,8 +44,8 @@
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.LastName" 
-                                       @bind-Value:after="() => { FormatLastName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.LastName))); StateHasChanged(); }"
-                                       class="@GetInputClass(nameof(registrationModel.LastName))"
+                                       @bind-Value:after="FormatLastName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="e.g. Santos" />
                             <ValidationMessage For="@(() => registrationModel.LastName)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -67,8 +67,8 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Birth Date <span class="text-red-500">*</span>
                             </label>
-                            <InputDate @bind-Value="registrationModel.BirthDate" @bind-Value:after="() => { CalculateAge(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.BirthDate))); StateHasChanged(); }"
-                                class="@GetInputClass(nameof(registrationModel.BirthDate))" />
+                            <InputDate @bind-Value="registrationModel.BirthDate" @bind-Value:after="CalculateAge"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
                             <ValidationMessage For="@(() => registrationModel.BirthDate)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
@@ -76,8 +76,7 @@
                                 Age <span class="text-red-500">*</span>
                             </label>
                             <InputNumber @bind-Value="registrationModel.Age" 
-                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age))); StateHasChanged(); }"
-                                class="@GetInputClass(nameof(registrationModel.Age))"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                 placeholder="e.g. 15" />
                             <ValidationMessage For="@(() => registrationModel.Age)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -89,7 +88,7 @@
                                 <div @onclick="TogglePlaceOfBirthDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="placeofbirth"
-                                     class="@GetDropdownClass(nameof(registrationModel.PlaceOfBirth))">
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.PlaceOfBirth) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.PlaceOfBirth) ? "Select City" : registrationModel.PlaceOfBirth)
                                     </span>
@@ -134,18 +133,18 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Sex <span class="text-red-500">*</span>
                             </label>
-                            <InputRadioGroup @bind-Value="registrationModel.Sex" @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Sex))); StateHasChanged(); }">
-                            <div class="flex items-center gap-4 pt-1 sm:gap-6 sm:pt-2">
-                                <label class="flex cursor-pointer items-center">
-                                    <InputRadio Value="@("Male")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                    <span class="ml-2 text-xs text-gray-700 sm:text-sm">Male</span>
-                                </label>
-                                <label class="flex cursor-pointer items-center">
-                                    <InputRadio Value="@("Female")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
-                                    <span class="ml-2 text-xs text-gray-700 sm:text-sm">Female</span>
-                                </label>
-                            </div>
-                        </InputRadioGroup>
+                            <InputRadioGroup @bind-Value="registrationModel.Sex">
+                                <div class="flex items-center gap-4 pt-1 sm:gap-6 sm:pt-2">
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Male")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Male</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Female")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Female</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
                             <ValidationMessage For="@(() => registrationModel.Sex)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
@@ -153,8 +152,7 @@
                                 Mother Tongue <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.MotherTongue" 
-                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.MotherTongue))); StateHasChanged(); }"
-                                class="@GetInputClassWithExtra(nameof(registrationModel.MotherTongue), "bg-white")">
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="">Select</option>
                                 <option value="Tagalog">Tagalog</option>
                                 <option value="Cebuano">Cebuano</option>
@@ -262,7 +260,7 @@
                                 <div @onclick="ToggleBarangayDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="barangay"
-                                     class="@GetDropdownClass(nameof(registrationModel.CurrentBarangay))">
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentBarangay) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.CurrentBarangay) ? "Select Barangay" : registrationModel.CurrentBarangay)
                                     </span>
@@ -313,7 +311,7 @@
                                 <div @onclick="ToggleProvinceDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="province"
-                                     class="@GetDropdownClass(nameof(registrationModel.CurrentProvince))">
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentProvince) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.CurrentProvince) ? "Select Province" : registrationModel.CurrentProvince)
                                     </span>
@@ -362,7 +360,7 @@
                                 <div @onclick="ToggleCityDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="city"
-                                     class="@GetDropdownClass(nameof(registrationModel.CurrentCity))">
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none focus-within:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.CurrentCity) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.CurrentCity) ? "Select City" : registrationModel.CurrentCity)
                                     </span>
@@ -408,9 +406,9 @@
                                 Country <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.CurrentCountry" 
-                                       @bind-Value:after="() => { HandleCurrentCountryChange(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentCountry))); StateHasChanged(); }"
+                                       @bind-Value:after="HandleCurrentCountryChange"
                                        disabled="@(currentAddressHandler?.IsCountryDisabled() == true)"
-                                       class="@GetInputClassWithDisabled(nameof(registrationModel.CurrentCountry), currentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetCurrentCountryClass()"
                                        placeholder="Country" />
                             <ValidationMessage For="@(() => registrationModel.CurrentCountry)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -419,9 +417,8 @@
                                 ZIP Code <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.CurrentZipCode" 
-                                       @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.CurrentZipCode))); StateHasChanged(); }"
                                        disabled="@(currentAddressHandler?.IsCountryDisabled() == true)"
-                                       class="@GetInputClassWithDisabled(nameof(registrationModel.CurrentZipCode), currentAddressHandler?.IsCountryDisabled() == true)"
+                                       class="@GetCurrentCountryClass()"
                                        placeholder="ZIP Code" />
                             <ValidationMessage For="@(() => registrationModel.CurrentZipCode)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -465,7 +462,7 @@
                                 <div @onclick="TogglePermanentBarangayDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="permanent-barangay"
-                                     class="@GetPermanentDropdownClass(nameof(registrationModel.PermanentBarangay))"
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none sm:px-4 sm:py-2.5 sm:text-base @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
                                      style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentBarangay) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.PermanentBarangay) ? "Select Barangay" : registrationModel.PermanentBarangay)
@@ -505,7 +502,6 @@
                                     </div>
                                 }
                             </div>
-                            <ValidationMessage For="@(() => registrationModel.PermanentBarangay)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
@@ -517,7 +513,7 @@
                                 <div @onclick="TogglePermanentProvinceDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="permanent-province"
-                                     class="@GetPermanentDropdownClass(nameof(registrationModel.PermanentProvince))"
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none sm:px-4 sm:py-2.5 sm:text-base @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
                                      style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentProvince) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.PermanentProvince) ? "Select Province" : registrationModel.PermanentProvince)
@@ -557,7 +553,6 @@
                                     </div>
                                 }
                             </div>
-                            <ValidationMessage For="@(() => registrationModel.PermanentProvince)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div class="relative">
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
@@ -567,7 +562,7 @@
                                 <div @onclick="TogglePermanentCityDropdown" 
                                      @onclick:stopPropagation="true"
                                      data-dropdown="permanent-city"
-                                     class="@GetPermanentDropdownClass(nameof(registrationModel.PermanentCity))"
+                                     class="flex w-full cursor-pointer items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus-within:border-blue-500 focus-within:outline-none sm:px-4 sm:py-2.5 sm:text-base @(registrationModel.SameAsCurrentAddress ? "bg-gray-100 cursor-not-allowed" : "")"
                                      style="@(registrationModel.SameAsCurrentAddress ? "pointer-events: none;" : "")">
                                     <span class="@(string.IsNullOrWhiteSpace(registrationModel.PermanentCity) ? "text-gray-400" : "text-gray-700")">
                                         @(string.IsNullOrWhiteSpace(registrationModel.PermanentCity) ? "Select City" : registrationModel.PermanentCity)
@@ -607,7 +602,6 @@
                                     </div>
                                 }
                             </div>
-                            <ValidationMessage For="@(() => registrationModel.PermanentCity)" class="text-red-500 text-xs mt-1" />
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
@@ -625,11 +619,9 @@
                                 ZIP Code <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.PermanentZipCode" 
-                                       @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode))); StateHasChanged(); }"
                                        disabled="@(registrationModel.SameAsCurrentAddress || permanentAddressHandler?.IsCountryDisabled() == true)"
-                                       class="@GetPermanentZipCodeClass()"
+                                       class="@GetPermanentCountryClass()"
                                        placeholder="ZIP Code" />
-                            <ValidationMessage For="@(() => registrationModel.PermanentZipCode)" class="text-red-500 text-xs mt-1" />
                         </div>
                     </div>
                 </div>
@@ -646,8 +638,8 @@
                                 First Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianFirstName" 
-                                       @bind-Value:after="() => { FormatGuardianFirstName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.GuardianFirstName))); StateHasChanged(); }"
-                                       class="@GetInputClass(nameof(registrationModel.GuardianFirstName))"
+                                       @bind-Value:after="FormatGuardianFirstName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="e.g. Maria" />
                             <ValidationMessage For="@(() => registrationModel.GuardianFirstName)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -663,8 +655,8 @@
                                 Last Name <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianLastName" 
-                                       @bind-Value:after="() => { FormatGuardianLastName(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.GuardianLastName))); StateHasChanged(); }"
-                                       class="@GetInputClass(nameof(registrationModel.GuardianLastName))"
+                                       @bind-Value:after="FormatGuardianLastName"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="Last Name" />
                             <ValidationMessage For="@(() => registrationModel.GuardianLastName)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -687,10 +679,9 @@
                                 Contact Number <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.GuardianContactNumber" 
-                                       @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.GuardianContactNumber))); StateHasChanged(); }"
                                        maxlength="11"
                                        onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
-                                       class="@GetInputClass(nameof(registrationModel.GuardianContactNumber))"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="e.g. 09123456789" />
                             <ValidationMessage For="@(() => registrationModel.GuardianContactNumber)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -701,8 +692,7 @@
                                 Relationship <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.GuardianRelationship" 
-                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.GuardianRelationship))); StateHasChanged(); }"
-                                class="@GetInputClassWithExtra(nameof(registrationModel.GuardianRelationship), "bg-white")">
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="">Select Relationship</option>
                                 <option value="Father">Father</option>
                                 <option value="Mother">Mother</option>
@@ -735,7 +725,7 @@
                         <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
                             Student Type <span class="text-red-500">*</span>
                         </label>
-                        <InputRadioGroup @bind-Value="registrationModel.StudentType" @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.StudentType))); StateHasChanged(); }">
+                        <InputRadioGroup @bind-Value="registrationModel.StudentType">
                             <div class="flex flex-wrap gap-4 sm:gap-6">
                                 <label class="flex cursor-pointer items-center">
                                     <InputRadio Value="@("New Student")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -774,11 +764,11 @@
                                 Learner Reference No. <span class="text-red-500">*</span>
                             </label>
                             <InputText @bind-Value="registrationModel.LearnerReferenceNo" 
-                                @bind-Value:after="() => { HandleLRNChange(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.LearnerReferenceNo))); StateHasChanged(); }"
+                                @bind-Value:after="HandleLRNChange"
                                 disabled="@(registrationModel.HasLRN != "Yes")"
                                 maxlength="12"
                                 onkeypress="return /[0-9]/i.test(event.key)"
-                                class="@($"{GetInputClass(nameof(registrationModel.LearnerReferenceNo))} disabled:cursor-not-allowed disabled:bg-gray-100")"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 sm:px-4 sm:py-2.5 sm:text-base"
                                 placeholder="e.g. 123456789012" />
                             <ValidationMessage For="@(() => registrationModel.LearnerReferenceNo)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -786,8 +776,8 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 School year <span class="text-red-500">*</span>
                             </label>
-                            <InputSelect @bind-Value="registrationModel.SchoolYear" @bind-Value:after="() => { OnSchoolYearChanged(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.SchoolYear))); StateHasChanged(); }"
-                                class="@GetInputClassWithExtra(nameof(registrationModel.SchoolYear), "bg-white")">
+                            <InputSelect @bind-Value="registrationModel.SchoolYear" @bind-Value:after="OnSchoolYearChanged"
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="" disabled selected>Select School Year</option>
                                 <option value="ADD_NEW">+ Add School Year</option>
                                 @foreach (var schoolYear in availableSchoolYears)
@@ -802,13 +792,16 @@
                                 Grade to Enroll <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="registrationModel.GradeToEnroll" 
-                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.GradeToEnroll))); StateHasChanged(); }"
-                                class="@GetInputClassWithExtra(nameof(registrationModel.GradeToEnroll), "bg-white")">
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="" disabled selected>Select Grade</option>
-                                @foreach (var gradeLevel in availableGradeLevels)
-                                {
-                                    <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
-                                }
+                                <option value="Pre-school">Pre-school</option>
+                                <option value="Kinder">Kinder</option>
+                                <option value="Grade 1">Grade 1</option>
+                                <option value="Grade 2">Grade 2</option>
+                                <option value="Grade 3">Grade 3</option>
+                                <option value="Grade 4">Grade 4</option>
+                                <option value="Grade 5">Grade 5</option>
+                                <option value="Grade 6">Grade 6</option>
                             </InputSelect>
                             <ValidationMessage For="@(() => registrationModel.GradeToEnroll)" class="text-red-500 text-xs mt-1" />
                         </div>
@@ -892,7 +885,6 @@
                     <div class="rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4">
                         <label class="flex cursor-pointer items-start">
                             <InputCheckbox @bind-Value="registrationModel.AgreeToTerms" 
-                                @bind-Value:after="() => { editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.AgreeToTerms))); StateHasChanged(); }"
                                 class="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 sm:h-5 sm:w-5" />
                             <span class="ml-2 text-xs text-gray-700 sm:ml-3 sm:text-sm">
                                 I agree to the <a href="#" @onclick="OpenTermsModal" @onclick:preventDefault class="font-medium text-[#0040B6] hover:underline">Terms of Enrollment and Privacy Policy</a> of BrightEnroll, and consent to the processing of my personal data.
@@ -940,7 +932,7 @@
 <TermsModal Show="@showTermsModal" OnClose="CloseTermsModal" OnUnderstand="HandleTermsUnderstand" />
 
 <!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
+<ToastNotification Show="@showToast" Message="@toastMessage" OnClose="CloseToast" Duration="3000" />
 
 <!-- Confirmation Modal -->
 @if (showConfirmModal)
@@ -966,55 +958,6 @@
                             class="rounded-full text-sm font-medium text-white transition-all"
                             style="@(confirmModalType == "cancel" ? "background-color: #e65353;" : "background-color: #2563eb;") padding: 10px 24px; margin: 0; border: none; cursor: pointer; @(confirmModalType == "cancel" ? "hover:opacity-90;" : "hover:opacity-90;")">
                         @(confirmModalType == "submit" ? "Submit" : "Confirm")
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
-<!-- Validation Error Modal -->
-@if (showValidationModal)
-{
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
-        <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl" style="background-color: #e65353; padding: 12px 24px;">
-                <h3 class="text-lg font-semibold text-white" style="margin: 0;">Missing Required Fields</h3>
-                <button @onclick="CloseValidationModal" class="text-white hover:text-gray-200" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
- 
-            <!-- Modal Body -->
-            <div class="rounded-b-2xl bg-white" style="padding: 24px;">
-                <p class="text-sm text-gray-700 mb-4" style="margin: 0 0 16px 0; line-height: 1.5;">
-                    Please fill in the following required fields before submitting:
-                </p>
-                
-                @if (missingFields.Any())
-                {
-                    <div class="mb-4 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50" style="padding: 12px;">
-                        <ul class="list-disc list-inside space-y-1 text-sm text-gray-700">
-                            @foreach (var field in missingFields)
-                            {
-                                <li>@field</li>
-                            }
-                        </ul>
-                    </div>
-                }
-                else
-                {
-                    <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50" style="padding: 12px;">
-                        <p class="text-sm text-gray-700">Please complete all required fields marked with <span class="text-red-500">*</span></p>
-                    </div>
-                }
-
-                <div class="flex justify-end" style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 20px;">
-                    <button type="button" @onclick="CloseValidationModal" class="rounded-full text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #e65353; padding: 10px 24px; margin: 0; border: none; cursor: pointer;">
-                        OK
                     </button>
                 </div>
             </div>

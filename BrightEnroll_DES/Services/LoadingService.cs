@@ -1,6 +1,8 @@
 namespace BrightEnroll_DES.Services;
 
-// Manages loading state for the app
+/// <summary>
+/// Service to manage application loading state
+/// </summary>
 public interface ILoadingService
 {
     bool IsLoading { get; }
