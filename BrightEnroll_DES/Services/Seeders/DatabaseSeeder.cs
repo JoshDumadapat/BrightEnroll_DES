@@ -24,8 +24,9 @@ namespace BrightEnroll_DES.Services.Seeders
                 var exists = await _userRepository.ExistsBySystemIdAsync("BDES-0001");
                 if (exists)
                 {
-                    // Admin exists, check for teacher account
+                    // Admin exists, check for teacher and cashier accounts
                     await SeedTestTeacherAsync();
+                    await SeedTestCashierAsync();
                     return;
                 }
 
@@ -114,8 +115,9 @@ namespace BrightEnroll_DES.Services.Seeders
                     throw new Exception($"Failed to create admin employee records: {ex.Message}", ex);
                 }
 
-                // Seed test teacher account
+                // Seed test accounts
                 await SeedTestTeacherAsync();
+                await SeedTestCashierAsync();
             }
             catch (Exception ex)
             {
@@ -222,6 +224,108 @@ namespace BrightEnroll_DES.Services.Seeders
             catch (Exception ex)
             {
                 throw new Exception($"Error seeding test teacher: {ex.Message}", ex);
+            }
+        }
+
+        private async Task SeedTestCashierAsync()
+        {
+            try
+            {
+                // Check if cashier account already exists
+                var exists = await _userRepository.ExistsBySystemIdAsync("BDES-2001");
+                if (exists)
+                {
+                    return;
+                }
+
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword("Cashier123456");
+
+                DateTime birthdate = new DateTime(1992, 8, 20);
+                DateTime today = DateTime.Today;
+                byte age = (byte)(today.Year - birthdate.Year);
+                if (birthdate.Date > today.AddYears(-age)) age--;
+
+                var cashierUser = new User
+                {
+                    system_ID = "BDES-2001",
+                    first_name = "Rosa",
+                    mid_name = "Luz",
+                    last_name = "Mendoza",
+                    suffix = null,
+                    birthdate = birthdate,
+                    age = age,
+                    gender = "female",
+                    contact_num = "09198765432",
+                    user_role = "Cashier",
+                    email = "rosa.mendoza@brightenroll.com",
+                    password = hashedPassword,
+                    date_hired = DateTime.Now.AddYears(-1),
+                    status = "active"
+                };
+
+                // InsertAsync now returns the generated UserId directly (EF Core)
+                int userId = await _userRepository.InsertAsync(cashierUser);
+
+                // Create cashier-related records in a transaction
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Add employee address
+                    var address = new EmployeeAddress
+                    {
+                        UserId = userId,
+                        HouseNo = "789",
+                        StreetName = "Finance Street",
+                        Province = "Davao del Sur",
+                        City = "Davao City",
+                        Barangay = "Buhangin",
+                        Country = "Philippines",
+                        ZipCode = "8000"
+                    };
+
+                    _context.EmployeeAddresses.Add(address);
+                    await _context.SaveChangesAsync();
+
+                    // Add emergency contact info
+                    var emergencyContact = new EmployeeEmergencyContact
+                    {
+                        UserId = userId,
+                        FirstName = "Roberto",
+                        MiddleName = null,
+                        LastName = "Mendoza",
+                        Suffix = null,
+                        Relationship = "Spouse",
+                        ContactNumber = "09187654321",
+                        Address = "789 Finance Street, Buhangin, Davao City, Davao del Sur"
+                    };
+
+                    _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                    await _context.SaveChangesAsync();
+
+                    // Add salary information
+                    var salaryInfo = new SalaryInfo
+                    {
+                        UserId = userId,
+                        BaseSalary = 28000.00m,
+                        Allowance = 2500.00m,
+                        DateEffective = DateTime.Today.AddYears(-1),
+                        IsActive = true
+                    };
+
+                    _context.SalaryInfos.Add(salaryInfo);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    throw new Exception($"Failed to create cashier employee records: {ex.Message}", ex);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding test cashier: {ex.Message}", ex);
             }
         }
     }

@@ -32,6 +32,10 @@
             {
                 Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
             }
+            else if (currentUser?.user_role == "Cashier")
+            {
+                Navigation.NavigateTo("/cashier/dashboard", forceLoad: true);
+            }
             else
             {
                 Navigation.NavigateTo("/dashboard", forceLoad: true);
@@ -39,10 +43,9 @@
             return;
         }
 
-        // Redirect teachers trying to access admin pages to teacher dashboard
+        // Redirect teachers trying to access admin or cashier pages
         if (AuthService.IsAuthenticated && currentUser?.user_role == "Teacher")
         {
-            // List of admin-only routes
             var adminRoutes = new[] 
             { 
                 "/dashboard", 
@@ -55,24 +58,49 @@
                 "/audit-log" 
             };
 
-            // Check if current path starts with any admin route
             var uri = new Uri(currentUri);
             var path = uri.AbsolutePath;
             
-            if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)))
+            if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)) ||
+                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
             }
         }
 
-        // Redirect admins trying to access teacher pages to admin dashboard
+        // Redirect cashiers trying to access admin or teacher pages
+        if (AuthService.IsAuthenticated && currentUser?.user_role == "Cashier")
+        {
+            var adminRoutes = new[] 
+            { 
+                "/dashboard", 
+                "/enrollment", 
+                "/student-record", 
+                "/academics", 
+                "/human-resource", 
+                "/archive", 
+                "/audit-log" 
+            };
+
+            var uri = new Uri(currentUri);
+            var path = uri.AbsolutePath;
+            
+            if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)) ||
+                path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/cashier/dashboard", forceLoad: true);
+            }
+        }
+
+        // Redirect admins trying to access teacher or cashier pages
         if (AuthService.IsAuthenticated && 
             (currentUser?.user_role == "Admin" || currentUser?.user_role == "System Admin"))
         {
             var uri = new Uri(currentUri);
             var path = uri.AbsolutePath;
             
-            if (path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase))
+            if (path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/dashboard", forceLoad: true);
             }

@@ -1,0 +1,286 @@
+﻿@page "/cashier/process-payment"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+
+<PageTitle>Process Payment</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Process Payment</h1>
+            <p class="mt-1 text-sm text-gray-600">Accept and record student payments</p>
+        </div>
+        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+</div>
+
+<!-- Student Search -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Search Student</h2>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Student ID or Name</label>
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="SearchStudent" placeholder="Enter student ID or name..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div class="flex items-end">
+            <button @onclick="SearchStudent" class="flex items-center gap-2 rounded-full bg-blue-600 px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Search
+            </button>
+        </div>
+    </div>
+</div>
+
+@if (SelectedStudent != null)
+{
+    <!-- Student Information -->
+    <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Student Information</h2>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+                <p class="text-sm text-gray-500">Student ID</p>
+                <p class="font-semibold text-gray-800">@SelectedStudent.StudentId</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Full Name</p>
+                <p class="font-semibold text-gray-800">@SelectedStudent.FullName</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500">Grade Level</p>
+                <p class="font-semibold text-gray-800">@SelectedStudent.GradeLevel</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Account Summary -->
+    <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Account Summary</h2>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <p class="text-sm text-blue-600">Total Assessment</p>
+                <p class="text-2xl font-bold text-blue-800">₱@SelectedStudent.TotalAssessment.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                <p class="text-sm text-green-600">Total Paid</p>
+                <p class="text-2xl font-bold text-green-800">₱@SelectedStudent.TotalPaid.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                <p class="text-sm text-red-600">Balance</p>
+                <p class="text-2xl font-bold text-red-800">₱@SelectedStudent.Balance.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                <p class="text-sm text-purple-600">Payment Status</p>
+                <p class="text-xl font-bold text-purple-800">@GetPaymentStatus()</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Form -->
+    <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Payment Details</h2>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Type</label>
+                <select @bind="PaymentType" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                    <option value="">Select Payment Type</option>
+                    <option value="Tuition Fee">Tuition Fee</option>
+                    <option value="Miscellaneous Fee">Miscellaneous Fee</option>
+                    <option value="Other Fee">Other Fee</option>
+                    <option value="Books">Books</option>
+                    <option value="Uniform">Uniform</option>
+                    <option value="Full Payment">Full Payment</option>
+                </select>
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Amount</label>
+                <input type="number" @bind="PaymentAmount" step="0.01" min="0" placeholder="Enter amount" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method</label>
+                <select @bind="PaymentMethod" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                    <option value="">Select Payment Method</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Check">Check</option>
+                    <option value="Bank Transfer">Bank Transfer</option>
+                    <option value="GCash">GCash</option>
+                    <option value="PayMaya">PayMaya</option>
+                </select>
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Reference Number (Optional)</label>
+                <input type="text" @bind="ReferenceNumber" placeholder="Check/Transaction number" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-2 block text-sm font-medium text-gray-700">Remarks (Optional)</label>
+                <textarea @bind="Remarks" rows="3" placeholder="Additional notes..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"></textarea>
+            </div>
+        </div>
+
+        <div class="mt-6 flex justify-end gap-3">
+            <button @onclick="ClearPaymentForm" class="rounded-full border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                Clear
+            </button>
+            <button @onclick="SubmitPayment" class="flex items-center gap-2 rounded-full bg-green-600 px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Process Payment
+            </button>
+        </div>
+    </div>
+}
+else if (!string.IsNullOrEmpty(SearchTerm))
+{
+    <div class="rounded-xl border border-gray-100 bg-white p-12 text-center shadow-sm">
+        <svg class="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <p class="text-gray-500">No student found with that ID or name</p>
+    </div>
+}
+else
+{
+    <div class="rounded-xl border border-gray-100 bg-white p-12 text-center shadow-sm">
+        <svg class="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <p class="text-gray-500">Search for a student to process payment</p>
+    </div>
+}
+
+@code {
+    private string SearchTerm { get; set; } = string.Empty;
+    private StudentAccount? SelectedStudent { get; set; }
+
+    private string PaymentType { get; set; } = string.Empty;
+    private decimal PaymentAmount { get; set; } = 0;
+    private string PaymentMethod { get; set; } = string.Empty;
+    private string ReferenceNumber { get; set; } = string.Empty;
+    private string Remarks { get; set; } = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        // Check if user is a cashier
+        if (AuthService.CurrentUser?.user_role != "Cashier")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    private async Task SearchStudent()
+    {
+        if (string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            SelectedStudent = null;
+            return;
+        }
+
+        LoadingService.ShowLoading("Searching student...");
+        
+        try
+        {
+            // TODO: Search from database
+            await Task.Delay(500);
+
+            // Mock data for demonstration
+            SelectedStudent = new StudentAccount
+            {
+                StudentId = "2024-001",
+                FullName = "Juan Dela Cruz",
+                GradeLevel = "Grade 7",
+                TotalAssessment = 50000.00m,
+                TotalPaid = 25000.00m,
+                Balance = 25000.00m
+            };
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private string GetPaymentStatus()
+    {
+        if (SelectedStudent == null) return "N/A";
+        
+        if (SelectedStudent.Balance <= 0) return "Fully Paid";
+        if (SelectedStudent.TotalPaid > 0) return "Partial";
+        return "Unpaid";
+    }
+
+    private async Task SubmitPayment()
+    {
+        // Validate payment details
+        if (string.IsNullOrWhiteSpace(PaymentType))
+        {
+            // Show error
+            return;
+        }
+
+        if (PaymentAmount <= 0)
+        {
+            // Show error
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(PaymentMethod))
+        {
+            // Show error
+            return;
+        }
+
+        LoadingService.ShowLoading("Processing payment...");
+        
+        try
+        {
+            // TODO: Save payment to database
+            await Task.Delay(1000);
+
+            // Generate OR number
+            var orNumber = $"2024-{DateTime.Now:yyyyMMddHHmmss}";
+
+            // Show success and navigate to receipt
+            Navigation.NavigateTo($"/cashier/receipt/{orNumber}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private void ClearPaymentForm()
+    {
+        PaymentType = string.Empty;
+        PaymentAmount = 0;
+        PaymentMethod = string.Empty;
+        ReferenceNumber = string.Empty;
+        Remarks = string.Empty;
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/cashier/dashboard");
+    }
+
+    public class StudentAccount
+    {
+        public string StudentId { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string GradeLevel { get; set; } = string.Empty;
+        public decimal TotalAssessment { get; set; }
+        public decimal TotalPaid { get; set; }
+        public decimal Balance { get; set; }
+    }
+}
