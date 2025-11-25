@@ -2,9 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Data.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassService ClassService
 
 <PageTitle>My Classes</PageTitle>
 
@@ -131,33 +133,50 @@
 
     private async Task LoadClasses()
     {
-        // TODO: Load from database based on teacher's assignments
-        await Task.Delay(500);
-
-        Classes = new List<ClassInfo>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            new ClassInfo { Id = "1", Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section A", StudentCount = 35, Schedule = "MWF 8:00-9:00 AM", Room = "Room 101", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "2", Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section B", StudentCount = 32, Schedule = "MWF 9:00-10:00 AM", Room = "Room 101", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "3", Subject = "Science", GradeLevel = "Grade 8", Section = "Section A", StudentCount = 38, Schedule = "TTH 10:00-11:30 AM", Room = "Room 205", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "4", Subject = "Science", GradeLevel = "Grade 8", Section = "Section B", StudentCount = 30, Schedule = "TTH 1:00-2:30 PM", Room = "Room 205", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "5", Subject = "English", GradeLevel = "Grade 7", Section = "Section C", StudentCount = 28, Schedule = "MWF 1:00-2:00 PM", Room = "Room 102", Status = "Active", SchoolYear = "2024-2025" }
-        };
+            return;
+        }
 
-        FilteredClasses = Classes;
+        try
+        {
+            // Load classes from database for the current teacher
+            var dbClasses = await ClassService.GetClassesByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                SelectedSchoolYear,
+                SearchTerm
+            );
+
+            // Convert database classes to display model
+            Classes = dbClasses.Select(c => new ClassInfo
+            {
+                Id = c.ClassId.ToString(),
+                Subject = c.Subject,
+                GradeLevel = c.GradeLevel,
+                Section = c.Section,
+                StudentCount = c.StudentCount,
+                Schedule = c.Schedule,
+                Room = c.Room,
+                Status = c.Status,
+                SchoolYear = c.SchoolYear
+            }).ToList();
+
+            FilteredClasses = Classes;
+        }
+        catch (Exception ex)
+        {
+            // Log error - in production, show user-friendly error message
+            System.Diagnostics.Debug.WriteLine($"Error loading classes: {ex.Message}");
+            Classes = new List<ClassInfo>();
+            FilteredClasses = Classes;
+        }
     }
 
-    private void FilterClasses()
+    private async Task FilterClasses()
     {
-        FilteredClasses = Classes.Where(c =>
-        {
-            bool matchesSchoolYear = string.IsNullOrEmpty(SelectedSchoolYear) || c.SchoolYear == SelectedSchoolYear;
-            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) ||
-                c.Subject.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                c.GradeLevel.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                c.Section.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
-
-            return matchesSchoolYear && matchesSearch;
-        }).ToList();
+        // Reload classes with filters applied
+        await LoadClasses();
     }
 
     private void ViewClassDetails(string classId)

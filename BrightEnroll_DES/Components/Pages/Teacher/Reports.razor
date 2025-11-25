@@ -2,9 +2,12 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Data.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassService ClassService
+@inject ReportService ReportService
 
 <PageTitle>Reports</PageTitle>
 
@@ -90,7 +93,7 @@
         <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
-                <select @bind="ReportSchoolYear" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <select @bind="ReportSchoolYear" @bind:after="LoadClassOptions" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                     <option value="">Select School Year</option>
                     <option value="2023-2024">2023-2024</option>
                     <option value="2024-2025">2024-2025</option>
@@ -99,15 +102,16 @@
 
             @if (SelectedReportType != ReportType.SubjectSummary)
             {
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Class</label>
-                    <select @bind="ReportClass" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
-                        <option value="">Select Class</option>
-                        <option value="Grade 7-A">Grade 7 - Section A</option>
-                        <option value="Grade 7-B">Grade 7 - Section B</option>
-                        <option value="Grade 8-A">Grade 8 - Section A</option>
-                    </select>
-                </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Class</label>
+                <select @bind="ReportClass" @bind:after="LoadClassOptions" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                    <option value="">Select Class</option>
+                    @foreach (var cls in AvailableClasses)
+                    {
+                        <option value="@cls.Id">@cls.Name</option>
+                    }
+                </select>
+            </div>
             }
 
             @if (SelectedReportType != ReportType.SubjectSummary)
@@ -116,9 +120,10 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700">Subject</label>
                     <select @bind="ReportSubject" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                         <option value="">Select Subject</option>
-                        <option value="Mathematics">Mathematics</option>
-                        <option value="Science">Science</option>
-                        <option value="English">English</option>
+                        @foreach (var subject in AvailableSubjects)
+                        {
+                            <option value="@subject">@subject</option>
+                        }
                     </select>
                 </div>
             }
@@ -233,18 +238,29 @@
 
     private async Task LoadRecentReports()
     {
-        // TODO: Load from database
-        await Task.Delay(500);
-
-        RecentReports = new List<ReportInfo>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            new ReportInfo { Title = "Grade 7-A Mathematics - 1st Quarter", GeneratedDate = DateTime.Now.AddDays(-2) },
-            new ReportInfo { Title = "Grade 8-A Science - Final Grades", GeneratedDate = DateTime.Now.AddDays(-5) },
-            new ReportInfo { Title = "Class Performance Summary - Grade 7-B", GeneratedDate = DateTime.Now.AddDays(-7) }
-        };
+            return;
+        }
+
+        try
+        {
+            var dbReports = await ReportService.GetRecentReportsByTeacherIdAsync(currentUser.user_ID, 10);
+            RecentReports = dbReports.Select(r => new ReportInfo
+            {
+                Title = r.Title,
+                GeneratedDate = r.GeneratedDate
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading recent reports: {ex.Message}");
+            RecentReports = new List<ReportInfo>();
+        }
     }
 
-    private void SelectReportType(ReportType type)
+    private async Task SelectReportType(ReportType type)
     {
         SelectedReportType = type;
         ReportSchoolYear = string.Empty;
@@ -252,6 +268,9 @@
         ReportSubject = string.Empty;
         ReportStudent = string.Empty;
         ReportPeriod = "All";
+        
+        // Load class options when school year is selected
+        await LoadClassOptions();
     }
 
     private void ClearSelection()
@@ -272,12 +291,24 @@
 
     private async Task PreviewReport()
     {
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null || string.IsNullOrEmpty(ReportSchoolYear))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Generating preview...");
         
         try
         {
-            // TODO: Generate preview
+            // TODO: Generate preview based on report type
+            // This would call the appropriate report service method and display data
+            // For now, just show loading
             await Task.Delay(1000);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error generating preview: {ex.Message}");
         }
         finally
         {
@@ -287,24 +318,127 @@
 
     private async Task GenerateReport()
     {
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null || string.IsNullOrEmpty(ReportSchoolYear))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Generating report...");
         
         try
         {
-            // TODO: Generate and download report
-            await Task.Delay(1500);
+            // Build report title
+            var reportTitle = BuildReportTitle();
             
-            // Add to recent reports
-            RecentReports.Insert(0, new ReportInfo 
-            { 
-                Title = GetReportTitle(), 
-                GeneratedDate = DateTime.Now 
-            });
+            // Create report record
+            var report = new Report
+            {
+                TeacherId = currentUser.user_ID,
+                ReportType = SelectedReportType.ToString(),
+                ReportTitle = reportTitle,
+                SchoolYear = ReportSchoolYear,
+                ClassFilter = ReportClass,
+                SubjectFilter = ReportSubject,
+                StudentFilter = ReportStudent,
+                PeriodFilter = ReportPeriod,
+                GeneratedBy = currentUser.system_ID
+            };
+
+            // Save report to database
+            await ReportService.SaveReportAsync(report);
+            
+            // Reload recent reports
+            await LoadRecentReports();
+            
+            // TODO: Generate actual report file (PDF/Excel) and save path
+            // For now, just save the report record
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error generating report: {ex.Message}");
+            // In production, show error message to user
         }
         finally
         {
             LoadingService.HideLoading();
         }
+    }
+
+    private string BuildReportTitle()
+    {
+        var title = SelectedReportType switch
+        {
+            ReportType.ClassPerformance => "Class Performance Report",
+            ReportType.StudentGrades => "Student Grade Report",
+            ReportType.SubjectSummary => "Subject Summary Report",
+            _ => "Report"
+        };
+
+        if (!string.IsNullOrEmpty(ReportClass))
+        {
+            title += $" - {ReportClass}";
+        }
+
+        if (!string.IsNullOrEmpty(ReportSubject))
+        {
+            title += $" - {ReportSubject}";
+        }
+
+        if (!string.IsNullOrEmpty(ReportPeriod) && ReportPeriod != "All")
+        {
+            title += $" - {ReportPeriod} Quarter";
+        }
+
+        return title;
+    }
+
+    private List<ClassItem> AvailableClasses { get; set; } = new();
+    private List<string> AvailableSubjects { get; set; } = new();
+
+    private async Task LoadClassOptions()
+    {
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var teacherClasses = await ClassService.GetClassesByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                ReportSchoolYear,
+                null
+            );
+
+            AvailableClasses = teacherClasses
+                .Select(c => new ClassItem
+                {
+                    Id = c.ClassId.ToString(),
+                    Name = $"{c.GradeLevel} - {c.Section}"
+                })
+                .OrderBy(c => c.Name)
+                .ToList();
+
+            AvailableSubjects = teacherClasses
+                .Select(c => c.Subject)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading class options: {ex.Message}");
+            AvailableClasses = new List<ClassItem>();
+            AvailableSubjects = new List<string>();
+        }
+    }
+
+    public class ClassItem
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
     }
 
     private void GoBack()

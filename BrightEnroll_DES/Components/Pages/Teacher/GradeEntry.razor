@@ -2,9 +2,12 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Data.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassService ClassService
+@inject GradeService GradeService
 
 <PageTitle>Grade Entry</PageTitle>
 
@@ -159,7 +162,7 @@ else
     private List<string> Subjects { get; set; } = new();
     private List<StudentGrade> Students { get; set; } = new();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Check if user is a teacher
         if (AuthService.CurrentUser?.user_role != "Teacher")
@@ -169,34 +172,54 @@ else
         }
 
         // Load initial data
-        LoadClassData();
+        await LoadClassData();
     }
 
-    private void LoadClassData()
+    private async Task LoadClassData()
     {
-        // TODO: Load from database based on teacher's assigned classes
-        Classes = new List<ClassItem>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            new ClassItem { Id = "1", Name = "Grade 7 - Section A" },
-            new ClassItem { Id = "2", Name = "Grade 7 - Section B" },
-            new ClassItem { Id = "3", Name = "Grade 8 - Section A" },
-            new ClassItem { Id = "4", Name = "Grade 8 - Section B" }
-        };
+            return;
+        }
 
-        Subjects = new List<string>
+        try
         {
-            "Mathematics",
-            "Science",
-            "English",
-            "Filipino",
-            "History",
-            "MAPEH"
-        };
+            // Load classes for the teacher filtered by school year
+            var teacherClasses = await ClassService.GetClassesByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                SelectedSchoolYear,
+                null
+            );
+
+            // Populate Classes dropdown
+            Classes = teacherClasses
+                .Select(c => new ClassItem
+                {
+                    Id = c.ClassId.ToString(),
+                    Name = $"{c.GradeLevel} - {c.Section}"
+                })
+                .OrderBy(c => c.Name)
+                .ToList();
+
+            // Populate Subjects dropdown from teacher's classes
+            Subjects = teacherClasses
+                .Select(c => c.Subject)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading class data: {ex.Message}");
+            Classes = new List<ClassItem>();
+            Subjects = new List<string>();
+        }
     }
 
     private async Task LoadStudents()
     {
-        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSubject))
+        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSubject) || string.IsNullOrEmpty(SelectedSchoolYear))
         {
             Students.Clear();
             return;
@@ -206,16 +229,47 @@ else
         
         try
         {
-            // TODO: Load actual student data from database
-            await Task.Delay(500);
+            var classId = int.Parse(SelectedClass);
+            
+            // Get existing grades for students in this class
+            var existingGrades = await GradeService.GetGradesByClassAndSchoolYearAsync(classId, SelectedSchoolYear);
+            
+            // Get students without grades
+            var studentsWithoutGrades = await GradeService.GetStudentsWithoutGradesAsync(classId, SelectedSchoolYear);
 
-            Students = new List<StudentGrade>
+            // Combine existing grades and students without grades
+            Students = existingGrades.Select(g => new StudentGrade
             {
-                new StudentGrade { StudentId = "2024-001", Name = "Juan Dela Cruz", FirstQuarter = 85, SecondQuarter = 88, ThirdQuarter = 90, FourthQuarter = 87 },
-                new StudentGrade { StudentId = "2024-002", Name = "Maria Santos", FirstQuarter = 92, SecondQuarter = 90, ThirdQuarter = 94, FourthQuarter = 93 },
-                new StudentGrade { StudentId = "2024-003", Name = "Pedro Reyes", FirstQuarter = 78, SecondQuarter = 80, ThirdQuarter = 82, FourthQuarter = 79 },
-                new StudentGrade { StudentId = "2024-004", Name = "Ana Garcia", FirstQuarter = 88, SecondQuarter = 86, ThirdQuarter = 89, FourthQuarter = 90 }
-            };
+                GradeId = g.GradeId,
+                StudentId = g.StudentId,
+                Name = g.StudentName,
+                FirstQuarter = g.FirstQuarter,
+                SecondQuarter = g.SecondQuarter,
+                ThirdQuarter = g.ThirdQuarter,
+                FourthQuarter = g.FourthQuarter,
+                FinalGrade = g.FinalGrade,
+                Remarks = g.Remarks
+            }).ToList();
+
+            // Add students without grades
+            Students.AddRange(studentsWithoutGrades.Select(s => new StudentGrade
+            {
+                GradeId = 0,
+                StudentId = s.StudentId,
+                Name = s.StudentName,
+                FirstQuarter = null,
+                SecondQuarter = null,
+                ThirdQuarter = null,
+                FourthQuarter = null
+            }));
+
+            // Sort by student name
+            Students = Students.OrderBy(s => s.Name).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading students: {ex.Message}");
+            Students = new List<StudentGrade>();
         }
         finally
         {
@@ -230,6 +284,12 @@ else
 
     private string CalculateFinalGrade(StudentGrade student)
     {
+        // Use saved final grade if available, otherwise calculate from quarters
+        if (student.FinalGrade.HasValue)
+        {
+            return student.FinalGrade.Value.ToString("F2");
+        }
+
         var grades = new[] { student.FirstQuarter, student.SecondQuarter, student.ThirdQuarter, student.FourthQuarter }
             .Where(g => g.HasValue)
             .Select(g => g!.Value)
@@ -243,8 +303,14 @@ else
 
     private string GetRemarks(StudentGrade student)
     {
+        // Use saved remarks if available
+        if (!string.IsNullOrEmpty(student.Remarks))
+        {
+            return student.Remarks;
+        }
+
         var finalGrade = CalculateFinalGrade(student);
-        if (finalGrade == "-") return "Incomplete";
+        if (finalGrade == "-") return "INCOMPLETE";
 
         var grade = double.Parse(finalGrade);
         return grade >= 75 ? "PASSED" : "FAILED";
@@ -263,14 +329,46 @@ else
 
     private async Task SaveStudentGrade(StudentGrade student)
     {
+        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSchoolYear))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Saving grade...");
         
         try
         {
-            // TODO: Save to database
-            await Task.Delay(500);
+            var currentUser = AuthService.CurrentUser;
+            var classId = int.Parse(SelectedClass);
             
-            // Show success message (could use toast notification)
+            var grade = new Grade
+            {
+                GradeId = student.GradeId,
+                ClassId = classId,
+                StudentId = student.StudentId,
+                SchoolYear = SelectedSchoolYear,
+                FirstQuarter = student.FirstQuarter.HasValue ? (decimal?)student.FirstQuarter.Value : null,
+                SecondQuarter = student.SecondQuarter.HasValue ? (decimal?)student.SecondQuarter.Value : null,
+                ThirdQuarter = student.ThirdQuarter.HasValue ? (decimal?)student.ThirdQuarter.Value : null,
+                FourthQuarter = student.FourthQuarter.HasValue ? (decimal?)student.FourthQuarter.Value : null
+            };
+
+            await GradeService.SaveGradeAsync(grade, currentUser?.system_ID, currentUser?.system_ID);
+            
+            // Update the student's GradeId if it was a new grade
+            if (student.GradeId == 0)
+            {
+                var savedGrade = await GradeService.GetGradeByClassStudentAndYearAsync(classId, student.StudentId, SelectedSchoolYear);
+                if (savedGrade != null)
+                {
+                    student.GradeId = savedGrade.GradeId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error saving grade: {ex.Message}");
+            // In production, show error message to user
         }
         finally
         {
@@ -280,14 +378,52 @@ else
 
     private async Task SaveAllGrades()
     {
+        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSchoolYear))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Saving all grades...");
         
         try
         {
-            // TODO: Save all grades to database
-            await Task.Delay(1000);
+            var currentUser = AuthService.CurrentUser;
+            var classId = int.Parse(SelectedClass);
             
-            // Show success message
+            var grades = Students.Select(s => new Grade
+            {
+                GradeId = s.GradeId,
+                ClassId = classId,
+                StudentId = s.StudentId,
+                SchoolYear = SelectedSchoolYear,
+                FirstQuarter = s.FirstQuarter.HasValue ? (decimal?)s.FirstQuarter.Value : null,
+                SecondQuarter = s.SecondQuarter.HasValue ? (decimal?)s.SecondQuarter.Value : null,
+                ThirdQuarter = s.ThirdQuarter.HasValue ? (decimal?)s.ThirdQuarter.Value : null,
+                FourthQuarter = s.FourthQuarter.HasValue ? (decimal?)s.FourthQuarter.Value : null
+            }).ToList();
+
+            var savedGrades = await GradeService.SaveGradesAsync(grades, currentUser?.system_ID, currentUser?.system_ID);
+            
+            // Update GradeIds for new grades
+            foreach (var student in Students)
+            {
+                if (student.GradeId == 0)
+                {
+                    var savedGrade = savedGrades.FirstOrDefault(g => 
+                        g.StudentId == student.StudentId && 
+                        g.ClassId == classId && 
+                        g.SchoolYear == SelectedSchoolYear);
+                    if (savedGrade != null)
+                    {
+                        student.GradeId = savedGrade.GradeId;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error saving all grades: {ex.Message}");
+            // In production, show error message to user
         }
         finally
         {
@@ -308,11 +444,14 @@ else
 
     public class StudentGrade
     {
+        public int GradeId { get; set; }
         public string StudentId { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
         public double? FirstQuarter { get; set; }
         public double? SecondQuarter { get; set; }
         public double? ThirdQuarter { get; set; }
         public double? FourthQuarter { get; set; }
+        public double? FinalGrade { get; set; }
+        public string Remarks { get; set; } = string.Empty;
     }
 }

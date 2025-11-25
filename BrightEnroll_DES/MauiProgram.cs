@@ -85,6 +85,18 @@ namespace BrightEnroll_DES
             
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
+            
+            // Register ClassService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ClassService>();
+            
+            // Register ScheduleService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ScheduleService>();
+            
+            // Register GradeService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<GradeService>();
+            
+            // Register ReportService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ReportService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
