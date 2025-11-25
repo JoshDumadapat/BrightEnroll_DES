@@ -1,0 +1,97 @@
+@page "/system-admin/updates"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Version Management</PageTitle>
+
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">ERP Version & Feature Updates</h1>
+    <p class="text-sm text-gray-600">Manage system updates and feature rollouts</p>
+</div>
+
+<!-- Current Version Info -->
+<div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-blue-800">Current Version: 2.5.0</h2>
+            <p class="text-sm text-blue-600">Released: January 15, 2024</p>
+        </div>
+        <button class="rounded-full bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700">Release New Version</button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Schools on Latest</p>
+        <p class="text-2xl font-bold text-green-800">38 / 45</p>
+    </div>
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600">Pending Updates</p>
+        <p class="text-2xl font-bold text-yellow-800">7</p>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <p class="text-sm text-purple-600">Beta Features</p>
+        <p class="text-2xl font-bold text-purple-800">5</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Scheduled Maintenance</p>
+        <p class="text-2xl font-bold text-blue-800">1</p>
+    </div>
+</div>
+
+<!-- Version History -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Version History</h2>
+    <div class="space-y-4">
+        @for (int i = 0; i < 5; i++)
+        {
+            var version = $"2.{5 - i}.0";
+            <div class="rounded-lg border border-gray-200 p-4">
+                <div class="mb-2 flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-800">Version @version</h3>
+                    <span class="text-sm text-gray-500">Released @((i * 30)) days ago</span>
+                </div>
+                <ul class="space-y-1 text-sm text-gray-600">
+                    <li>• Added new reporting dashboard</li>
+                    <li>• Improved performance for large schools</li>
+                    <li>• Fixed critical security vulnerabilities</li>
+                    <li>• Enhanced user interface</li>
+                </ul>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Feature Toggles -->
+<div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Feature Toggles</h2>
+    <div class="space-y-3">
+        @foreach (var feature in new[] { "Advanced Analytics", "AI-Powered Insights", "Mobile App Access", "API Integration", "Custom Reports" })
+        {
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                <div>
+                    <p class="font-medium text-gray-800">@feature</p>
+                    <p class="text-sm text-gray-500">Available for Premium plans</p>
+                </div>
+                <label class="relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" checked class="peer sr-only" />
+                    <div class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></div>
+                </label>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+}

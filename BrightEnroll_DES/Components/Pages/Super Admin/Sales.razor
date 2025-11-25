@@ -1,0 +1,195 @@
+@page "/system-admin/sales"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+
+<PageTitle>Sales Management</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Sales Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Track leads, conversions, and revenue</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-gray-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+            <button @onclick="ShowAddLeadModal" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-blue-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Lead
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600">Active Leads</p>
+        <p class="text-2xl font-bold text-yellow-800">@ActiveLeads</p>
+        <p class="mt-1 text-xs text-gray-600">+8 this week</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Converted Sales</p>
+        <p class="text-2xl font-bold text-green-800">@ConvertedSales</p>
+        <p class="mt-1 text-xs text-gray-600">75% conversion rate</p>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <p class="text-sm text-purple-600">Monthly Revenue</p>
+        <p class="text-2xl font-bold text-purple-800">?@MonthlyRevenue.ToString("N0")</p>
+        <p class="mt-1 text-xs text-gray-600">+12% from last month</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Follow-ups Due</p>
+        <p class="text-2xl font-bold text-blue-800">@FollowUpsDue</p>
+        <p class="mt-1 text-xs text-gray-600">This week</p>
+    </div>
+</div>
+
+<!-- Sales Pipeline -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Sales Pipeline</h2>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="rounded-lg border-2 border-yellow-200 bg-yellow-50 p-4">
+            <h3 class="mb-2 font-semibold text-yellow-800">New Leads (15)</h3>
+            <div class="space-y-2">
+                <div class="rounded-lg bg-white p-3 shadow-sm">
+                    <p class="font-medium text-gray-800">ABC School</p>
+                    <p class="text-xs text-gray-500">Contact: John Doe</p>
+                </div>
+                <div class="rounded-lg bg-white p-3 shadow-sm">
+                    <p class="font-medium text-gray-800">XYZ Academy</p>
+                    <p class="text-xs text-gray-500">Contact: Jane Smith</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+            <h3 class="mb-2 font-semibold text-blue-800">Qualified (8)</h3>
+            <div class="space-y-2">
+                <div class="rounded-lg bg-white p-3 shadow-sm">
+                    <p class="font-medium text-gray-800">Success Institute</p>
+                    <p class="text-xs text-gray-500">Premium Plan</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-purple-200 bg-purple-50 p-4">
+            <h3 class="mb-2 font-semibold text-purple-800">Proposal Sent (5)</h3>
+            <div class="space-y-2">
+                <div class="rounded-lg bg-white p-3 shadow-sm">
+                    <p class="font-medium text-gray-800">Future Academy</p>
+                    <p class="text-xs text-gray-500">Standard Plan</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-green-200 bg-green-50 p-4">
+            <h3 class="mb-2 font-semibold text-green-800">Closing (3)</h3>
+            <div class="space-y-2">
+                <div class="rounded-lg bg-white p-3 shadow-sm">
+                    <p class="font-medium text-gray-800">Hope School</p>
+                    <p class="text-xs text-gray-500">?55,000/mo</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Conversions -->
+<div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Recent Conversions</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Sales Agent</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Plan</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Date</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase text-gray-600">Amount</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @foreach (var sale in RecentConversions)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="whitespace-nowrap px-6 py-4 font-medium text-gray-800">@sale.SchoolName</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@sale.SalesAgent</td>
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <span class="inline-flex rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">@sale.Plan</span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@sale.ConversionDate.ToString("MMM dd, yyyy")</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right font-semibold text-green-600">?@sale.Amount.ToString("N0")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private int ActiveLeads { get; set; } = 31;
+    private int ConvertedSales { get; set; } = 12;
+    private decimal MonthlyRevenue { get; set; } = 2450000;
+    private int FollowUpsDue { get; set; } = 8;
+
+    private List<SaleConversion> RecentConversions { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading sales data...");
+        
+        try
+        {
+            await LoadSalesData();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadSalesData()
+    {
+        await Task.Delay(500);
+
+        RecentConversions = new List<SaleConversion>
+        {
+            new SaleConversion { SchoolName = "St. Mary's Academy", SalesAgent = "Juan Dela Cruz", Plan = "Premium", Amount = 85000, ConversionDate = DateTime.Now.AddDays(-2) },
+            new SaleConversion { SchoolName = "Hope Christian School", SalesAgent = "Maria Santos", Plan = "Standard", Amount = 55000, ConversionDate = DateTime.Now.AddDays(-5) },
+            new SaleConversion { SchoolName = "Bright Future High School", SalesAgent = "Pedro Reyes", Plan = "Basic", Amount = 35000, ConversionDate = DateTime.Now.AddDays(-7) }
+        };
+    }
+
+    private void ShowAddLeadModal()
+    {
+        Navigation.NavigateTo("/system-admin/sales/add-lead");
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
+
+    public class SaleConversion
+    {
+        public string SchoolName { get; set; } = string.Empty;
+        public string SalesAgent { get; set; } = string.Empty;
+        public string Plan { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime ConversionDate { get; set; }
+    }
+}

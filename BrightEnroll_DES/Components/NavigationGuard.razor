@@ -28,7 +28,11 @@
         // If user is logged in and tries to navigate to login page, redirect to appropriate dashboard
         if (AuthService.IsAuthenticated && currentUri.Contains("/login"))
         {
-            if (currentUser?.user_role == "Teacher")
+            if (currentUser?.user_role == "Super Admin")
+            {
+                Navigation.NavigateTo("/system-admin/dashboard", forceLoad: true);
+            }
+            else if (currentUser?.user_role == "Teacher")
             {
                 Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
             }
@@ -43,7 +47,7 @@
             return;
         }
 
-        // Redirect teachers trying to access admin or cashier pages
+        // Redirect teachers trying to access admin, cashier, or super admin pages
         if (AuthService.IsAuthenticated && currentUser?.user_role == "Teacher")
         {
             var adminRoutes = new[] 
@@ -62,13 +66,14 @@
             var path = uri.AbsolutePath;
             
             if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)) ||
-                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase))
+                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/system-admin", StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
             }
         }
 
-        // Redirect cashiers trying to access admin or teacher pages
+        // Redirect cashiers trying to access admin, teacher, or super admin pages
         if (AuthService.IsAuthenticated && currentUser?.user_role == "Cashier")
         {
             var adminRoutes = new[] 
@@ -86,23 +91,50 @@
             var path = uri.AbsolutePath;
             
             if (adminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)) ||
-                path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase))
+                path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/system-admin", StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/cashier/dashboard", forceLoad: true);
             }
         }
 
-        // Redirect admins trying to access teacher or cashier pages
-        if (AuthService.IsAuthenticated && 
-            (currentUser?.user_role == "Admin" || currentUser?.user_role == "System Admin"))
+        // Redirect school admins trying to access teacher, cashier, or super admin pages
+        if (AuthService.IsAuthenticated && currentUser?.user_role == "Admin")
         {
             var uri = new Uri(currentUri);
             var path = uri.AbsolutePath;
             
             if (path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase))
+                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/system-admin", StringComparison.OrdinalIgnoreCase))
             {
                 Navigation.NavigateTo("/dashboard", forceLoad: true);
+            }
+        }
+
+        // Redirect super admins trying to access school admin, teacher, or cashier pages
+        if (AuthService.IsAuthenticated && currentUser?.user_role == "Super Admin")
+        {
+            var schoolAdminRoutes = new[] 
+            { 
+                "/dashboard", 
+                "/enrollment", 
+                "/student-record", 
+                "/academics", 
+                "/finance", 
+                "/human-resource", 
+                "/archive", 
+                "/audit-log" 
+            };
+
+            var uri = new Uri(currentUri);
+            var path = uri.AbsolutePath;
+            
+            if (schoolAdminRoutes.Any(route => path.StartsWith(route, StringComparison.OrdinalIgnoreCase)) ||
+                path.StartsWith("/teacher", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/cashier", StringComparison.OrdinalIgnoreCase))
+            {
+                Navigation.NavigateTo("/system-admin/dashboard", forceLoad: true);
             }
         }
     }

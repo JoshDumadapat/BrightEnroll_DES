@@ -24,7 +24,8 @@ namespace BrightEnroll_DES.Services.Seeders
                 var exists = await _userRepository.ExistsBySystemIdAsync("BDES-0001");
                 if (exists)
                 {
-                    // Admin exists, check for teacher and cashier accounts
+                    // Admin exists, check for other test accounts
+                    await SeedSuperAdminAsync();
                     await SeedTestTeacherAsync();
                     await SeedTestCashierAsync();
                     return;
@@ -115,13 +116,121 @@ namespace BrightEnroll_DES.Services.Seeders
                     throw new Exception($"Failed to create admin employee records: {ex.Message}", ex);
                 }
 
-                // Seed test accounts
+                // Seed all test accounts
+                await SeedSuperAdminAsync();
                 await SeedTestTeacherAsync();
                 await SeedTestCashierAsync();
             }
             catch (Exception ex)
             {
                 throw new Exception($"Error seeding initial admin: {ex.Message}", ex);
+            }
+        }
+
+        private async Task SeedSuperAdminAsync()
+        {
+            try
+            {
+                // Check if Super Admin account already exists
+                var exists = await _userRepository.ExistsBySystemIdAsync("BDES-SA-0001");
+                if (exists)
+                {
+                    return;
+                }
+
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword("SuperAdmin123456");
+
+                DateTime birthdate = new DateTime(1985, 3, 10);
+                DateTime today = DateTime.Today;
+                byte age = (byte)(today.Year - birthdate.Year);
+                if (birthdate.Date > today.AddYears(-age)) age--;
+
+                var superAdminUser = new User
+                {
+                    system_ID = "BDES-SA-0001",
+                    first_name = "Alexander",
+                    mid_name = "Cruz",
+                    last_name = "Rodriguez",
+                    suffix = null,
+                    birthdate = birthdate,
+                    age = age,
+                    gender = "male",
+                    contact_num = "09171111111",
+                    user_role = "Super Admin",
+                    email = "admin@brightenroll-erp.com",
+                    password = hashedPassword,
+                    date_hired = DateTime.Now.AddYears(-5), // Senior employee - 5 years
+                    status = "active"
+                };
+
+                // InsertAsync now returns the generated UserId directly (EF Core)
+                int userId = await _userRepository.InsertAsync(superAdminUser);
+
+                // Create Super Admin-related records in a transaction
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // Add employee address (Company HQ)
+                    var address = new EmployeeAddress
+                    {
+                        UserId = userId,
+                        HouseNo = "1",
+                        StreetName = "BrightEnroll Tower, Ayala Avenue",
+                        Province = "Metro Manila",
+                        City = "Makati City",
+                        Barangay = "Salcedo Village",
+                        Country = "Philippines",
+                        ZipCode = "1227"
+                    };
+
+                    _context.EmployeeAddresses.Add(address);
+                    await _context.SaveChangesAsync();
+
+                    // Add emergency contact info
+                    var emergencyContact = new EmployeeEmergencyContact
+                    {
+                        UserId = userId,
+                        FirstName = "Sofia",
+                        MiddleName = "Luz",
+                        LastName = "Rodriguez",
+                        Suffix = null,
+                        Relationship = "Spouse",
+                        ContactNumber = "09172222222",
+                        Address = "1 BrightEnroll Tower, Ayala Avenue, Makati City, Metro Manila"
+                    };
+
+                    _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                    await _context.SaveChangesAsync();
+
+                    // Add salary information (Higher tier for Super Admin)
+                    var salaryInfo = new SalaryInfo
+                    {
+                        UserId = userId,
+                        BaseSalary = 120000.00m, // Higher base salary for Super Admin
+                        Allowance = 15000.00m,   // Higher allowance
+                        DateEffective = DateTime.Today.AddYears(-5),
+                        IsActive = true
+                    };
+
+                    _context.SalaryInfos.Add(salaryInfo);
+                    await _context.SaveChangesAsync();
+
+                    await transaction.CommitAsync();
+
+                    Console.WriteLine("? Super Admin account created successfully!");
+                    Console.WriteLine($"   Email: {superAdminUser.email}");
+                    Console.WriteLine($"   Password: SuperAdmin123456");
+                    Console.WriteLine($"   System ID: {superAdminUser.system_ID}");
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    throw new Exception($"Failed to create Super Admin employee records: {ex.Message}", ex);
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding Super Admin: {ex.Message}", ex);
             }
         }
 

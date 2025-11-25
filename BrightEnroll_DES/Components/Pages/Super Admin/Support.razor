@@ -1,0 +1,109 @@
+@page "/system-admin/support"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Support Tickets</PageTitle>
+
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Support Ticket System</h1>
+    <p class="text-sm text-gray-600">Manage customer support requests</p>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+        <p class="text-sm text-red-600">Open Tickets</p>
+        <p class="text-2xl font-bold text-red-800">12</p>
+    </div>
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600">In Progress</p>
+        <p class="text-2xl font-bold text-yellow-800">8</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Resolved Today</p>
+        <p class="text-2xl font-bold text-green-800">15</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Avg Response Time</p>
+        <p class="text-2xl font-bold text-blue-800">2.3h</p>
+    </div>
+</div>
+
+<!-- Tickets Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b p-6">
+        <h2 class="text-lg font-bold text-gray-800">Support Tickets</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Ticket ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Issue</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Priority</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Assigned To</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @for (int i = 1; i <= 10; i++)
+                {
+                    var priority = i <= 3 ? "High" : i <= 7 ? "Medium" : "Low";
+                    var status = i <= 5 ? "Open" : i <= 8 ? "In Progress" : "Resolved";
+                    
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm font-medium text-blue-600">TKT-@i.ToString("D4")</td>
+                        <td class="px-6 py-4 text-sm text-gray-800">School @i</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">Unable to access finance module</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPriorityClass(priority)">@priority</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">Support Agent @((i % 3) + 1)</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(status)">@status</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button class="text-blue-600 hover:text-blue-800">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+
+    private string GetPriorityClass(string priority) => priority switch
+    {
+        "High" => "bg-red-100 text-red-800",
+        "Medium" => "bg-yellow-100 text-yellow-800",
+        "Low" => "bg-blue-100 text-blue-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Open" => "bg-red-100 text-red-800",
+        "In Progress" => "bg-yellow-100 text-yellow-800",
+        "Resolved" => "bg-green-100 text-green-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+}
