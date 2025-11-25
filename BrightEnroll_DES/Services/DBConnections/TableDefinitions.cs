@@ -24,6 +24,16 @@ namespace BrightEnroll_DES.Services.DBConnections
                 GetFeeBreakdownTableDefinition(),
                 // User status logging table (must be after tbl_Users)
                 GetUserStatusLogsTableDefinition(),
+                // Classes table (must be after tbl_Users for teacher foreign key)
+                GetClassesTableDefinition(),
+                // Schedules table (must be after tbl_Classes for class foreign key)
+                GetSchedulesTableDefinition(),
+                // Class enrollments table (must be after tbl_Classes and tbl_Students for foreign keys)
+                GetClassEnrollmentsTableDefinition(),
+                // Grades table (must be after tbl_Classes and tbl_Students for foreign keys)
+                GetGradesTableDefinition(),
+                // Reports table (must be after tbl_Users for teacher foreign key)
+                GetReportsTableDefinition(),
             };
         }
 
@@ -417,6 +427,213 @@ namespace BrightEnroll_DES.Services.DBConnections
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_user_status_logs_created_at' AND object_id = OBJECT_ID('dbo.tbl_user_status_logs'))
                         CREATE INDEX IX_tbl_user_status_logs_created_at ON [dbo].[tbl_user_status_logs]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_Classes table - must be created after tbl_Users (foreign key dependency)
+        public static TableDefinition GetClassesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Classes",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Classes](
+                        [class_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [teacher_ID] INT NOT NULL,
+                        [subject] VARCHAR(100) NOT NULL,
+                        [grade_level] VARCHAR(50) NOT NULL,
+                        [section] VARCHAR(50) NOT NULL,
+                        [schedule] VARCHAR(100) NOT NULL,
+                        [room] VARCHAR(50) NOT NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [student_count] INT NOT NULL DEFAULT 0,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        CONSTRAINT FK_tbl_Classes_tbl_Users FOREIGN KEY ([teacher_ID]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Classes_teacher_ID' AND object_id = OBJECT_ID('dbo.tbl_Classes'))
+                        CREATE INDEX IX_tbl_Classes_teacher_ID ON [dbo].[tbl_Classes]([teacher_ID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Classes_school_year' AND object_id = OBJECT_ID('dbo.tbl_Classes'))
+                        CREATE INDEX IX_tbl_Classes_school_year ON [dbo].[tbl_Classes]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Classes_status' AND object_id = OBJECT_ID('dbo.tbl_Classes'))
+                        CREATE INDEX IX_tbl_Classes_status ON [dbo].[tbl_Classes]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Classes_subject' AND object_id = OBJECT_ID('dbo.tbl_Classes'))
+                        CREATE INDEX IX_tbl_Classes_subject ON [dbo].[tbl_Classes]([subject])"
+                }
+            };
+        }
+
+        // Creates tbl_Schedules table - must be created after tbl_Classes (foreign key dependency)
+        public static TableDefinition GetSchedulesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Schedules",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Schedules](
+                        [schedule_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [class_ID] INT NOT NULL,
+                        [day_of_week] VARCHAR(20) NOT NULL,
+                        [start_time] VARCHAR(20) NOT NULL,
+                        [end_time] VARCHAR(20) NOT NULL,
+                        [duration_minutes] INT NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        CONSTRAINT FK_tbl_Schedules_tbl_Classes FOREIGN KEY ([class_ID]) REFERENCES [dbo].[tbl_Classes]([class_ID]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Schedules_class_ID' AND object_id = OBJECT_ID('dbo.tbl_Schedules'))
+                        CREATE INDEX IX_tbl_Schedules_class_ID ON [dbo].[tbl_Schedules]([class_ID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Schedules_day_of_week' AND object_id = OBJECT_ID('dbo.tbl_Schedules'))
+                        CREATE INDEX IX_tbl_Schedules_day_of_week ON [dbo].[tbl_Schedules]([day_of_week])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Schedules_is_active' AND object_id = OBJECT_ID('dbo.tbl_Schedules'))
+                        CREATE INDEX IX_tbl_Schedules_is_active ON [dbo].[tbl_Schedules]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Schedules_start_time' AND object_id = OBJECT_ID('dbo.tbl_Schedules'))
+                        CREATE INDEX IX_tbl_Schedules_start_time ON [dbo].[tbl_Schedules]([start_time])"
+                }
+            };
+        }
+
+        // Creates tbl_ClassEnrollments table - must be created after tbl_Classes and tbl_Students (foreign key dependencies)
+        public static TableDefinition GetClassEnrollmentsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_ClassEnrollments",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_ClassEnrollments](
+                        [enrollment_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [class_ID] INT NOT NULL,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [school_year] VARCHAR(20) NULL,
+                        [enrollment_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        CONSTRAINT FK_tbl_ClassEnrollments_tbl_Classes FOREIGN KEY ([class_ID]) REFERENCES [dbo].[tbl_Classes]([class_ID]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_ClassEnrollments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassEnrollments_class_ID' AND object_id = OBJECT_ID('dbo.tbl_ClassEnrollments'))
+                        CREATE INDEX IX_tbl_ClassEnrollments_class_ID ON [dbo].[tbl_ClassEnrollments]([class_ID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassEnrollments_student_id' AND object_id = OBJECT_ID('dbo.tbl_ClassEnrollments'))
+                        CREATE INDEX IX_tbl_ClassEnrollments_student_id ON [dbo].[tbl_ClassEnrollments]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassEnrollments_is_active' AND object_id = OBJECT_ID('dbo.tbl_ClassEnrollments'))
+                        CREATE INDEX IX_tbl_ClassEnrollments_is_active ON [dbo].[tbl_ClassEnrollments]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassEnrollments_status' AND object_id = OBJECT_ID('dbo.tbl_ClassEnrollments'))
+                        CREATE INDEX IX_tbl_ClassEnrollments_status ON [dbo].[tbl_ClassEnrollments]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassEnrollments_class_student' AND object_id = OBJECT_ID('dbo.tbl_ClassEnrollments'))
+                        CREATE UNIQUE INDEX IX_tbl_ClassEnrollments_class_student ON [dbo].[tbl_ClassEnrollments]([class_ID], [student_id]) WHERE [is_active] = 1"
+                }
+            };
+        }
+
+        // Creates tbl_Grades table - must be created after tbl_Classes and tbl_Students (foreign key dependencies)
+        public static TableDefinition GetGradesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Grades",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Grades](
+                        [grade_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [class_ID] INT NOT NULL,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [first_quarter] DECIMAL(5,2) NULL,
+                        [second_quarter] DECIMAL(5,2) NULL,
+                        [third_quarter] DECIMAL(5,2) NULL,
+                        [fourth_quarter] DECIMAL(5,2) NULL,
+                        [final_grade] DECIMAL(5,2) NULL,
+                        [remarks] VARCHAR(20) NULL,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        [created_by] VARCHAR(50) NULL,
+                        [updated_by] VARCHAR(50) NULL,
+                        CONSTRAINT FK_tbl_Grades_tbl_Classes FOREIGN KEY ([class_ID]) REFERENCES [dbo].[tbl_Classes]([class_ID]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_Grades_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_class_ID' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_class_ID ON [dbo].[tbl_Grades]([class_ID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_student_id' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_student_id ON [dbo].[tbl_Grades]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_school_year' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_school_year ON [dbo].[tbl_Grades]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_class_student_year' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE UNIQUE INDEX IX_tbl_Grades_class_student_year ON [dbo].[tbl_Grades]([class_ID], [student_id], [school_year])"
+                }
+            };
+        }
+
+        // Creates tbl_Reports table - must be created after tbl_Users (foreign key dependency)
+        public static TableDefinition GetReportsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Reports",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Reports](
+                        [report_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [teacher_ID] INT NOT NULL,
+                        [report_type] VARCHAR(50) NOT NULL,
+                        [report_title] VARCHAR(200) NOT NULL,
+                        [school_year] VARCHAR(20) NULL,
+                        [class_filter] VARCHAR(50) NULL,
+                        [subject_filter] VARCHAR(100) NULL,
+                        [student_filter] VARCHAR(50) NULL,
+                        [period_filter] VARCHAR(20) NULL,
+                        [file_path] VARCHAR(500) NULL,
+                        [generated_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [generated_by] VARCHAR(50) NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        CONSTRAINT FK_tbl_Reports_tbl_Users FOREIGN KEY ([teacher_ID]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Reports_teacher_ID' AND object_id = OBJECT_ID('dbo.tbl_Reports'))
+                        CREATE INDEX IX_tbl_Reports_teacher_ID ON [dbo].[tbl_Reports]([teacher_ID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Reports_report_type' AND object_id = OBJECT_ID('dbo.tbl_Reports'))
+                        CREATE INDEX IX_tbl_Reports_report_type ON [dbo].[tbl_Reports]([report_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Reports_generated_date' AND object_id = OBJECT_ID('dbo.tbl_Reports'))
+                        CREATE INDEX IX_tbl_Reports_generated_date ON [dbo].[tbl_Reports]([generated_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Reports_is_active' AND object_id = OBJECT_ID('dbo.tbl_Reports'))
+                        CREATE INDEX IX_tbl_Reports_is_active ON [dbo].[tbl_Reports]([is_active])"
                 }
             };
         }

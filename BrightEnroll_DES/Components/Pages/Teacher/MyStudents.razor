@@ -2,9 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Data.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassService ClassService
 
 <PageTitle>My Students</PageTitle>
 
@@ -87,7 +89,7 @@
                                 </div>
                                 <div>
                                     <p class="text-sm font-medium text-gray-800">@student.Name</p>
-                                    <p class="text-xs text-gray-500">@student.Email</p>
+                                    <p class="text-xs text-gray-500">@(string.IsNullOrEmpty(student.Email) ? "N/A" : student.Email)</p>
                                 </div>
                             </div>
                         </td>
@@ -161,52 +163,118 @@
 
     private async Task LoadStudents()
     {
-        // TODO: Load from database based on teacher's classes
-        await Task.Delay(500);
-
-        Classes = new List<string>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            "Grade 7 - Section A",
-            "Grade 7 - Section B",
-            "Grade 8 - Section A",
-            "Grade 8 - Section B"
-        };
+            return;
+        }
 
-        Subjects = new List<string>
+        try
         {
-            "Mathematics",
-            "Science",
-            "English"
-        };
+            // Load classes for the teacher to populate filter dropdowns
+            var teacherClasses = await ClassService.GetClassesByTeacherIdAsync(currentUser.user_ID);
+            
+            // Populate Classes dropdown
+            Classes = teacherClasses
+                .Select(c => $"{c.GradeLevel} - {c.Section}")
+                .Distinct()
+                .OrderBy(c => c)
+                .ToList();
 
-        Students = new List<StudentInfo>
+            // Populate Subjects dropdown
+            Subjects = teacherClasses
+                .Select(c => c.Subject)
+                .Distinct()
+                .OrderBy(s => s)
+                .ToList();
+
+            // Load students enrolled in teacher's classes
+            var dbStudents = await ClassService.GetStudentsByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                null, // classId - will be filtered in UI
+                null, // subject - will be filtered in UI
+                null  // searchTerm - will be filtered in UI
+            );
+
+            // Convert database students to display model
+            Students = dbStudents.Select(s => new StudentInfo
+            {
+                StudentId = s.StudentId,
+                Name = s.FullName,
+                Email = string.Empty, // Students don't have email in the current model
+                GradeLevel = s.GradeLevel,
+                Section = s.Section,
+                ContactNumber = s.ContactNumber,
+                Average = 0.0, // TODO: Calculate from grades table when available
+                Status = s.Status
+            }).ToList();
+
+            FilteredStudents = Students;
+        }
+        catch (Exception ex)
         {
-            new StudentInfo { StudentId = "2024-001", Name = "Juan Dela Cruz", Email = "juan.delacruz@email.com", GradeLevel = "Grade 7", Section = "Section A", ContactNumber = "09123456789", Average = 87.5, Status = "Active" },
-            new StudentInfo { StudentId = "2024-002", Name = "Maria Santos", Email = "maria.santos@email.com", GradeLevel = "Grade 7", Section = "Section A", ContactNumber = "09234567890", Average = 92.3, Status = "Active" },
-            new StudentInfo { StudentId = "2024-003", Name = "Pedro Reyes", Email = "pedro.reyes@email.com", GradeLevel = "Grade 7", Section = "Section B", ContactNumber = "09345678901", Average = 79.8, Status = "Active" },
-            new StudentInfo { StudentId = "2024-004", Name = "Ana Garcia", Email = "ana.garcia@email.com", GradeLevel = "Grade 8", Section = "Section A", ContactNumber = "09456789012", Average = 88.6, Status = "Active" },
-            new StudentInfo { StudentId = "2024-005", Name = "Carlos Mendoza", Email = "carlos.mendoza@email.com", GradeLevel = "Grade 8", Section = "Section B", ContactNumber = "09567890123", Average = 85.2, Status = "Active" }
-        };
-
-        FilteredStudents = Students;
+            // Log error - in production, show user-friendly error message
+            System.Diagnostics.Debug.WriteLine($"Error loading students: {ex.Message}");
+            Classes = new List<string>();
+            Subjects = new List<string>();
+            Students = new List<StudentInfo>();
+            FilteredStudents = Students;
+        }
     }
 
-    private void FilterStudents()
+    private async Task FilterStudents()
     {
-        FilteredStudents = Students.Where(s =>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            bool matchesClass = string.IsNullOrEmpty(SelectedClass) || 
-                $"{s.GradeLevel} - {s.Section}" == SelectedClass;
-            
-            bool matchesSubject = string.IsNullOrEmpty(SelectedSubject);
-            // TODO: Filter by subject when that data is available
-            
-            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) ||
-                s.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                s.StudentId.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+            return;
+        }
 
-            return matchesClass && matchesSubject && matchesSearch;
-        }).ToList();
+        try
+        {
+            // Parse class selection to get classId if needed
+            int? classId = null;
+            if (!string.IsNullOrEmpty(SelectedClass))
+            {
+                var teacherClasses = await ClassService.GetClassesByTeacherIdAsync(currentUser.user_ID);
+                var parts = SelectedClass.Split(" - ");
+                if (parts.Length == 2)
+                {
+                    var matchingClass = teacherClasses.FirstOrDefault(c => 
+                        c.GradeLevel == parts[0] && c.Section == parts[1]);
+                    if (matchingClass != null)
+                    {
+                        classId = matchingClass.ClassId;
+                    }
+                }
+            }
+
+            // Load filtered students from database
+            var dbStudents = await ClassService.GetStudentsByTeacherIdFilteredAsync(
+                currentUser.user_ID,
+                classId,
+                SelectedSubject,
+                SearchTerm
+            );
+
+            // Convert to display model
+            FilteredStudents = dbStudents.Select(s => new StudentInfo
+            {
+                StudentId = s.StudentId,
+                Name = s.FullName,
+                Email = string.Empty,
+                GradeLevel = s.GradeLevel,
+                Section = s.Section,
+                ContactNumber = s.ContactNumber,
+                Average = 0.0, // TODO: Calculate from grades table when available
+                Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error filtering students: {ex.Message}");
+            FilteredStudents = new List<StudentInfo>();
+        }
     }
 
     private string GetInitials(string name)

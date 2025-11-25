@@ -5,6 +5,9 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassService ClassService
+@inject ScheduleService ScheduleService
+@inject GradeService GradeService
 
 <PageTitle>Teacher Dashboard</PageTitle>
 
@@ -185,21 +188,56 @@
 
     private async Task LoadDashboardData()
     {
-        // TODO: Load actual data from database
-        // For now, using mock data
-        await Task.Delay(500);
-
-        TotalClasses = 5;
-        TotalStudents = 150;
-        PendingGrades = 12;
-        ClassesToday = 3;
-
-        TodaySchedule = new List<ScheduleItem>
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
         {
-            new ScheduleItem { Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section A", Time = "8:00 AM - 9:00 AM", Room = "Room 101" },
-            new ScheduleItem { Subject = "Science", GradeLevel = "Grade 8", Section = "Section B", Time = "10:00 AM - 11:00 AM", Room = "Room 205" },
-            new ScheduleItem { Subject = "English", GradeLevel = "Grade 7", Section = "Section C", Time = "1:00 PM - 2:00 PM", Room = "Room 102" }
-        };
+            return;
+        }
+
+        try
+        {
+            // Get current school year
+            var currentYear = DateTime.Now.Year;
+            var month = DateTime.Now.Month;
+            var schoolYear = month >= 6 
+                ? $"{currentYear}-{currentYear + 1}" 
+                : $"{currentYear - 1}-{currentYear}";
+
+            // Load statistics in parallel
+            var totalClassesTask = ClassService.GetTotalClassesCountAsync(currentUser.user_ID);
+            var totalStudentsTask = ClassService.GetTotalStudentsCountAsync(currentUser.user_ID);
+            var pendingGradesTask = GradeService.GetPendingGradesCountAsync(currentUser.user_ID, schoolYear);
+            var classesTodayTask = ScheduleService.GetTodayClassesCountAsync(currentUser.user_ID);
+            var todayScheduleTask = ScheduleService.GetTodaySchedulesByTeacherIdAsync(currentUser.user_ID);
+
+            await Task.WhenAll(totalClassesTask, totalStudentsTask, pendingGradesTask, classesTodayTask, todayScheduleTask);
+
+            TotalClasses = await totalClassesTask;
+            TotalStudents = await totalStudentsTask;
+            PendingGrades = await pendingGradesTask;
+            ClassesToday = await classesTodayTask;
+
+            // Convert today's schedule to display model
+            var todaySchedules = await todayScheduleTask;
+            TodaySchedule = todaySchedules.Select(s => new ScheduleItem
+            {
+                Subject = s.Subject,
+                GradeLevel = s.GradeLevel,
+                Section = s.Section,
+                Time = s.Time,
+                Room = s.Room
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading dashboard data: {ex.Message}");
+            // Set defaults on error
+            TotalClasses = 0;
+            TotalStudents = 0;
+            PendingGrades = 0;
+            ClassesToday = 0;
+            TodaySchedule = new List<ScheduleItem>();
+        }
     }
 
     private string GetTeacherName()
