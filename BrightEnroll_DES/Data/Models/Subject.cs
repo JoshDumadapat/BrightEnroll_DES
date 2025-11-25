@@ -35,6 +35,7 @@ public class Subject
     public virtual GradeLevel? GradeLevel { get; set; }
 
     public virtual ICollection<SubjectSection> SubjectSections { get; set; } = new List<SubjectSection>();
+    public virtual ICollection<SubjectSchedule> SubjectSchedules { get; set; } = new List<SubjectSchedule>();
     public virtual ICollection<TeacherSectionAssignment> TeacherAssignments { get; set; } = new List<TeacherSectionAssignment>();
 }
 

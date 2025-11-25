@@ -1,0 +1,478 @@
+@page "/profile"
+@layout Components.Layout.MainLayout
+@inject NavigationManager NavigationManager
+@inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
+
+<PageTitle>Profile</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Profile</h1>
+    <div class="mb-6 flex justify-start">
+        <button @onclick="GoToDashboard" class="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+
+    <!-- Profile Header -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="flex items-center">
+                <div class="relative mr-8">
+                    <img src="/images/profile.jpg" alt="Profile Picture" class="h-32 w-32 rounded-full object-cover" />
+                    <button class="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-gray-700 text-white shadow-md transition-all duration-300 hover:bg-gray-800 hover:shadow-lg">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="flex-1">
+                    <div class="grid grid-cols-[1fr_auto] gap-x-8 items-center">
+                        <div class="text-left">
+                            <h3 class="text-2xl font-bold text-gray-800">@($"{ProfileData.FirstName} {ProfileData.LastName}")</h3>
+                            <p class="mb-2 text-sm text-gray-500">@ProfileData.Email</p>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-medium text-gray-700">Status:</span>
+                                <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@ProfileData.Status</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="block text-sm font-medium text-gray-700">Assigned Role:</span>
+                            <span class="block text-base font-bold text-gray-800">@ProfileData.Role</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personal Information Section -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <h5 class="text-lg font-bold text-gray-800">Personal Information</h5>
+                <button @onclick="ToggleEditPersonalInfo" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                    @(IsEditingPersonalInfo ? "Cancel" : "Edit Information")
+                </button>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">First Name</label>
+                    <input type="text" @bind="ProfileData.FirstName" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Middle Name</label>
+                    <input type="text" @bind="ProfileData.MiddleName" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Last Name</label>
+                    <input type="text" @bind="ProfileData.LastName" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Birth Date</label>
+                    <input type="text" @bind="ProfileData.BirthDate" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Gender</label>
+                    <input type="text" @bind="ProfileData.Gender" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Age</label>
+                    <input type="text" @bind="ProfileData.Age" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+            </div>
+            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Contact Number</label>
+                    <input type="tel" @bind="ProfileData.ContactNumber" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" @bind="ProfileData.Email" disabled="@(!IsEditingPersonalInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+            </div>
+
+            @if (IsEditingPersonalInfo)
+            {
+                <div class="mt-4 flex justify-end">
+                    <button @onclick="SavePersonalInfo" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                        Save Changes
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Address Section -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <h5 class="text-lg font-bold text-gray-800">Address</h5>
+                <button @onclick="ToggleEditAddress" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                    @(IsEditingAddress ? "Cancel" : "Edit Address")
+                </button>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">House No./Street</label>
+                    <input type="text" @bind="ProfileData.HouseNo" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Street Name</label>
+                    <input type="text" @bind="ProfileData.StreetName" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Barangay</label>
+                    <input type="text" @bind="ProfileData.Barangay" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Municipality/City</label>
+                    <input type="text" @bind="ProfileData.City" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Province</label>
+                    <input type="text" @bind="ProfileData.Province" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Country</label>
+                    <input type="text" @bind="ProfileData.Country" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">ZIP Code</label>
+                    <input type="text" @bind="ProfileData.ZipCode" disabled="@(!IsEditingAddress)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+            </div>
+            @if (IsEditingAddress)
+            {
+                <div class="mt-4 flex justify-end">
+                    <button @onclick="SaveAddress" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                        Save Changes
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Payment Information Section -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <h5 class="text-lg font-bold text-gray-800">Payment Information</h5>
+                <button @onclick="ToggleEditPaymentInfo" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                    @(IsEditingPaymentInfo ? "Cancel" : "Edit Payment Info")
+                </button>
+            </div>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method</label>
+                    <input type="text" @bind="PaymentData.PaymentMethod" disabled="@(!IsEditingPaymentInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Account Number</label>
+                    <input type="text" @bind="PaymentData.AccountNumber" disabled="@(!IsEditingPaymentInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Bank Name</label>
+                    <input type="text" @bind="PaymentData.BankName" disabled="@(!IsEditingPaymentInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Account Name</label>
+                    <input type="text" @bind="PaymentData.AccountName" disabled="@(!IsEditingPaymentInfo)"
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                </div>
+            </div>
+            @if (IsEditingPaymentInfo)
+            {
+                <div class="mt-4 flex justify-end">
+                    <button @onclick="SavePaymentInfo" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                        Save Changes
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Security / Account Details Section -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <h5 class="mb-6 text-lg font-bold text-gray-800">Security / Account Details</h5>
+            
+            <!-- System ID -->
+            <div class="mb-6">
+                <label class="mb-2 block text-sm font-medium text-gray-700">System ID</label>
+                <input type="text" value="@ProfileData.SystemId" readonly 
+                       class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                <p class="mt-1 text-xs text-gray-500">System ID is automatically assigned and cannot be changed.</p>
+            </div>
+
+            <!-- Change Password -->
+            <div>
+                <h6 class="mb-4 text-base font-semibold text-gray-800">Change Password</h6>
+                <div class="flex flex-col gap-4">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">
+                            Current Password <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="@(ShowCurrentPassword ? "text" : "password")" @bind="PasswordData.CurrentPassword" 
+                                   placeholder="Enter your current password"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <button type="button" @onclick="ToggleCurrentPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    @if (ShowCurrentPassword)
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    }
+                                    else
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    }
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">
+                            New Password <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="@(ShowNewPassword ? "text" : "password")" @bind="PasswordData.NewPassword" 
+                                   placeholder="Enter your new password"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <button type="button" @onclick="ToggleNewPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    @if (ShowNewPassword)
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    }
+                                    else
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    }
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">
+                            Confirm New Password <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="@(ShowConfirmPassword ? "text" : "password")" @bind="PasswordData.ConfirmPassword" 
+                                   placeholder="Confirm your new password"
+                                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pr-10 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            <button type="button" @onclick="ToggleConfirmPassword" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    @if (ShowConfirmPassword)
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    }
+                                    else
+                                    {
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    }
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button @onclick="UpdatePassword" class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                        Update Password
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool IsEditingPersonalInfo { get; set; } = false;
+    private bool IsEditingAddress { get; set; } = false;
+    private bool IsEditingPaymentInfo { get; set; } = false;
+    private bool ShowCurrentPassword { get; set; } = false;
+    private bool ShowNewPassword { get; set; } = false;
+    private bool ShowConfirmPassword { get; set; } = false;
+
+    private ProfileModel ProfileData { get; set; } = new();
+
+    protected override void OnInitialized()
+    {
+        LoadUserData();
+    }
+
+    private void LoadUserData()
+    {
+        var user = AuthService.CurrentUser;
+        if (user != null)
+        {
+            ProfileData = new ProfileModel
+            {
+                FirstName = user.first_name,
+                MiddleName = user.mid_name ?? "",
+                LastName = user.last_name,
+                BirthDate = user.birthdate.ToString("MM/dd/yyyy"),
+                Gender = CapitalizeFirst(user.gender),
+                Age = user.age.ToString(),
+                ContactNumber = user.contact_num,
+                Email = user.email,
+                Role = user.user_role,
+                Status = "Active", // You may want to add a status field to the User model
+                SystemId = user.system_ID,
+                HouseNo = "",
+                StreetName = "",
+                Barangay = "",
+                City = "",
+                Province = "",
+                Country = "",
+                ZipCode = ""
+            };
+        }
+    }
+
+    private string CapitalizeFirst(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+        
+        return char.ToUpper(text[0]) + (text.Length > 1 ? text.Substring(1).ToLower() : "");
+    }
+
+    private PaymentModel PaymentData { get; set; } = new()
+    {
+        PaymentMethod = "BANK_TRANSFER",
+        AccountNumber = "7464655120",
+        BankName = "BPI",
+        AccountName = "Admin Supervisor"
+    };
+
+    private PasswordChangeModel PasswordData { get; set; } = new();
+
+    private void ToggleEditPersonalInfo()
+    {
+        IsEditingPersonalInfo = !IsEditingPersonalInfo;
+    }
+
+    private void ToggleEditAddress()
+    {
+        IsEditingAddress = !IsEditingAddress;
+    }
+
+    private void ToggleEditPaymentInfo()
+    {
+        IsEditingPaymentInfo = !IsEditingPaymentInfo;
+    }
+
+    private void ToggleCurrentPassword()
+    {
+        ShowCurrentPassword = !ShowCurrentPassword;
+    }
+
+    private void ToggleNewPassword()
+    {
+        ShowNewPassword = !ShowNewPassword;
+    }
+
+    private void ToggleConfirmPassword()
+    {
+        ShowConfirmPassword = !ShowConfirmPassword;
+    }
+
+    private void SavePersonalInfo()
+    {
+        // TODO: Implement save personal info logic
+        IsEditingPersonalInfo = false;
+    }
+
+    private void SaveAddress()
+    {
+        // TODO: Implement save address logic
+        IsEditingAddress = false;
+    }
+
+    private void SavePaymentInfo()
+    {
+        // TODO: Implement save payment info logic
+        IsEditingPaymentInfo = false;
+    }
+
+    private void UpdatePassword()
+    {
+        // TODO: Implement password update logic
+        if (PasswordData.NewPassword != PasswordData.ConfirmPassword)
+        {
+            // Show error: Passwords do not match
+            return;
+        }
+        // Update password
+        PasswordData = new PasswordChangeModel();
+    }
+
+    private void GoToDashboard()
+    {
+        NavigationManager.NavigateTo("/dashboard");
+    }
+
+    public class ProfileModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string MiddleName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string BirthDate { get; set; } = string.Empty;
+        public string Gender { get; set; } = string.Empty;
+        public string Age { get; set; } = string.Empty;
+        public string ContactNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string SystemId { get; set; } = string.Empty;
+        public string HouseNo { get; set; } = string.Empty;
+        public string StreetName { get; set; } = string.Empty;
+        public string Barangay { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
+        public string ZipCode { get; set; } = string.Empty;
+    }
+
+    public class PaymentModel
+    {
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string AccountNumber { get; set; } = string.Empty;
+        public string BankName { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
+    }
+
+    public class PasswordChangeModel
+    {
+        public string CurrentPassword { get; set; } = string.Empty;
+        public string NewPassword { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

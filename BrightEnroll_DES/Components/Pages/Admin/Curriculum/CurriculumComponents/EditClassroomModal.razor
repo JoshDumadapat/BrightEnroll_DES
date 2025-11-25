@@ -1,22 +1,19 @@
-@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+﻿@* @namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents *@
 @using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@inject IJSRuntime JSRuntime
 
 @if (Show)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="OnClose">
-        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="edit-classroom-modal" class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl bg-yellow-500 px-6 py-2">
+            <div class="flex items-center justify-center rounded-t-2xl bg-yellow-500 px-6 py-2">
                 <h3 class="text-lg font-semibold text-white">Edit Classroom</h3>
-                <button @onclick="OnClose" class="text-white hover:text-gray-200">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
             </div>
 
             <!-- Modal Body -->
-            <div class="px-6 py-4 rounded-b-2xl">
+            <div class="rounded-b-2xl px-6 py-4">
                 <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
                     <div class="grid grid-cols-2 gap-4">
                         <!-- Room Name -->
@@ -84,6 +81,7 @@
                         <div class="flex items-center">
                             <label class="flex items-center">
                                 <input type="checkbox" @bind="Classroom.IsActive" 
+                                       @bind:after="OnStatusChanged"
                                        class="mr-2 rounded border-gray-300" />
                                 <span class="text-sm font-medium text-gray-700">Available</span>
                             </label>
@@ -104,20 +102,189 @@
 
                     @if (!string.IsNullOrEmpty(ValidationError))
                     {
-                        <div class="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2">
+                        <div class="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
                             <p class="text-sm text-red-600">@ValidationError</p>
                         </div>
                     }
 
                     <div class="mt-6 flex justify-end gap-3">
-                        <button type="button" @onclick="OnClose" class="rounded-lg border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
+                        <button type="button" @onclick="ShowCancelConfirm" class="rounded-lg border border-gray-300 bg-transparent px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                             Cancel
                         </button>
-                        <button type="submit" class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                        <button type="button" @onclick="ShowSubmitConfirm" class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600">
                             Save
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Submit -->
+@if (showSubmitConfirmModal)
+{
+    <div class="z-[60] fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSubmitConfirmModal">
+        <div id="edit-classroom-submit-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white px-6 py-2.5">
+                <h3 class="text-base font-semibold text-blue-600">Confirm Update</h3>
+                <button @onclick="CloseSubmitConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to update this classroom: <strong>@Classroom.RoomName</strong>?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSubmit" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Cancel -->
+@if (showCancelConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelConfirmModal">
+        <div id="edit-classroom-cancel-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Cancel Edit Classroom</h3>
+                <button @onclick="CloseCancelConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">Are you sure you want to cancel? All changes will be discarded.</p>
+                <div class="flex justify-end">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #f87171;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+<!-- Available Note Modal -->
+@if (showAvailableNoteModal)
+{
+    <div class="z-[70] fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" @onclick="CancelAvailableNote">
+        <div id="available-note-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-green-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Set Classroom as Available</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-2 text-sm text-gray-700">Please provide a note for this status change (optional):</p>
+                <p class="mb-4 text-sm font-medium text-gray-800">Classroom: <strong>@Classroom.RoomName</strong></p>
+                @if (!string.IsNullOrWhiteSpace(originalNotes))
+                {
+                    <div class="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3">
+                        <p class="mb-1 text-xs font-semibold text-yellow-800">Current Notes:</p>
+                        <p class="text-xs text-yellow-700">@originalNotes</p>
+                    </div>
+                    <p class="mb-4 text-xs text-red-600">⚠️ If no note is provided, the current notes will be cleared.</p>
+                }
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Note
+                    </label>
+                    <textarea @bind="availableNote" 
+                              @bind:event="oninput"
+                              maxlength="500"
+                              rows="4"
+                              placeholder="Enter a note (e.g., Fixed, Completed, Ready for use...)"
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"></textarea>
+                    <div class="mt-1 flex justify-end">
+                        <span class="text-xs text-gray-500">@(availableNote?.Length ?? 0) / 500 characters</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CancelAvailableNote" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmAvailableNote" class="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white hover:bg-green-600">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Unavailable Reason Modal -->
+@if (showUnavailableReasonModal)
+{
+    <div class="z-[70] fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" @onclick="() => showUnavailableReasonModal = false">
+        <div id="unavailable-reason-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-orange-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Set Classroom as Unavailable</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-2 text-sm text-gray-700">Please provide a reason why this classroom is being set as unavailable:</p>
+                <p class="mb-4 text-sm font-medium text-gray-800">Classroom: <strong>@Classroom.RoomName</strong></p>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="unavailableReason" 
+                              @bind:event="oninput"
+                              maxlength="500"
+                              rows="4"
+                              placeholder="Enter the reason (e.g., Maintenance, Renovation, Temporary closure...)"
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-200"></textarea>
+                    <div class="mt-1 flex justify-end">
+                        <span class="text-xs text-gray-500">@(unavailableReason?.Length ?? 0) / 500 characters</span>
+                    </div>
+                    @if (showUnavailableReasonError)
+                    {
+                        <p class="mt-1 text-xs text-red-600">Reason is required when setting classroom to unavailable.</p>
+                    }
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CancelUnavailableReason" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmUnavailableReason" 
+                        class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Validation Error Modal -->
+@if (showValidationModal)
+{
+    <div class="z-[60] fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+        <div id="edit-classroom-validation-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Validation Error</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-3 text-sm font-medium text-gray-800">Please fill in the following required fields:</p>
+                <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseValidationModal" class="rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">
+                    OK
+                </button>
             </div>
         </div>
     </div>
@@ -130,9 +297,229 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
 
+    private bool showSubmitConfirmModal = false;
+    private bool showCancelConfirmModal = false;
+    private bool showValidationModal = false;
+    private bool showUnavailableReasonModal = false;
+    private bool showAvailableNoteModal = false;
+    private List<string> validationErrors = new();
+    private bool originalIsActive = true;
+    private string unavailableReason = "";
+    private string availableNote = "";
+    private string originalNotes = "";
+    private bool showUnavailableReasonError = false;
+
+    protected override void OnParametersSet()
+    {
+        if (Show)
+        {
+            originalIsActive = Classroom.IsActive;
+            originalNotes = Classroom.Notes ?? "";
+            unavailableReason = "";
+            availableNote = "";
+            showUnavailableReasonError = false;
+        }
+    }
+
+    private void OnStatusChanged()
+    {
+        // Check if status actually changed
+        if (Classroom.IsActive != originalIsActive)
+        {
+            // If setting to unavailable, show reason modal
+            if (!Classroom.IsActive)
+            {
+                unavailableReason = "";
+                showUnavailableReasonError = false;
+                showUnavailableReasonModal = true;
+            }
+            // If setting to available, show note modal
+            else if (Classroom.IsActive)
+            {
+                availableNote = "";
+                showAvailableNoteModal = true;
+            }
+        }
+    }
+
+    private void ShowSubmitConfirm()
+    {
+        // Validate before showing confirmation
+        if (!ValidateForm())
+        {
+            showValidationModal = true;
+            return;
+        }
+        showSubmitConfirmModal = true;
+    }
+
+    private bool ValidateForm()
+    {
+        validationErrors.Clear();
+        
+        if (string.IsNullOrWhiteSpace(Classroom.RoomName))
+        {
+            validationErrors.Add("Room Name is required");
+        }
+        
+        if (string.IsNullOrWhiteSpace(Classroom.RoomType))
+        {
+            validationErrors.Add("Room Type is required");
+        }
+        
+        if (Classroom.Capacity <= 0)
+        {
+            validationErrors.Add("Capacity must be greater than 0");
+        }
+        
+        if (string.IsNullOrWhiteSpace(Classroom.BuildingName))
+        {
+            validationErrors.Add("Building is required");
+        }
+        
+        if (Classroom.FloorNumber < 0)
+        {
+            validationErrors.Add("Floor Number must be 0 or greater");
+        }
+        
+        return validationErrors.Count == 0;
+    }
+
+    private void CloseValidationModal()
+    {
+        showValidationModal = false;
+    }
+
+    private void CloseSubmitConfirmModal()
+    {
+        showSubmitConfirmModal = false;
+    }
+
+    private async Task ConfirmSubmit()
+    {
+        showSubmitConfirmModal = false;
+        await HandleSubmit();
+    }
+
+    private void ShowCancelConfirm()
+    {
+        if (HasData())
+        {
+            showCancelConfirmModal = true;
+        }
+        else
+        {
+            OnClose.InvokeAsync();
+        }
+    }
+
+    private void CloseCancelConfirmModal()
+    {
+        showCancelConfirmModal = false;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        showCancelConfirmModal = false;
+        await OnClose.InvokeAsync();
+    }
+
+    private bool HasData()
+    {
+        return !string.IsNullOrWhiteSpace(Classroom.RoomName) ||
+               !string.IsNullOrWhiteSpace(Classroom.RoomType) ||
+               !string.IsNullOrWhiteSpace(Classroom.BuildingName) ||
+               Classroom.FloorNumber > 0 ||
+               Classroom.Capacity > 0 ||
+               !string.IsNullOrWhiteSpace(Classroom.Notes);
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        // If confirmation modals are open, don't close
+        if (showSubmitConfirmModal || showCancelConfirmModal || showValidationModal || showUnavailableReasonModal || showAvailableNoteModal)
+        {
+            return;
+        }
+        
+        // If no data entered, allow closing
+        if (!HasData())
+        {
+            await OnClose.InvokeAsync();
+        }
+        else
+        {
+            // If data exists, play sound and shake modal
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "edit-classroom-modal");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
+            }
+        }
+    }
+
     private async Task HandleSubmit()
     {
+        // Notes are already handled in the available/unavailable modals
         await OnSubmit.InvokeAsync();
+    }
+
+    private void CancelStatusChange()
+    {
+        // Revert the status change
+        Classroom.IsActive = originalIsActive;
+    }
+    
+    private void CancelUnavailableReason()
+    {
+        showUnavailableReasonModal = false;
+        unavailableReason = "";
+        showUnavailableReasonError = false;
+        // Revert the status change
+        Classroom.IsActive = originalIsActive;
+    }
+    
+    private void ConfirmUnavailableReason()
+    {
+        // Validate that reason is required
+        if (string.IsNullOrWhiteSpace(unavailableReason))
+        {
+            showUnavailableReasonError = true;
+            return;
+        }
+        
+        showUnavailableReasonError = false;
+        // Set the reason in Notes
+        Classroom.Notes = unavailableReason;
+        showUnavailableReasonModal = false;
+        unavailableReason = "";
+    }
+    
+    private void CancelAvailableNote()
+    {
+        showAvailableNoteModal = false;
+        availableNote = "";
+        // Revert the status change
+        Classroom.IsActive = originalIsActive;
+    }
+    
+    private void ConfirmAvailableNote()
+    {
+        // If note is provided, update Notes; otherwise clear it
+        if (string.IsNullOrWhiteSpace(availableNote))
+        {
+            Classroom.Notes = "";
+        }
+        else
+        {
+            Classroom.Notes = availableNote;
+        }
+        
+        showAvailableNoteModal = false;
+        availableNote = "";
     }
 }
 

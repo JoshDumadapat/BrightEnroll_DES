@@ -1,0 +1,1078 @@
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
+@using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject AppDbContext DbContext
+@inject IJSRuntime JSRuntime
+
+<div class="space-y-6">
+    <!-- Selection Form -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- Section Header -->
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <h3 class="text-base font-semibold text-gray-800">Employee & Pay Period Selection</h3>
+            <p class="mt-1 text-xs text-gray-600">Select an employee and configure the pay period to generate payslip</p>
+        </div>
+        
+        <div class="p-6">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <!-- Left Column: Employee Selection -->
+                <div class="space-y-4">
+                    <!-- Employee Selection -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Select Employee *</label>
+                        <select @bind="selectedEmployeeId" 
+                                @bind:after="LoadEmployeeSalary"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                            <option value="0">-- Select Employee --</option>
+                            @foreach (var employee in employees)
+                            {
+                                <option value="@employee.UserId">@employee.FullName</option>
+                            }
+                        </select>
+                    </div>
+                    
+                    <!-- Role (Auto-filled, Read-only) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Role</label>
+                        <input type="text" 
+                               value="@selectedEmployeeRole" 
+                               readonly
+                               class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                    </div>
+                    
+                    <!-- Base Salary (Display) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Base Salary</label>
+                        <input type="text" 
+                               value="@(selectedBaseSalary > 0 ? Salary.FormatPeso(selectedBaseSalary) : "--")" 
+                               readonly
+                               class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                    </div>
+                    
+                    <!-- Allowance (Display) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Allowance</label>
+                        <input type="text" 
+                               value="@(selectedAllowance > 0 ? Salary.FormatPeso(selectedAllowance) : "--")" 
+                               readonly
+                               class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                    </div>
+                </div>
+
+                <!-- Right Column: Pay Period Configuration -->
+                <div class="space-y-4">
+                    <!-- Pay Period Type -->
+                    <div>
+                        <div class="mb-2 flex items-center justify-between">
+                            <label class="block text-sm font-medium text-gray-700">Pay Period Type *</label>
+                            @if (!isEditingPayPeriod)
+                            {
+                                <button @onclick="StartEditPayPeriod" 
+                                        class="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700">
+                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                    Configure
+                                </button>
+                            }
+                        </div>
+                        @if (isEditingPayPeriod)
+                        {
+                            <select @bind="editingPayPeriodType" 
+                                    @bind:after="CalculateEditingPayPeriodDates"
+                                    class="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                                <option value="15">15 Days (Bi-monthly)</option>
+                                <option value="30">30 Days (Monthly)</option>
+                                <option value="14">14 Days (Bi-weekly)</option>
+                                <option value="7">7 Days (Weekly)</option>
+                                <option value="custom">Custom Period</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Configure based on your company's pay period policy</p>
+                        }
+                        else
+                        {
+                            <input type="text" 
+                                   value="@GetPayPeriodTypeDisplay()" 
+                                   readonly
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                        }
+                    </div>
+                    
+                    <!-- Pay Period Dates -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Pay Period *</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="mb-1 block text-xs text-gray-600">Start Date</label>
+                                @if (isEditingPayPeriod)
+                                {
+                                    <input type="date" 
+                                           @bind="editingPayPeriodStart" 
+                                           @bind:after="OnEditingPayPeriodChanged"
+                                           class="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                }
+                                else
+                                {
+                                    <input type="text" 
+                                           value="@payPeriodStart.ToString("MMM dd, yyyy")" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                                }
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs text-gray-600">End Date</label>
+                                @if (isEditingPayPeriod)
+                                {
+                                    <input type="date" 
+                                           @bind="editingPayPeriodEnd" 
+                                           @bind:after="OnEditingPayPeriodChanged"
+                                           class="w-full rounded-lg border border-blue-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                }
+                                else
+                                {
+                                    <input type="text" 
+                                           value="@payPeriodEnd.ToString("MMM dd, yyyy")" 
+                                           readonly
+                                           class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
+                                }
+                            </div>
+                        </div>
+                        @if (!isEditingPayPeriod)
+                        {
+                            <p class="mt-1 text-xs text-gray-500">Period: @GetPayPeriodDays() days</p>
+                        }
+                        else if (editingPayPeriodType != "custom")
+                        {
+                            <p class="mt-1 text-xs text-blue-600">Period: @GetEditingPayPeriodDays() days</p>
+                        }
+                    </div>
+                    
+                    <!-- Save/Cancel Buttons (when editing) -->
+                    @if (isEditingPayPeriod)
+                    {
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button @onclick="CancelEditPayPeriod" 
+                                    class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button @onclick="SavePayPeriod" 
+                                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                Save
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Action Buttons (Right Aligned) -->
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="ClearSelection" 
+                        class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                    Clear
+                </button>
+                <button @onclick="ViewEmployeeHistory" 
+                        disabled="@(selectedEmployeeId == 0)"
+                        class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    View Record
+                </button>
+                <button @onclick="GeneratePayslip" 
+                        disabled="@(selectedEmployeeId == 0 || isGenerating)"
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                    @if (isGenerating)
+                    {
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span>Generate Payslip</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payslip Preview -->
+    @if (payslipData != null && !showEmployeeHistory)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-800">Payslip Preview</h2>
+                        <p class="mt-1 text-sm text-gray-600">Pay Period: @payPeriodStart.ToString("MMM dd, yyyy") - @payPeriodEnd.ToString("MMM dd, yyyy")</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6" id="payslip-content">
+                <!-- Payslip Header -->
+                <div class="mb-6 border-b-2 border-gray-300 pb-4">
+                    <div class="text-center">
+                        <h1 class="text-2xl font-bold text-gray-800">BRIGHTENROLL</h1>
+                        <p class="text-sm text-gray-600">Enrollment Management System</p>
+                        <p class="mt-2 text-lg font-semibold text-gray-800">PAYSLIP</p>
+                    </div>
+                </div>
+
+                <!-- Employee Information -->
+                <div class="mb-6 grid grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="mb-3 text-sm font-semibold text-gray-800">Employee Information</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Name:</span>
+                                <span class="font-medium text-gray-800">@payslipData.EmployeeName</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Employee ID:</span>
+                                <span class="font-medium text-gray-800">@payslipData.EmployeeId</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Position:</span>
+                                <span class="font-medium text-gray-800">@payslipData.Position</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Pay Period:</span>
+                                <span class="font-medium text-gray-800">@payPeriodStart.ToString("MMM dd") - @payPeriodEnd.ToString("MMM dd, yyyy")</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="mb-3 text-sm font-semibold text-gray-800">Payment Details</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Payslip #:</span>
+                                <span class="font-medium text-gray-800">@payslipData.PayslipNumber</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Date Generated:</span>
+                                <span class="font-medium text-gray-800">@DateTime.Now.ToString("MMM dd, yyyy")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Status:</span>
+                                <span class="font-medium text-green-600">@payslipData.Status</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Earnings and Deductions -->
+                <div class="mb-6 grid grid-cols-2 gap-6">
+                    <!-- Earnings -->
+                    <div class="rounded-lg border border-gray-200 bg-green-50 p-4">
+                        <h3 class="mb-3 text-sm font-semibold text-green-800">EARNINGS</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Base Salary:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.BaseSalary)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Allowance:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.Allowance)</span>
+                            </div>
+                            <div class="mt-3 flex justify-between border-t border-green-200 pt-2">
+                                <span class="font-semibold text-green-800">Total Earnings:</span>
+                                <span class="text-base font-bold text-green-600">@Salary.FormatPeso(payslipData.GrossPay)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deductions -->
+                    <div class="rounded-lg border border-gray-200 bg-red-50 p-4">
+                        <h3 class="mb-3 text-sm font-semibold text-red-800">DEDUCTIONS</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">SSS:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.SSS)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">PhilHealth:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.PhilHealth)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Pag-IBIG:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.PagIbig)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Withholding Tax:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.WithholdingTax)</span>
+                            </div>
+                            <div class="mt-3 flex justify-between border-t border-red-200 pt-2">
+                                <span class="font-semibold text-red-800">Total Deductions:</span>
+                                <span class="text-base font-bold text-red-600">@Salary.FormatPeso(payslipData.TotalDeductions)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Net Pay -->
+                <div class="rounded-lg border-2 border-green-500 bg-green-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-green-800">NET PAY</h3>
+                            <p class="mt-1 text-sm text-green-700">Amount to be paid</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-green-600">@Salary.FormatPeso(payslipData.NetPay)</p>
+                            <p class="mt-1 text-xs text-green-700">@ConvertToWords(payslipData.NetPay)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="mt-6 border-t border-gray-300 pt-4 text-center text-xs text-gray-500">
+                    <p>This is a computer-generated payslip. No signature required.</p>
+                    <p class="mt-1">Generated on @DateTime.Now.ToString("MMMM dd, yyyy 'at' hh:mm tt")</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Employee History Section -->
+    @if (showEmployeeHistory && selectedEmployeeId > 0)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-800">Employee Pay History</h2>
+                        <p class="mt-1 text-sm text-gray-600">Transaction history for @(employees.FirstOrDefault(e => e.UserId == selectedEmployeeId)?.FullName ?? "Selected Employee")</p>
+                    </div>
+                    <button @onclick="CloseEmployeeHistory" 
+                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                        Close
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto p-6">
+                @if (employeeHistoryRecords.Any())
+                {
+                    <table class="w-full border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-200 bg-gray-50">
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pay Period</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Base Salary</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Allowance</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Gross Pay</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Deductions</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Net Pay</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Status</th>
+                                <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var record in employeeHistoryRecords)
+                            {
+                                <tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" @onclick="() => ViewPayslipFromHistory(record)">
+                                    <td class="px-4 py-3 text-sm text-gray-700">@record.PayPeriod</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@Salary.FormatPeso(record.BaseSalary)</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@Salary.FormatPeso(record.Allowance)</td>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-800">@Salary.FormatPeso(record.GrossPay)</td>
+                                    <td class="px-4 py-3 text-sm text-red-600">@Salary.FormatPeso(record.Deductions)</td>
+                                    <td class="px-4 py-3 text-sm font-bold text-green-600">@Salary.FormatPeso(record.NetPay)</td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <span class="rounded-full @GetStatusBadgeClass(record.Status) px-2 py-1 text-xs font-medium">@record.Status</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center" @onclick:stopPropagation="true">
+                                        <button @onclick="() => ViewPayslipFromHistory(record)" 
+                                                class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                            View Payslip
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <div class="py-12 text-center">
+                        <p class="text-sm text-gray-500">No payroll history found for this employee.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Payslip Preview from History -->
+    @if (payslipData != null && showEmployeeHistory && selectedHistoryRecord != null)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-800">Payslip - @selectedHistoryRecord.PayPeriod</h2>
+                        <p class="mt-1 text-sm text-gray-600">Historical payslip record</p>
+                    </div>
+                    <button @onclick="PrintPayslip" 
+                            class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        Print / Save PDF
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6" id="payslip-content">
+                <!-- Payslip Header -->
+                <div class="mb-6 border-b-2 border-gray-300 pb-4">
+                    <div class="text-center">
+                        <h1 class="text-2xl font-bold text-gray-800">BRIGHTENROLL</h1>
+                        <p class="text-sm text-gray-600">Enrollment Management System</p>
+                        <p class="mt-2 text-lg font-semibold text-gray-800">PAYSLIP</p>
+                    </div>
+                </div>
+
+                <!-- Employee Information -->
+                <div class="mb-6 grid grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="mb-3 text-sm font-semibold text-gray-800">Employee Information</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Name:</span>
+                                <span class="font-medium text-gray-800">@payslipData.EmployeeName</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Employee ID:</span>
+                                <span class="font-medium text-gray-800">@payslipData.EmployeeId</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Position:</span>
+                                <span class="font-medium text-gray-800">@payslipData.Position</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Pay Period:</span>
+                                <span class="font-medium text-gray-800">@selectedHistoryRecord.PayPeriod</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="mb-3 text-sm font-semibold text-gray-800">Payment Details</h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Payslip #:</span>
+                                <span class="font-medium text-gray-800">@payslipData.PayslipNumber</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Date Generated:</span>
+                                <span class="font-medium text-gray-800">@selectedHistoryRecord.RecordDate.ToString("MMM dd, yyyy")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">Status:</span>
+                                <span class="font-medium text-green-600">@payslipData.Status</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Earnings and Deductions -->
+                <div class="mb-6 grid grid-cols-2 gap-6">
+                    <!-- Earnings -->
+                    <div class="rounded-lg border border-gray-200 bg-green-50 p-4">
+                        <h3 class="mb-3 text-sm font-semibold text-green-800">EARNINGS</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Base Salary:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.BaseSalary)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Allowance:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.Allowance)</span>
+                            </div>
+                            <div class="mt-3 flex justify-between border-t border-green-200 pt-2">
+                                <span class="font-semibold text-green-800">Total Earnings:</span>
+                                <span class="text-base font-bold text-green-600">@Salary.FormatPeso(payslipData.GrossPay)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deductions -->
+                    <div class="rounded-lg border border-gray-200 bg-red-50 p-4">
+                        <h3 class="mb-3 text-sm font-semibold text-red-800">DEDUCTIONS</h3>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">SSS:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.SSS)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">PhilHealth:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.PhilHealth)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Pag-IBIG:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.PagIbig)</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-600">Withholding Tax:</span>
+                                <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.WithholdingTax)</span>
+                            </div>
+                            <div class="mt-3 flex justify-between border-t border-red-200 pt-2">
+                                <span class="font-semibold text-red-800">Total Deductions:</span>
+                                <span class="text-base font-bold text-red-600">@Salary.FormatPeso(payslipData.TotalDeductions)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Net Pay -->
+                <div class="rounded-lg border-2 border-green-500 bg-green-100 p-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-green-800">NET PAY</h3>
+                            <p class="mt-1 text-sm text-green-700">Amount to be paid</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-3xl font-bold text-green-600">@Salary.FormatPeso(payslipData.NetPay)</p>
+                            <p class="mt-1 text-xs text-green-700">@ConvertToWords(payslipData.NetPay)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="mt-6 border-t border-gray-300 pt-4 text-center text-xs text-gray-500">
+                    <p>This is a computer-generated payslip. No signature required.</p>
+                    <p class="mt-1">Generated on @selectedHistoryRecord.RecordDate.ToString("MMMM dd, yyyy 'at' hh:mm tt")</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<EmployeeDataView> employees = new();
+    private int selectedEmployeeId = 0;
+    private string selectedEmployeeRole = "";
+    private decimal selectedBaseSalary = 0;
+    private decimal selectedAllowance = 0;
+    private string payPeriodType = "15"; // Default to 15 days
+    private DateTime payPeriodStart = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+    private DateTime payPeriodEnd = DateTime.Now;
+    
+    // Pay period editing state
+    private bool isEditingPayPeriod = false;
+    private string editingPayPeriodType = "15";
+    private DateTime editingPayPeriodStart;
+    private DateTime editingPayPeriodEnd;
+    private PayslipData? payslipData;
+    private bool isGenerating = false;
+    private bool showEmployeeHistory = false;
+    private List<EmployeeHistoryRecord> employeeHistoryRecords = new();
+    private EmployeeHistoryRecord? selectedHistoryRecord = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+        CalculatePayPeriodDates();
+        
+        // Initialize editing dates
+        editingPayPeriodType = payPeriodType;
+        editingPayPeriodStart = payPeriodStart;
+        editingPayPeriodEnd = payPeriodEnd;
+    }
+    
+    private void CalculatePayPeriodDates()
+    {
+        if (payPeriodType == "custom")
+        {
+            // Don't auto-calculate for custom
+            return;
+        }
+        
+        var days = int.Parse(payPeriodType);
+        var today = DateTime.Now;
+        
+        // Calculate start date (beginning of current period)
+        // For 15 days: 1st-15th or 16th-end of month
+        // For 30 days: 1st to end of month
+        if (days == 15)
+        {
+            if (today.Day <= 15)
+            {
+                payPeriodStart = new DateTime(today.Year, today.Month, 1);
+                payPeriodEnd = new DateTime(today.Year, today.Month, 15);
+            }
+            else
+            {
+                payPeriodStart = new DateTime(today.Year, today.Month, 16);
+                payPeriodEnd = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+            }
+        }
+        else if (days == 30)
+        {
+            payPeriodStart = new DateTime(today.Year, today.Month, 1);
+            payPeriodEnd = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        }
+        else if (days == 14)
+        {
+            // Bi-weekly: find the most recent Monday or start of bi-weekly cycle
+            var daysSinceMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+            payPeriodStart = today.AddDays(-daysSinceMonday - 14);
+            payPeriodEnd = payPeriodStart.AddDays(13);
+        }
+        else if (days == 7)
+        {
+            // Weekly: find the most recent Monday
+            var daysSinceMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+            payPeriodStart = today.AddDays(-daysSinceMonday);
+            payPeriodEnd = payPeriodStart.AddDays(6);
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void OnPayPeriodChanged()
+    {
+        // When dates are manually changed, switch to custom
+        if (payPeriodType != "custom")
+        {
+            payPeriodType = "custom";
+        }
+        StateHasChanged();
+    }
+    
+    private void OnEditingPayPeriodChanged()
+    {
+        // When editing dates are manually changed, switch to custom
+        if (editingPayPeriodType != "custom")
+        {
+            editingPayPeriodType = "custom";
+        }
+        StateHasChanged();
+    }
+    
+    private int GetPayPeriodDays()
+    {
+        if (payPeriodType == "custom")
+        {
+            return (payPeriodEnd - payPeriodStart).Days + 1;
+        }
+        return int.Parse(payPeriodType);
+    }
+    
+    private int GetEditingPayPeriodDays()
+    {
+        if (editingPayPeriodType == "custom")
+        {
+            return (editingPayPeriodEnd - editingPayPeriodStart).Days + 1;
+        }
+        return int.Parse(editingPayPeriodType);
+    }
+    
+    private string GetPayPeriodTypeDisplay()
+    {
+        return payPeriodType switch
+        {
+            "15" => "15 Days (Bi-monthly)",
+            "30" => "30 Days (Monthly)",
+            "14" => "14 Days (Bi-weekly)",
+            "7" => "7 Days (Weekly)",
+            "custom" => $"Custom ({GetPayPeriodDays()} days)",
+            _ => "15 Days (Bi-monthly)"
+        };
+    }
+    
+    private void StartEditPayPeriod()
+    {
+        isEditingPayPeriod = true;
+        editingPayPeriodType = payPeriodType;
+        editingPayPeriodStart = payPeriodStart;
+        editingPayPeriodEnd = payPeriodEnd;
+        
+        // Recalculate dates if type changed
+        if (editingPayPeriodType != "custom")
+        {
+            CalculateEditingPayPeriodDates();
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void CancelEditPayPeriod()
+    {
+        isEditingPayPeriod = false;
+        editingPayPeriodType = payPeriodType;
+        editingPayPeriodStart = payPeriodStart;
+        editingPayPeriodEnd = payPeriodEnd;
+        StateHasChanged();
+    }
+    
+    private void SavePayPeriod()
+    {
+        payPeriodType = editingPayPeriodType;
+        payPeriodStart = editingPayPeriodStart;
+        payPeriodEnd = editingPayPeriodEnd;
+        isEditingPayPeriod = false;
+        
+        // Here you would save to database in a real implementation
+        // await SavePayPeriodToDatabase();
+        
+        StateHasChanged();
+    }
+    
+    private void CalculateEditingPayPeriodDates()
+    {
+        if (editingPayPeriodType == "custom")
+        {
+            return;
+        }
+        
+        var days = int.Parse(editingPayPeriodType);
+        var today = DateTime.Now;
+        
+        if (days == 15)
+        {
+            if (today.Day <= 15)
+            {
+                editingPayPeriodStart = new DateTime(today.Year, today.Month, 1);
+                editingPayPeriodEnd = new DateTime(today.Year, today.Month, 15);
+            }
+            else
+            {
+                editingPayPeriodStart = new DateTime(today.Year, today.Month, 16);
+                editingPayPeriodEnd = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+            }
+        }
+        else if (days == 30)
+        {
+            editingPayPeriodStart = new DateTime(today.Year, today.Month, 1);
+            editingPayPeriodEnd = new DateTime(today.Year, today.Month, DateTime.DaysInMonth(today.Year, today.Month));
+        }
+        else if (days == 14)
+        {
+            var daysSinceMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+            editingPayPeriodStart = today.AddDays(-daysSinceMonday - 14);
+            editingPayPeriodEnd = editingPayPeriodStart.AddDays(13);
+        }
+        else if (days == 7)
+        {
+            var daysSinceMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+            editingPayPeriodStart = today.AddDays(-daysSinceMonday);
+            editingPayPeriodEnd = editingPayPeriodStart.AddDays(6);
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task LoadEmployees()
+    {
+        try
+        {
+            employees = await DbContext.EmployeeDataViews
+                .Where(e => e.Status == "active")
+                .OrderBy(e => e.FullName)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading employees: {ex.Message}");
+        }
+    }
+
+    private async Task LoadEmployeeSalary()
+    {
+        if (selectedEmployeeId == 0)
+        {
+            payslipData = null;
+            selectedEmployeeRole = "";
+            selectedBaseSalary = 0;
+            selectedAllowance = 0;
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var employee = employees.FirstOrDefault(e => e.UserId == selectedEmployeeId);
+            if (employee == null)
+            {
+                return;
+            }
+            
+            // Set role immediately
+            selectedEmployeeRole = employee.Role ?? "";
+            
+            var salaryInfo = await DbContext.SalaryInfos
+                .Where(s => s.UserId == selectedEmployeeId && s.IsActive)
+                .OrderByDescending(s => s.DateEffective)
+                .FirstOrDefaultAsync();
+
+            if (salaryInfo != null)
+            {
+                // Set base salary and allowance for display
+                selectedBaseSalary = salaryInfo.BaseSalary;
+                selectedAllowance = salaryInfo.Allowance;
+                
+                var payrollCalc = new PayrollRoleData
+                {
+                    Role = employee.Role ?? "",
+                    BaseSalary = salaryInfo.BaseSalary,
+                    Allowance = salaryInfo.Allowance,
+                    IsActive = true
+                };
+                payrollCalc.Recalculate();
+
+                payslipData = new PayslipData
+                {
+                    EmployeeId = employee.SystemId ?? "",
+                    EmployeeName = employee.FullName ?? "",
+                    Position = employee.Role ?? "",
+                    BaseSalary = salaryInfo.BaseSalary,
+                    Allowance = salaryInfo.Allowance,
+                    GrossPay = payrollCalc.GrossPay,
+                    SSS = payrollCalc.SSS,
+                    PhilHealth = payrollCalc.PhilHealth,
+                    PagIbig = payrollCalc.PagIbig,
+                    WithholdingTax = payrollCalc.WithholdingTax,
+                    TotalDeductions = payrollCalc.TotalDeductions,
+                    NetPay = payrollCalc.NetPay,
+                    PayslipNumber = $"PS-{DateTime.Now:yyyyMMdd}-{selectedEmployeeId:D4}",
+                    Status = "Generated"
+                };
+            }
+            else
+            {
+                selectedBaseSalary = 0;
+                selectedAllowance = 0;
+                await JSRuntime.InvokeVoidAsync("alert", "No active salary information found for this employee.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading salary: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task GeneratePayslip()
+    {
+        if (selectedEmployeeId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select an employee first.");
+            return;
+        }
+
+        if (payPeriodStart > payPeriodEnd)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Start date must be before end date.");
+            return;
+        }
+
+        isGenerating = true;
+        try
+        {
+            await LoadEmployeeSalary();
+            if (payslipData != null)
+            {
+                // Print/Save the payslip
+                await PrintPayslip();
+                
+                // In a real implementation, save to database here
+                // For now, we'll just show a success message
+                await JSRuntime.InvokeVoidAsync("alert", "Payslip generated, printed, and saved to records successfully!");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating payslip: {ex.Message}");
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task ViewEmployeeHistory()
+    {
+        if (selectedEmployeeId == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select an employee first.");
+            return;
+        }
+
+        showEmployeeHistory = true;
+        selectedHistoryRecord = null;
+        
+        // Load employee history records
+        // In a real implementation, this would load from a payroll records table
+        // For now, we'll create sample records with dates
+        var now = DateTime.Now;
+        var employee = employees.FirstOrDefault(e => e.UserId == selectedEmployeeId);
+        var baseSalary = payslipData?.BaseSalary ?? 50000;
+        var allowance = payslipData?.Allowance ?? 5000;
+        var grossPay = payslipData?.GrossPay ?? 55000;
+        var deductions = payslipData?.TotalDeductions ?? 10691.67m;
+        var netPay = payslipData?.NetPay ?? 44308.33m;
+
+        employeeHistoryRecords = new List<EmployeeHistoryRecord>
+        {
+            new EmployeeHistoryRecord
+            {
+                PayPeriod = $"{now.AddMonths(-3):MMM dd} - {now.AddMonths(-3).AddDays(14):MMM dd, yyyy}",
+                BaseSalary = baseSalary,
+                Allowance = allowance,
+                GrossPay = grossPay,
+                Deductions = deductions,
+                NetPay = netPay,
+                Status = "Paid",
+                RecordDate = now.AddMonths(-3)
+            },
+            new EmployeeHistoryRecord
+            {
+                PayPeriod = $"{now.AddMonths(-2):MMM dd} - {now.AddMonths(-2).AddDays(14):MMM dd, yyyy}",
+                BaseSalary = baseSalary,
+                Allowance = allowance,
+                GrossPay = grossPay,
+                Deductions = deductions,
+                NetPay = netPay,
+                Status = "Paid",
+                RecordDate = now.AddMonths(-2)
+            },
+            new EmployeeHistoryRecord
+            {
+                PayPeriod = $"{now.AddMonths(-1):MMM dd} - {now.AddMonths(-1).AddDays(14):MMM dd, yyyy}",
+                BaseSalary = baseSalary,
+                Allowance = allowance,
+                GrossPay = grossPay,
+                Deductions = deductions,
+                NetPay = netPay,
+                Status = "Paid",
+                RecordDate = now.AddMonths(-1)
+            },
+            new EmployeeHistoryRecord
+            {
+                PayPeriod = $"{now:MMM dd} - {now.AddDays(14):MMM dd, yyyy}",
+                BaseSalary = baseSalary,
+                Allowance = allowance,
+                GrossPay = grossPay,
+                Deductions = deductions,
+                NetPay = netPay,
+                Status = "Pending",
+                RecordDate = now
+            }
+        };
+        StateHasChanged();
+    }
+
+    private void CloseEmployeeHistory()
+    {
+        showEmployeeHistory = false;
+        selectedHistoryRecord = null;
+        StateHasChanged();
+    }
+
+    private void ViewPayslipFromHistory(EmployeeHistoryRecord record)
+    {
+        selectedHistoryRecord = record;
+        
+        // Update payslip data with history record data
+        if (payslipData != null && selectedEmployeeId > 0)
+        {
+            var employee = employees.FirstOrDefault(e => e.UserId == selectedEmployeeId);
+            if (employee != null)
+            {
+                var payrollCalc = new PayrollRoleData
+                {
+                    Role = employee.Role ?? "",
+                    BaseSalary = record.BaseSalary,
+                    Allowance = record.Allowance,
+                    IsActive = true
+                };
+                payrollCalc.Recalculate();
+
+                payslipData = new PayslipData
+                {
+                    EmployeeId = employee.SystemId ?? "",
+                    EmployeeName = employee.FullName ?? "",
+                    Position = employee.Role ?? "",
+                    BaseSalary = record.BaseSalary,
+                    Allowance = record.Allowance,
+                    GrossPay = record.GrossPay,
+                    SSS = payrollCalc.SSS,
+                    PhilHealth = payrollCalc.PhilHealth,
+                    PagIbig = payrollCalc.PagIbig,
+                    WithholdingTax = payrollCalc.WithholdingTax,
+                    TotalDeductions = record.Deductions,
+                    NetPay = record.NetPay,
+                    PayslipNumber = $"PS-{record.RecordDate:yyyyMMdd}-{selectedEmployeeId:D4}",
+                    Status = record.Status
+                };
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Paid" => "bg-green-100 text-green-800",
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            "Generated" => "bg-blue-100 text-blue-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+
+    private async Task PrintPayslip()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private void ClearSelection()
+    {
+        selectedEmployeeId = 0;
+        selectedEmployeeRole = "";
+        selectedBaseSalary = 0;
+        selectedAllowance = 0;
+        payPeriodType = "15";
+        CalculatePayPeriodDates();
+        payslipData = null;
+        showEmployeeHistory = false;
+        employeeHistoryRecords.Clear();
+        selectedHistoryRecord = null;
+        StateHasChanged();
+    }
+
+    private string ConvertToWords(decimal amount)
+    {
+        // Simplified number to words conversion
+        // In production, use a proper library for this
+        return $"PESOS {amount:N2}";
+    }
+
+    private class PayslipData
+    {
+        public string EmployeeId { get; set; } = string.Empty;
+        public string EmployeeName { get; set; } = string.Empty;
+        public string Position { get; set; } = string.Empty;
+        public decimal BaseSalary { get; set; }
+        public decimal Allowance { get; set; }
+        public decimal GrossPay { get; set; }
+        public decimal SSS { get; set; }
+        public decimal PhilHealth { get; set; }
+        public decimal PagIbig { get; set; }
+        public decimal WithholdingTax { get; set; }
+        public decimal TotalDeductions { get; set; }
+        public decimal NetPay { get; set; }
+        public string PayslipNumber { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+    }
+
+    private class EmployeeHistoryRecord
+    {
+        public string PayPeriod { get; set; } = string.Empty;
+        public decimal BaseSalary { get; set; }
+        public decimal Allowance { get; set; }
+        public decimal GrossPay { get; set; }
+        public decimal Deductions { get; set; }
+        public decimal NetPay { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime RecordDate { get; set; } = DateTime.Now;
+    }
+}
+

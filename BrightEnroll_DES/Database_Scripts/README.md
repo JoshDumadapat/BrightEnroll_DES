@@ -3,11 +3,18 @@
 ## Which Script Should I Use?
 
 ### ✅ **For New Device Setup (USE THIS ONE)**
-**`Initialize_Database.sql`** - Complete database setup script (optimized)
+**`Initialize_Database.sql`** - Complete database setup script (all-in-one)
 - Creates the database
-- Creates all tables (Users, Students, Guardians, Requirements, Employee tables)
+- Creates **ALL** tables including:
+  - User management (Users, User Status Logs)
+  - Student management (Students, Guardians, Requirements, Student ID Sequence)
+  - Employee management (Address, Emergency Contact, Salary Info)
+  - Finance (Grade Levels, Fees, Fee Breakdown)
+  - Curriculum (Buildings, Classrooms, Sections, Subjects, SubjectSchedule, SubjectSection, TeacherSectionAssignment, ClassSchedule)
 - Creates all indexes
-- Adds status column if missing
+- Creates stored procedures (sp_CreateStudent with sequence synchronization)
+- Creates views (vw_EmployeeData, vw_StudentData)
+- Seeds initial data (Grade Levels)
 - Ready to use!
 
 **Note:** The application auto-creates the database on startup. This script is for manual setup only.
@@ -19,6 +26,11 @@
 
 2. **`Backup_Database_Data.sql`** - For backing up existing data
    - Use when you want to transfer data from one device to another
+
+3. **`sp_CreateStudent_Improved.sql`** - Upgrade script for existing databases
+   - Use this if you have an existing database and want to upgrade to the improved stored procedure
+   - The improved version includes automatic sequence synchronization to prevent ID conflicts
+   - Run this to replace the basic sp_CreateStudent procedure
 
 ---
 

@@ -262,7 +262,7 @@ GO
 
 -- STEP 3: CREATE STORED PROCEDURES
 
--- Stored Procedure: sp_CreateStudent - Generates 6-digit student ID and inserts student record
+-- Stored Procedure: sp_CreateStudent - Improved version with sequence synchronization
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[sp_CreateStudent]') AND type in (N'P', N'PC'))
     DROP PROCEDURE [dbo].[sp_CreateStudent];
 GO
@@ -305,73 +305,193 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        DECLARE @NewID INT;
-        DECLARE @FormattedID VARCHAR(6);
-        
-        -- Lock the sequence table and get the next ID atomically
-        SELECT @NewID = [LastStudentID]
-        FROM [dbo].[tbl_StudentID_Sequence] WITH (UPDLOCK, HOLDLOCK);
-        
-        -- Check if we've exceeded the 6-digit limit
-        IF @NewID >= 999999
-        BEGIN
-            ROLLBACK TRANSACTION;
-            RAISERROR('Student ID limit reached (999999). Cannot generate more student IDs.', 16, 1);
-            RETURN;
-        END;
-        
-        -- Increment the ID
-        SET @NewID = @NewID + 1;
-        
-        -- Format to 6 digits with leading zeros
-        SET @FormattedID = RIGHT('000000' + CAST(@NewID AS VARCHAR(6)), 6);
-        
-        -- Update the sequence table
-        UPDATE [dbo].[tbl_StudentID_Sequence]
-        SET [LastStudentID] = @NewID;
-        
-        -- Insert the student record with the generated ID
-        INSERT INTO [dbo].[tbl_Students] (
-            [student_id], [first_name], [middle_name], [last_name], [suffix],
-            [birthdate], [age], [place_of_birth], [sex], [mother_tongue],
-            [ip_comm], [ip_specify], [four_ps], [four_ps_hseID],
-            [hse_no], [street], [brngy], [province], [city], [country], [zip_code],
-            [phse_no], [pstreet], [pbrngy], [pprovince], [pcity], [pcountry], [pzip_code],
-            [student_type], [LRN], [school_yr], [grade_level], [guardian_id],
-            [date_registered], [status]
-        )
-        VALUES (
-            @FormattedID, @first_name, @middle_name, @last_name, @suffix,
-            @birthdate, @age, @place_of_birth, @sex, @mother_tongue,
-            @ip_comm, @ip_specify, @four_ps, @four_ps_hseID,
-            @hse_no, @street, @brngy, @province, @city, @country, @zip_code,
-            @phse_no, @pstreet, @pbrngy, @pprovince, @pcity, @pcountry, @pzip_code,
-            @student_type, @LRN, @school_yr, @grade_level, @guardian_id,
-            GETDATE(), 'Pending'
-        );
-        
-        -- Set output parameter
-        SET @student_id = @FormattedID;
-        
-        COMMIT TRANSACTION;
-    END TRY
-    BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
-        DECLARE @ErrorState INT = ERROR_STATE();
-        
-        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
-    END CATCH;
+    DECLARE @MaxRetries INT = 3;
+    DECLARE @RetryCount INT = 0;
+    DECLARE @Success BIT = 0;
+    
+    WHILE @RetryCount < @MaxRetries AND @Success = 0
+    BEGIN
+        BEGIN TRY
+            BEGIN TRANSACTION;
+            
+            DECLARE @NewID INT;
+            DECLARE @FormattedID VARCHAR(6);
+            DECLARE @MaxExistingID INT;
+            
+            -- Synchronize sequence table with highest existing student ID
+            IF @RetryCount = 0 OR @RetryCount > 0
+            BEGIN
+                SELECT @MaxExistingID = ISNULL(MAX(
+                    CASE 
+                        WHEN ISNUMERIC([student_id]) = 1 THEN CAST([student_id] AS INT)
+                        ELSE NULL
+                    END
+                ), 158021)
+                FROM [dbo].[tbl_Students]
+                WHERE ISNUMERIC([student_id]) = 1 AND LEN([student_id]) = 6;
+                
+                DECLARE @CurrentSequence INT;
+                SELECT @CurrentSequence = [LastStudentID]
+                FROM [dbo].[tbl_StudentID_Sequence] WITH (UPDLOCK, HOLDLOCK);
+                
+                IF @CurrentSequence < @MaxExistingID
+                BEGIN
+                    UPDATE [dbo].[tbl_StudentID_Sequence]
+                    SET [LastStudentID] = @MaxExistingID;
+                    SET @CurrentSequence = @MaxExistingID;
+                END
+            END
+            
+            -- Lock the sequence table and get the next ID atomically
+            SELECT @NewID = [LastStudentID]
+            FROM [dbo].[tbl_StudentID_Sequence] WITH (UPDLOCK, HOLDLOCK);
+            
+            -- Check if we've exceeded the 6-digit limit
+            IF @NewID >= 999999
+            BEGIN
+                ROLLBACK TRANSACTION;
+                RAISERROR('Student ID limit reached (999999). Cannot generate more student IDs.', 16, 1);
+                RETURN;
+            END;
+            
+            -- Increment the ID
+            SET @NewID = @NewID + 1;
+            
+            -- Format to 6 digits with leading zeros
+            SET @FormattedID = RIGHT('000000' + CAST(@NewID AS VARCHAR(6)), 6);
+            
+            -- Verify the generated ID doesn't already exist
+            IF EXISTS (SELECT 1 FROM [dbo].[tbl_Students] WHERE [student_id] = @FormattedID)
+            BEGIN
+                ROLLBACK TRANSACTION;
+                
+                SELECT @MaxExistingID = ISNULL(MAX(
+                    CASE 
+                        WHEN ISNUMERIC([student_id]) = 1 THEN CAST([student_id] AS INT)
+                        ELSE NULL
+                    END
+                ), 158021)
+                FROM [dbo].[tbl_Students]
+                WHERE ISNUMERIC([student_id]) = 1 AND LEN([student_id]) = 6;
+                
+                UPDATE [dbo].[tbl_StudentID_Sequence]
+                SET [LastStudentID] = @MaxExistingID;
+                
+                SET @RetryCount = @RetryCount + 1;
+                CONTINUE;
+            END
+            
+            -- Update the sequence table
+            UPDATE [dbo].[tbl_StudentID_Sequence]
+            SET [LastStudentID] = @NewID;
+            
+            -- Insert the student record with the generated ID
+            INSERT INTO [dbo].[tbl_Students] (
+                [student_id], [first_name], [middle_name], [last_name], [suffix],
+                [birthdate], [age], [place_of_birth], [sex], [mother_tongue],
+                [ip_comm], [ip_specify], [four_ps], [four_ps_hseID],
+                [hse_no], [street], [brngy], [province], [city], [country], [zip_code],
+                [phse_no], [pstreet], [pbrngy], [pprovince], [pcity], [pcountry], [pzip_code],
+                [student_type], [LRN], [school_yr], [grade_level], [guardian_id],
+                [date_registered], [status]
+            )
+            VALUES (
+                @FormattedID, @first_name, @middle_name, @last_name, @suffix,
+                @birthdate, @age, @place_of_birth, @sex, @mother_tongue,
+                @ip_comm, @ip_specify, @four_ps, @four_ps_hseID,
+                @hse_no, @street, @brngy, @province, @city, @country, @zip_code,
+                @phse_no, @pstreet, @pbrngy, @pprovince, @pcity, @pcountry, @pzip_code,
+                @student_type, @LRN, @school_yr, @grade_level, @guardian_id,
+                GETDATE(), 'Pending'
+            );
+            
+            -- Set output parameter
+            SET @student_id = @FormattedID;
+            SET @Success = 1;
+            
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF ERROR_NUMBER() = 2627 AND ERROR_MESSAGE() LIKE '%PRIMARY KEY%'
+            BEGIN
+                IF @@TRANCOUNT > 0
+                    ROLLBACK TRANSACTION;
+                
+                SELECT @MaxExistingID = ISNULL(MAX(
+                    CASE 
+                        WHEN ISNUMERIC([student_id]) = 1 THEN CAST([student_id] AS INT)
+                        ELSE NULL
+                    END
+                ), 158021)
+                FROM [dbo].[tbl_Students]
+                WHERE ISNUMERIC([student_id]) = 1 AND LEN([student_id]) = 6;
+                
+                UPDATE [dbo].[tbl_StudentID_Sequence]
+                SET [LastStudentID] = @MaxExistingID;
+                
+                SET @RetryCount = @RetryCount + 1;
+                
+                IF @RetryCount >= @MaxRetries
+                BEGIN
+                    DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+                    DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+                    DECLARE @ErrorState INT = ERROR_STATE();
+                    
+                    RAISERROR('Failed to generate unique student ID after %d attempts. Original error: %s', 
+                        @ErrorSeverity, @ErrorState, @MaxRetries, @ErrorMessage);
+                    RETURN;
+                END
+                CONTINUE;
+            END
+            ELSE
+            BEGIN
+                IF @@TRANCOUNT > 0
+                    ROLLBACK TRANSACTION;
+                
+                DECLARE @ErrMessage NVARCHAR(4000) = ERROR_MESSAGE();
+                DECLARE @ErrSeverity INT = ERROR_SEVERITY();
+                DECLARE @ErrState INT = ERROR_STATE();
+                
+                RAISERROR(@ErrMessage, @ErrSeverity, @ErrState);
+                RETURN;
+            END
+        END CATCH
+    END
+    
+    IF @Success = 0
+    BEGIN
+        RAISERROR('Failed to create student after maximum retry attempts. Please contact administrator.', 16, 1);
+        RETURN;
+    END
 END;
 GO
 
-PRINT 'Stored procedure [sp_CreateStudent] created.';
+PRINT 'Stored procedure [sp_CreateStudent] created with sequence synchronization.';
+GO
+
+-- STEP 3.3: CREATE USER STATUS LOGS TABLE
+
+-- tbl_user_status_logs (depends on tbl_Users)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_user_status_logs' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_user_status_logs](
+        [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [user_id] INT NOT NULL,
+        [changed_by] INT NOT NULL,
+        [old_status] VARCHAR(20) NOT NULL,
+        [new_status] VARCHAR(20) NOT NULL,
+        [reason] TEXT NULL,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_StatusLogs_User FOREIGN KEY ([user_id]) REFERENCES [dbo].[tbl_Users]([user_ID]),
+        CONSTRAINT FK_StatusLogs_Admin FOREIGN KEY ([changed_by]) REFERENCES [dbo].[tbl_Users]([user_ID])
+    );
+    
+    CREATE INDEX IX_tbl_user_status_logs_user_id ON [dbo].[tbl_user_status_logs]([user_id]);
+    CREATE INDEX IX_tbl_user_status_logs_changed_by ON [dbo].[tbl_user_status_logs]([changed_by]);
+    CREATE INDEX IX_tbl_user_status_logs_created_at ON [dbo].[tbl_user_status_logs]([created_at]);
+    
+    PRINT 'Table [tbl_user_status_logs] created.';
+END
 GO
 
 -- STEP 3.4: CREATE FINANCE TABLES
@@ -455,7 +575,186 @@ BEGIN
 END
 GO
 
--- STEP 3.5: CREATE VIEWS
+-- STEP 3.5: CREATE CURRICULUM TABLES
+
+-- tbl_Buildings (optional but recommended)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_Buildings' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_Buildings](
+        [BuildingID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [BuildingName] VARCHAR(100) NOT NULL,
+        [FloorCount] INT NULL,
+        [Description] VARCHAR(500) NULL
+    );
+    
+    CREATE INDEX IX_tbl_Buildings_BuildingName ON [dbo].[tbl_Buildings]([BuildingName]);
+    
+    PRINT 'Table [tbl_Buildings] created.';
+END
+GO
+
+-- tbl_Classrooms (depends on tbl_Buildings - optional, can use BuildingName as VARCHAR)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_Classrooms' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_Classrooms](
+        [RoomID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [RoomName] VARCHAR(100) NOT NULL,
+        [BuildingName] VARCHAR(100) NULL,
+        [FloorNumber] INT NULL,
+        [RoomType] VARCHAR(50) NULL,
+        [Capacity] INT NOT NULL,
+        [Status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+        [Notes] VARCHAR(500) NULL,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL
+    );
+    
+    CREATE INDEX IX_tbl_Classrooms_RoomName ON [dbo].[tbl_Classrooms]([RoomName]);
+    CREATE INDEX IX_tbl_Classrooms_Status ON [dbo].[tbl_Classrooms]([Status]);
+    
+    PRINT 'Table [tbl_Classrooms] created.';
+END
+GO
+
+-- tbl_Subjects (depends on tbl_GradeLevel)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_Subjects' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_Subjects](
+        [SubjectID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [GradeLvlID] INT NOT NULL,
+        [SubjectName] VARCHAR(100) NOT NULL,
+        [Description] VARCHAR(500) NULL,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_tbl_Subjects_tbl_GradeLevel FOREIGN KEY ([GradeLvlID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID])
+    );
+    
+    CREATE INDEX IX_tbl_Subjects_SubjectName ON [dbo].[tbl_Subjects]([SubjectName]);
+    CREATE INDEX IX_tbl_Subjects_GradeLvlID ON [dbo].[tbl_Subjects]([GradeLvlID]);
+    
+    PRINT 'Table [tbl_Subjects] created.';
+END
+GO
+
+-- tbl_SubjectSchedule (depends on tbl_Subjects and tbl_GradeLevel)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SubjectSchedule' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SubjectSchedule](
+        [ScheduleID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [SubjectID] INT NOT NULL,
+        [GradeLvlID] INT NOT NULL,
+        [DayOfWeek] VARCHAR(10) NOT NULL,
+        [StartTime] TIME NOT NULL,
+        [EndTime] TIME NOT NULL,
+        [IsDefault] BIT NOT NULL DEFAULT 1,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_tbl_SubjectSchedule_tbl_Subjects FOREIGN KEY ([SubjectID]) REFERENCES [dbo].[tbl_Subjects]([SubjectID]) ON DELETE CASCADE,
+        CONSTRAINT FK_tbl_SubjectSchedule_tbl_GradeLevel FOREIGN KEY ([GradeLvlID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID])
+    );
+    
+    CREATE INDEX IX_tbl_SubjectSchedule_SubjectID ON [dbo].[tbl_SubjectSchedule]([SubjectID]);
+    CREATE INDEX IX_tbl_SubjectSchedule_GradeLvlID ON [dbo].[tbl_SubjectSchedule]([GradeLvlID]);
+    CREATE INDEX IX_tbl_SubjectSchedule_Subject_Grade_Day ON [dbo].[tbl_SubjectSchedule]([SubjectID], [GradeLvlID], [DayOfWeek]);
+    CREATE INDEX IX_tbl_SubjectSchedule_IsDefault ON [dbo].[tbl_SubjectSchedule]([IsDefault]);
+    
+    PRINT 'Table [tbl_SubjectSchedule] created.';
+END
+GO
+
+-- tbl_Sections (depends on tbl_GradeLevel and tbl_Classrooms)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_Sections' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_Sections](
+        [SectionID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [SectionName] VARCHAR(100) NOT NULL,
+        [GradeLvlID] INT NOT NULL,
+        [ClassroomID] INT NULL,
+        [Capacity] INT NOT NULL,
+        [Notes] VARCHAR(500) NULL,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_tbl_Sections_tbl_GradeLevel FOREIGN KEY ([GradeLvlID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID]),
+        CONSTRAINT FK_tbl_Sections_tbl_Classrooms FOREIGN KEY ([ClassroomID]) REFERENCES [dbo].[tbl_Classrooms]([RoomID]) ON DELETE SET NULL
+    );
+    
+    CREATE INDEX IX_tbl_Sections_SectionName ON [dbo].[tbl_Sections]([SectionName]);
+    CREATE INDEX IX_tbl_Sections_GradeLvlID ON [dbo].[tbl_Sections]([GradeLvlID]);
+    CREATE INDEX IX_tbl_Sections_ClassroomID ON [dbo].[tbl_Sections]([ClassroomID]);
+    
+    PRINT 'Table [tbl_Sections] created.';
+END
+GO
+
+-- tbl_SubjectSection (many-to-many, depends on tbl_Sections and tbl_Subjects)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SubjectSection' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SubjectSection](
+        [ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [SectionID] INT NOT NULL,
+        [SubjectID] INT NOT NULL,
+        CONSTRAINT FK_tbl_SubjectSection_tbl_Sections FOREIGN KEY ([SectionID]) REFERENCES [dbo].[tbl_Sections]([SectionID]) ON DELETE CASCADE,
+        CONSTRAINT FK_tbl_SubjectSection_tbl_Subjects FOREIGN KEY ([SubjectID]) REFERENCES [dbo].[tbl_Subjects]([SubjectID]) ON DELETE CASCADE
+    );
+    
+    CREATE INDEX IX_tbl_SubjectSection_SectionID ON [dbo].[tbl_SubjectSection]([SectionID]);
+    CREATE INDEX IX_tbl_SubjectSection_SubjectID ON [dbo].[tbl_SubjectSection]([SubjectID]);
+    
+    PRINT 'Table [tbl_SubjectSection] created.';
+END
+GO
+
+-- tbl_TeacherSectionAssignment (depends on tbl_Users, tbl_Sections, and tbl_Subjects)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_TeacherSectionAssignment' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_TeacherSectionAssignment](
+        [AssignmentID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [TeacherID] INT NOT NULL,
+        [SectionID] INT NOT NULL,
+        [SubjectID] INT NULL,
+        [Role] VARCHAR(50) NOT NULL,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_tbl_TeacherSectionAssignment_tbl_Users FOREIGN KEY ([TeacherID]) REFERENCES [dbo].[tbl_Users]([user_ID]),
+        CONSTRAINT FK_tbl_TeacherSectionAssignment_tbl_Sections FOREIGN KEY ([SectionID]) REFERENCES [dbo].[tbl_Sections]([SectionID]) ON DELETE CASCADE,
+        CONSTRAINT FK_tbl_TeacherSectionAssignment_tbl_Subjects FOREIGN KEY ([SubjectID]) REFERENCES [dbo].[tbl_Subjects]([SubjectID]) ON DELETE SET NULL
+    );
+    
+    CREATE INDEX IX_tbl_TeacherSectionAssignment_TeacherID ON [dbo].[tbl_TeacherSectionAssignment]([TeacherID]);
+    CREATE INDEX IX_tbl_TeacherSectionAssignment_SectionID ON [dbo].[tbl_TeacherSectionAssignment]([SectionID]);
+    CREATE INDEX IX_tbl_TeacherSectionAssignment_SubjectID ON [dbo].[tbl_TeacherSectionAssignment]([SubjectID]);
+    CREATE INDEX IX_tbl_TeacherSectionAssignment_Role ON [dbo].[tbl_TeacherSectionAssignment]([Role]);
+    
+    PRINT 'Table [tbl_TeacherSectionAssignment] created.';
+END
+GO
+
+-- tbl_ClassSchedule (depends on tbl_TeacherSectionAssignment and tbl_Classrooms)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_ClassSchedule' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_ClassSchedule](
+        [ScheduleID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [AssignmentID] INT NOT NULL,
+        [DayOfWeek] VARCHAR(10) NOT NULL,
+        [StartTime] TIME NOT NULL,
+        [EndTime] TIME NOT NULL,
+        [RoomID] INT NOT NULL,
+        [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
+        [UpdatedAt] DATETIME NULL,
+        CONSTRAINT FK_tbl_ClassSchedule_tbl_TeacherSectionAssignment FOREIGN KEY ([AssignmentID]) REFERENCES [dbo].[tbl_TeacherSectionAssignment]([AssignmentID]) ON DELETE CASCADE,
+        CONSTRAINT FK_tbl_ClassSchedule_tbl_Classrooms FOREIGN KEY ([RoomID]) REFERENCES [dbo].[tbl_Classrooms]([RoomID])
+    );
+    
+    CREATE INDEX IX_tbl_ClassSchedule_AssignmentID ON [dbo].[tbl_ClassSchedule]([AssignmentID]);
+    CREATE INDEX IX_tbl_ClassSchedule_RoomID ON [dbo].[tbl_ClassSchedule]([RoomID]);
+    CREATE INDEX IX_tbl_ClassSchedule_DayOfWeek ON [dbo].[tbl_ClassSchedule]([DayOfWeek]);
+    CREATE INDEX IX_tbl_ClassSchedule_Assignment_Day_Time ON [dbo].[tbl_ClassSchedule]([AssignmentID], [DayOfWeek], [StartTime], [EndTime]);
+    
+    PRINT 'Table [tbl_ClassSchedule] created.';
+END
+GO
+
+-- STEP 3.6: CREATE VIEWS
 
 -- View: vw_EmployeeData - Combines all employee-related data
 IF EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[dbo].[vw_EmployeeData]'))
@@ -624,6 +923,43 @@ LEFT JOIN [dbo].[tbl_Guardians] g ON s.[guardian_id] = g.[guardian_id];
 GO
 
 PRINT 'View [vw_StudentData] created.';
+GO
+
+-- View: tbl_FinalClasses - Combines all class assignment and schedule data
+IF EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[dbo].[tbl_FinalClasses]'))
+    DROP VIEW [dbo].[tbl_FinalClasses];
+GO
+
+CREATE VIEW [dbo].[tbl_FinalClasses]
+AS
+SELECT 
+    tsa.[AssignmentID] AS AssignmentId,
+    tsa.[Role],
+    u.[first_name] + ' ' + u.[last_name] AS TeacherName,
+    u.[user_ID] AS TeacherId,
+    s.[SectionName],
+    gl.[GradeLevelName] AS GradeLevel,
+    sub.[SubjectName],
+    sub.[SubjectID] AS SubjectId,
+    cs.[DayOfWeek],
+    cs.[StartTime],
+    cs.[EndTime],
+    c.[RoomName] AS Classroom,
+    c.[BuildingName],
+    tsa.[CreatedAt] AS AssignmentCreatedAt,
+    tsa.[UpdatedAt] AS AssignmentUpdatedAt
+FROM [dbo].[tbl_TeacherSectionAssignment] tsa
+INNER JOIN [dbo].[tbl_Users] u ON tsa.[TeacherID] = u.[user_ID]
+INNER JOIN [dbo].[tbl_Sections] s ON tsa.[SectionID] = s.[SectionID]
+INNER JOIN [dbo].[tbl_GradeLevel] gl ON s.[GradeLvlID] = gl.[gradelevel_ID]
+LEFT JOIN [dbo].[tbl_Subjects] sub ON tsa.[SubjectID] = sub.[SubjectID]
+INNER JOIN [dbo].[tbl_ClassSchedule] cs ON tsa.[AssignmentID] = cs.[AssignmentID]
+INNER JOIN [dbo].[tbl_Classrooms] c ON cs.[RoomID] = c.[RoomID]
+WHERE u.[status] = 'Active'
+ORDER BY gl.[GradeLevelName], s.[SectionName], cs.[DayOfWeek], cs.[StartTime];
+GO
+
+PRINT 'View [tbl_FinalClasses] created.';
 GO
 
 -- STEP 4: VERIFY SETUP

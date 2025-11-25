@@ -1,11 +1,15 @@
 @page "/curriculum-management"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
 @using BrightEnroll_DES.Services
 @using DataModels = BrightEnroll_DES.Data.Models
 @using Microsoft.Extensions.Logging
+@using Microsoft.EntityFrameworkCore
+@using BrightEnroll_DES.Components
 @inject CurriculumService CurriculumService
 @inject ILogger<Curriculum> Logger
+@inject BrightEnroll_DES.Data.AppDbContext _context
 
 <PageTitle>Curriculum</PageTitle>
 
@@ -14,21 +18,25 @@
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
-            <button @onclick='() => SetActiveTab("classrooms")'
+            <button @onclick='async () => await SetActiveTab("classrooms")'
                     class="@GetTabClasses("classrooms")">
                 Classroom
             </button>
-            <button @onclick='() => SetActiveTab("sections")'
+            <button @onclick='async () => await SetActiveTab("sections")'
                     class="@GetTabClasses("sections")">
                 Sections
             </button>
-            <button @onclick='() => SetActiveTab("subjects")'
+            <button @onclick='async () => await SetActiveTab("subjects")'
                     class="@GetTabClasses("subjects")">
                 Subjects
             </button>
-            <button @onclick='() => SetActiveTab("teachers")'
+            <button @onclick='async () => await SetActiveTab("teachers")'
                     class="@GetTabClasses("teachers")">
                 Teacher Assignment
+            </button>
+            <button @onclick='async () => await SetActiveTab("classes")'
+                    class="@GetTabClasses("classes")">
+                Classes Overview
             </button>
         </div>
     </div>
@@ -46,22 +54,34 @@
         {
             <Sections SectionsList="Sections" 
                      OnAddSection="OpenAddSectionModal" 
-                     OnEditSection="OpenEditSectionModal" />
+                     OnEditSection="OpenEditSectionModal"
+                     OnDeleteSection="OpenDeleteSectionModal" />
         }
         else if (ActiveTab == "subjects")
         {
             <Subjects SubjectsList="Subjects" 
+                     GradeLevels="GradeLevels.Select(g => g.GradeLevelName).ToList()"
                      OnAddSubject="OpenAddSubjectModal" 
-                     OnEditSubject="OpenEditSubjectModal" />
+                     OnEditSubject="OpenEditSubjectModal"
+                     OnDeleteSubject="OpenDeleteSubjectModal" />
         }
         else if (ActiveTab == "teachers")
         {
             <TeacherAssignment Assignments="Assignments" 
                               OnAddAssignment="OpenAddAssignmentModal" 
-                              OnEditAssignment="OpenEditAssignmentModal" />
+                              OnEditAssignment="@((TeacherAssignmentModel assignment) => OpenEditAssignmentModal(assignment))"
+                              OnViewAssignment="@((TeacherAssignmentModel assignment) => OpenViewAssignmentModal(assignment))" />
+        }
+        else if (ActiveTab == "classes")
+        {
+            <ClassesOverview FinalClasses="FinalClasses" 
+                           OnViewClass="@((int id) => OpenViewClassModal(id))" />
         }
     </div>
 </div>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
 
 <!-- Modals -->
 <AddClassroomModal Show="ShowAddClassroomModal" 
@@ -106,6 +126,172 @@
                      OnClose="CloseEditAssignmentModal" 
                      OnSubmit="HandleEditAssignment" />
 
+<ViewAssignmentModal Show="ShowViewAssignmentModal" 
+                    Assignment="ViewingAssignment" 
+                    OnClose="CloseViewAssignmentModal" />
+
+<!-- Error Modal -->
+@if (ShowErrorModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseErrorModal">
+        <div id="error-modal" class="w-full max-w-2xl rounded-2xl bg-white shadow-xl max-h-[80vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-red-500 px-6 py-2 flex-shrink-0">
+                <h3 class="text-base font-semibold text-white">@ErrorModalTitle</h3>
+                <button @onclick="CloseErrorModal" class="text-white hover:text-gray-200 transition-colors">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4 overflow-y-auto flex-1">
+                <div class="rounded-lg bg-red-50 border border-red-200 p-4">
+                    <p class="text-sm font-medium text-red-800 mb-2">The following errors occurred:</p>
+                    <div class="text-sm text-red-700 whitespace-pre-line">@ErrorModalMessage</div>
+                </div>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-3 flex-shrink-0">
+                <button @onclick="CloseErrorModal" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Remove Confirmation Modals -->
+<!-- Remove Section Modal -->
+@if (ShowDeleteSectionModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowDeleteSectionModal = false">
+        <div id="delete-section-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Remove Section</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700 mb-2">Are you sure you want to remove this section?</p>
+                <p class="text-sm font-medium text-gray-800">Section: <strong>@DeletingSection.Name</strong></p>
+                <p class="text-xs text-red-600 mt-2">This action cannot be undone.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="() => ShowDeleteSectionModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="HandleDeleteSection" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Remove Subject Modal -->
+@if (ShowDeleteSubjectModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowDeleteSubjectModal = false">
+        <div id="delete-subject-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Remove Subject</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700 mb-2">Are you sure you want to remove this subject?</p>
+                <p class="text-sm font-medium text-gray-800">Subject: <strong>@DeletingSubject.Name</strong></p>
+                <p class="text-xs text-red-600 mt-2">This will also remove all schedules associated with this subject. This action cannot be undone.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="() => ShowDeleteSubjectModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="HandleDeleteSubject" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Unavailable Reason Modal -->
+@if (ShowUnavailableReasonModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowUnavailableReasonModal = false">
+        <div id="unavailable-reason-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-orange-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Set Classroom as Unavailable</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700 mb-2">Please provide a reason why this classroom is being set as unavailable:</p>
+                <p class="text-sm font-medium text-gray-800 mb-4">Classroom: <strong>@TogglingClassroom.RoomName</strong></p>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="UnavailableReason" 
+                             rows="4"
+                             placeholder="Enter the reason (e.g., Maintenance, Renovation, Temporary closure...)"
+                             class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 transition-all duration-200 outline-none hover:border-orange-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
+                             maxlength="500"></textarea>
+                    <p class="mt-1 text-xs text-gray-500">@UnavailableReason.Length / 500 characters</p>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="() => ShowUnavailableReasonModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="() => ConfirmToggleClassroomStatus(TogglingClassroom, UnavailableReason)" 
+                        disabled="@string.IsNullOrWhiteSpace(UnavailableReason)"
+                        class="rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Available Note Modal -->
+@if (ShowAvailableNoteModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowAvailableNoteModal = false">
+        <div id="available-note-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-green-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Set Classroom as Available</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700 mb-2">Please provide a note for this status change (optional):</p>
+                <p class="text-sm font-medium text-gray-800 mb-4">Classroom: <strong>@TogglingClassroom.RoomName</strong></p>
+                @if (!string.IsNullOrWhiteSpace(TogglingClassroom.Notes))
+                {
+                    <div class="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-3">
+                        <p class="text-xs font-semibold text-yellow-800 mb-1">Current Notes:</p>
+                        <p class="text-xs text-yellow-700">@TogglingClassroom.Notes</p>
+                    </div>
+                    <p class="text-xs text-red-600 mb-4">⚠️ If no note is provided, the current notes will be cleared.</p>
+                }
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Note
+                    </label>
+                    <textarea @bind="AvailableNote" 
+                              @bind:event="oninput"
+                              maxlength="500"
+                              rows="4"
+                              placeholder="Enter a note (e.g., Fixed, Completed, Ready for use...)"
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"></textarea>
+                    <div class="mt-1 flex justify-end">
+                        <span class="text-xs text-gray-500">@(AvailableNote?.Length ?? 0) / 500 characters</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="() => ShowAvailableNoteModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSetToAvailable" class="rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white hover:bg-green-600">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string ActiveTab = "classrooms";
     
@@ -116,8 +302,18 @@
     private bool ShowEditSubjectModal = false;
     private bool ShowAddAssignmentModal = false;
     private bool ShowEditAssignmentModal = false;
+    private bool ShowViewAssignmentModal = false;
     private bool ShowAddClassroomModal = false;
     private bool ShowEditClassroomModal = false;
+    private bool ShowDeleteSectionModal = false;
+    private bool ShowDeleteSubjectModal = false;
+    private bool ShowUnavailableReasonModal = false;
+    private bool ShowAvailableNoteModal = false;
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
     
     // Data objects (UI models)
     private Section NewSection = new();
@@ -126,10 +322,19 @@
     private Subject EditingSubject = new();
     private TeacherAssignmentModel NewAssignment = new();
     private TeacherAssignmentModel EditingAssignment = new();
+    private TeacherAssignmentModel? ViewingAssignment = null;
     private Classroom NewClassroom = new();
     private Classroom EditingClassroom = new();
+    private Section DeletingSection = new();
+    private Subject DeletingSubject = new();
+    private Classroom TogglingClassroom = new();
+    private string UnavailableReason = "";
+    private string AvailableNote = "";
     
     private string ClassroomValidationError = "";
+    private bool ShowErrorModal = false;
+    private string ErrorModalTitle = "";
+    private string ErrorModalMessage = "";
 
     // Database data
     private List<DataModels.Classroom> DbClassrooms = new();
@@ -138,6 +343,7 @@
     private List<DataModels.TeacherSectionAssignment> DbAssignments = new();
     private List<DataModels.GradeLevel> GradeLevels = new();
     private List<DataModels.UserEntity> Teachers = new();
+    private List<DataModels.FinalClassView> FinalClasses = new();
 
     // UI display lists (mapped from database)
     private List<Classroom> Classrooms = new();
@@ -161,6 +367,38 @@
             DbAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
             GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
             Teachers = await CurriculumService.GetTeachersAsync();
+            
+            // Load FinalClasses with error handling - if view doesn't exist, continue without it
+            try
+            {
+                FinalClasses = await CurriculumService.GetFinalClassesAsync();
+                Logger.LogInformation("Successfully loaded {FinalClassCount} final classes from view", FinalClasses.Count);
+                
+                // If view returns empty, try building from assignments
+                if (!FinalClasses.Any() && DbAssignments.Any())
+                {
+                    Logger.LogInformation("View returned empty, building FinalClasses from assignments...");
+                    FinalClasses = await BuildFinalClassesFromAssignments();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Could not load final classes from view (view may not exist yet): {ErrorMessage}", ex.Message);
+                
+                // If view doesn't exist, build from assignments
+                if (DbAssignments.Any())
+                {
+                    Logger.LogInformation("Building FinalClasses from assignments as fallback...");
+                    FinalClasses = await BuildFinalClassesFromAssignments();
+                }
+                else
+                {
+                    FinalClasses = new List<DataModels.FinalClassView>();
+                }
+            }
+
+            Logger.LogInformation("Loaded {ClassroomCount} classrooms, {SectionCount} sections, {SubjectCount} subjects, {AssignmentCount} assignments, {FinalClassCount} final classes", 
+                DbClassrooms.Count, DbSections.Count, DbSubjects.Count, DbAssignments.Count, FinalClasses.Count);
 
             // Map to UI models
             Classrooms = DbClassrooms.Select(c => new Classroom
@@ -187,12 +425,20 @@
             }).ToList();
 
             Subjects = await MapSubjectsToUIAsync();
+            Logger.LogInformation("Mapped {SubjectCount} subjects to UI", Subjects.Count);
 
             Assignments = await MapAssignmentsToUIAsync();
+            
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading curriculum data");
+            Logger.LogError(ex, "Error loading curriculum data: {ErrorMessage}", ex.Message);
+            // Show error to user
+            ErrorModalTitle = "Error Loading Data";
+            ErrorModalMessage = $"An error occurred while loading curriculum data:\n\n{ex.Message}\n\nPlease refresh the page and try again.";
+            ShowErrorModal = true;
+            StateHasChanged();
         }
     }
 
@@ -208,53 +454,177 @@
     private async Task<List<Subject>> MapSubjectsToUIAsync()
     {
         var uiSubjects = new List<Subject>();
+        
+        if (DbSubjects == null || !DbSubjects.Any())
+        {
+            Logger.LogWarning("No subjects found in database");
+            return uiSubjects;
+        }
+        
         foreach (var dbSubject in DbSubjects)
         {
-            var linkedSections = await CurriculumService.GetSubjectSectionsBySubjectIdAsync(dbSubject.SubjectId);
-            uiSubjects.Add(new Subject
+            try
             {
-                Id = $"SUB-{dbSubject.SubjectId:D3}",
-                Name = dbSubject.SubjectName,
-                GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
-                LinkedSections = linkedSections.Select(ls => ls.Section?.SectionName ?? "").ToList(),
-                Description = dbSubject.Description ?? ""
-            });
+                // Get subject schedules instead of linked sections
+                var schedules = await CurriculumService.GetSubjectSchedulesBySubjectIdAsync(dbSubject.SubjectId);
+                
+                Logger.LogInformation("Found {ScheduleCount} schedules for subject '{SubjectName}' (ID: {SubjectId})", 
+                    schedules.Count, dbSubject.SubjectName, dbSubject.SubjectId);
+                
+                // Group schedules by time slot and convert to SubjectScheduleItem format
+                var dayOrder = new Dictionary<string, int>
+                {
+                    { "M", 1 },
+                    { "T", 2 },
+                    { "W", 3 },
+                    { "TH", 4 },
+                    { "F", 5 },
+                    { "SAT", 6 },
+                    { "SUN", 7 }
+                };
+
+                var scheduleItems = schedules
+                    .GroupBy(s => new { s.StartTime, s.EndTime })
+                    .Select(g => new SubjectScheduleItem
+                    {
+                        SubjectName = dbSubject.SubjectName,
+                        StartTime = g.Key.StartTime.ToString(@"hh\:mm"),
+                        EndTime = g.Key.EndTime.ToString(@"hh\:mm"),
+                        Days = g.Select(s => s.DayOfWeek.Trim().ToUpper())
+                                .Distinct()
+                                .Where(d => dayOrder.ContainsKey(d))
+                                .OrderBy(d => dayOrder[d])
+                                .ToList(),
+                        Description = dbSubject.Description ?? ""
+                    })
+                    .ToList();
+                
+                uiSubjects.Add(new Subject
+                {
+                    Id = $"SUB-{dbSubject.SubjectId:D3}",
+                    Name = dbSubject.SubjectName,
+                    GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
+                    LinkedSections = new List<string>(), // No longer used, but keep for compatibility
+                    Description = dbSubject.Description ?? "",
+                    Schedules = scheduleItems
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error mapping subject '{SubjectName}' (ID: {SubjectId}): {ErrorMessage}", 
+                    dbSubject.SubjectName, dbSubject.SubjectId, ex.Message);
+                
+                // Still add the subject even if schedules fail to load
+                uiSubjects.Add(new Subject
+                {
+                    Id = $"SUB-{dbSubject.SubjectId:D3}",
+                    Name = dbSubject.SubjectName,
+                    GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
+                    LinkedSections = new List<string>(),
+                    Description = dbSubject.Description ?? "",
+                    Schedules = new List<SubjectScheduleItem>() // Empty schedules if error
+                });
+            }
         }
+        
         return uiSubjects;
     }
 
     private async Task<List<TeacherAssignmentModel>> MapAssignmentsToUIAsync()
     {
         var uiAssignments = new List<TeacherAssignmentModel>();
+        var allSchedules = await CurriculumService.GetAllClassSchedulesAsync();
+        
         foreach (var dbAssignment in DbAssignments)
         {
-            var schedules = await CurriculumService.GetAllClassSchedulesAsync();
-            var assignmentSchedules = schedules.Where(s => s.AssignmentId == dbAssignment.AssignmentId).ToList();
+            var assignmentSchedules = allSchedules.Where(s => s.AssignmentId == dbAssignment.AssignmentId).ToList();
             
-            var scheduleText = string.Join(", ", assignmentSchedules.Select(s => 
-                $"{s.DayOfWeek} {s.StartTime:hh\\:mm}-{s.EndTime:hh\\:mm}"));
+            // Group schedules by time range and format like image: "02:00 - 03:00 | M, W, F"
+            var scheduleGroups = assignmentSchedules
+                .GroupBy(s => new { s.StartTime, s.EndTime })
+                .OrderBy(g => g.Key.StartTime)
+                .Select(g =>
+                {
+                    var startHour = g.Key.StartTime.Hours > 12 ? g.Key.StartTime.Hours - 12 : (g.Key.StartTime.Hours == 0 ? 12 : g.Key.StartTime.Hours);
+                    var endHour = g.Key.EndTime.Hours > 12 ? g.Key.EndTime.Hours - 12 : (g.Key.EndTime.Hours == 0 ? 12 : g.Key.EndTime.Hours);
+                    var startAmPm = g.Key.StartTime.Hours < 12 ? "am" : "pm";
+                    var endAmPm = g.Key.EndTime.Hours < 12 ? "am" : "pm";
+                    var days = string.Join(", ", g.OrderBy(s => GetDayOrder(s.DayOfWeek)).Select(s => s.DayOfWeek));
+                    return $"{startHour}:{g.Key.StartTime.Minutes:D2}{startAmPm} - {endHour}:{g.Key.EndTime.Minutes:D2}{endAmPm} | {days}";
+                });
+            
+            var scheduleText = string.Join("; ", scheduleGroups);
+            
+            // Get all subjects for this assignment
+            List<string> subjectsList = new();
+            if (dbAssignment.Role == "homeroom_all_subjects" && dbAssignment.Section != null)
+            {
+                // Get all subjects for the grade level
+                subjectsList = DbSubjects
+                    .Where(s => s.GradeLevelId == dbAssignment.Section.GradeLevelId)
+                    .Select(s => s.SubjectName)
+                    .OrderBy(s => s)
+                    .ToList();
+            }
+            else if (dbAssignment.Subject != null)
+            {
+                subjectsList.Add(dbAssignment.Subject.SubjectName);
+            }
+            
+            // Get building name from first schedule if available
+            var firstSchedule = assignmentSchedules.FirstOrDefault();
+            var buildingName = firstSchedule?.Room?.BuildingName ?? "";
+            var classroomDisplay = firstSchedule?.Room != null 
+                ? (string.IsNullOrEmpty(buildingName) 
+                    ? firstSchedule.Room.RoomName 
+                    : $"{firstSchedule.Room.RoomName} ({buildingName})")
+                : "";
             
             uiAssignments.Add(new TeacherAssignmentModel
             {
                 Id = $"ASG-{dbAssignment.AssignmentId:D3}",
+                AssignmentId = dbAssignment.AssignmentId,
                 TeacherName = dbAssignment.Teacher != null 
                     ? $"{dbAssignment.Teacher.FirstName} {dbAssignment.Teacher.LastName}" 
                     : "",
                 Grade = dbAssignment.Section?.GradeLevel?.GradeLevelName ?? "",
-                Subject = dbAssignment.Subject?.SubjectName ?? "",
+                Subject = string.Join(", ", subjectsList),
                 Section = dbAssignment.Section?.SectionName ?? "",
                 Schedule = scheduleText,
-                Classroom = assignmentSchedules.FirstOrDefault()?.Room?.RoomName ?? "",
+                Classroom = classroomDisplay,
                 Time = scheduleText,
-                SelectedDays = assignmentSchedules.Select(s => s.DayOfWeek).ToList()
+                SelectedDays = assignmentSchedules.Select(s => s.DayOfWeek).ToList(),
+                Role = dbAssignment.Role ?? "",
+                SubjectsList = subjectsList
             });
         }
         return uiAssignments;
     }
+    
+    private int GetDayOrder(string day)
+    {
+        return day switch
+        {
+            "M" => 1,
+            "T" => 2,
+            "W" => 3,
+            "TH" => 4,
+            "F" => 5,
+            "Sat" => 6,
+            "Sun" => 7,
+            _ => 99
+        };
+    }
 
-    private void SetActiveTab(string tab)
+    private async Task SetActiveTab(string tab)
     {
         ActiveTab = tab;
+        // Reload data when switching to classes tab to ensure fresh data
+        if (tab == "classes")
+        {
+            await LoadDataAsync();
+        }
+        StateHasChanged();
     }
 
     private string GetTabClasses(string tab)
@@ -275,6 +645,9 @@
             "classrooms" => isSelected
                 ? "px-3 py-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600"
                 : "px-3 py-2 text-sm font-semibold text-indigo-600 transition-colors duration-200 hover:text-indigo-700",
+            "classes" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-orange-600 border-b-2 border-orange-600"
+                : "px-3 py-2 text-sm font-semibold text-orange-600 transition-colors duration-200 hover:text-orange-700",
             _ => "px-3 py-2 text-sm font-semibold"
         };
     }
@@ -286,10 +659,11 @@
         ShowAddSectionModal = true;
     }
 
-    private void CloseAddSectionModal()
+    private Task CloseAddSectionModal()
     {
         ShowAddSectionModal = false;
         NewSection = new Section();
+        return Task.CompletedTask;
     }
 
     private void OpenEditSectionModal(Section section)
@@ -307,10 +681,11 @@
         ShowEditSectionModal = true;
     }
 
-    private void CloseEditSectionModal()
+    private Task CloseEditSectionModal()
     {
         ShowEditSectionModal = false;
         EditingSection = new Section();
+        return Task.CompletedTask;
     }
 
     private async Task HandleAddSection()
@@ -337,7 +712,12 @@
 
             await CurriculumService.CreateSectionAsync(dbSection);
             await LoadDataAsync();
-            CloseAddSectionModal();
+            await CloseAddSectionModal();
+            
+            // Show success toast
+            toastMessage = $"Section '{NewSection.Name}' added successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
         }
         catch (Exception ex)
         {
@@ -366,8 +746,13 @@
 
                 await CurriculumService.UpdateSectionAsync(dbSection);
                 await LoadDataAsync();
+                await CloseEditSectionModal();
+                
+                // Show edit toast
+                toastMessage = $"Section '{EditingSection.Name}' updated successfully.";
+                toastType = ToastType.Edit;
+                showToast = true;
             }
-            CloseEditSectionModal();
         }
         catch (Exception ex)
         {
@@ -383,29 +768,47 @@
         ShowAddSubjectModal = true;
     }
 
-    private void CloseAddSubjectModal()
+    private Task CloseAddSubjectModal()
     {
         ShowAddSubjectModal = false;
         NewSubject = new Subject();
+        return Task.CompletedTask;
     }
 
-    private void OpenEditSubjectModal(Subject subject)
+    private async Task OpenEditSubjectModal(Subject subject)
     {
+        // Wait a moment to ensure any previous operations complete
+        await Task.Delay(50);
+        
         EditingSubject = new Subject
         {
             Id = subject.Id,
             Name = subject.Name,
             GradeLevel = subject.GradeLevel,
-            LinkedSections = new List<string>(subject.LinkedSections),
-            Description = subject.Description
+            LinkedSections = new List<string>(), // No longer used
+            Description = subject.Description,
+            Schedules = subject.Schedules != null 
+                ? subject.Schedules.Select(s => new SubjectScheduleItem
+                {
+                    SubjectName = s.SubjectName,
+                    StartTime = s.StartTime,
+                    EndTime = s.EndTime,
+                    Days = new List<string>(s.Days),
+                    Description = s.Description
+                }).ToList()
+                : new List<SubjectScheduleItem>()
         };
         ShowEditSubjectModal = true;
+        StateHasChanged();
     }
 
-    private void CloseEditSubjectModal()
+    private async Task CloseEditSubjectModal()
     {
         ShowEditSubjectModal = false;
         EditingSubject = new Subject();
+        // Wait a moment before allowing new operations
+        await Task.Delay(100);
+        StateHasChanged();
     }
 
     private async Task HandleAddSubject()
@@ -419,35 +822,222 @@
                 return;
             }
 
-            var dbSubject = new DataModels.Subject
+            if (NewSubject.Schedules == null || !NewSubject.Schedules.Any())
             {
-                SubjectName = NewSubject.Name,
-                GradeLevelId = gradeLevel.GradeLevelId,
-                Description = NewSubject.Description
-            };
+                Logger.LogWarning("No subjects with schedules to add");
+                return;
+            }
 
-            var createdSubject = await CurriculumService.CreateSubjectAsync(dbSubject);
+            int successCount = 0;
+            int skipCount = 0;
+            List<string> errorMessages = new List<string>();
 
-            // Link to sections
-            var sectionIds = new List<int>();
-            foreach (var sectionName in NewSubject.LinkedSections)
+            // Refresh DbSubjects before processing
+            DbSubjects = await CurriculumService.GetAllSubjectsAsync();
+
+            // Create subjects and their schedules in batch
+            foreach (var scheduleItem in NewSubject.Schedules)
             {
-                var section = DbSections.FirstOrDefault(s => s.SectionName == sectionName);
-                if (section != null)
+                try
                 {
-                    sectionIds.Add(section.SectionId);
+                    if (!TimeSpan.TryParse(scheduleItem.StartTime, out var startTime) ||
+                        !TimeSpan.TryParse(scheduleItem.EndTime, out var endTime))
+                    {
+                        errorMessages.Add($"Invalid time format for subject '{scheduleItem.SubjectName}'. Skipped.");
+                        Logger.LogWarning("Invalid time format for subject: {SubjectName}", scheduleItem.SubjectName);
+                        skipCount++;
+                        continue;
+                    }
+
+                    // Refresh DbSubjects to see newly created subjects in this batch
+                    DbSubjects = await CurriculumService.GetAllSubjectsAsync();
+
+                    // Check if subject with same name already exists in database for this grade level
+                    var existingSubject = DbSubjects.FirstOrDefault(s => 
+                        s.SubjectName.Equals(scheduleItem.SubjectName, StringComparison.OrdinalIgnoreCase) &&
+                        s.GradeLevelId == gradeLevel.GradeLevelId);
+
+                    // If subject name already exists, prevent insertion and show error
+                    if (existingSubject != null)
+                    {
+                        // Check if this exact schedule combination already exists in database
+                        var existingSchedules = await _context.SubjectSchedules
+                            .Where(ss => ss.SubjectId == existingSubject.SubjectId &&
+                                       ss.GradeLevelId == gradeLevel.GradeLevelId &&
+                                       ss.StartTime == startTime &&
+                                       ss.EndTime == endTime &&
+                                       ss.IsDefault)
+                            .ToListAsync();
+
+                        // Check if all days in the new schedule already exist
+                        var existingDays = existingSchedules.Select(ss => ss.DayOfWeek).ToList();
+                        var allDaysExist = scheduleItem.Days.All(day => existingDays.Contains(day));
+
+                        if (allDaysExist && existingDays.Count == scheduleItem.Days.Count)
+                        {
+                            errorMessages.Add($"❌ Subject '{scheduleItem.SubjectName}' with the same schedule (Time: {scheduleItem.StartTime} - {scheduleItem.EndTime}, Days: {string.Join(", ", scheduleItem.Days)}) already exists in the database. This duplicate was not inserted.");
+                            Logger.LogWarning("Subject '{SubjectName}' with the same schedule already exists in database. Skipping.", scheduleItem.SubjectName);
+                            skipCount++;
+                            continue; // Skip this subject - exact duplicate schedule
+                        }
+                        else
+                        {
+                            // Subject name exists but with different schedule - still prevent duplicate name
+                            errorMessages.Add($"❌ Subject name '{scheduleItem.SubjectName}' already exists in the database for this grade level. Each subject name can only be added once per grade level. Please use a different subject name or edit the existing subject. This duplicate was not inserted.");
+                            Logger.LogWarning("Subject name '{SubjectName}' already exists in database for grade level {GradeLevelId}. Skipping duplicate name.", scheduleItem.SubjectName, gradeLevel.GradeLevelId);
+                            skipCount++;
+                            continue; // Skip this subject - duplicate name
+                        }
+                    }
+
+                    // Create new subject (existingSubject is null at this point because we returned early if it existed)
+                    DataModels.Subject dbSubject = new DataModels.Subject
+                    {
+                        SubjectName = scheduleItem.SubjectName,
+                        GradeLevelId = gradeLevel.GradeLevelId,
+                        Description = scheduleItem.Description
+                    };
+                    dbSubject = await CurriculumService.CreateSubjectAsync(dbSubject);
+                    
+                    // Verify subject was created successfully
+                    if (dbSubject == null || dbSubject.SubjectId <= 0)
+                    {
+                        errorMessages.Add($"❌ Failed to create subject '{scheduleItem.SubjectName}'. Subject ID is invalid.");
+                        Logger.LogError("Subject creation failed for '{SubjectName}'. SubjectId is {SubjectId}", 
+                            scheduleItem.SubjectName, dbSubject?.SubjectId ?? 0);
+                        skipCount++;
+                        continue;
+                    }
+                    
+                    Logger.LogInformation("Subject created successfully: SubjectId={SubjectId}, SubjectName={SubjectName}, GradeLevelId={GradeLevelId}", 
+                        dbSubject.SubjectId, dbSubject.SubjectName, dbSubject.GradeLevelId);
+                    
+                    // Refresh DbSubjects after creating new subject
+                    DbSubjects = await CurriculumService.GetAllSubjectsAsync();
+
+                    // Create schedules for each day (only if it doesn't already exist)
+                    int schedulesCreated = 0;
+                    foreach (var day in scheduleItem.Days)
+                    {
+                        try
+                        {
+                            // Check if schedule already exists for this day, subject, and time
+                            var existingSchedule = await _context.SubjectSchedules
+                                .FirstOrDefaultAsync(ss => ss.SubjectId == dbSubject.SubjectId &&
+                                                          ss.GradeLevelId == gradeLevel.GradeLevelId &&
+                                                          ss.DayOfWeek == day &&
+                                                          ss.StartTime == startTime &&
+                                                          ss.EndTime == endTime &&
+                                                          ss.IsDefault);
+
+                            if (existingSchedule == null)
+                            {
+                                // Create schedule with only the required properties (no navigation properties)
+                                var subjectSchedule = new DataModels.SubjectSchedule
+                                {
+                                    SubjectId = dbSubject.SubjectId,
+                                    GradeLevelId = gradeLevel.GradeLevelId,
+                                    DayOfWeek = day.Trim().ToUpper(), // Ensure day is trimmed and uppercase
+                                    StartTime = startTime,
+                                    EndTime = endTime,
+                                    IsDefault = true,
+                                    CreatedAt = DateTime.Now
+                                };
+                                
+                                // Explicitly set navigation properties to null to avoid EF Core confusion
+                                subjectSchedule.Subject = null;
+                                subjectSchedule.GradeLevel = null;
+                                
+                                var createdSchedule = await CurriculumService.CreateSubjectScheduleAsync(subjectSchedule);
+                                schedulesCreated++;
+                                Logger.LogInformation("Created schedule for subject '{SubjectName}': Day={Day}, Time={StartTime}-{EndTime}, ScheduleId={ScheduleId}", 
+                                    scheduleItem.SubjectName, day, startTime, endTime, createdSchedule.ScheduleId);
+                            }
+                            else
+                            {
+                                Logger.LogWarning("Schedule already exists for subject '{SubjectName}': Day={Day}, Time={StartTime}-{EndTime}", 
+                                    scheduleItem.SubjectName, day, startTime, endTime);
+                            }
+                        }
+                        catch (Exception scheduleEx)
+                        {
+                            Logger.LogError(scheduleEx, "Error creating schedule for subject '{SubjectName}', day '{Day}': {Error}", 
+                                scheduleItem.SubjectName, day, scheduleEx.Message);
+                            errorMessages.Add($"❌ Failed to create schedule for subject '{scheduleItem.SubjectName}' on day '{day}': {scheduleEx.Message}");
+                        }
+                    }
+
+                    if (schedulesCreated > 0)
+                    {
+                        successCount++;
+                        Logger.LogInformation("Successfully created {ScheduleCount} schedule(s) for subject '{SubjectName}'", 
+                            schedulesCreated, scheduleItem.SubjectName);
+                    }
+                    else
+                    {
+                        errorMessages.Add($"❌ No schedules were created for subject '{scheduleItem.SubjectName}'. All schedules may already exist or there was an error.");
+                        skipCount++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error processing subject: {SubjectName}", scheduleItem.SubjectName);
+                    skipCount++;
                 }
             }
-            await CurriculumService.UpdateSubjectSectionLinksAsync(createdSubject.SubjectId, sectionIds);
 
+            Logger.LogInformation("Added {SuccessCount} subject(s), skipped {SkipCount} duplicate(s)", successCount, skipCount);
+
+            // Show error messages if any subjects were skipped
+            if (errorMessages.Any())
+            {
+                var errorMessage = string.Join("\n", errorMessages);
+                Logger.LogWarning("Some subjects were not added:\n{Errors}", errorMessage);
+                
+                // Show error modal to user
+                ErrorModalTitle = "Error Adding Subjects";
+                ErrorModalMessage = errorMessage;
+                ShowErrorModal = true;
+            }
+
+            // Reload all data to refresh UI
             await LoadDataAsync();
-            CloseAddSubjectModal();
+            
+            // Only close modal if at least one subject was successfully added AND no errors
+            if (successCount > 0 && !errorMessages.Any())
+            {
+                await CloseAddSubjectModal();
+                
+                // Show success toast
+                toastMessage = successCount == 1 
+                    ? $"Subject '{NewSubject.Name}' added successfully."
+                    : $"{successCount} subject(s) added successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            else if (errorMessages.Any() && successCount == 0)
+            {
+                // If all subjects failed, keep modal open - error modal will show the issues
+                // Don't close the add subject modal so user can fix issues
+            }
+            else if (successCount > 0 && errorMessages.Any())
+            {
+                // Some succeeded, some failed - close modal but show error
+                await CloseAddSubjectModal();
+                
+                // Show success toast (errors are shown in error modal)
+                toastMessage = $"{successCount} subject(s) added successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            
+            StateHasChanged();
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error adding subject");
+            Logger.LogError(ex, "Error adding subjects");
+            StateHasChanged();
         }
-        StateHasChanged();
     }
 
     private async Task HandleEditSubject()
@@ -457,37 +1047,103 @@
             var subjectId = int.Parse(EditingSubject.Id.Replace("SUB-", ""));
             var dbSubject = await CurriculumService.GetSubjectByIdAsync(subjectId);
             
-            if (dbSubject != null)
+            if (dbSubject == null)
             {
-                var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSubject.GradeLevel);
-                
-                dbSubject.SubjectName = EditingSubject.Name;
-                dbSubject.GradeLevelId = gradeLevel?.GradeLevelId ?? dbSubject.GradeLevelId;
-                dbSubject.Description = EditingSubject.Description;
+                Logger.LogWarning("Subject not found: {SubjectId}", subjectId);
+                return;
+            }
 
-                await CurriculumService.UpdateSubjectAsync(dbSubject);
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSubject.GradeLevel);
+            if (gradeLevel == null)
+            {
+                Logger.LogWarning("Grade level not found: {GradeLevel}", EditingSubject.GradeLevel);
+                return;
+            }
+            
+            // Update subject basic info
+            dbSubject.SubjectName = EditingSubject.Name;
+            dbSubject.GradeLevelId = gradeLevel.GradeLevelId;
+            dbSubject.Description = EditingSubject.Description;
 
-                // Update section links
-                var sectionIds = new List<int>();
-                foreach (var sectionName in EditingSubject.LinkedSections)
+            await CurriculumService.UpdateSubjectAsync(dbSubject);
+
+            // Delete all existing schedules for this subject
+            await CurriculumService.DeleteSubjectSchedulesBySubjectIdAsync(dbSubject.SubjectId);
+
+            // Create new schedules based on edited data
+            if (EditingSubject.Schedules != null && EditingSubject.Schedules.Any())
+            {
+                int schedulesCreated = 0;
+                foreach (var scheduleItem in EditingSubject.Schedules)
                 {
-                    var section = DbSections.FirstOrDefault(s => s.SectionName == sectionName);
-                    if (section != null)
+                    if (!TimeSpan.TryParse(scheduleItem.StartTime, out var startTime) ||
+                        !TimeSpan.TryParse(scheduleItem.EndTime, out var endTime))
                     {
-                        sectionIds.Add(section.SectionId);
+                        Logger.LogWarning("Invalid time format for schedule: {StartTime} - {EndTime}", 
+                            scheduleItem.StartTime, scheduleItem.EndTime);
+                        continue;
+                    }
+
+                    // Remove duplicates and normalize days before creating schedules
+                    var uniqueDays = scheduleItem.Days
+                        .Select(d => d.Trim().ToUpper())
+                        .Distinct()
+                        .Where(d => !string.IsNullOrWhiteSpace(d))
+                        .ToList();
+                    
+                    // Create schedule for each unique day
+                    // Note: We already deleted all existing schedules, so no need to check for duplicates
+                    foreach (var day in uniqueDays)
+                    {
+                        try
+                        {
+                            var subjectSchedule = new DataModels.SubjectSchedule
+                            {
+                                SubjectId = dbSubject.SubjectId,
+                                GradeLevelId = gradeLevel.GradeLevelId,
+                                DayOfWeek = day,
+                                StartTime = startTime,
+                                EndTime = endTime,
+                                IsDefault = true,
+                                CreatedAt = DateTime.Now
+                            };
+                            
+                            subjectSchedule.Subject = null;
+                            subjectSchedule.GradeLevel = null;
+                            
+                            await CurriculumService.CreateSubjectScheduleAsync(subjectSchedule);
+                            schedulesCreated++;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, "Error creating schedule for day '{Day}': {Error}", day, ex.Message);
+                        }
                     }
                 }
-                await CurriculumService.UpdateSubjectSectionLinksAsync(dbSubject.SubjectId, sectionIds);
-
-                await LoadDataAsync();
+                
+                Logger.LogInformation("Updated subject '{SubjectName}': Created {ScheduleCount} schedule(s)", 
+                    EditingSubject.Name, schedulesCreated);
             }
-            CloseEditSubjectModal();
+
+            await LoadDataAsync();
+            await CloseEditSubjectModal();
+            
+            // Show edit toast
+            toastMessage = $"Subject '{EditingSubject.Name}' updated successfully.";
+            toastType = ToastType.Edit;
+            showToast = true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error editing subject");
+            Logger.LogError(ex, "Error editing subject: {ErrorMessage}", ex.Message);
+            ErrorModalTitle = "Error";
+            ErrorModalMessage = $"An error occurred while updating the subject:\n\n{ex.Message}";
+            ShowErrorModal = true;
         }
-        StateHasChanged();
+        finally
+        {
+            StateHasChanged();
+        }
     }
 
     // Assignment Modal Methods
@@ -496,11 +1152,36 @@
         NewAssignment = new TeacherAssignmentModel();
         ShowAddAssignmentModal = true;
     }
+    
+    private void OpenViewAssignmentModal(TeacherAssignmentModel assignment)
+    {
+        ViewingAssignment = assignment;
+        ShowViewAssignmentModal = true;
+    }
+    
+    private Task OpenViewClassModal(int assignmentId)
+    {
+        // Find the assignment from the Assignments list
+        var assignment = Assignments.FirstOrDefault(a => a.AssignmentId == assignmentId);
+        if (assignment != null)
+        {
+            ViewingAssignment = assignment;
+            ShowViewAssignmentModal = true;
+        }
+        return Task.CompletedTask;
+    }
+    
+    private void CloseViewAssignmentModal()
+    {
+        ShowViewAssignmentModal = false;
+        ViewingAssignment = null;
+    }
 
-    private void CloseAddAssignmentModal()
+    private Task CloseAddAssignmentModal()
     {
         ShowAddAssignmentModal = false;
         NewAssignment = new TeacherAssignmentModel();
+        return Task.CompletedTask;
     }
 
     private void OpenEditAssignmentModal(TeacherAssignmentModel assignment)
@@ -508,6 +1189,7 @@
         EditingAssignment = new TeacherAssignmentModel
         {
             Id = assignment.Id,
+            AssignmentId = assignment.AssignmentId,
             TeacherName = assignment.TeacherName,
             Grade = assignment.Grade,
             Subject = assignment.Subject,
@@ -515,105 +1197,54 @@
             Schedule = assignment.Schedule,
             Classroom = assignment.Classroom,
             Time = assignment.Time,
-            SelectedDays = new List<string>(assignment.SelectedDays)
+            SelectedDays = new List<string>(assignment.SelectedDays),
+            Role = assignment.Role,
+            SubjectsList = assignment.SubjectsList ?? new List<string>()
         };
         ShowEditAssignmentModal = true;
     }
 
-    private void CloseEditAssignmentModal()
+    private Task CloseEditAssignmentModal()
     {
         ShowEditAssignmentModal = false;
         EditingAssignment = new TeacherAssignmentModel();
+        return Task.CompletedTask;
     }
 
     private async Task HandleAddAssignment()
     {
+        // AddAssignmentModal handles the creation, we just need to reload data and show toast
         try
         {
-            var teacher = Teachers.FirstOrDefault(t => 
-                $"{t.FirstName} {t.LastName}" == NewAssignment.TeacherName);
-            var section = DbSections.FirstOrDefault(s => s.SectionName == NewAssignment.Section);
-            var subject = DbSubjects.FirstOrDefault(s => s.SubjectName == NewAssignment.Subject);
-
-            if (teacher == null || section == null)
-            {
-                Logger.LogWarning("Teacher or section not found");
-                return;
-            }
-
-            var dbAssignment = new DataModels.TeacherSectionAssignment
-            {
-                TeacherId = teacher.UserId,
-                SectionId = section.SectionId,
-                SubjectId = subject?.SubjectId,
-                Role = subject == null ? "adviser" : "subject_teacher"
-            };
-
-            var createdAssignment = await CurriculumService.CreateTeacherAssignmentAsync(dbAssignment);
-
-            // Create schedules for selected days
-            if (!string.IsNullOrEmpty(NewAssignment.Time) && NewAssignment.SelectedDays.Any())
-            {
-                var timeParts = NewAssignment.Time.Split(" - ");
-                if (timeParts.Length == 2 && TimeSpan.TryParse(timeParts[0], out var startTime) 
-                    && TimeSpan.TryParse(timeParts[1], out var endTime))
-                {
-                    var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == NewAssignment.Classroom);
-                    if (classroom != null)
-                    {
-                        foreach (var day in NewAssignment.SelectedDays)
-                        {
-                            var schedule = new DataModels.ClassSchedule
-                            {
-                                AssignmentId = createdAssignment.AssignmentId,
-                                DayOfWeek = day,
-                                StartTime = startTime,
-                                EndTime = endTime,
-                                RoomId = classroom.RoomId
-                            };
-                            await CurriculumService.CreateClassScheduleAsync(schedule);
-                        }
-                    }
-                }
-            }
-
             await LoadDataAsync();
-            CloseAddAssignmentModal();
+            
+            // Show success toast
+            toastMessage = "Class created successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error adding assignment");
+            Logger.LogError(ex, "Error reloading data after assignment creation");
         }
         StateHasChanged();
     }
 
     private async Task HandleEditAssignment()
     {
+        // EditAssignmentModal handles the update, we just need to reload data and show toast
         try
         {
-            var assignmentId = int.Parse(EditingAssignment.Id.Replace("ASG-", ""));
-            var dbAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(assignmentId);
+            await LoadDataAsync();
             
-            if (dbAssignment != null)
-            {
-                var teacher = Teachers.FirstOrDefault(t => 
-                    $"{t.FirstName} {t.LastName}" == EditingAssignment.TeacherName);
-                var section = DbSections.FirstOrDefault(s => s.SectionName == EditingAssignment.Section);
-                var subject = DbSubjects.FirstOrDefault(s => s.SubjectName == EditingAssignment.Subject);
-
-                if (teacher != null) dbAssignment.TeacherId = teacher.UserId;
-                if (section != null) dbAssignment.SectionId = section.SectionId;
-                if (subject != null) dbAssignment.SubjectId = subject.SubjectId;
-                dbAssignment.Role = subject == null ? "adviser" : "subject_teacher";
-
-                await CurriculumService.UpdateTeacherAssignmentAsync(dbAssignment);
-                await LoadDataAsync();
-            }
-            CloseEditAssignmentModal();
+            // Show success toast
+            toastMessage = "Class updated successfully.";
+            toastType = ToastType.Edit;
+            showToast = true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error editing assignment");
+            Logger.LogError(ex, "Error reloading data after assignment update");
         }
         StateHasChanged();
     }
@@ -646,15 +1277,20 @@
             IsActive = classroom.IsActive,
             Notes = classroom.Notes
         };
+        // Store original status to detect changes
+        OriginalClassroomStatus = classroom.IsActive;
         ClassroomValidationError = "";
         ShowEditClassroomModal = true;
     }
+    
+    private bool OriginalClassroomStatus { get; set; } = true;
 
-    private void CloseEditClassroomModal()
+    private Task CloseEditClassroomModal()
     {
         ShowEditClassroomModal = false;
         EditingClassroom = new Classroom();
         ClassroomValidationError = "";
+        return Task.CompletedTask;
     }
 
     private async Task HandleAddClassroom()
@@ -702,6 +1338,11 @@
             await CurriculumService.CreateClassroomAsync(dbClassroom);
             await LoadDataAsync();
             CloseAddClassroomModal();
+            
+            // Show success toast
+            toastMessage = $"Classroom '{NewClassroom.RoomName}' added successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
         }
         catch (Exception ex)
         {
@@ -753,12 +1394,26 @@
                 dbClassroom.FloorNumber = EditingClassroom.FloorNumber;
                 dbClassroom.Capacity = EditingClassroom.Capacity;
                 dbClassroom.Status = EditingClassroom.IsActive ? "Active" : "Inactive";
-                dbClassroom.Notes = EditingClassroom.Notes;
+                
+                // If status changed from Unavailable to Available, clear notes
+                if (OriginalClassroomStatus == false && EditingClassroom.IsActive == true)
+                {
+                    dbClassroom.Notes = "";
+                }
+                else
+                {
+                    dbClassroom.Notes = EditingClassroom.Notes;
+                }
 
                 await CurriculumService.UpdateClassroomAsync(dbClassroom);
                 await LoadDataAsync();
+                await CloseEditClassroomModal();
+                
+                // Show edit toast
+                toastMessage = $"Classroom '{EditingClassroom.RoomName}' updated successfully.";
+                toastType = ToastType.Edit;
+                showToast = true;
             }
-            CloseEditClassroomModal();
         }
         catch (Exception ex)
         {
@@ -769,23 +1424,277 @@
         StateHasChanged();
     }
 
-    private async Task ToggleClassroomStatus(Classroom classroom)
+    private void ToggleClassroomStatus(Classroom classroom)
+    {
+        // If changing from Available to Unavailable, show reason modal
+        if (classroom.IsActive)
+        {
+            TogglingClassroom = classroom;
+            UnavailableReason = "";
+            ShowUnavailableReasonModal = true;
+        }
+        else
+        {
+            // Changing from Unavailable to Available - show note modal
+            TogglingClassroom = classroom;
+            AvailableNote = "";
+            ShowAvailableNoteModal = true;
+        }
+    }
+
+    private async Task ConfirmToggleClassroomStatus(Classroom classroom, string reason)
     {
         try
         {
             var dbClassroom = await CurriculumService.GetClassroomByIdAsync(classroom.ClassroomID);
             if (dbClassroom != null)
             {
-                dbClassroom.Status = classroom.IsActive ? "Inactive" : "Active";
+                // Setting to unavailable (Inactive), save the reason in Notes
+                dbClassroom.Status = "Inactive";
+                dbClassroom.Notes = reason;
+                
                 await CurriculumService.UpdateClassroomAsync(dbClassroom);
                 await LoadDataAsync();
+                
+                // Show success toast
+                toastMessage = $"Classroom '{classroom.RoomName}' set to unavailable successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error toggling classroom status");
+            ErrorModalTitle = "Error";
+            ErrorModalMessage = $"An error occurred while updating the classroom status:\n\n{ex.Message}";
+            ShowErrorModal = true;
         }
+        finally
+        {
+            ShowUnavailableReasonModal = false;
+            TogglingClassroom = new();
+            UnavailableReason = "";
+            StateHasChanged();
+        }
+    }
+
+    private async Task ConfirmSetToAvailable()
+    {
+        try
+        {
+            var dbClassroom = await CurriculumService.GetClassroomByIdAsync(TogglingClassroom.ClassroomID);
+            if (dbClassroom != null)
+            {
+                // Setting to available (Active)
+                dbClassroom.Status = "Active";
+                
+                // If note is provided, update Notes; otherwise clear it
+                if (string.IsNullOrWhiteSpace(AvailableNote))
+                {
+                    dbClassroom.Notes = "";
+                }
+                else
+                {
+                    dbClassroom.Notes = AvailableNote;
+                }
+                
+                await CurriculumService.UpdateClassroomAsync(dbClassroom);
+                await LoadDataAsync();
+                
+                // Show success toast
+                toastMessage = $"Classroom '{TogglingClassroom.RoomName}' set to available successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error setting classroom to available");
+            ErrorModalTitle = "Error";
+            ErrorModalMessage = $"An error occurred while updating the classroom status:\n\n{ex.Message}";
+            ShowErrorModal = true;
+        }
+        finally
+        {
+            ShowAvailableNoteModal = false;
+            TogglingClassroom = new();
+            AvailableNote = "";
+            StateHasChanged();
+        }
+    }
+
+    private void CloseErrorModal()
+    {
+        ShowErrorModal = false;
+        ErrorModalTitle = "";
+        ErrorModalMessage = "";
+    }
+
+    // Delete Modal Methods
+    private void OpenDeleteSectionModal(Section section)
+    {
+        DeletingSection = section;
+        ShowDeleteSectionModal = true;
+    }
+
+    private void OpenDeleteSubjectModal(Subject subject)
+    {
+        DeletingSubject = subject;
+        ShowDeleteSubjectModal = true;
+    }
+
+    private async Task HandleDeleteSection()
+    {
+        try
+        {
+            var sectionId = int.Parse(DeletingSection.Id.Replace("SEC-", ""));
+            var result = await CurriculumService.DeleteSectionAsync(sectionId);
+            
+            if (result)
+            {
+                Logger.LogInformation("Section deleted: {SectionId}", sectionId);
+                await LoadDataAsync();
+                
+                // Show remove toast
+                toastMessage = $"Section '{DeletingSection.Name}' removed successfully.";
+                toastType = ToastType.Remove;
+                showToast = true;
+            }
+            else
+            {
+                Logger.LogWarning("Failed to delete section: {SectionId}", sectionId);
+                ErrorModalTitle = "Delete Error";
+                ErrorModalMessage = "Failed to delete section. The section may be in use or does not exist.";
+                ShowErrorModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting section");
+            ErrorModalTitle = "Delete Error";
+            ErrorModalMessage = $"An error occurred while deleting the section:\n\n{ex.Message}";
+            ShowErrorModal = true;
+        }
+        finally
+        {
+            ShowDeleteSectionModal = false;
+            DeletingSection = new();
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDeleteSubject()
+    {
+        try
+        {
+            var subjectId = int.Parse(DeletingSubject.Id.Replace("SUB-", ""));
+            
+            // First delete all schedules for this subject
+            await CurriculumService.DeleteSubjectSchedulesBySubjectIdAsync(subjectId);
+            
+            // Then delete the subject
+            var result = await CurriculumService.DeleteSubjectAsync(subjectId);
+            
+            if (result)
+            {
+                Logger.LogInformation("Subject deleted: {SubjectId}", subjectId);
+                await LoadDataAsync();
+                
+                // Show remove toast
+                toastMessage = $"Subject '{DeletingSubject.Name}' removed successfully.";
+                toastType = ToastType.Remove;
+                showToast = true;
+            }
+            else
+            {
+                Logger.LogWarning("Failed to delete subject: {SubjectId}", subjectId);
+                ErrorModalTitle = "Delete Error";
+                ErrorModalMessage = "Failed to delete subject. The subject may be in use or does not exist.";
+                ShowErrorModal = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error deleting subject");
+            ErrorModalTitle = "Delete Error";
+            ErrorModalMessage = $"An error occurred while deleting the subject:\n\n{ex.Message}";
+            ShowErrorModal = true;
+        }
+        finally
+        {
+            ShowDeleteSubjectModal = false;
+            DeletingSubject = new();
+            StateHasChanged();
+        }
+    }
+    
+    // Toast notification methods
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
         StateHasChanged();
     }
+
+    // Build FinalClasses from assignments if view doesn't exist or is empty
+    private async Task<List<DataModels.FinalClassView>> BuildFinalClassesFromAssignments()
+    {
+        var finalClasses = new List<DataModels.FinalClassView>();
+        
+        try
+        {
+            // Get all class schedules
+            var allSchedules = await CurriculumService.GetAllClassSchedulesAsync();
+            
+            foreach (var assignment in DbAssignments)
+            {
+                if (assignment.Section == null || assignment.Teacher == null) continue;
+                
+                var section = assignment.Section;
+                var gradeLevel = section.GradeLevel;
+                var classroom = section.Classroom;
+                
+                if (gradeLevel == null || classroom == null) continue;
+                
+                // Get schedules for this assignment
+                var assignmentSchedules = allSchedules.Where(s => s.AssignmentId == assignment.AssignmentId).ToList();
+                
+                if (!assignmentSchedules.Any()) continue;
+                
+                // Create FinalClassView entries for each schedule
+                foreach (var schedule in assignmentSchedules)
+                {
+                    finalClasses.Add(new DataModels.FinalClassView
+                    {
+                        AssignmentId = assignment.AssignmentId,
+                        Role = assignment.Role,
+                        TeacherName = $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}",
+                        TeacherId = assignment.Teacher.UserId,
+                        SectionName = section.SectionName,
+                        GradeLevel = gradeLevel.GradeLevelName,
+                        SubjectName = assignment.Subject?.SubjectName,
+                        SubjectId = assignment.SubjectId,
+                        DayOfWeek = schedule.DayOfWeek,
+                        StartTime = schedule.StartTime,
+                        EndTime = schedule.EndTime,
+                        Classroom = classroom.RoomName,
+                        BuildingName = classroom.BuildingName,
+                        AssignmentCreatedAt = assignment.CreatedAt,
+                        AssignmentUpdatedAt = assignment.UpdatedAt
+                    });
+                }
+            }
+            
+            Logger.LogInformation("Built {Count} FinalClassView records from assignments", finalClasses.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error building FinalClasses from assignments");
+        }
+        
+        return finalClasses;
+    }
 }
+
+
 

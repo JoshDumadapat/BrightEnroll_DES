@@ -1,94 +1,319 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Services
+@using DataModels = BrightEnroll_DES.Data.Models
+@using System.Linq
+@inject CurriculumService CurriculumService
+@inject IJSRuntime JSRuntime
 
 @if (Show)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="OnClose">
-        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="add-subject-modal" class="w-full max-w-5xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2">
-                <h3 class="text-lg font-semibold text-white">Add New Subject</h3>
-                <button @onclick="OnClose" class="text-white hover:text-gray-200">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex items-center justify-center rounded-t-2xl bg-blue-600 px-6 py-3 flex-shrink-0">
+                <h3 class="text-lg font-semibold text-white">Add Subjects for Grade Level</h3>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 rounded-b-2xl overflow-y-auto flex-1">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <!-- Grade Level Selection -->
+                    <div class="mb-6">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">
+                            Grade Level <span class="text-red-500">*</span>
+                        </label>
+                        <select @bind="SelectedGradeLevel" @bind:after="OnGradeLevelChanged"
+                                class="w-full max-w-xs rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                required>
+                            <option value="">Select Grade</option>
+                            @foreach (var gradeLevel in GradeLevels)
+                            {
+                                <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(SelectedGradeLevel))
+                    {
+                        <!-- Add Subject Form -->
+                        <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <h4 class="mb-4 text-sm font-semibold text-gray-700">Add Subject with Schedule</h4>
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                <!-- Subject Name -->
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                        Subject Name <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" @bind="NewSubjectItem.SubjectName" 
+                                           @bind:after="OnNewSubjectChanged"
+                                           placeholder="e.g., Math"
+                                           disabled="@isSubmitting"
+                                           class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none placeholder:text-gray-400 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                                </div>
+
+                                <!-- Start Time -->
+                                <div class="relative">
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                        Start Time <span class="text-red-500">*</span>
+                                    </label>
+                                    <TimePicker @key="@($"start-time-{SubjectList.Count}")" @bind-TimeValue="NewSubjectItem.StartTime" OnTimeChanged="OnNewSubjectChanged" IsDisabled="@isSubmitting" />
+                                </div>
+
+                                <!-- End Time -->
+                                <div class="relative">
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                        End Time <span class="text-red-500">*</span>
+                                    </label>
+                                    <TimePicker @key="@($"end-time-{SubjectList.Count}")" @bind-TimeValue="NewSubjectItem.EndTime" OnTimeChanged="OnNewSubjectChanged" IsDisabled="@isSubmitting" />
+                                </div>
+
+                                <!-- Days Selection -->
+                                <div>
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                        Days <span class="text-red-500">*</span>
+                                    </label>
+                                    <div class="flex flex-wrap gap-2">
+                                        @foreach (var day in DaysOfWeek)
+                                        {
+                                            <label class="group relative flex cursor-pointer items-center">
+                                                <input type="checkbox" 
+                                                       checked="@NewSubjectItem.Days.Contains(day)"
+                                                       @onchange="@((e) => ToggleDay(day))"
+                                                       disabled="@isSubmitting"
+                                                       class="peer sr-only" />
+                                                <div class="flex items-center rounded-lg border-2 border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-all duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:border-blue-300 hover:bg-gray-50">
+                                                    <span>@day</span>
+                                                </div>
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Description -->
+                            <div class="mt-4">
+                                <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                    Description <span class="text-gray-400 font-normal">(Optional)</span>
+                                </label>
+                                <input type="text" @bind="NewSubjectItem.Description" 
+                                       @bind:after="OnNewSubjectChanged"
+                                       placeholder="Subject description..."
+                                       disabled="@isSubmitting"
+                                       class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none placeholder:text-gray-400 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                            </div>
+
+                            <!-- Error Message -->
+                            @if (!string.IsNullOrEmpty(duplicateErrorMessage))
+                            {
+                                <div class="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2">
+                                    <p class="text-xs text-red-600">@duplicateErrorMessage</p>
+                                </div>
+                            }
+
+                            <!-- Add Button -->
+                            <div class="mt-4 flex justify-end">
+                                <button type="button" @onclick="AddSubjectToList" 
+                                        disabled="@(!CanAddSubject || isSubmitting)"
+                                        class="rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed disabled:shadow-none">
+                                    <span class="flex items-center justify-center gap-2">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                        </svg>
+                                        Add to List
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Subjects List Table -->
+                        @if (SubjectList.Any())
+                        {
+                            <div class="mb-6">
+                                <h4 class="mb-3 text-sm font-semibold text-gray-700">Subjects to Add (@SubjectList.Count)</h4>
+                                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                    <table class="min-w-full text-sm">
+                                        <thead class="bg-gray-100">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Subject Name</th>
+                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Days</th>
+                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Time</th>
+                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Description</th>
+                                                <th class="px-4 py-2 text-center text-xs font-semibold text-gray-600">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-200">
+                                            @for (int i = 0; i < SubjectList.Count; i++)
+                                            {
+                                                var index = i;
+                                                var item = SubjectList[index];
+                                                <tr class="hover:bg-gray-50">
+                                                    <td class="px-4 py-2 font-medium text-gray-800">@item.SubjectName</td>
+                                                    <td class="px-4 py-2 text-gray-600">@string.Join(", ", item.Days)</td>
+                                                    <td class="px-4 py-2 text-gray-600">@item.StartTime - @item.EndTime</td>
+                                                    <td class="px-4 py-2 text-gray-600">@(string.IsNullOrEmpty(item.Description) ? "-" : item.Description)</td>
+                                                    <td class="px-4 py-2 text-center">
+                                                        <button type="button" @onclick="@(() => RemoveSubject(index))" 
+                                                                class="rounded-lg bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200">
+                                                            Remove
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                                <p class="text-sm text-gray-500">No subjects added yet. Use the form above to add subjects with schedules.</p>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                            <p class="text-sm text-gray-500">Please select a grade level to start adding subjects.</p>
+                        </div>
+                    }
+
+                    @if (HasIncompleteForm && !SubjectList.Any())
+                    {
+                        <div class="mb-4 rounded-lg bg-yellow-50 border border-yellow-200 px-4 py-2">
+                            <p class="text-xs text-yellow-800">
+                                <strong>Note:</strong> You have an incomplete subject in the form. Please click "Add to List" first before submitting.
+                            </p>
+                        </div>
+                    }
+
+                    <div class="mt-6 flex justify-end gap-3 flex-shrink-0">
+                        <button type="button" @onclick="ShowCancelConfirm" disabled="@isSubmitting"
+                                class="rounded-lg border border-gray-300 bg-transparent px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Cancel
+                        </button>
+                        <button type="button" @onclick="ShowSubmitConfirm" disabled="@(!CanSubmit)"
+                                class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                            @if (isSubmitting)
+                            {
+                                <span>Submitting...</span>
+                            }
+                            else
+                            {
+                                <span>Add All Subjects</span>
+                            }
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Submit -->
+@if (showSubmitConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSubmitConfirmModal">
+        <div id="add-subject-submit-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">Confirm Add Subjects</h3>
+                <button @onclick="CloseSubmitConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to add <strong>@SubjectList.Count</strong> subject(s) for <strong>@SelectedGradeLevel</strong>?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSubmit" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
-            <!-- Modal Body -->
-            <div class="px-6 py-4 rounded-b-2xl">
-                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
-                    <div class="grid grid-cols-2 gap-4">
-                        <!-- Subject Name -->
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Subject Name <span class="text-red-500">*</span>
-                            </label>
-                            <input type="text" @bind="Subject.Name" 
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
-                                   required />
-                        </div>
+<!-- Confirmation Modal for Cancel -->
+@if (showCancelConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelConfirmModal">
+        <div id="add-subject-cancel-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Cancel Add Subjects</h3>
+                <button @onclick="CloseCancelConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">Are you sure you want to cancel? All entered data will be cleared.</p>
+                <div class="flex justify-end">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #f87171;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
-                        <!-- Grade Level -->
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Grade Level <span class="text-red-500">*</span>
-                            </label>
-                            <select @bind="Subject.GradeLevel" 
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
-                                    required>
-                                <option value="">Select Grade</option>
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="5">5</option>
-                                <option value="6">6</option>
-                            </select>
-                        </div>
+<!-- Validation Error Modal -->
+@if (showValidationModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+        <div id="add-subject-validation-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Validation Error</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-3 text-sm font-medium text-gray-800">Please fill in the following required fields:</p>
+                <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseValidationModal" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 bg-red-500">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
-                        <!-- Linked Sections -->
-                        <div class="col-span-2">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Linked Sections <span class="text-red-500">*</span>
-                            </label>
-                            <div class="flex gap-4">
-                                <label class="flex items-center">
-                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Saturn"))" @onchange="@((e) => ToggleSection("Saturn"))" class="mr-2 rounded border-gray-300" />
-                                    <span class="text-sm text-gray-700">Saturn</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Uranus"))" @onchange="@((e) => ToggleSection("Uranus"))" class="mr-2 rounded border-gray-300" />
-                                    <span class="text-sm text-gray-700">Uranus</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="checkbox" checked="@(Subject.LinkedSections.Contains("Jupiter"))" @onchange="@((e) => ToggleSection("Jupiter"))" class="mr-2 rounded border-gray-300" />
-                                    <span class="text-sm text-gray-700">Jupiter</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Description -->
-                        <div class="col-span-2">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Description
-                            </label>
-                            <textarea @bind="Subject.Description" 
-                                     rows="3"
-                                     placeholder="Enter description..."
-                                     class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"></textarea>
-                        </div>
-                    </div>
-
-                    <div class="mt-6 flex justify-end gap-3">
-                        <button type="button" @onclick="OnClose" class="rounded-lg border border-gray-300 bg-gray-500 px-6 py-2 text-sm font-medium text-white hover:bg-gray-600">
-                            Cancel
-                        </button>
-                        <button type="submit" class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                            Add
-                        </button>
-                    </div>
-                </form>
+<!-- Database Error Modal -->
+@if (showDatabaseErrorModal)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseDatabaseErrorModal">
+        <div id="add-subject-database-error-modal" class="w-full max-w-2xl rounded-2xl bg-white shadow-xl max-h-[80vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-red-500 px-6 py-2 flex-shrink-0">
+                <h3 class="text-base font-semibold text-white">Database Error</h3>
+                <button @onclick="CloseDatabaseErrorModal" class="text-white hover:text-gray-200 transition-colors">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4 overflow-y-auto flex-1">
+                <div class="rounded-lg bg-red-50 border border-red-200 p-4">
+                    <p class="text-sm font-medium text-red-800 mb-2">The following errors occurred when trying to add subjects:</p>
+                    <div class="text-sm text-red-700 whitespace-pre-line">@databaseErrorMessage</div>
+                </div>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-3 flex-shrink-0">
+                <button @onclick="CloseDatabaseErrorModal" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                    OK
+                </button>
             </div>
         </div>
     </div>
@@ -100,22 +325,569 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
 
-    private void ToggleSection(string sectionName)
+    private List<DataModels.GradeLevel> GradeLevels { get; set; } = new();
+    private string SelectedGradeLevel { get; set; } = "";
+    private List<SubjectScheduleItem> SubjectList { get; set; } = new();
+    private SubjectScheduleItem NewSubjectItem { get; set; } = new();
+    private bool showSubmitConfirmModal = false;
+    private bool showCancelConfirmModal = false;
+    private bool showValidationModal = false;
+    private bool showDatabaseErrorModal = false;
+    private List<string> validationErrors = new();
+    private bool isSubmitting = false;
+    private string duplicateErrorMessage = "";
+    private string databaseErrorMessage = "";
+    private List<DataModels.Subject> ExistingSubjects { get; set; } = new();
+    private List<DataModels.SubjectSchedule> ExistingSchedules { get; set; } = new();
+    
+    private readonly List<string> DaysOfWeek = new() { "M", "T", "W", "TH", "F" };
+
+    protected override async Task OnParametersSetAsync()
     {
-        if (Subject.LinkedSections.Contains(sectionName))
+        if (Show)
         {
-            Subject.LinkedSections.Remove(sectionName);
+            await LoadDataAsync();
+            // Only reset if modal was just opened (not when it's already showing)
+            if (string.IsNullOrEmpty(SelectedGradeLevel))
+            {
+                ResetForm();
+            }
+            else
+            {
+                // Always reload existing subjects and schedules when modal is opened to get latest database state
+                await LoadExistingSubjectsAndSchedules();
+            }
         }
         else
         {
-            Subject.LinkedSections.Add(sectionName);
+            // Reset everything when modal is closed
+            SelectedGradeLevel = "";
+            ResetForm();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+            if (GradeLevels == null || !GradeLevels.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("Warning: No grade levels found in database");
+            }
+            
+            if (!string.IsNullOrEmpty(SelectedGradeLevel))
+            {
+                await LoadExistingSubjectsAndSchedules();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading grade levels: {ex.Message}");
+            GradeLevels = new List<DataModels.GradeLevel>();
+        }
+    }
+
+    private async Task LoadExistingSubjectsAndSchedules()
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(SelectedGradeLevel))
+            {
+                ExistingSubjects = new List<DataModels.Subject>();
+                ExistingSchedules = new List<DataModels.SubjectSchedule>();
+                return;
+            }
+
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == SelectedGradeLevel);
+            if (gradeLevel == null)
+            {
+                ExistingSubjects = new List<DataModels.Subject>();
+                ExistingSchedules = new List<DataModels.SubjectSchedule>();
+                return;
+            }
+
+            var allSubjects = await CurriculumService.GetAllSubjectsAsync();
+            ExistingSubjects = allSubjects
+                .Where(s => s.GradeLevelId == gradeLevel.GradeLevelId)
+                .ToList();
+
+            ExistingSchedules = await CurriculumService.GetSubjectSchedulesByGradeLevelAsync(gradeLevel.GradeLevelId);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading existing subjects and schedules: {ex.Message}");
+            ExistingSubjects = new List<DataModels.Subject>();
+            ExistingSchedules = new List<DataModels.SubjectSchedule>();
+        }
+    }
+
+    private async Task OnGradeLevelChanged()
+    {
+        // Clear only the subject list when grade level changes, keep the selected grade level
+        SubjectList.Clear();
+        NewSubjectItem = new SubjectScheduleItem();
+        duplicateErrorMessage = "";
+        // Always reload existing subjects and schedules when grade level changes
+        await LoadExistingSubjectsAndSchedules();
+        StateHasChanged();
+    }
+
+    private void OnNewSubjectChanged()
+    {
+        // Force immediate UI update to refresh button state in real-time
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleDay(string day)
+    {
+        if (NewSubjectItem.Days.Contains(day))
+        {
+            NewSubjectItem.Days.Remove(day);
+        }
+        else
+        {
+            NewSubjectItem.Days.Add(day);
         }
         StateHasChanged();
     }
 
+    private void AddSubjectToList()
+    {
+        if (!CanAddSubject || isSubmitting) return;
+
+        duplicateErrorMessage = "";
+
+        // Validate time
+        if (!TimeSpan.TryParse(NewSubjectItem.StartTime, out var startTime) || 
+            !TimeSpan.TryParse(NewSubjectItem.EndTime, out var endTime))
+        {
+            duplicateErrorMessage = "Invalid time format.";
+            StateHasChanged();
+            return;
+        }
+
+        if (endTime <= startTime)
+        {
+            duplicateErrorMessage = "End time must be after start time.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for duplicate subject name in the list (regardless of time/schedule)
+        if (HasDuplicateSubjectName(NewSubjectItem.SubjectName))
+        {
+            duplicateErrorMessage = $"The subject name '{NewSubjectItem.SubjectName}' already exists in the list. Each subject name can only be added once per grade level.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for duplicate subject name in the database (regardless of time/schedule)
+        var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == SelectedGradeLevel);
+        if (gradeLevel != null && HasDuplicateSubjectNameInDatabase(NewSubjectItem.SubjectName))
+        {
+            duplicateErrorMessage = $"The subject name '{NewSubjectItem.SubjectName}' already exists in the database for this grade level. Please use a different subject name or edit the existing subject.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for time overlap with existing subjects in the list (same days)
+        var newDaysSet = NewSubjectItem.Days.ToHashSet();
+        var hasTimeOverlapInList = SubjectList.Any(s => 
+        {
+            var existingDaysSet = s.Days.ToHashSet();
+            var hasCommonDays = newDaysSet.Intersect(existingDaysSet).Any();
+            
+            if (!hasCommonDays) return false; // No common days, no overlap possible
+            
+            if (TimeSpan.TryParse(s.StartTime, out var existingStart) && 
+                TimeSpan.TryParse(s.EndTime, out var existingEnd))
+            {
+                // Check if time ranges overlap
+                return (startTime < existingEnd && endTime > existingStart);
+            }
+            return false;
+        });
+
+        if (hasTimeOverlapInList)
+        {
+            duplicateErrorMessage = "This schedule overlaps with an existing subject on the same day(s). Subjects can be on the same days but not at the same time.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for duplicate subject name + time + days combination in the list
+        var newDaysSorted = NewSubjectItem.Days.OrderBy(d => d).ToList();
+        var hasDuplicateInList = SubjectList.Any(s => 
+            s.SubjectName.Equals(NewSubjectItem.SubjectName, StringComparison.OrdinalIgnoreCase) &&
+            s.StartTime == NewSubjectItem.StartTime &&
+            s.EndTime == NewSubjectItem.EndTime &&
+            s.Days.OrderBy(d => d).SequenceEqual(newDaysSorted));
+
+        if (hasDuplicateInList)
+        {
+            duplicateErrorMessage = "This subject with the same schedule (same time and days) already exists in the list.";
+            StateHasChanged();
+            return;
+        }
+
+        // Check for time overlap and duplicate schedule in database
+        if (gradeLevel != null)
+        {
+            // Check for time overlap with existing schedules in database (same days)
+            var hasTimeOverlapInDb = ExistingSchedules.Any(ss =>
+            {
+                var existingDaySet = new HashSet<string> { ss.DayOfWeek };
+                var hasCommonDays = newDaysSet.Intersect(existingDaySet).Any();
+                
+                if (!hasCommonDays) return false; // No common days, no overlap possible
+                
+                // Check if time ranges overlap
+                return (startTime < ss.EndTime && endTime > ss.StartTime);
+            });
+
+            if (hasTimeOverlapInDb)
+            {
+                duplicateErrorMessage = "This schedule overlaps with an existing subject schedule in the database on the same day(s). Subjects can be on the same days but not at the same time.";
+                StateHasChanged();
+                return;
+            }
+
+            // Check if exact schedule (same time and days) already exists for this subject name
+            var existingSubject = ExistingSubjects.FirstOrDefault(s => 
+                s.SubjectName.Equals(NewSubjectItem.SubjectName, StringComparison.OrdinalIgnoreCase));
+
+            if (existingSubject != null)
+            {
+                // Check if schedule with same time exists for this subject
+                var existingSchedulesForSubject = ExistingSchedules
+                    .Where(ss => ss.SubjectId == existingSubject.SubjectId &&
+                               ss.StartTime == startTime &&
+                               ss.EndTime == endTime)
+                    .Select(ss => ss.DayOfWeek)
+                    .ToList();
+
+                // Check if all days in the new schedule already exist
+                var allDaysExist = NewSubjectItem.Days.All(day => existingSchedulesForSubject.Contains(day));
+                var sameDayCount = existingSchedulesForSubject.Count == NewSubjectItem.Days.Count;
+
+                if (allDaysExist && sameDayCount)
+                {
+                    duplicateErrorMessage = $"The subject '{NewSubjectItem.SubjectName}' with the same schedule (same time and days) already exists in the database. Please use a different time or days.";
+                    StateHasChanged();
+                    return;
+                }
+            }
+        }
+
+        SubjectList.Add(new SubjectScheduleItem
+        {
+            SubjectName = NewSubjectItem.SubjectName,
+            Days = new List<string>(NewSubjectItem.Days),
+            StartTime = NewSubjectItem.StartTime,
+            EndTime = NewSubjectItem.EndTime,
+            Description = NewSubjectItem.Description
+        });
+
+        // Reset new subject form - clear all fields including times and days
+        NewSubjectItem = new SubjectScheduleItem
+        {
+            SubjectName = "",
+            Days = new List<string>(),
+            StartTime = "",
+            EndTime = "",
+            Description = ""
+        };
+        duplicateErrorMessage = "";
+        
+        // Force UI update immediately to refresh button state and TimePicker components
+        StateHasChanged();
+    }
+
+    private void RemoveSubject(int index)
+    {
+        if (index >= 0 && index < SubjectList.Count)
+        {
+            SubjectList.RemoveAt(index);
+            StateHasChanged();
+        }
+    }
+
+    private void ResetForm()
+    {
+        SubjectList.Clear();
+        NewSubjectItem = new SubjectScheduleItem();
+        duplicateErrorMessage = "";
+        isSubmitting = false;
+        // Don't clear SelectedGradeLevel here - let user keep their selection
+    }
+
+    /// <summary>
+    /// Simple method to check if a subject name already exists in the list (case-insensitive)
+    /// </summary>
+    private bool HasDuplicateSubjectName(string subjectName)
+    {
+        if (string.IsNullOrWhiteSpace(subjectName))
+            return false;
+
+        return SubjectList.Any(s => 
+            s.SubjectName.Equals(subjectName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Simple method to check if a subject name already exists in the database (case-insensitive)
+    /// </summary>
+    private bool HasDuplicateSubjectNameInDatabase(string subjectName)
+    {
+        if (string.IsNullOrWhiteSpace(subjectName))
+            return false;
+
+        return ExistingSubjects.Any(s => 
+            s.SubjectName.Equals(subjectName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool CanAddSubject
+    {
+        get
+        {
+            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) &&
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.StartTime) &&
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.EndTime) &&
+                   NewSubjectItem.Days.Any() &&
+                   TimeSpan.TryParse(NewSubjectItem.StartTime, out var start) &&
+                   TimeSpan.TryParse(NewSubjectItem.EndTime, out var end) &&
+                   end > start;
+        }
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            // Cannot submit if:
+            // 1. No grade level selected
+            // 2. No subjects in list
+            // 3. Currently editing a subject (has incomplete form data)
+            // 4. Already submitting
+            return !string.IsNullOrWhiteSpace(SelectedGradeLevel) && 
+                   SubjectList.Any() && 
+                   !HasIncompleteForm && 
+                   !isSubmitting;
+        }
+    }
+
+    private bool HasData()
+    {
+        return !string.IsNullOrWhiteSpace(SelectedGradeLevel) || SubjectList.Any() || HasIncompleteForm;
+    }
+
+    private bool HasIncompleteForm
+    {
+        get
+        {
+            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) ||
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.StartTime) ||
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.EndTime) ||
+                   NewSubjectItem.Days.Any();
+        }
+    }
+
+    private void ShowSubmitConfirm()
+    {
+        // Validate before showing confirmation
+        if (!ValidateForm())
+        {
+            showValidationModal = true;
+            return;
+        }
+
+        if (CanSubmit)
+        {
+            showSubmitConfirmModal = true;
+        }
+    }
+
+    private bool ValidateForm()
+    {
+        validationErrors.Clear();
+        
+        if (string.IsNullOrWhiteSpace(SelectedGradeLevel))
+        {
+            validationErrors.Add("Grade Level is required");
+        }
+        
+        if (!SubjectList.Any())
+        {
+            validationErrors.Add("Please add at least one subject to the list before submitting");
+        }
+        
+        if (HasIncompleteForm)
+        {
+            validationErrors.Add("Please add the current subject to the list or clear the form before submitting");
+        }
+        
+        return validationErrors.Count == 0;
+    }
+
+    private void CloseValidationModal()
+    {
+        showValidationModal = false;
+    }
+
+    private void CloseDatabaseErrorModal()
+    {
+        showDatabaseErrorModal = false;
+        databaseErrorMessage = "";
+    }
+
+    private void CloseSubmitConfirmModal()
+    {
+        showSubmitConfirmModal = false;
+    }
+
+    private async Task ConfirmSubmit()
+    {
+        showSubmitConfirmModal = false;
+        StateHasChanged();
+        await HandleSubmit();
+    }
+
+    private void ShowCancelConfirm()
+    {
+        if (HasData())
+        {
+            showCancelConfirmModal = true;
+        }
+        else
+        {
+            OnClose.InvokeAsync();
+        }
+    }
+
+    private void CloseCancelConfirmModal()
+    {
+        showCancelConfirmModal = false;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        showCancelConfirmModal = false;
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        // If confirmation modals are open, don't close
+        if (showSubmitConfirmModal || showCancelConfirmModal || showValidationModal)
+        {
+            return;
+        }
+        
+        if (!HasData())
+        {
+            await OnClose.InvokeAsync();
+        }
+        else
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "add-subject-modal");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
+            }
+        }
+    }
+
     private async Task HandleSubmit()
     {
-        await OnSubmit.InvokeAsync();
+        if (isSubmitting) return;
+
+        isSubmitting = true;
+        duplicateErrorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            // Validate no duplicate names in list before submitting
+            var duplicateNames = SubjectList
+                .GroupBy(s => s.SubjectName, StringComparer.OrdinalIgnoreCase)
+                .Where(g => g.Count() > 1)
+                .Select(g => g.Key)
+                .ToList();
+
+            if (duplicateNames.Any())
+            {
+                duplicateErrorMessage = $"Duplicate subject names found in the list: {string.Join(", ", duplicateNames)}. Each subject name can only be added once. Please remove duplicates before submitting.";
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Validate no exact duplicate schedules in list before submitting
+            var duplicateSchedules = SubjectList
+                .GroupBy(s => new { 
+                    Name = s.SubjectName.ToLower(), 
+                    Start = s.StartTime, 
+                    End = s.EndTime,
+                    Days = string.Join(",", s.Days.OrderBy(d => d))
+                })
+                .Where(g => g.Count() > 1)
+                .ToList();
+
+            if (duplicateSchedules.Any())
+            {
+                duplicateErrorMessage = "Duplicate subjects with the same schedule found in the list. Please remove duplicates before submitting.";
+                isSubmitting = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Check for duplicate names in database before submitting
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == SelectedGradeLevel);
+            if (gradeLevel != null)
+            {
+                var subjectNamesInList = SubjectList.Select(s => s.SubjectName).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                var duplicateNamesInDb = ExistingSubjects
+                    .Where(s => s.GradeLevelId == gradeLevel.GradeLevelId && 
+                               subjectNamesInList.Contains(s.SubjectName, StringComparer.OrdinalIgnoreCase))
+                    .Select(s => s.SubjectName)
+                    .ToList();
+
+                if (duplicateNamesInDb.Any())
+                {
+                    duplicateErrorMessage = $"The following subject names already exist in the database for this grade level: {string.Join(", ", duplicateNamesInDb)}. Please use different subject names or edit the existing subjects.";
+                    isSubmitting = false;
+                    StateHasChanged();
+                    return;
+                }
+            }
+
+            // Set the subject data for the parent component
+            Subject.GradeLevel = SelectedGradeLevel;
+            Subject.Schedules = new List<SubjectScheduleItem>(SubjectList);
+            
+            // Invoke submit and wait for it to complete
+            await OnSubmit.InvokeAsync();
+            
+            // Check if there were any database errors from the parent component
+            // The parent component will handle showing errors via its error modal
+            // If we get here without exceptions, assume success
+            
+            // Close modal after successful submission
+            ResetForm();
+            await Task.Delay(100); // Small delay to ensure parent has processed
+            await OnClose.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error in HandleSubmit: {ex.Message}");
+            databaseErrorMessage = $"An error occurred while submitting subjects to the database:\n\n{ex.Message}\n\nPlease check the console for more details.";
+            showDatabaseErrorModal = true;
+            isSubmitting = false;
+            StateHasChanged();
+        }
     }
 }
 

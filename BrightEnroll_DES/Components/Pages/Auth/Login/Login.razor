@@ -1,0 +1,477 @@
+﻿@page "/login"
+@layout Components.Layout.AuthLayout
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Components.Pages.Auth.Handlers
+@using System.Threading.Tasks
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject IJSRuntime JSRuntime
+@inject IConnectivityService ConnectivityService
+@implements IDisposable
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@ToastType.Success" OnClose="CloseToast" Duration="3000" />
+
+<!-- Connectivity Toast -->
+<ConnectivityToast Show="@showConnectivityToast" IsOnline="@isOnline" Message="@connectivityMessage" />
+
+<div class="relative flex h-screen w-full flex-col md:flex-row"> 
+    <div class="relative h-[50vh] w-full md:h-screen md:w-[40%]">
+        <img src="images/kid.png" alt="Child learning alphabet" class="h-full w-full object-cover" />
+    </div>
+     
+    <div class="absolute bottom-0 left-0 right-0 flex min-h-[50vh] w-full items-center justify-center overflow-y-auto p-1.5 sm:p-2 md:relative md:min-h-screen md:w-[60%] md:p-3 md:p-8">
+
+        <div class="relative my-auto max-h-[95vh] w-full max-w-[96%] overflow-y-auto rounded-2xl bg-white p-3 pb-8 shadow-xl sm:max-h-[98vh] sm:max-w-[420px] sm:p-4 sm:pb-4 md:max-h-none md:max-w-[480px] md:p-6 md:pb-6 lg:max-w-[520px] lg:p-8 lg:pb-8 xl:p-10 xl:pb-10">
+            <!-- Back Arrow Button - Top Left Corner - Responsive Size -->
+            <a href="/" class="absolute left-2 top-2 flex items-center text-gray-600 transition-all duration-200 hover:scale-110 hover:text-gray-900 sm:left-[10px] sm:top-[10px]">
+                <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5 lg:h-6 lg:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <span class="font-sm ml-0.5 text-sm sm:ml-1 sm:text-sm md:text-base">Back</span>
+            </a>
+            
+            <div class="flex flex-col">
+                <!-- Logo - Responsive Size, Smaller on Small Screens -->
+                <div class="flex justify-center">
+                    <img src="images/lightlogo.png" alt="BrightenRoll Logo" class="m-0 w-24 max-w-full object-contain sm:w-32 md:w-40 lg:w-48 xl:w-60 2xl:w-72" />
+                </div>
+
+                <!-- Title and Description - Compact on Small Screens -->
+                <div class="mb-3 mt-0 w-full text-left sm:mb-4 md:mb-6 lg:mb-8">
+                    <h1 class="mb-1 text-left font-semibold text-[17px] text-gray-900 sm:text-lg md:text-xl lg:text-[22px]">
+                        Log in to your account
+                    </h1>
+                    <p class="mb-3 text-left text-[13px] text-gray-600 sm:text-sm md:text-[15px]">
+                        Access your account and start managing student enrollments with ease and confidence.
+                    </p>
+                </div>
+
+
+                <form class="w-full space-y-2 sm:space-y-2.5 md:space-y-3 lg:space-y-4" @onsubmit:preventDefault="true" @onsubmit="HandleLogin">
+                    <!-- Email or System ID -->
+                    <div>
+                        <label class="mb-0.5 block text-sm font-medium text-gray-700 sm:mb-1 sm:text-sm md:text-sm">
+                            Enter email or System ID:
+                        </label>
+                        <div class="relative">
+                            <!-- User Icon -->
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 sm:pl-3">
+                                <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                            </div>
+                            <input type="text"
+                                   @bind="EmailOrSystemId"
+                                   @bind:event="oninput"
+                                   placeholder="Email or System ID"
+                                   class="@EmailOrSystemIdInputClass" />
+                        </div>
+                        @if (emailOrSystemIdError && string.IsNullOrWhiteSpace(_emailOrSystemId))
+                        {
+                            <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Email or System ID is required</p>
+                        }
+                    </div>
+                    <div class="mb-3 sm:mb-4 md:mb-5 lg:mb-6"></div>
+
+                    <!-- Password -->
+                    <div>
+                        <label class="mb-0.5 block text-sm font-medium text-gray-700 sm:mb-1 sm:text-sm md:text-sm">
+                            Enter password:
+                        </label>
+                        <div class="relative">
+                            <!-- Lock Icon -->
+                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 sm:pl-3">
+                                <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <input type="@(showPassword ? "text" : "password")"
+                                   @bind="Password"
+                                   @bind:event="oninput"
+                                   placeholder="Password"
+                                   class="@PasswordInputClass" />
+                            <!-- Eye Icon Toggle -->
+                            <button type="button"
+                                    @onclick="TogglePasswordVisibility"
+                                    class="absolute inset-y-0 right-0 flex items-center pr-2.5 hover:text-gray-600 sm:pr-3">
+                                @if (showPassword)
+                                {
+                                    <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg class="h-3.5 w-3.5 text-gray-400 sm:h-4 sm:w-4 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                    </svg>
+                                }
+                            </button>
+                        </div>
+                    @if (passwordError && string.IsNullOrWhiteSpace(_password))
+                    {
+                            <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Password is required</p>
+                    }
+                </div>
+
+                <div class="mb-3 sm:mb-4 md:mb-5 lg:mb-6"></div>
+
+                <!-- Login Error Message -->
+                @if (loginError)
+                {
+                    <div class="mb-2.5 rounded-lg border border-red-300 bg-red-50 p-2 sm:mb-3 sm:p-2.5 md:mb-4 md:p-3">
+                        <p class="text-sm text-red-600 sm:text-sm">Invalid email/System ID or password. Please try again.</p>
+                    </div>
+                }
+
+                <!-- Remember me and Forgot Password -->
+                    <div class="mb-2.5 flex items-center justify-between sm:mb-3 md:mb-4">
+                        <div class="flex items-center">
+                            <input id="remember-me" type="checkbox" @bind="rememberMe" @bind:after="OnRememberMeChanged" class="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4" />
+                            <label for="remember-me" class="ml-1.5 text-sm text-gray-700 sm:ml-2 sm:text-sm md:text-sm">Remember me</label>
+                        </div>
+                        <button type="button" 
+                                @onclick="NavigateToForgotPassword"
+                                class="cursor-pointer border-none bg-transparent p-0 text-sm font-medium text-blue-600 no-underline transition-all duration-200 hover:text-blue-700 hover:underline sm:text-sm">
+                            Forgot Password?
+                        </button>
+                    </div>
+
+                    <div class="mb-4 sm:mb-4 md:mb-5 lg:mb-6"></div>
+
+                    <!-- Submit Button - Capsule Shape -->
+                    <button type="submit"
+                            class="mx-auto block w-3/4 rounded-full bg-blue-600 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:bg-blue-800 sm:py-2.5 sm:text-sm md:py-3 md:text-base">
+                        LOG IN
+                    </button>
+
+
+                    <!-- Student Registration Link -->
+                    <div class="pt-0 text-center sm:pt-2">
+                        <button 
+                            type="button"
+                            @onclick="NavigateToStudentRegistration"
+                            class="inline-block cursor-pointer border-none bg-transparent p-0 text-sm font-medium text-gray-700 no-underline transition-all duration-200 hover:scale-110 hover:text-gray-900 sm:text-sm">
+                            Student Registration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string _emailOrSystemId = string.Empty;
+    private string _password = string.Empty;
+    private bool rememberMe = false;
+    private bool showPassword = false;
+    private bool emailOrSystemIdError = false;
+    private bool passwordError = false;
+    private bool loginError = false;
+    private RememberMeHandler? _rememberMeHandler;
+
+    // Email or System ID property with setter to clear error on input
+    private string EmailOrSystemId
+    {
+        get => _emailOrSystemId;
+        set
+        {
+            _emailOrSystemId = value;
+            // Clear error when user starts typing
+            if (emailOrSystemIdError && !string.IsNullOrWhiteSpace(value))
+            {
+                emailOrSystemIdError = false;
+            }
+        }
+    }
+
+    // Password property with setter to clear error on input
+    private string Password
+    {
+        get => _password;
+        set
+        {
+            _password = value;
+            // Clear error when user starts typing
+            if (passwordError && !string.IsNullOrWhiteSpace(value))
+            {
+                passwordError = false;
+            }
+            if (loginError && !string.IsNullOrWhiteSpace(value))
+            {
+                loginError = false;
+            }
+        }
+    }
+
+    // Computed classes for input fields
+    private string EmailOrSystemIdInputClass => $"w-full rounded-lg border py-2 pl-8 pr-3 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-4 sm:text-sm {(emailOrSystemIdError || loginError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+    
+    private string PasswordInputClass => $"w-full rounded-lg border py-2 pl-8 pr-9 text-sm outline-none transition sm:py-2.5 sm:pl-9 sm:pr-10 sm:text-sm {(passwordError || loginError ? "border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500" : "border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500")}";
+
+    private void TogglePasswordVisibility() => showPassword = !showPassword;
+
+    private bool showToast = false;
+    private string toastMessage = "";
+    
+    // Connectivity toast state
+    private bool showConnectivityToast = false;
+    private bool isOnline = false;
+    private string connectivityMessage = "";
+
+    protected override void OnInitialized()
+    {
+        // Initialize RememberMeHandler
+        _rememberMeHandler = new RememberMeHandler(JSRuntime);
+        
+        // Subscribe to connectivity changes
+        ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+        
+        // Initial check and show toast ONLY ONCE on login page (first time app opens)
+        if (!ConnectivityService.HasShownInitialToast)
+        {
+            _ = Task.Run(async () =>
+            {
+                var isConnected = await ConnectivityService.CheckConnectivityAsync();
+                await InvokeAsync(() =>
+                {
+                    ConnectivityService.HasShownInitialToast = true;
+                    isOnline = isConnected;
+                    connectivityMessage = isConnected 
+                        ? "You are online. Data will sync to cloud." 
+                        : "Offline. Changes saved locally, will sync when online.";
+                    showConnectivityToast = true;
+                    StateHasChanged();
+                    
+                    // Auto-hide after 3 seconds
+                    _ = Task.Delay(3000).ContinueWith(_ =>
+                    {
+                        InvokeAsync(() =>
+                        {
+                            showConnectivityToast = false;
+                            StateHasChanged();
+                        });
+                    });
+                });
+            });
+        }
+
+        // Check for toast parameter in query string
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("toast", out var toastValue))
+        {
+            if (toastValue == "registration_submitted")
+            {
+                toastMessage = "Registration submitted successfully!";
+                showToast = true;
+            }
+        }
+
+        // If already logged in, redirect to dashboard
+        if (AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/dashboard");
+        }
+    }
+
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var query = new Dictionary<string, string>();
+        
+        if (string.IsNullOrWhiteSpace(queryString))
+            return query;
+        
+        // Remove the leading '?'
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&');
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=');
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                query[key] = value;
+            }
+        }
+        
+        return query;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Load saved credentials if remember me was enabled
+            if (_rememberMeHandler != null)
+            {
+                var (savedEmail, savedPassword, wasRemembered) = await _rememberMeHandler.LoadCredentialsAsync();
+                if (wasRemembered && !string.IsNullOrWhiteSpace(savedEmail) && !string.IsNullOrWhiteSpace(savedPassword))
+                {
+                    _emailOrSystemId = savedEmail;
+                    _password = savedPassword;
+                    rememberMe = true;
+                    StateHasChanged();
+                }
+            }
+
+            // Clean up query parameter from URL after showing toast
+            var uri = new Uri(Navigation.Uri);
+            if (uri.Query.Contains("toast="))
+            {
+                Navigation.NavigateTo("/login", forceLoad: false);
+            }
+            
+            // Additional check after render to catch any navigation attempts
+            if (AuthService.IsAuthenticated)
+            {
+                Navigation.NavigateTo("/dashboard", forceLoad: true);
+            }
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        // Show loading screen IMMEDIATELY on button click, before any validation
+        LoadingService.ShowLoading("Logging in...");
+        StateHasChanged(); // Force immediate UI update
+        
+        // Reset errors
+        emailOrSystemIdError = false;
+        passwordError = false;
+        loginError = false;
+
+        // Validate fields
+        bool isValid = true;
+
+        if (string.IsNullOrWhiteSpace(_emailOrSystemId))
+        {
+            emailOrSystemIdError = true;
+            isValid = false;
+        }
+
+        if (string.IsNullOrWhiteSpace(_password))
+        {
+            passwordError = true;
+            isValid = false;
+        }
+
+        // If validation fails, hide loading and show errors
+        if (!isValid)
+        {
+            LoadingService.HideLoading();
+            StateHasChanged();
+            return;
+        }
+        
+        var startTime = DateTime.Now;
+
+        try
+        {
+            // Attempt login using AuthService (accepts email or system ID)
+            var loginResult = await AuthService.LoginAsync(_emailOrSystemId, _password);
+
+            if (loginResult)
+            {
+                // Save credentials if remember me is checked
+                if (_rememberMeHandler != null)
+                {
+                    await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
+                }
+
+                // Keep loading message as "Logging in... Please wait." during navigation
+                // Dashboard will hide loading immediately after navigation (no separate loading screen)
+                // Login successful - redirect to dashboard
+                Navigation.NavigateTo("/dashboard");
+            }
+            else
+            {
+                // Login failed - show error message and red outlines on both fields
+                LoadingService.HideLoading();
+                loginError = true;
+                emailOrSystemIdError = true;
+                passwordError = true;  
+                StateHasChanged();
+            }
+        }
+        catch (Exception)
+        {
+            // Ensure loading screen shows for at least 1 second even on error
+            var elapsed = DateTime.Now - startTime;
+            var minDuration = TimeSpan.FromSeconds(1);
+            if (elapsed < minDuration)
+            {
+                await Task.Delay(minDuration - elapsed);
+            }
+            LoadingService.HideLoading();
+            loginError = true;
+            emailOrSystemIdError = true;
+            passwordError = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnRememberMeChanged()
+    {
+        // Clear credentials immediately when Remember Me is unchecked
+        if (!rememberMe && _rememberMeHandler != null)
+        {
+            await _rememberMeHandler.ClearCredentialsAsync();
+        }
+    }
+
+    private void NavigateToStudentRegistration()
+    {
+        Navigation.NavigateTo("/student-register");
+    }
+
+    private void NavigateToForgotPassword()
+    {
+        // TODO: Navigate to forgot password page when implemented
+        // Navigation.NavigateTo("/forgot-password");
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+
+    private void OnConnectivityChanged(object? sender, bool isConnected)
+    {
+        // Only show toast if initial toast has been shown (connection change, not initial load)
+        if (ConnectivityService.HasShownInitialToast)
+        {
+            isOnline = isConnected;
+            connectivityMessage = isConnected 
+                ? "You are now online. Data will sync to cloud." 
+                : "Offline. Changes saved locally, will sync when online.";
+            
+            showConnectivityToast = true;
+            InvokeAsync(StateHasChanged);
+            
+            // Auto-hide after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ =>
+            {
+                showConnectivityToast = false;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+    }
+}

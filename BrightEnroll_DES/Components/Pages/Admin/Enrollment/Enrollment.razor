@@ -1,0 +1,201 @@
+﻿@page "/enrollment"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Services
+@using Microsoft.Extensions.Logging
+@inject StudentService StudentService
+@inject ILogger<Enrollment> Logger
+
+<PageTitle>Enrollment</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Enrollment</h1>
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick="() => SelectedTab = TabType.NewApplicants" 
+                    class="@GetTabClasses(TabType.NewApplicants)"
+                    style="@GetNewApplicantsStyle()">
+                New Applicants
+            </button>
+            <button @onclick="() => SelectedTab = TabType.ForEnrollment" 
+                    class="@GetTabClasses(TabType.ForEnrollment)">
+                For Enrollment
+            </button>
+            <button @onclick="() => SelectedTab = TabType.ReEnrollment" 
+                    class="@GetTabClasses(TabType.ReEnrollment)">
+                Re-enrollment
+            </button>
+            <button @onclick="() => SelectedTab = TabType.EnrolledStudent" 
+                    class="@GetTabClasses(TabType.EnrolledStudent)">
+                Enrolled Student
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (SelectedTab == TabType.NewApplicants)
+        {
+            <NewApplicant Students="Applicants" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+        }
+        else if (SelectedTab == TabType.ForEnrollment)
+        {
+            <ForEnrollment Students="ForEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+        }
+        else if (SelectedTab == TabType.ReEnrollment)
+        {
+            <ReEnrollment Students="ReEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+        }
+        else if (SelectedTab == TabType.EnrolledStudent)
+        {
+            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+        }
+    </div>
+</div>
+
+@code {
+    private enum TabType
+    {
+        NewApplicants,
+        ForEnrollment,
+        ReEnrollment,
+        EnrolledStudent
+    }
+
+    private TabType SelectedTab { get; set; } = TabType.NewApplicants;
+
+    private string GetNewApplicantsStyle()
+    {
+        bool isSelected = SelectedTab == TabType.NewApplicants;
+        if (isSelected)
+        {
+            return "color: #0E335D; border-bottom: 2px solid #0E335D;";
+        }
+        else
+        {
+            return "color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(TabType tab)
+    {
+        bool isSelected = SelectedTab == tab;
+        
+        return tab switch
+        {
+            TabType.NewApplicants => isSelected
+                ? "px-3 py-2 text-sm font-semibold"
+                : "px-3 py-2 text-sm font-semibold transition-colors duration-200",
+            TabType.ForEnrollment => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            TabType.ReEnrollment => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600"
+                : "px-3 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
+            TabType.EnrolledStudent => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private int RowsPerPage { get; set; } = 5;
+
+    private List<NewApplicant.Student> Applicants = new();
+
+    private List<ForEnrollment.ForEnrollmentStudent> ForEnrollmentStudents = new()
+    {
+        new() { Id = "00010", Name = "John Smith", LRN = "129706182738", Date = "10 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00011", Name = "Jane Doe", LRN = "129706182739", Date = "11 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00012", Name = "Mike Johnson", LRN = "129706182740", Date = "12 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false },
+        new() { Id = "00013", Name = "Sarah Williams", LRN = "129706182741", Date = "13 Sep 2025", Type = "Transferee", GradeLevel = "G4", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00014", Name = "David Brown", LRN = "129706182742", Date = "14 Sep 2025", Type = "New", GradeLevel = "G5", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00015", Name = "Emily Davis", LRN = "129706182743", Date = "15 Sep 2025", Type = "Transferee", GradeLevel = "G6", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = false },
+        new() { Id = "00016", Name = "Robert Miller", LRN = "129706182744", Date = "16 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
+        new() { Id = "00017", Name = "Lisa Wilson", LRN = "129706182745", Date = "17 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
+        new() { Id = "00018", Name = "James Moore", LRN = "129706182746", Date = "18 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false }
+    };
+
+    private List<ReEnrollmentStudent> ReEnrollmentStudents = new()
+    {
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "129706182734", Date = "04 Sep 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "129706182712", Date = "28 May 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "129706182715", Date = "05 Feb 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706182748", Date = "29 Jul 2025", Type = "Eligible", GradeLevel = "G4", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "129706182719", Date = "15 Aug 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706182733", Date = "21 Dec 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706182732", Date = "30 Apr 2025", Type = "Eligible", GradeLevel = "G5", Documents = "Verified", Status = "Pending" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2025", Type = "Eligible", GradeLevel = "G3", Documents = "Verified", Status = "Pending" }
+    };
+
+    private List<EnrolledStudent> EnrolledStudents = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        try
+        {
+            await LoadNewApplicantsAsync();
+            await LoadEnrolledStudentsAsync();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadNewApplicantsAsync()
+    {
+        try
+        {
+            var newApplicantsDto = await StudentService.GetNewApplicantsAsync();
+            
+            // Map NewApplicantDto to NewApplicant.Student
+            Applicants = newApplicantsDto.Select(dto => new NewApplicant.Student
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                LRN = dto.LRN ?? "N/A",
+                Date = dto.Date,
+                Type = dto.Type,
+                GradeLevel = dto.GradeLevel,
+                Status = dto.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading new applicants: {Message}", ex.Message);
+            Applicants = new List<NewApplicant.Student>();
+        }
+    }
+
+    private async Task LoadEnrolledStudentsAsync()
+    {
+        try
+        {
+            var enrolledStudentsDto = await StudentService.GetEnrolledStudentsAsync();
+            
+            // Map EnrolledStudentDto to EnrolledStudent
+            EnrolledStudents = enrolledStudentsDto.Select(dto => new EnrolledStudent
+            {
+                Id = dto.Id,
+                Name = dto.Name,
+                LRN = dto.LRN,
+                Date = dto.Date,
+                GradeLevel = dto.GradeLevel,
+                Section = dto.Section,
+                Documents = dto.Documents,
+                Status = dto.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading enrolled students: {Message}", ex.Message);
+            EnrolledStudents = new List<EnrolledStudent>();
+        }
+    }
+}

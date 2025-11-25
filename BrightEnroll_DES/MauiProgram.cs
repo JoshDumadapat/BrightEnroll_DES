@@ -1,13 +1,17 @@
 ﻿using Microsoft.Extensions.Logging;
-using BrightEnroll_DES.Services.AuthFunction;
-using BrightEnroll_DES.Services;
-using BrightEnroll_DES.Services.HR;
-using BrightEnroll_DES.Services.Finance;
-using BrightEnroll_DES.Services.DBConnections;
+using BrightEnroll_DES.Services.Authentication;
+using BrightEnroll_DES.Services.Business.Students;
+using BrightEnroll_DES.Services.Business.Academic;
+using BrightEnroll_DES.Services.Business.HR;
+using BrightEnroll_DES.Services.Business.Finance;
+using BrightEnroll_DES.Services.Database.Connections;
+using BrightEnroll_DES.Services.Database.Initialization;
+using BrightEnroll_DES.Services.Infrastructure;
 using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using QuestPDF.Infrastructure;
 
 namespace BrightEnroll_DES
 {
@@ -15,6 +19,9 @@ namespace BrightEnroll_DES
     {
         public static MauiApp CreateMauiApp()
         {
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
@@ -30,14 +37,14 @@ namespace BrightEnroll_DES
             // 1. Environment variable "ConnectionStrings__DefaultConnection"
             // 2. appsettings.json file
             // 3. Default LocalDB connection string
-            builder.Services.AddSingleton<DBConnection>(sp =>
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.Database.Connections.DBConnection>(sp =>
             {
                 // DBConnection constructor will automatically resolve connection string
-                return new DBConnection();
+                return new BrightEnroll_DES.Services.Database.Connections.DBConnection();
             });
 
             // Register Repositories (EF Core ORM with SQL injection protection)
-            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.IUserRepository, BrightEnroll_DES.Services.Repositories.UserRepository>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository, BrightEnroll_DES.Services.DataAccess.Repositories.UserRepository>();
 
             // Register LoginService
             builder.Services.AddSingleton<ILoginService, LoginService>();
@@ -103,46 +110,125 @@ namespace BrightEnroll_DES
             var app = builder.Build();
 
             // Initialize database and seed initial admin user on startup
-            // CRITICAL FIX: Use ConfigureAwait(false) to avoid deadlocks in MAUI/Blazor
-            // Run initialization asynchronously without blocking the UI thread
+            // Run in background task but wait for completion with timeout
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var dbConnection = app.Services.GetRequiredService<DBConnection>();
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] ===== STARTING DATABASE INITIALIZATION =====");
+                    
+                    var dbConnection = app.Services.GetRequiredService<BrightEnroll_DES.Services.Database.Connections.DBConnection>();
                     
                     // Get connection string for initializer (use local)
-                    var connectionString = dbConnection.GetConnection().ConnectionString;
-                    var initializer = new DatabaseInitializer(connectionString);
+                    var connection = dbConnection.GetConnection();
+                    if (connection == null || string.IsNullOrWhiteSpace(connection.ConnectionString))
+                    {
+                        throw new Exception("Database connection string is null or empty.");
+                    }
+                    var connectionString = connection.ConnectionString;
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Connection string: {connectionString.Substring(0, Math.Min(50, connectionString.Length))}...");
+                    
+                    var initializer = new BrightEnroll_DES.Services.Database.Initialization.DatabaseInitializer(connectionString);
                     
                     // Automatically create database and tables if they don't exist
-                    await initializer.InitializeDatabaseAsync().ConfigureAwait(false);
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Initializing database (creating tables if needed)...");
+                    var initResult = await initializer.InitializeDatabaseAsync();
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Database initialization result: {initResult}");
                     
-                    // Seed initial admin user - create a scope for DbContext
-                    try
+                    // Small delay to ensure all database operations are committed
+                    await Task.Delay(1500);
+                    
+                    // Seed initial admin user and deductions - create a scope for DbContext
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Starting admin user seeding...");
+                    using (var scope = app.Services.CreateScope())
                     {
-                        using (var scope = app.Services.CreateScope())
+                        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                        
+                        // Retry seeding up to 3 times if it fails
+                        int maxRetries = 3;
+                        bool seedingSuccess = false;
+                        Exception? lastException = null;
+                        
+                        for (int attempt = 1; attempt <= maxRetries; attempt++)
                         {
-                            var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-                            await seeder.SeedInitialAdminAsync().ConfigureAwait(false);
-                            System.Diagnostics.Debug.WriteLine("Admin user seeded successfully");
+                            try
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[MauiProgram] Seeding attempt {attempt} of {maxRetries}...");
+                                await seeder.SeedInitialAdminAsync();
+                                seedingSuccess = true;
+                                System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✓ Seeding successful on attempt {attempt}");
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✗ Seeding attempt {attempt} failed: {ex.Message}");
+                                if (ex.InnerException != null)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Inner exception: {ex.InnerException.Message}");
+                                }
+                                if (attempt < maxRetries)
+                                {
+                                    int delayMs = 1000 * attempt;
+                                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Retrying in {delayMs}ms...");
+                                    await Task.Delay(delayMs); // Exponential backoff
+                                }
+                            }
                         }
+                        
+                        if (!seedingSuccess)
+                        {
+                            var errorMsg = $"Failed to seed admin user after {maxRetries} attempts";
+                            System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✗ FATAL: {errorMsg}");
+                            if (lastException != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[MauiProgram] Last exception: {lastException.Message}");
+                            }
+                            throw new Exception(errorMsg, lastException);
+                        }
+                        
+                        System.Diagnostics.Debug.WriteLine("[MauiProgram] ✓ Admin user seeding completed");
+                        
+                        // Seed deductions
+                        try
+                        {
+                            System.Diagnostics.Debug.WriteLine("[MauiProgram] Starting deductions seeding...");
+                            await seeder.SeedDeductionsAsync();
+                            System.Diagnostics.Debug.WriteLine("[MauiProgram] ✓ Deductions seeding completed");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[MauiProgram] ⚠ Warning: Deductions seeding failed: {ex.Message}");
+                            // Don't throw - deductions seeding failure is not critical
+                        }
+                        
+                        // Final verification: Try to retrieve the user
+                        var userRepo = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository>();
+                        var adminUser = await userRepo.GetBySystemIdAsync("BDES-0001");
+                        if (adminUser == null)
+                        {
+                            var errorMsg = "CRITICAL: Admin user not found after seeding verification!";
+                            System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✗ FATAL: {errorMsg}");
+                            throw new Exception(errorMsg);
+                        }
+                        System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✓ Final verification successful - Admin user found with UserId: {adminUser.user_ID}");
                     }
-                    catch (Exception seederEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error seeding admin user: {seederEx.Message}");
-                        System.Diagnostics.Debug.WriteLine($"Stack trace: {seederEx.StackTrace}");
-                        // Don't throw - continue with app startup even if seeder fails
-                    }
+                    System.Diagnostics.Debug.WriteLine("[MauiProgram] ===== DATABASE INITIALIZATION COMPLETED =====");
                 }
                 catch (Exception ex)
                 {
                     // Log error but don't crash the app
+                    var errorMsg = $"Error initializing database: {ex.Message}";
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] ✗ FATAL ERROR: {errorMsg}");
+                    if (ex.InnerException != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[MauiProgram] Inner exception: {ex.InnerException.Message}");
+                    }
+                    System.Diagnostics.Debug.WriteLine($"[MauiProgram] Stack trace: {ex.StackTrace}");
+                    
                     var loggerFactory = app.Services.GetService<ILoggerFactory>();
                     var logger = loggerFactory?.CreateLogger("MauiProgram");
                     logger?.LogError(ex, "Error initializing database: {Message}", ex.Message);
-                    System.Diagnostics.Debug.WriteLine($"Error initializing database: {ex.Message}");
-                    System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             });
 

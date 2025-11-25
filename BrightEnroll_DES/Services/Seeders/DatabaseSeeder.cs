@@ -1,8 +1,9 @@
 using BrightEnroll_DES.Models;
-using BrightEnroll_DES.Services.Repositories;
+using BrightEnroll_DES.Services.DataAccess.Repositories;
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using BCrypt.Net;
 
 namespace BrightEnroll_DES.Services.Seeders
 {
@@ -117,6 +118,81 @@ namespace BrightEnroll_DES.Services.Seeders
                 throw new Exception($"Error seeding initial admin: {ex.Message}", ex);
             }
         }
+
+        public async Task SeedDeductionsAsync()
+        {
+            try
+            {
+                // Check if deductions already exist
+                var existingDeductions = await _context.Deductions.AnyAsync();
+                if (existingDeductions)
+                {
+                    return;
+                }
+
+                var deductions = new List<Deduction>
+                {
+                    // SSS Contribution
+                    new Deduction
+                    {
+                        DeductionType = "SSS",
+                        DeductionName = "Social Security System",
+                        RateOrValue = 0.11m, // 11%
+                        IsPercentage = true,
+                        MaxAmount = 2000.00m, // Capped at ₱2,000/month
+                        MinAmount = null,
+                        Description = "SSS contribution at 11% of base salary, capped at ₱2,000/month. Based on Republic Act No. 11199 (Social Security Act of 2018).",
+                        IsActive = true,
+                        CreatedDate = DateTime.Now
+                    },
+                    // PhilHealth Contribution
+                    new Deduction
+                    {
+                        DeductionType = "PHILHEALTH",
+                        DeductionName = "Philippine Health Insurance Corporation",
+                        RateOrValue = 0.03m, // 3%
+                        IsPercentage = true,
+                        MaxAmount = null,
+                        MinAmount = null,
+                        Description = "PhilHealth contribution at 3% of base salary. Based on Republic Act No. 11223 (Universal Health Care Act).",
+                        IsActive = true,
+                        CreatedDate = DateTime.Now
+                    },
+                    // Pag-IBIG Contribution
+                    new Deduction
+                    {
+                        DeductionType = "PAGIBIG",
+                        DeductionName = "Home Development Mutual Fund",
+                        RateOrValue = 0.02m, // 2%
+                        IsPercentage = true,
+                        MaxAmount = 200.00m, // Capped at ₱200/month
+                        MinAmount = null,
+                        Description = "Pag-IBIG contribution at 2% of base salary, capped at ₱200/month. Based on Republic Act No. 9679 (Pag-IBIG Fund Law of 2009).",
+                        IsActive = true,
+                        CreatedDate = DateTime.Now
+                    },
+                    // Withholding Tax (Note: This uses progressive brackets, stored as base rate for reference)
+                    new Deduction
+                    {
+                        DeductionType = "WITHHOLDING_TAX",
+                        DeductionName = "Withholding Tax (Income Tax)",
+                        RateOrValue = 0.00m, // Progressive brackets - calculated separately
+                        IsPercentage = false, // Not a simple percentage
+                        MaxAmount = null,
+                        MinAmount = null,
+                        Description = "Withholding tax based on TRAIN Law (RA 10963) progressive tax brackets. Taxable income = Gross Pay - (SSS + PhilHealth + Pag-IBIG). No tax if taxable income ≤ ₱20,833.33/month.",
+                        IsActive = true,
+                        CreatedDate = DateTime.Now
+                    }
+                };
+
+                _context.Deductions.AddRange(deductions);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding deductions: {ex.Message}", ex);
+            }
+        }
     }
 }
-

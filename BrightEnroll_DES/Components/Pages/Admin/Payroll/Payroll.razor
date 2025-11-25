@@ -1,0 +1,256 @@
+@page "/payroll"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
+@using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject AppDbContext DbContext
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Payroll</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Payroll Management</h1>
+    
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("SalaryConfig")' 
+                    class="@GetTabClasses("SalaryConfig")"
+                    style="@GetSalaryConfigStyle()">
+                Salary Configuration
+            </button>
+            <button @onclick='() => SetActiveTab("AddRole")' 
+                    class="@GetTabClasses("AddRole")">
+                Manage Roles
+            </button>
+            <button @onclick='() => SetActiveTab("GeneratePayslip")' 
+                    class="@GetTabClasses("GeneratePayslip")">
+                Generate Payslip
+            </button>
+            <button @onclick='() => SetActiveTab("Records")' 
+                    class="@GetTabClasses("Records")">
+                Records
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="space-y-6">
+        @if (activeTab == "SalaryConfig")
+        {
+            <!-- Title and Description (Outside Container) -->
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">Salary Configuration by Role</h2>
+                <p class="mt-1 text-sm text-gray-600">View salary settings for each role. To edit salary and allowance, go to the "Manage Roles" tab. Calculations are based on Philippine labor and tax laws.</p>
+            </div>
+            
+            <!-- Salary Configuration Tab -->
+            <PayrollTable PayrollData="payrollData" OnSalaryUpdated="HandleSalaryUpdated" OnRoleSelected="HandleRoleSelected" />
+            
+            <!-- Calculation Details Card -->
+            <div class="overflow-hidden rounded-xl bg-white shadow">
+                <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                    <h2 class="text-lg font-semibold text-gray-800">Calculation Details & Legal Basis</h2>
+                </div>
+                
+                <div class="p-6">
+                    <CalculationDetails SelectedRole="selectedRole" PayrollData="payrollData" />
+                </div>
+            </div>
+        }
+        else if (activeTab == "AddRole")
+        {
+            <!-- Manage Roles Tab -->
+            <AddRoleForm OnRoleAdded="HandleRoleAdded" Roles="payrollData" OnShowToast="HandleShowToast" />
+        }
+        else if (activeTab == "GeneratePayslip")
+        {
+            <!-- Title and Description (Outside Container) -->
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">Generate Payslip and Records</h2>
+                <p class="mt-1 text-sm text-gray-600">Select an employee and pay period to generate payslip and payroll records.</p>
+            </div>
+            
+            <!-- Generate Payslip Tab -->
+            <PayslipGenerator />
+        }
+        else if (activeTab == "Records")
+        {
+            <!-- Title and Description (Outside Container) -->
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-gray-800">Payroll Records</h2>
+                <p class="mt-1 text-sm text-gray-600">View historical payroll transactions and records.</p>
+            </div>
+            
+            <!-- Records Tab -->
+            <PayrollRecords />
+        }
+    </div>
+</div>
+
+@code {
+    private List<PayrollRoleData> payrollData = new();
+    private string? selectedRole = null;
+    private string activeTab = "SalaryConfig";
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPayrollData();
+    }
+
+    private async Task LoadPayrollData()
+    {
+        try
+        {
+            // Fetch ALL roles from database (both active and inactive)
+            var roles = await DbContext.Roles
+                .OrderBy(r => r.RoleName)
+                .ToListAsync();
+
+            payrollData = roles.Select(role =>
+            {
+                var data = new PayrollRoleData
+                {
+                    Role = role.RoleName,
+                    BaseSalary = role.BaseSalary,
+                    Allowance = role.Allowance,
+                    IsActive = role.IsActive
+                };
+                data.Recalculate();
+                return data;
+            }).ToList();
+
+            // If database is empty, show empty list (no hardcoded data)
+            if (!payrollData.Any())
+            {
+                payrollData = new List<PayrollRoleData>();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading payroll data: {ex.Message}");
+            // On error, show empty list instead of hardcoded data
+            payrollData = new List<PayrollRoleData>();
+            StateHasChanged();
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
+    }
+
+    private string GetSalaryConfigStyle()
+    {
+        bool isSelected = activeTab == "SalaryConfig";
+        if (isSelected)
+        {
+            return "color: #0E335D; border-bottom: 2px solid #0E335D;";
+        }
+        else
+        {
+            return "color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = activeTab == tab;
+        
+        return tab switch
+        {
+            "SalaryConfig" => isSelected
+                ? "px-3 py-2 text-sm font-semibold"
+                : "px-3 py-2 text-sm font-semibold transition-colors duration-200",
+            "AddRole" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            "GeneratePayslip" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            "Records" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-orange-600 border-b-2 border-orange-600"
+                : "px-3 py-2 text-sm font-semibold text-orange-600 transition-colors duration-200 hover:text-orange-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private async Task HandleSalaryUpdated(PayrollRoleData updatedData)
+    {
+        // Only update status, not salary/allowance (those are edited in Manage Roles tab)
+        var existing = payrollData.FirstOrDefault(p => p.Role == updatedData.Role);
+        if (existing != null)
+        {
+            existing.IsActive = updatedData.IsActive;
+
+            // Update database
+            try
+            {
+                var role = await DbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == updatedData.Role);
+                if (role != null)
+                {
+                    role.IsActive = updatedData.IsActive;
+                    role.UpdatedDate = DateTime.Now;
+                    await DbContext.SaveChangesAsync();
+                    
+                    // Show success toast
+                    toastMessage = $"Role '{updatedData.Role}' status updated successfully!";
+                    toastType = ToastType.Success;
+                    showToast = true;
+                }
+            }
+            catch (Exception)
+            {
+                toastMessage = "Error updating role status. Please try again.";
+                toastType = ToastType.Error;
+                showToast = true;
+            }
+        }
+        
+        selectedRole = updatedData.Role;
+        StateHasChanged();
+    }
+
+    private void HandleRoleSelected(string role)
+    {
+        selectedRole = role;
+        StateHasChanged();
+    }
+
+    private async Task HandleRoleAdded()
+    {
+        await LoadPayrollData();
+        // Stay on the same tab (Manage Roles)
+    }
+    
+    private Task HandleShowToast((string message, ToastType type) toastData)
+    {
+        toastMessage = toastData.message;
+        toastType = toastData.type;
+        showToast = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+    
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+}

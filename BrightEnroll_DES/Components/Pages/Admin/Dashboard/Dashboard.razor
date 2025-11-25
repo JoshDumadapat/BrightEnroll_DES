@@ -1,0 +1,907 @@
+﻿@page "/dashboard"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Business.HR
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
+@inject ILoadingService LoadingService
+@inject AppDbContext Context
+@inject EmployeeService EmployeeService
+@inject StudentService StudentService
+@inject FeeService FeeService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Dashboard</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Dashboard</h1>
+</div>
+
+<!-- Date Filters -->
+<div class="mb-4 rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:mb-6 md:p-4" style="overflow: visible;">
+    <!-- Header -->
+    <div class="mb-3">
+        <h2 class="text-sm font-bold text-gray-800 md:text-base">Dashboard Filters</h2>
+    </div>
+
+    <!-- Filters and Buttons Row -->
+    <div class="mb-3 flex flex-wrap items-end justify-start gap-2 sm:gap-3" style="overflow: visible;">
+        <!-- From Date -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">From Date:</label>
+            <div class="group relative w-full">
+                <input type="date" value="@(FromDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnFromDateChanged"
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
+                <span class="tooltip-delay">Select the start date for filtering dashboard statistics</span>
+            </div>
+        </div>
+
+        <!-- To Date -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">To Date:</label>
+            <div class="group relative w-full">
+                <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
+                       class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
+                <span class="tooltip-delay">Select the end date for filtering dashboard statistics</span>
+            </div>
+        </div>
+
+        <!-- Month Filter -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Month:</label>
+            <div class="group relative w-full">
+                <select value="@SelectedMonth" @onchange="OnMonthChanged"
+                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                    <option value="">All Months</option>
+                    <option value="current">This Month</option>
+                    <option value="previous">Previous Month</option>
+                    @for (int i = 1; i <= 12; i++)
+                    {
+                        <option value="@i">@((new DateTime(DateTime.Now.Year, i, 1)).ToString("MMMM"))</option>
+                    }
+                </select>
+                <span class="tooltip-delay">Filter dashboard statistics by specific month</span>
+            </div>
+        </div>
+
+        <!-- Year Filter -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Year:</label>
+            <div class="group relative w-full">
+                <select value="@SelectedYear" @onchange="OnYearChanged"
+                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                    <option value="">All Years</option>
+                    <option value="current">This Year</option>
+                    <option value="previous">Previous Year</option>
+                    @for (int year = DateTime.Now.Year; year >= DateTime.Now.Year - 5; year--)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+                <span class="tooltip-delay">Filter dashboard statistics by specific year</span>
+            </div>
+        </div>
+
+        <!-- Quick Select -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">Quick Select:</label>
+            <div class="group relative w-full">
+                <select value="@QuickSelect" @onchange="OnQuickSelectChanged"
+                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                    <option value="">Select Range</option>
+                    <option value="today">This Day</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="year">This Year</option>
+                </select>
+                <span class="tooltip-delay">Quickly select common date ranges for filtering</span>
+            </div>
+        </div>
+
+        <!-- Clear Filter Button -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
+            <div class="group relative w-full">
+                <button @onclick="ClearFilters"
+                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-gray-500 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
+                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <span class="tooltip-delay">Clear all filters and reset dashboard to default view</span>
+            </div>
+        </div>
+
+        <!-- Apply Filter Button -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
+            <div class="group relative w-full">
+                <button @onclick="ApplyFilters"
+                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-blue-600 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
+                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    Apply Filter
+                </button>
+                <span class="tooltip-delay">Apply selected filters to update dashboard statistics</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Current View Row -->
+    <div class="flex justify-start">
+        <div class="text-left">
+            <span class="text-xs font-medium text-gray-600 md:text-sm">Current View: </span>
+            <span class="ml-1 text-xs font-semibold text-gray-800 md:text-sm">@GetCurrentViewText()</span>
+        </div>
+    </div>
+</div>
+
+
+<!-- Stats Cards -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:mb-8 md:gap-6 lg:grid-cols-4">
+    <!-- Total Enrolled -->
+    <div @onclick="NavigateToEnrollment" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
+            <div>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Enrolled</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">@TotalEnrolled.ToString("N0")</h3>
+            </div>
+            <div class="rounded-xl bg-blue-100 p-2 transition-colors duration-200 group-hover:bg-blue-200 md:p-3">
+                <svg class="h-5 w-5 text-blue-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <!-- Mini Chart -->
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+            <polyline points="0,40 40,35 80,30 120,25 160,30 200,35" fill="none" stroke="#3b82f6" stroke-width="2" />
+        </svg>
+        <span class="tooltip-delay">Total number of students currently enrolled in the school</span>
+    </div>
+
+    <!-- Total Employees -->
+    <div @onclick="NavigateToHumanResource" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-purple-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
+            <div>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Employees</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">@TotalEmployees.ToString("N0")</h3>
+            </div>
+            <div class="rounded-xl bg-purple-100 p-2 transition-colors duration-200 group-hover:bg-purple-200 md:p-3">
+                <svg class="h-5 w-5 text-purple-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <!-- Mini Chart -->
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+            <polyline points="0,35 40,30 80,28 120,32 160,29 200,33" fill="none" stroke="#9333ea" stroke-width="2" />
+        </svg>
+        <span class="tooltip-delay">Total number of active employees in the system</span>
+    </div>
+
+    <!-- Pending Applications -->
+    <div @onclick="NavigateToPendingApplications" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-yellow-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
+            <div>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Pending Applications</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">@PendingApplications.ToString("N0")</h3>
+            </div>
+            <div class="rounded-xl bg-yellow-100 p-2 transition-colors duration-200 group-hover:bg-yellow-200 md:p-3">
+                <svg class="h-5 w-5 text-yellow-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
+        <!-- Mini Chart -->
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+            <polyline points="0,30 40,25 80,35 120,28 160,32 200,30" fill="none" stroke="#ca8a04" stroke-width="2" />
+        </svg>
+        <span class="tooltip-delay">Number of student applications awaiting review and approval</span>
+    </div>
+
+    <!-- Total Tuition Collected -->
+    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
+            <div>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Tuition Collected</p>
+                <h3 class="text-2xl font-bold text-gray-800 md:text-3xl">₱@TotalTuitionCollected.ToString("N0")</h3>
+            </div>
+            <div class="rounded-xl bg-green-100 p-2 transition-colors duration-200 group-hover:bg-green-200 md:p-3">
+                <svg class="h-5 w-5 text-green-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                </svg>
+            </div>
+        </div>
+        <!-- Mini Chart -->
+        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+            <polyline points="0,45 40,40 80,35 120,30 160,32 200,28" fill="none" stroke="#16a34a" stroke-width="2" />
+        </svg>
+        <span class="tooltip-delay">Total amount of tuition fees collected from all students</span>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
+    <!-- Total Income Chart -->
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Statistics</p>
+            <h3 class="mb-3 text-lg font-bold text-gray-800 md:mb-4 md:text-xl">Total income</h3>
+            <div class="flex flex-wrap gap-4 md:gap-6">
+                <div class="flex items-center gap-2">
+                    <div class="h-2.5 w-2.5 rounded-full bg-green-500 md:h-3 md:w-3"></div>
+                    <span class="text-xs text-gray-600 md:text-sm">Profit</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="h-2.5 w-2.5 rounded-full bg-orange-500 md:h-3 md:w-3"></div>
+                    <span class="text-xs text-gray-600 md:text-sm">Expenses</span>
+                </div>
+            </div>
+        </div>
+  
+        <!-- Chart Placeholder -->
+        <div class="relative h-48 md:h-64">
+            <svg class="h-full w-full" viewBox="0 0 600 250">
+                <!-- Y-axis labels -->
+                <text x="30" y="30" class="fill-gray-400 text-xs">500k</text>
+                <text x="30" y="100" class="fill-gray-400 text-xs">100k</text>
+                <text x="40" y="150" class="fill-gray-400 text-xs">50k</text>
+                <text x="50" y="230" class="fill-gray-400 text-xs">0</text>
+                
+                <!-- Grid lines -->
+                <line x1="80" y1="30" x2="580" y2="30" stroke="#f3f4f6" stroke-width="1"/>
+                <line x1="80" y1="100" x2="580" y2="100" stroke="#f3f4f6" stroke-width="1"/>
+                <line x1="80" y1="150" x2="580" y2="150" stroke="#f3f4f6" stroke-width="1"/>
+                <line x1="80" y1="220" x2="580" y2="220" stroke="#f3f4f6" stroke-width="1"/>
+                
+                <!-- Green line (Profit) -->
+                <polyline points="80,180 160,160 240,140 320,90 400,120 480,140 560,170" fill="none" stroke="#22c55e" stroke-width="3" />
+                <circle cx="320" cy="90" r="5" fill="#22c55e" />
+                
+                <!-- Orange line (Expenses) -->
+                <polyline points="80,150 160,130 240,160 320,150 400,170 480,160 560,180" fill="none" stroke="#f97316" stroke-width="3" />
+                
+                <!-- Vertical dashed line -->
+                <line x1="320" y1="90" x2="320" y2="220" stroke="#d1d5db" stroke-width="1" stroke-dasharray="5,5"/>
+                
+                <!-- X-axis labels -->
+                <text x="80" y="245" class="fill-gray-400 text-xs">Jan</text>
+                <text x="160" y="245" class="fill-gray-400 text-xs">Feb</text>
+                <text x="240" y="245" class="fill-gray-400 text-xs">Mar</text>
+                <text x="320" y="245" class="fill-gray-400 text-xs">Apr</text>
+                <text x="400" y="245" class="fill-gray-400 text-xs">May</text>
+                <text x="480" y="245" class="fill-gray-400 text-xs">Jun</text>
+            </svg>
+        </div>
+        <span class="tooltip-delay">Visual representation of total income showing profit and expenses over time</span>
+    </div>
+
+    <!-- Total Students by Type -->
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Statistics</p>
+            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Total student each type</h3>
+        </div>
+
+        <!-- Donut Chart -->
+        <div class="mb-4 flex items-center justify-center md:mb-6">
+            <div class="relative">
+                <svg class="h-48 w-48 md:h-64 md:w-64" viewBox="0 0 200 200">
+                    <!-- Background circle -->
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#e5e7eb" stroke-width="25"/>
+                    
+                    @if (TotalStudentCount > 0)
+                    {
+                        <!-- Blue segment (New students) -->
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="#2563eb" stroke-width="25"
+                            stroke-dasharray="@GetNewStudentDashArray()" 
+                            stroke-dashoffset="0" transform="rotate(-90 100 100)"/>
+                        
+                        <!-- Gray segment (Transferee) -->
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="#9ca3af" stroke-width="25"
+                            stroke-dasharray="@GetTransfereeDashArray()" 
+                            stroke-dashoffset="@GetTransfereeOffset()" transform="rotate(-90 100 100)"/>
+                        
+                        <!-- Light blue segment (Returnee) -->
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="#60a5fa" stroke-width="25"
+                            stroke-dasharray="@GetReturneeDashArray()" 
+                            stroke-dashoffset="@GetReturneeOffset()" transform="rotate(-90 100 100)"/>
+                    }
+                    
+                    <!-- Center text -->
+                    <text x="100" y="90" text-anchor="middle" class="fill-gray-400 text-xs md:text-sm">Total Count</text>
+                    <text x="100" y="115" text-anchor="middle" class="fill-gray-800 text-2xl font-bold md:text-3xl">@TotalStudentCount.ToString("N0")</text>
+                </svg>
+            </div>
+        </div>
+        
+        <!-- Legend -->
+        <div class="flex flex-wrap justify-center gap-4 md:gap-8">
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-blue-600 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">New <span class="font-semibold">@NewStudentCount.ToString("N0")</span></span>
+            </div>
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-gray-400 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">Transferee <span class="font-semibold">@TransfereeCount.ToString("N0")</span></span>
+            </div>
+            <div class="flex items-center gap-1.5 md:gap-2">
+                <div class="h-2.5 w-2.5 rounded-full bg-blue-400 md:h-3 md:w-3"></div>
+                <span class="text-xs text-gray-600 md:text-sm">Returnee <span class="font-semibold">@ReturneeCount.ToString("N0")</span></span>
+            </div>
+        </div>
+        <span class="tooltip-delay">Breakdown of students by type: New, Transferee, and Returnee</span>
+    </div>
+
+    <!-- Tuition Fees List -->
+    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-indigo-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+        <div class="mb-3 flex items-start justify-between md:mb-4">
+            <div>
+                <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Tuition Fees</p>
+                <h3 class="text-lg font-bold text-gray-800 md:text-xl">@(TuitionFeesList?.Count ?? 0) Grades</h3>
+            </div>
+            <div class="rounded-xl bg-indigo-100 p-2 transition-colors duration-200 group-hover:bg-indigo-200 md:p-3">
+                <svg class="h-5 w-5 text-indigo-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+        </div>
+        
+        <!-- Tuition Fees List -->
+        <div class="max-h-64 space-y-2 overflow-y-auto">
+            @if (TuitionFeesList != null && TuitionFeesList.Any())
+            {
+                @foreach (var fee in TuitionFeesList)
+                {
+                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-2.5 transition-all hover:border-indigo-200 hover:bg-indigo-50">
+                        <!-- Grade Icon/Logo -->
+                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg @GetGradeColorClass(fee.GradeLevel)">
+                            @GetGradeIcon(fee.GradeLevel)
+                        </div>
+                        
+                        <!-- Grade and Fee Info -->
+                        <div class="min-w-0 flex-1">
+                            <p class="truncate text-sm font-semibold text-gray-800">@fee.GradeLevel</p>
+                            <p class="text-xs font-medium @GetFeeColorClass(fee.TotalFee)">₱@fee.TotalFee.ToString("N2")</p>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="py-4 text-center text-sm text-gray-500">
+                    No tuition fees configured
+                </div>
+            }
+        </div>
+        
+        <span class="tooltip-delay">List of tuition fees by grade level</span>
+    </div>
+</div>
+
+@code {
+    // Filter properties
+    private DateTime? FromDate { get; set; }
+    private DateTime? ToDate { get; set; }
+    private string? QuickSelect { get; set; }
+    private string? SelectedMonth { get; set; }
+    private string? SelectedYear { get; set; }
+
+    // Dashboard statistics
+    private int TotalEnrolled { get; set; } = 0;
+    private int TotalEmployees { get; set; } = 0;
+    private int PendingApplications { get; set; } = 0;
+    private decimal TotalTuitionCollected { get; set; } = 0;
+
+    // Student type statistics
+    private int TotalStudentCount { get; set; } = 0;
+    private int NewStudentCount { get; set; } = 0;
+    private int TransfereeCount { get; set; } = 0;
+    private int ReturneeCount { get; set; } = 0;
+
+    // Tuition fees list
+    private List<TuitionFeeItem>? TuitionFeesList { get; set; }
+
+    private class TuitionFeeItem
+    {
+        public string GradeLevel { get; set; } = "";
+        public decimal TotalFee { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Hide loading immediately - dashboard loads data inline (no full-screen loading)
+        // This ensures smooth transition from login without showing "Loading dashboard..."
+        LoadingService.HideLoading();
+        
+        try
+        {
+            // Load dashboard data inline (no loading screen)
+            await LoadDashboardStatistics();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error initializing dashboard: {ex.Message}");
+            // Error handled inline - no loading screen needed
+        }
+    }
+
+    private async Task LoadDashboardStatistics()
+    {
+        try
+        {
+            // Get total employee count from vw_EmployeeData
+            TotalEmployees = await Context.EmployeeDataViews
+                .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
+                .CountAsync();
+
+            // Get pending applicants count from vw_StudentData (Status = 'Pending')
+            var pendingStatus = "Pending";
+            PendingApplications = await Context.StudentDataViews
+                .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData] WHERE Status = {0}", pendingStatus)
+                .Where(s => s.Status == pendingStatus)
+                .CountAsync();
+
+            // Get student type statistics from vw_StudentData
+            var allStudents = await Context.StudentDataViews
+                .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
+                .ToListAsync();
+
+            TotalStudentCount = allStudents.Count;
+            NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
+            TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
+            ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
+
+            // Set other cards to 0 (not connected yet)
+            TotalEnrolled = 0;
+            TotalTuitionCollected = 0;
+
+            // Load tuition fees
+            await LoadTuitionFees();
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash the dashboard
+            System.Diagnostics.Debug.WriteLine($"Error loading dashboard statistics: {ex.Message}");
+        }
+    }
+
+    private string GetCurrentViewText()
+    {
+        if (!string.IsNullOrEmpty(QuickSelect))
+        {
+            return QuickSelect switch
+            {
+                "today" => "Today",
+                "week" => "This Week",
+                "month" => "This Month",
+                "year" => "This Year",
+                _ => "Custom Range"
+            };
+        }
+        
+        if (FromDate.HasValue && ToDate.HasValue)
+        {
+            if (FromDate.Value.Date == ToDate.Value.Date)
+            {
+                return "Single Day";
+            }
+            return "Custom Range";
+        }
+        
+        return "All Time";
+    }
+
+    private void OnQuickSelectChanged(ChangeEventArgs e)
+    {
+        QuickSelect = e.Value?.ToString();
+        var today = DateTime.Now;
+        
+        switch (QuickSelect)
+        {
+            case "today":
+                FromDate = today;
+                ToDate = today;
+                break;
+            case "week":
+                var startOfWeek = today.AddDays(-(int)today.DayOfWeek);
+                FromDate = startOfWeek;
+                ToDate = today;
+                break;
+            case "month":
+                FromDate = new DateTime(today.Year, today.Month, 1);
+                ToDate = today;
+                break;
+            case "year":
+                FromDate = new DateTime(today.Year, 1, 1);
+                ToDate = today;
+                break;
+            default:
+                break;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void OnFromDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            FromDate = date;
+        }
+        else
+        {
+            FromDate = null;
+        }
+        // Clear quick select when manually changing dates
+        QuickSelect = null;
+    }
+
+    private void OnToDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            ToDate = date;
+        }
+        else
+        {
+            ToDate = null;
+        }
+        // Clear quick select when manually changing dates
+        QuickSelect = null;
+    }
+
+    private async Task ApplyFilters()
+    {
+        LoadingService.ShowLoading("Applying filters...");
+        try
+        {
+            // Apply date filters based on selected month/year
+            var today = DateTime.Now;
+            DateTime? filterFromDate = null;
+            DateTime? filterToDate = null;
+
+            // Handle month filter
+            if (!string.IsNullOrEmpty(SelectedMonth))
+            {
+                if (SelectedMonth == "current")
+                {
+                    filterFromDate = new DateTime(today.Year, today.Month, 1);
+                    filterToDate = today;
+                }
+                else if (SelectedMonth == "previous")
+                {
+                    var previousMonth = today.AddMonths(-1);
+                    filterFromDate = new DateTime(previousMonth.Year, previousMonth.Month, 1);
+                    filterToDate = new DateTime(previousMonth.Year, previousMonth.Month, DateTime.DaysInMonth(previousMonth.Year, previousMonth.Month));
+                }
+                else if (int.TryParse(SelectedMonth, out int month))
+                {
+                    var year = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int y) ? y : today.Year;
+                    filterFromDate = new DateTime(year, month, 1);
+                    filterToDate = new DateTime(year, month, DateTime.DaysInMonth(year, month));
+                }
+            }
+
+            // Handle year filter
+            if (!string.IsNullOrEmpty(SelectedYear))
+            {
+                if (SelectedYear == "current")
+                {
+                    filterFromDate = new DateTime(today.Year, 1, 1);
+                    filterToDate = today;
+                }
+                else if (SelectedYear == "previous")
+                {
+                    filterFromDate = new DateTime(today.Year - 1, 1, 1);
+                    filterToDate = new DateTime(today.Year - 1, 12, 31);
+                }
+                else if (int.TryParse(SelectedYear, out int year))
+                {
+                    if (filterFromDate == null)
+                    {
+                        filterFromDate = new DateTime(year, 1, 1);
+                        filterToDate = new DateTime(year, 12, 31);
+                    }
+                }
+            }
+
+            // Override with manual date selection if provided
+            if (FromDate.HasValue && ToDate.HasValue)
+            {
+                filterFromDate = FromDate.Value;
+                filterToDate = ToDate.Value;
+            }
+
+            // Apply filters to data loading
+            await LoadFilteredStatistics(filterFromDate, filterToDate);
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadFilteredStatistics(DateTime? fromDate, DateTime? toDate)
+    {
+        try
+        {
+            // Build base query for employees
+            var employeeQuery = Context.EmployeeDataViews
+                .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
+                .AsQueryable();
+
+            // Apply date filter to employees if provided
+            if (fromDate.HasValue && toDate.HasValue)
+            {
+                employeeQuery = employeeQuery.Where(e => e.DateHired.HasValue && 
+                    e.DateHired.Value.Date >= fromDate.Value.Date && 
+                    e.DateHired.Value.Date <= toDate.Value.Date);
+            }
+
+            TotalEmployees = await employeeQuery.CountAsync();
+
+            // Build base query for students
+            var pendingStatus = "Pending";
+            var studentQuery = Context.StudentDataViews
+                .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData] WHERE Status = {0}", pendingStatus)
+                .Where(s => s.Status == pendingStatus)
+                .AsQueryable();
+
+            // Apply date filter to students if provided
+            if (fromDate.HasValue && toDate.HasValue)
+            {
+                studentQuery = studentQuery.Where(s => s.DateRegistered.HasValue && 
+                    s.DateRegistered.Value.Date >= fromDate.Value.Date && 
+                    s.DateRegistered.Value.Date <= toDate.Value.Date);
+            }
+
+            PendingApplications = await studentQuery.CountAsync();
+
+            // Get student type statistics with filters
+            var allStudentsQuery = Context.StudentDataViews
+                .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
+                .AsQueryable();
+
+            // Apply date filter to all students if provided
+            if (fromDate.HasValue && toDate.HasValue)
+            {
+                allStudentsQuery = allStudentsQuery.Where(s => s.DateRegistered.HasValue && 
+                    s.DateRegistered.Value.Date >= fromDate.Value.Date && 
+                    s.DateRegistered.Value.Date <= toDate.Value.Date);
+            }
+
+            var allStudents = await allStudentsQuery.ToListAsync();
+
+            TotalStudentCount = allStudents.Count;
+            NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
+            TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
+            ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading filtered statistics: {ex.Message}");
+        }
+    }
+
+    private void OnMonthChanged(ChangeEventArgs e)
+    {
+        SelectedMonth = e.Value?.ToString();
+        StateHasChanged();
+    }
+
+    private void OnYearChanged(ChangeEventArgs e)
+    {
+        SelectedYear = e.Value?.ToString();
+        StateHasChanged();
+    }
+
+    private async Task ClearFilters()
+    {
+        FromDate = null;
+        ToDate = null;
+        QuickSelect = null;
+        SelectedMonth = null;
+        SelectedYear = null;
+        
+        // Reload all data without filters
+        LoadingService.ShowLoading("Clearing filters...");
+        try
+        {
+            await LoadDashboardStatistics();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    // Helper methods for doughnut chart calculations
+    private double GetCircumference()
+    {
+        return 2 * Math.PI * 80;
+    }
+
+    private string GetNewStudentDashArray()
+    {
+        if (TotalStudentCount == 0) return "0 502";
+        var circumference = GetCircumference();
+        var dashLength = (NewStudentCount / (double)TotalStudentCount) * circumference;
+        return $"{dashLength:F2} {circumference:F2}";
+    }
+
+    private string GetTransfereeDashArray()
+    {
+        if (TotalStudentCount == 0) return "0 502";
+        var circumference = GetCircumference();
+        var dashLength = (TransfereeCount / (double)TotalStudentCount) * circumference;
+        return $"{dashLength:F2} {circumference:F2}";
+    }
+
+    private string GetReturneeDashArray()
+    {
+        if (TotalStudentCount == 0) return "0 502";
+        var circumference = GetCircumference();
+        var dashLength = (ReturneeCount / (double)TotalStudentCount) * circumference;
+        return $"{dashLength:F2} {circumference:F2}";
+    }
+
+    private double GetTransfereeOffset()
+    {
+        if (TotalStudentCount == 0) return 0;
+        var circumference = GetCircumference();
+        var newLength = (NewStudentCount / (double)TotalStudentCount) * circumference;
+        return -newLength;
+    }
+
+    private double GetReturneeOffset()
+    {
+        if (TotalStudentCount == 0) return 0;
+        var circumference = GetCircumference();
+        var newLength = (NewStudentCount / (double)TotalStudentCount) * circumference;
+        var transfereeLength = (TransfereeCount / (double)TotalStudentCount) * circumference;
+        return -(newLength + transfereeLength);
+    }
+
+    // Navigation methods for KPI cards
+    private void NavigateToEnrollment()
+    {
+        NavigationManager.NavigateTo("/enrollment");
+    }
+
+    private void NavigateToHumanResource()
+    {
+        NavigationManager.NavigateTo("/human-resource");
+    }
+
+    private void NavigateToPendingApplications()
+    {
+        NavigationManager.NavigateTo("/enrollment");
+    }
+
+    private void NavigateToFinance()
+    {
+        NavigationManager.NavigateTo("/finance");
+    }
+
+    // Load tuition fees
+    private async Task LoadTuitionFees()
+    {
+        try
+        {
+            var fees = await FeeService.GetAllFeesAsync();
+            TuitionFeesList = fees
+                .Where(f => f.GradeLevel != null)
+                .OrderBy(f => f.GradeLevelId)
+                .Select(f => new TuitionFeeItem
+                {
+                    GradeLevel = f.GradeLevel!.GradeLevelName,
+                    TotalFee = f.TotalFee
+                })
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading tuition fees: {ex.Message}");
+            TuitionFeesList = new List<TuitionFeeItem>();
+        }
+    }
+
+    // Get color class for grade level icon background
+    private string GetGradeColorClass(string gradeLevel)
+    {
+        var grade = gradeLevel.ToLower();
+        if (grade.Contains("kinder") || grade.Contains("pre"))
+            return "bg-pink-100 text-pink-600";
+        if (grade.Contains("grade 1") || grade == "g1" || grade.Contains("1st"))
+            return "bg-blue-100 text-blue-600";
+        if (grade.Contains("grade 2") || grade == "g2" || grade.Contains("2nd"))
+            return "bg-green-100 text-green-600";
+        if (grade.Contains("grade 3") || grade == "g3" || grade.Contains("3rd"))
+            return "bg-yellow-100 text-yellow-600";
+        if (grade.Contains("grade 4") || grade == "g4" || grade.Contains("4th"))
+            return "bg-orange-100 text-orange-600";
+        if (grade.Contains("grade 5") || grade == "g5" || grade.Contains("5th"))
+            return "bg-red-100 text-red-600";
+        if (grade.Contains("grade 6") || grade == "g6" || grade.Contains("6th"))
+            return "bg-purple-100 text-purple-600";
+        if (grade.Contains("grade 7") || grade == "g7" || grade.Contains("7th"))
+            return "bg-indigo-100 text-indigo-600";
+        if (grade.Contains("grade 8") || grade == "g8" || grade.Contains("8th"))
+            return "bg-teal-100 text-teal-600";
+        if (grade.Contains("grade 9") || grade == "g9" || grade.Contains("9th"))
+            return "bg-cyan-100 text-cyan-600";
+        if (grade.Contains("grade 10") || grade == "g10" || grade.Contains("10th"))
+            return "bg-emerald-100 text-emerald-600";
+        if (grade.Contains("grade 11") || grade == "g11" || grade.Contains("11th"))
+            return "bg-violet-100 text-violet-600";
+        if (grade.Contains("grade 12") || grade == "g12" || grade.Contains("12th"))
+            return "bg-fuchsia-100 text-fuchsia-600";
+        
+        return "bg-gray-100 text-gray-600";
+    }
+
+    // Get icon for grade level
+    private RenderFragment GetGradeIcon(string gradeLevel)
+    {
+        var grade = gradeLevel.ToLower();
+        if (grade.Contains("kinder") || grade.Contains("pre"))
+        {
+            return builder =>
+            {
+                builder.OpenElement(0, "svg");
+                builder.AddAttribute(1, "class", "h-5 w-5");
+                builder.AddAttribute(2, "fill", "none");
+                builder.AddAttribute(3, "stroke", "currentColor");
+                builder.AddAttribute(4, "viewBox", "0 0 24 24");
+                builder.OpenElement(5, "path");
+                builder.AddAttribute(6, "stroke-linecap", "round");
+                builder.AddAttribute(7, "stroke-linejoin", "round");
+                builder.AddAttribute(8, "stroke-width", "2");
+                builder.AddAttribute(9, "d", "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253");
+                builder.CloseElement();
+                builder.CloseElement();
+            };
+        }
+        
+        // Default graduation cap icon for other grades
+        return builder =>
+        {
+            builder.OpenElement(0, "svg");
+            builder.AddAttribute(1, "class", "h-5 w-5");
+            builder.AddAttribute(2, "fill", "none");
+            builder.AddAttribute(3, "stroke", "currentColor");
+            builder.AddAttribute(4, "viewBox", "0 0 24 24");
+            builder.OpenElement(5, "path");
+            builder.AddAttribute(6, "stroke-linecap", "round");
+            builder.AddAttribute(7, "stroke-linejoin", "round");
+            builder.AddAttribute(8, "stroke-width", "2");
+            builder.AddAttribute(9, "d", "M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z");
+            builder.CloseElement();
+            builder.CloseElement();
+        };
+    }
+
+    // Get color class for fee amount based on value
+    private string GetFeeColorClass(decimal fee)
+    {
+        if (fee >= 50000)
+            return "text-red-600";
+        if (fee >= 30000)
+            return "text-orange-600";
+        if (fee >= 20000)
+            return "text-yellow-600";
+        if (fee >= 10000)
+            return "text-green-600";
+        return "text-gray-600";
+    }
+}

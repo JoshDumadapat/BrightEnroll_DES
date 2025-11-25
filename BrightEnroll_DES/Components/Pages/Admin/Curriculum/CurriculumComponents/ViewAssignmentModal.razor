@@ -1,0 +1,285 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Services
+@using DataModels = BrightEnroll_DES.Data.Models
+@using System.Linq
+@inject CurriculumService CurriculumService
+
+@if (Show)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="view-assignment-modal" class="w-full max-w-4xl rounded-2xl bg-white shadow-2xl max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
+            <!-- Modal Header - Blue -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex-shrink-0">
+                <h3 class="text-lg font-semibold text-white">View Assignment Details</h3>
+                <button @onclick="HandleClose" class="text-white/90 hover:text-white transition-colors rounded-lg p-1 hover:bg-white/10">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-5 rounded-b-2xl overflow-y-auto flex-1 bg-gray-50">
+                @if (Assignment != null)
+                {
+                    <div class="space-y-4">
+                        <!-- Basic Information Cards -->
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="rounded-lg bg-white border border-gray-200 p-3.5 shadow-sm">
+                                <label class="mb-1.5 block text-sm font-medium text-gray-600">Teacher</label>
+                                <p class="text-base font-semibold text-gray-900">@Assignment.TeacherName</p>
+                            </div>
+                            <div class="rounded-lg bg-white border border-gray-200 p-3.5 shadow-sm">
+                                <label class="mb-1.5 block text-sm font-medium text-gray-600">Role</label>
+                                @{
+                                    var roleDisplay = Assignment.Role switch
+                                    {
+                                        "adviser" => "Adviser",
+                                        "homeroom_all_subjects" => "Homeroom (All Subjects)",
+                                        "subject_teacher" => "Subject Teacher",
+                                        _ => "Unknown"
+                                    };
+                                    var roleColorClass = Assignment.Role switch
+                                    {
+                                        "adviser" => "text-blue-600",
+                                        "homeroom_all_subjects" => "text-purple-600",
+                                        "subject_teacher" => "text-green-600",
+                                        _ => "text-gray-600"
+                                    };
+                                }
+                                <p class="text-base font-semibold @roleColorClass">@roleDisplay</p>
+                            </div>
+                            <div class="rounded-lg bg-white border border-gray-200 p-3.5 shadow-sm">
+                                <label class="mb-1.5 block text-sm font-medium text-gray-600">Grade Level</label>
+                                <p class="text-base font-semibold text-gray-900">@Assignment.Grade</p>
+                            </div>
+                            <div class="rounded-lg bg-white border border-gray-200 p-3.5 shadow-sm">
+                                <label class="mb-1.5 block text-sm font-medium text-gray-600">Section</label>
+                                <p class="text-base font-semibold text-gray-900">@Assignment.Section</p>
+                            </div>
+                            <div class="rounded-lg bg-white border border-gray-200 p-3.5 col-span-2 shadow-sm">
+                                <label class="mb-1.5 block text-sm font-medium text-gray-600">Classroom</label>
+                                <p class="text-base font-semibold text-gray-900">@Assignment.Classroom</p>
+                            </div>
+                        </div>
+
+                        <!-- Subjects with Schedules -->
+                        <div class="rounded-lg bg-white border border-gray-200 overflow-hidden shadow-sm">
+                            <div class="bg-gray-50 px-5 py-3 border-b border-gray-200">
+                                <h4 class="text-base font-semibold text-gray-800">Assigned Subjects</h4>
+                            </div>
+                            <div class="p-4">
+                                @if (SubjectSchedules != null && SubjectSchedules.Any())
+                                {
+                                    <div class="space-y-2.5">
+                                        @foreach (var subjectSchedule in SubjectSchedules)
+                                        {
+                                            <div class="border-l-4 border-blue-500 bg-blue-50/40 rounded-r-lg p-3.5 hover:bg-blue-50/60 transition-colors">
+                                                <h5 class="text-base font-semibold text-gray-900 mb-2.5 flex items-center">
+                                                    <svg class="h-4 w-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                    @subjectSchedule.SubjectName
+                                                </h5>
+                                                @if (subjectSchedule.Schedules != null && subjectSchedule.Schedules.Any())
+                                                {
+                                                    // Group schedules by time range
+                                                    var groupedSchedules = subjectSchedule.Schedules
+                                                        .GroupBy(s => new { s.StartTime, s.EndTime })
+                                                        .ToList();
+                                                    
+                                                    <div class="ml-6 space-y-1.5">
+                                                        @foreach (var timeGroup in groupedSchedules)
+                                                        {
+                                                            var firstSchedule = timeGroup.First();
+                                                            var days = string.Join(", ", timeGroup.Select(s => s.DayOfWeek).OrderBy(d => GetDayOrder(d)));
+                                                            <div class="flex items-center gap-2.5">
+                                                                <span class="inline-flex items-center px-2.5 py-1 rounded-md bg-white border border-gray-300 text-sm font-medium text-gray-700 shadow-sm">
+                                                                    @days
+                                                                </span>
+                                                                <span class="text-sm font-medium text-gray-800">
+                                                                    @firstSchedule.StartTime - @firstSchedule.EndTime
+                                                                </span>
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <p class="ml-6 text-sm text-gray-500 italic">No schedule assigned</p>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else if (Assignment.SubjectsList != null && Assignment.SubjectsList.Any())
+                                {
+                                    <div class="space-y-2.5">
+                                        @foreach (var subject in Assignment.SubjectsList)
+                                        {
+                                            <div class="border-l-4 border-blue-500 bg-blue-50/40 rounded-r-lg p-3.5 hover:bg-blue-50/60 transition-colors">
+                                                <div class="flex items-center">
+                                                    <svg class="h-4 w-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                    <span class="text-base font-semibold text-gray-900">@subject</span>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-center py-8">
+                                        <p class="text-sm text-gray-500">No subjects assigned</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 flex-shrink-0 bg-white">
+                <button type="button" @onclick="HandleClose" class="rounded-lg border-2 border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public TeacherAssignmentModel? Assignment { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<SubjectScheduleItem> SubjectSchedules { get; set; } = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Show && Assignment != null)
+        {
+            await LoadSubjectSchedules();
+        }
+    }
+
+    private async Task LoadSubjectSchedules()
+    {
+        SubjectSchedules = new List<SubjectScheduleItem>();
+        
+        if (Assignment == null) return;
+
+        try
+        {
+            // Get all subjects for this assignment
+            var subjects = Assignment.SubjectsList ?? new List<string>();
+            
+            if (!subjects.Any() && !string.IsNullOrEmpty(Assignment.Subject))
+            {
+                // If SubjectsList is empty but Subject has data, parse it
+                subjects = Assignment.Subject.Split(',').Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToList();
+            }
+
+            if (subjects.Any() && !string.IsNullOrEmpty(Assignment.Grade))
+            {
+                // Get grade level ID
+                var gradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+                var gradeLevel = gradeLevels.FirstOrDefault(g => g.GradeLevelName == Assignment.Grade);
+                
+                if (gradeLevel != null)
+                {
+                    // Get all subjects for this grade level
+                    var allSubjects = await CurriculumService.GetAllSubjectsAsync();
+                    var gradeSubjects = allSubjects.Where(s => s.GradeLevelId == gradeLevel.GradeLevelId).ToList();
+
+                    foreach (var subjectName in subjects)
+                    {
+                        var subject = gradeSubjects.FirstOrDefault(s => s.SubjectName == subjectName);
+                        if (subject != null)
+                        {
+                            // Get schedules for this subject
+                            var schedules = await CurriculumService.GetSubjectSchedulesBySubjectIdAsync(subject.SubjectId);
+                            var scheduleDisplays = schedules.Select(s => 
+                            {
+                                var startHour = s.StartTime.Hours > 12 ? s.StartTime.Hours - 12 : (s.StartTime.Hours == 0 ? 12 : s.StartTime.Hours);
+                                var endHour = s.EndTime.Hours > 12 ? s.EndTime.Hours - 12 : (s.EndTime.Hours == 0 ? 12 : s.EndTime.Hours);
+                                var startAmPm = s.StartTime.Hours < 12 ? "am" : "pm";
+                                var endAmPm = s.EndTime.Hours < 12 ? "am" : "pm";
+                                
+                                return new ScheduleDisplay
+                                {
+                                    DayOfWeek = s.DayOfWeek,
+                                    StartTime = $"{startHour}:{s.StartTime.Minutes:D2}{startAmPm}",
+                                    EndTime = $"{endHour}:{s.EndTime.Minutes:D2}{endAmPm}"
+                                };
+                            }).ToList();
+
+                            SubjectSchedules.Add(new SubjectScheduleItem
+                            {
+                                SubjectName = subjectName,
+                                Schedules = scheduleDisplays
+                            });
+                        }
+                        else
+                        {
+                            // Subject not found, add without schedules
+                            SubjectSchedules.Add(new SubjectScheduleItem
+                            {
+                                SubjectName = subjectName,
+                                Schedules = new List<ScheduleDisplay>()
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading subject schedules: {ex.Message}");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleClose()
+    {
+        await OnClose.InvokeAsync();
+    }
+
+    private class SubjectScheduleItem
+    {
+        public string SubjectName { get; set; } = "";
+        public List<ScheduleDisplay> Schedules { get; set; } = new();
+    }
+
+    private class ScheduleDisplay
+    {
+        public string DayOfWeek { get; set; } = "";
+        public string StartTime { get; set; } = "";
+        public string EndTime { get; set; } = "";
+    }
+
+    private int GetDayOrder(string day)
+    {
+        return day switch
+        {
+            "M" => 1,
+            "T" => 2,
+            "W" => 3,
+            "TH" => 4,
+            "F" => 5,
+            "Sat" => 6,
+            "Sun" => 7,
+            _ => 99
+        };
+    }
+}

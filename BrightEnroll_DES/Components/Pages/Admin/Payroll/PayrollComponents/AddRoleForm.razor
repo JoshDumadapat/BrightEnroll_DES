@@ -1,0 +1,460 @@
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollComponents
+@using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
+@using BrightEnroll_DES.Components.Pages.Admin
+@using BrightEnroll_DES.Components
+@inherits AddRoleFormBase
+
+<div class="space-y-6">
+    <!-- Add/Edit Role Form (Hidden by default, shown when showAddForm is true) -->
+    @if (showAddForm)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-lg font-semibold text-gray-800">@(isEditing ? "Edit Role" : "Add New Role") and Salary Configuration</h2>
+                        <p class="mt-1 text-sm text-gray-600">@(isEditing ? "Update role information, base salary, and allowance." : "Create a new role with base salary, allowance, and view calculated deductions based on Philippine labor laws.")</p>
+                    </div>
+                    <button @onclick="ToggleAddForm" 
+                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <!-- Left Column: Form -->
+                <div class="space-y-6">
+                    <div class="rounded-lg border border-gray-200 bg-white p-6">
+                        <h3 class="mb-4 text-base font-semibold text-gray-800">Role Information</h3>
+                        
+                        <div class="space-y-4">
+                            <!-- Role Name -->
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Role Name *</label>
+                                <input type="text" 
+                                       value="@newRole.RoleName" 
+                                       @oninput="HandleRoleNameInput"
+                                       placeholder="e.g., Accountant, Security Guard"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                @if (validationErrors.TryGetValue("RoleName", out var roleNameError1) && !string.IsNullOrEmpty(roleNameError1))
+                                {
+                                    <p class="mt-1 text-xs text-red-600">@roleNameError1</p>
+                                }
+                            </div>
+
+                            <!-- Base Salary -->
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Base Salary (₱) *</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@GetBaseSalaryDisplayValue()" 
+                                           @oninput="@((ChangeEventArgs e) => HandleSalaryInput(e, "BaseSalary"))"
+                                           @onfocus="HandleBaseSalaryFocus"
+                                           @onblur="HandleBaseSalaryBlur"
+                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                           @onpaste="@((ClipboardEventArgs e) => HandleSalaryPaste(e, "BaseSalary"))"
+                                           pattern="[0-9.]*"
+                                           inputmode="decimal"
+                                           placeholder="0.00"
+                                           class="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                </div>
+                                @if (validationErrors.TryGetValue("BaseSalary", out var baseSalaryError1) && !string.IsNullOrEmpty(baseSalaryError1))
+                                {
+                                    <p class="mt-1 text-xs text-red-600">@baseSalaryError1</p>
+                                }
+                            </div>
+
+                            <!-- Allowance -->
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Allowance (₱)</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                                    <input type="text" 
+                                           value="@GetAllowanceDisplayValue()" 
+                                           @oninput="@((ChangeEventArgs e) => HandleSalaryInput(e, "Allowance"))"
+                                           @onfocus="HandleAllowanceFocus"
+                                           @onblur="HandleAllowanceBlur"
+                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                           @onpaste="@((ClipboardEventArgs e) => HandleSalaryPaste(e, "Allowance"))"
+                                           pattern="[0-9.]*"
+                                           inputmode="decimal"
+                                           placeholder="0.00"
+                                           class="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                </div>
+                            </div>
+
+                            <!-- Status Toggle -->
+                            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <div>
+                                    <label class="text-sm font-medium text-gray-700">Active Status</label>
+                                    <p class="text-xs text-gray-500">Enable or disable this role</p>
+                                </div>
+                                <div class="relative inline-flex cursor-pointer items-center">
+                                    <input type="checkbox" 
+                                           @bind="newRole.IsActive" 
+                                           class="peer sr-only" />
+                                    <div class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300"></div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="flex gap-3 pt-4">
+                                <button @onclick="ShowAddConfirmModal" 
+                                        disabled="@isSubmitting"
+                                        class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                                    @if (isSubmitting)
+                                    {
+                                        <span class="inline-flex items-center justify-center">
+                                            <svg class="-ml-1 mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <span>@(isEditing ? "Updating..." : "Adding...")</span>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span>@(isEditing ? "Update Role" : "Add Role")</span>
+                                    }
+                                </button>
+                                @if (isEditing)
+                                {
+                                    <button @onclick="HandleCancel" 
+                                            disabled="@isSubmitting"
+                                            class="flex items-center gap-2 rounded-lg bg-gray-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                        Cancel
+                                    </button>
+                                }
+                                <button @onclick="HandleReset" 
+                                        disabled="@isSubmitting"
+                                        class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-300 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Preview -->
+                <div class="space-y-6">
+                    <div class="rounded-lg border border-gray-200 bg-white p-6">
+                        <h3 class="mb-4 text-base font-semibold text-gray-800">Salary Preview & Deductions</h3>
+                        
+                        @if (previewData != null)
+                        {
+                            <div class="space-y-4">
+                                <!-- Earnings -->
+                                <div class="rounded-lg border border-gray-200 bg-green-50 p-4">
+                                    <h4 class="mb-3 text-sm font-semibold text-green-800">Earnings</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">Base Salary:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.BaseSalary)</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">Allowance:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.Allowance)</span>
+                                        </div>
+                                        <div class="mt-2 flex justify-between border-t border-green-200 pt-2">
+                                            <span class="font-semibold text-green-800">Gross Pay:</span>
+                                            <span class="text-base font-bold text-green-600">@Salary.FormatPeso(previewData.GrossPay)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Deductions -->
+                                <div class="rounded-lg border border-gray-200 bg-red-50 p-4">
+                                    <h4 class="mb-3 text-sm font-semibold text-red-800">Mandatory Deductions</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">SSS:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.SSS)</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">PhilHealth:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.PhilHealth)</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">Pag-IBIG:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.PagIbig)</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">Withholding Tax:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.WithholdingTax)</span>
+                                        </div>
+                                        <div class="mt-2 flex justify-between border-t border-red-200 pt-2">
+                                            <span class="font-semibold text-red-800">Total Deductions:</span>
+                                            <span class="text-base font-bold text-red-600">@Salary.FormatPeso(previewData.TotalDeductions)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Net Pay & 13th Month -->
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div class="rounded-lg border-2 border-green-300 bg-green-50 p-4">
+                                        <h4 class="mb-2 text-xs font-semibold text-green-800">Net Pay</h4>
+                                        <p class="text-lg font-bold text-green-600">@Salary.FormatPeso(previewData.NetPay)</p>
+                                    </div>
+                                    <div class="rounded-lg border-2 border-blue-300 bg-blue-50 p-4">
+                                        <h4 class="mb-2 text-xs font-semibold text-blue-800">13th Month</h4>
+                                        <p class="text-lg font-bold text-blue-600">@Salary.FormatPeso(previewData.ThirteenthMonthPay)</p>
+                                    </div>
+                                </div>
+
+                                <!-- Tax Information -->
+                                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                    <h4 class="mb-2 text-xs font-semibold text-gray-800">Tax Information</h4>
+                                    <div class="space-y-1 text-xs">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Taxable Income:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(previewData.TaxableIncome)</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Tax Bracket:</span>
+                                            <span class="font-medium text-gray-800">@previewData.TaxBracket</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                                <p class="text-sm text-gray-500">Enter role information to see salary preview</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Title and Description (Outside Container) -->
+    @if (!showAddForm)
+    {
+        <div class="mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">Existing Roles</h2>
+            <p class="mt-1 text-sm text-gray-600">Edit base salary and allowance directly in the table. Changes are saved automatically.</p>
+        </div>
+
+        <!-- Roles List Container -->
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- Filters (Inside Container) -->
+        <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+            <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="relative flex w-full items-center sm:w-auto">
+                        <span class="absolute left-3 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+                    </div>
+                    <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="">Status</option>
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Clear
+                    </button>
+                    <button @onclick="ToggleAddForm" 
+                            class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                        + Add Role
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Table -->
+        <div class="overflow-x-auto w-full">
+            <table class="w-full border-collapse">
+                <thead>
+                    <tr class="border-b border-gray-200 bg-gray-50">
+                        <th class="py-3 pl-6 pr-4 text-left text-sm font-semibold text-gray-700">Role Name</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Base Salary (₱)</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Allowance (₱)</th>
+                        <th class="py-3 pr-6 pl-4 text-center text-sm font-semibold text-gray-700">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (PaginatedRoles != null && PaginatedRoles.Any())
+                    {
+                        @foreach (var role in PaginatedRoles)
+                        {
+                            var editingRole = editingRoles.ContainsKey(role.Role) ? editingRoles[role.Role] : role;
+                            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                <td class="py-3 pl-6 pr-4 text-sm font-medium text-gray-800">@role.Role</td>
+                                <td class="py-3 px-4">
+                                    @if (editingRoles.ContainsKey(role.Role))
+                                    {
+                                        <input type="number" 
+                                               @bind="editingRole.BaseSalary" 
+                                               @bind:event="oninput"
+                                               @bind:after="() => UpdateRoleInTable(editingRole)"
+                                               min="0" 
+                                               step="0.01"
+                                               class="w-full rounded-lg border border-blue-300 px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-sm text-gray-700">@Salary.FormatPeso(role.BaseSalary)</span>
+                                    }
+                                </td>
+                                <td class="py-3 px-4">
+                                    @if (editingRoles.ContainsKey(role.Role))
+                                    {
+                                        <input type="number" 
+                                               @bind="editingRole.Allowance" 
+                                               @bind:event="oninput"
+                                               @bind:after="() => UpdateRoleInTable(editingRole)"
+                                               min="0" 
+                                               step="0.01"
+                                               class="w-full rounded-lg border border-blue-300 px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                    }
+                                    else
+                                    {
+                                        <span class="text-sm text-gray-700">@Salary.FormatPeso(role.Allowance)</span>
+                                    }
+                                </td>
+                                <td class="py-3 pr-6 pl-4 text-center">
+                                    @if (editingRoles.ContainsKey(role.Role))
+                                    {
+                                        <div class="flex items-center justify-center gap-2">
+                                            <button @onclick="() => SaveRoleInTable(editingRole)" 
+                                                    class="flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-green-700">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                <span class="hidden sm:inline">Save</span>
+                                            </button>
+                                            <button @onclick="() => CancelEditInTable(role.Role)" 
+                                                    class="flex items-center gap-1.5 rounded-lg bg-gray-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-600">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                                <span class="hidden sm:inline">Cancel</span>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="flex items-center justify-center">
+                                            <button @onclick="() => StartEditInTable(role)" 
+                                                    class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
+                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                                </svg>
+                                                <span class="hidden sm:inline">Edit</span>
+                                            </button>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-sm text-gray-500">
+                                <div class="flex flex-col items-center justify-center">
+                                    <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    <p class="text-base font-medium text-gray-600">No Records Available</p>
+                                    <p class="text-sm text-gray-500 mt-1">There are no payroll records to display at this time.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Footer with Pagination -->
+        <Pagination TotalItems="@(FilteredRoles?.Count ?? 0)" 
+                    CurrentPage="@CurrentPage" 
+                    RowsPerPage="@RowsPerPage"
+                    ItemName="roles"
+                    OnPageChanged="HandlePageChanged"
+                    OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+        </div>
+    }
+</div>
+
+<!-- Confirmation Modal for Add Role -->
+@if (showAddConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseAddConfirmModal">
+        <div id="add-role-confirm-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">@(isEditing ? "Confirm Update" : "Confirm Add Role")</h3>
+                <button @onclick="CloseAddConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to @(isEditing ? "update" : "add") the role <strong>@newRole.RoleName</strong>?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseAddConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmAddRole" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    @(isEditing ? "Confirm Update" : "Confirm Add")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal After Success -->
+@if (showSuccessConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSuccessConfirmModal">
+        <div id="success-confirm-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">Role @(isEditing ? "Updated" : "Added") Successfully</h3>
+                <button @onclick="CloseSuccessConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">The role <strong>@newRole.RoleName</strong> has been @(isEditing ? "updated" : "added") successfully. Would you like to add another role?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseSuccessConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    No, Close
+                </button>
+                <button @onclick="AddAnotherRole" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    Yes, Add Another
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+

@@ -1,7 +1,7 @@
 @if (Show)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="Close">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="HandleBackdropClick">
+        <div id="terms-modal" class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
             <!-- Modal Header -->
             <div class="bg-blue-600 text-white px-6 py-2 flex justify-between items-center rounded-t-2xl">
                 <h2 class="text-lg sm:text-xl font-semibold">Terms of Enrollment and Privacy Policy</h2>
@@ -203,6 +203,15 @@
 
     [Parameter]
     public EventCallback OnUnderstand { get; set; }
+
+    [Inject]
+    private IJSRuntime JSRuntime { get; set; } = null!;
+
+    private async Task HandleBackdropClick()
+    {
+        // Allow closing terms modal on backdrop click
+        await Close();
+    }
 
     private async Task HandleUnderstand()
     {
