@@ -34,8 +34,10 @@
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
             <select @bind="SelectedSchoolYear" @bind:after="LoadClassData" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">Select School Year</option>
-                <option value="2023-2024">2023-2024</option>
-                <option value="2024-2025">2024-2025</option>
+                @foreach (var year in AvailableSchoolYears)
+                {
+                    <option value="@year">@year</option>
+                }
             </select>
         </div>
         <div>
@@ -102,16 +104,16 @@
                             <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">@student.StudentId</td>
                             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">@student.Name</td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.FirstQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.FirstQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.SecondQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.SecondQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.ThirdQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.ThirdQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.FourthQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.FourthQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="whitespace-nowrap px-6 py-4 text-center text-sm font-semibold text-gray-800">
                                 @CalculateFinalGrade(student)
@@ -158,9 +160,12 @@ else
     private string SelectedClass { get; set; } = string.Empty;
     private string SelectedSubject { get; set; } = string.Empty;
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
     private List<ClassItem> Classes { get; set; } = new();
     private List<string> Subjects { get; set; } = new();
-    private List<StudentGrade> Students { get; set; } = new();
+    private List<StudentGradeDto> Students { get; set; } = new();
+    private string? SelectedGradeLevel { get; set; }
+    private string? SelectedSection { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
@@ -214,6 +219,38 @@ else
             System.Diagnostics.Debug.WriteLine($"Error loading class data: {ex.Message}");
             Classes = new List<ClassItem>();
             Subjects = new List<string>();
+        }
+    }
+
+    private async Task LoadClassData()
+    {
+        if (string.IsNullOrEmpty(SelectedSchoolYear))
+        {
+            Classes.Clear();
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading classes...");
+        try
+        {
+            // Get available grade levels for the selected school year
+            var gradeLevels = await GradeService.GetAvailableGradeLevelsAsync(SelectedSchoolYear);
+            
+            // Build class list from grade levels
+            // Note: Sections would need to come from a separate table or be parsed from student data
+            Classes = gradeLevels.Select(gl => new ClassItem 
+            { 
+                Id = gl, 
+                Name = $"Grade {gl}" 
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
         }
     }
 
@@ -279,7 +316,15 @@ else
 
     private string GetSelectedClassName()
     {
-        return Classes.FirstOrDefault(c => c.Id == SelectedClass)?.Name ?? "";
+        if (string.IsNullOrEmpty(SelectedClass))
+            return "";
+        
+        var className = Classes.FirstOrDefault(c => c.Id == SelectedClass)?.Name;
+        if (!string.IsNullOrEmpty(className))
+            return className;
+        
+        // Fallback: return the grade level directly
+        return $"Grade {SelectedClass}";
     }
 
     private string CalculateFinalGrade(StudentGrade student)
@@ -292,7 +337,7 @@ else
 
         var grades = new[] { student.FirstQuarter, student.SecondQuarter, student.ThirdQuarter, student.FourthQuarter }
             .Where(g => g.HasValue)
-            .Select(g => g!.Value)
+            .Select(g => (double)g!.Value)
             .ToList();
 
         if (!grades.Any()) return "-";
@@ -316,7 +361,7 @@ else
         return grade >= 75 ? "PASSED" : "FAILED";
     }
 
-    private string GetRemarksClass(StudentGrade student)
+    private string GetRemarksClass(StudentGradeDto student)
     {
         var remarks = GetRemarks(student);
         return remarks switch
@@ -369,6 +414,11 @@ else
         {
             System.Diagnostics.Debug.WriteLine($"Error saving grade: {ex.Message}");
             // In production, show error message to user
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving grade: {ex.Message}");
+            // Show error message to user
         }
         finally
         {
@@ -424,6 +474,11 @@ else
         {
             System.Diagnostics.Debug.WriteLine($"Error saving all grades: {ex.Message}");
             // In production, show error message to user
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving grades: {ex.Message}");
+            // Show error message to user
         }
         finally
         {

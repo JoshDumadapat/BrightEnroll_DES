@@ -95,8 +95,10 @@
                 <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
                 <select @bind="ReportSchoolYear" @bind:after="LoadClassOptions" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                     <option value="">Select School Year</option>
-                    <option value="2023-2024">2023-2024</option>
-                    <option value="2024-2025">2024-2025</option>
+                    @foreach (var year in AvailableSchoolYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
                 </select>
             </div>
 
@@ -213,6 +215,9 @@
     private string ReportStudent { get; set; } = string.Empty;
     private string ReportPeriod { get; set; } = "All";
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
+    private List<string> AvailableClasses { get; set; } = new();
+    private List<string> AvailableSubjects { get; set; } = new();
     private List<ReportInfo> RecentReports { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
@@ -228,11 +233,55 @@
         
         try
         {
+            await LoadInitialData();
             await LoadRecentReports();
         }
         finally
         {
             LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadInitialData()
+    {
+        try
+        {
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue) return;
+
+            // Load available school years
+            AvailableSchoolYears = await ReportService.GetAvailableSchoolYearsAsync(teacherId.Value);
+            
+            // Load classes and subjects will be loaded when school year is selected
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading initial data: {ex.Message}");
+        }
+    }
+
+    private async Task OnSchoolYearChanged()
+    {
+        try
+        {
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue) return;
+
+            if (!string.IsNullOrEmpty(ReportSchoolYear))
+            {
+                // Load classes and subjects for selected school year
+                AvailableClasses = await ClassAssignmentService.GetTeacherClassesAsync(teacherId.Value, ReportSchoolYear);
+                AvailableSubjects = await ClassAssignmentService.GetTeacherSubjectsAsync(teacherId.Value, ReportSchoolYear);
+            }
+            else
+            {
+                AvailableClasses = new List<string>();
+                AvailableSubjects = new List<string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes and subjects: {ex.Message}");
         }
     }
 
@@ -456,6 +505,7 @@
 
     public class ReportInfo
     {
+        public int ReportId { get; set; }
         public string Title { get; set; } = string.Empty;
         public DateTime GeneratedDate { get; set; }
     }

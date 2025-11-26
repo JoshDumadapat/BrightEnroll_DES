@@ -30,15 +30,17 @@
     <div class="flex flex-wrap items-center gap-4">
         <div class="flex-1 min-w-[200px]">
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
-            <select @bind="SelectedSchoolYear" @bind:after="FilterClasses" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+            <select @bind="SelectedSchoolYear" @bind:after="OnSchoolYearChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">All School Years</option>
-                <option value="2023-2024">2023-2024</option>
-                <option value="2024-2025">2024-2025</option>
+                @foreach (var year in AvailableSchoolYears)
+                {
+                    <option value="@year">@year</option>
+                }
             </select>
         </div>
         <div class="flex-1 min-w-[200px]">
             <label class="mb-2 block text-sm font-medium text-gray-700">Search</label>
-            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterClasses" placeholder="Search class or subject..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="OnSearchChanged" placeholder="Search class or subject..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
         </div>
     </div>
 </div>
@@ -107,6 +109,7 @@
     private string SelectedSchoolYear { get; set; } = string.Empty;
     private string SearchTerm { get; set; } = string.Empty;
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
     private List<ClassInfo> Classes { get; set; } = new();
     private List<ClassInfo> FilteredClasses { get; set; } = new();
 
@@ -123,11 +126,29 @@
         
         try
         {
+            await LoadInitialData();
             await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
         }
         finally
         {
             LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadInitialData()
+    {
+        try
+        {
+            // Load available school years
+            AvailableSchoolYears = await ClassAssignmentService.GetAvailableSchoolYearsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading school years: {ex.Message}");
         }
     }
 
