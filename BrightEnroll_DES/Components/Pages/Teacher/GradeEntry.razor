@@ -163,7 +163,7 @@ else
     private List<string> AvailableSchoolYears { get; set; } = new();
     private List<ClassItem> Classes { get; set; } = new();
     private List<string> Subjects { get; set; } = new();
-    private List<StudentGradeDto> Students { get; set; } = new();
+    private List<StudentGrade> Students { get; set; } = new();
     private string? SelectedGradeLevel { get; set; }
     private string? SelectedSection { get; set; }
 
@@ -219,38 +219,6 @@ else
             System.Diagnostics.Debug.WriteLine($"Error loading class data: {ex.Message}");
             Classes = new List<ClassItem>();
             Subjects = new List<string>();
-        }
-    }
-
-    private async Task LoadClassData()
-    {
-        if (string.IsNullOrEmpty(SelectedSchoolYear))
-        {
-            Classes.Clear();
-            return;
-        }
-
-        LoadingService.ShowLoading("Loading classes...");
-        try
-        {
-            // Get available grade levels for the selected school year
-            var gradeLevels = await GradeService.GetAvailableGradeLevelsAsync(SelectedSchoolYear);
-            
-            // Build class list from grade levels
-            // Note: Sections would need to come from a separate table or be parsed from student data
-            Classes = gradeLevels.Select(gl => new ClassItem 
-            { 
-                Id = gl, 
-                Name = $"Grade {gl}" 
-            }).ToList();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading classes: {ex.Message}");
-        }
-        finally
-        {
-            LoadingService.HideLoading();
         }
     }
 
@@ -361,7 +329,7 @@ else
         return grade >= 75 ? "PASSED" : "FAILED";
     }
 
-    private string GetRemarksClass(StudentGradeDto student)
+    private string GetRemarksClass(StudentGrade student)
     {
         var remarks = GetRemarks(student);
         return remarks switch
@@ -414,11 +382,6 @@ else
         {
             System.Diagnostics.Debug.WriteLine($"Error saving grade: {ex.Message}");
             // In production, show error message to user
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error saving grade: {ex.Message}");
-            // Show error message to user
         }
         finally
         {
@@ -474,11 +437,6 @@ else
         {
             System.Diagnostics.Debug.WriteLine($"Error saving all grades: {ex.Message}");
             // In production, show error message to user
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error saving grades: {ex.Message}");
-            // Show error message to user
         }
         finally
         {

@@ -1,0 +1,127 @@
+@page "/system-admin/support"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ISupportTicketService SupportTicketService
+
+<PageTitle>Support Tickets</PageTitle>
+
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Support Ticket System</h1>
+    <p class="text-sm text-gray-600">Manage customer support requests</p>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+        <p class="text-sm text-red-600">Open Tickets</p>
+        <p class="text-2xl font-bold text-red-800">@OpenTickets</p>
+    </div>
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600">In Progress</p>
+        <p class="text-2xl font-bold text-yellow-800">@InProgressTickets</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Resolved Today</p>
+        <p class="text-2xl font-bold text-green-800">@ResolvedToday</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Avg Response Age (days)</p>
+        <p class="text-2xl font-bold text-blue-800">@AverageTicketAgeDays.ToString("0.0")</p>
+    </div>
+</div>
+
+<!-- Tickets Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b p-6">
+        <h2 class="text-lg font-bold text-gray-800">Support Tickets</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Ticket ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Issue</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Priority</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Assigned To</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @foreach (var ticket in Tickets)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 text-sm font-medium text-blue-600">TKT-@ticket.ticket_id.ToString("D4")</td>
+                        <td class="px-6 py-4 text-sm text-gray-800">@ticket.school_name</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">@ticket.subject</td>
+                        <td class="px-6 py-4">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPriorityClass(ticket.priority)">@ticket.priority</span>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">@((string.IsNullOrWhiteSpace(ticket.assigned_agent) ? "Unassigned" : ticket.assigned_agent))</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(ticket.status)">@ticket.status</span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button class="text-blue-600 hover:text-blue-800">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<SupportTicket> Tickets { get; set; } = new();
+
+    private int OpenTickets => Tickets.Count(t => t.status.Equals("Open", StringComparison.OrdinalIgnoreCase));
+    private int InProgressTickets => Tickets.Count(t => t.status.Equals("In Progress", StringComparison.OrdinalIgnoreCase));
+    private int ResolvedToday => Tickets.Count(t =>
+        t.status.Equals("Resolved", StringComparison.OrdinalIgnoreCase) &&
+        t.created_at.Date == DateTime.Today);
+
+    private double AverageTicketAgeDays =>
+        Tickets.Count == 0
+            ? 0
+            : Tickets.Average(t => (DateTime.Today - t.created_at.Date).TotalDays);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        var data = await SupportTicketService.GetAllAsync();
+        Tickets = data
+            .OrderByDescending(t => t.created_at)
+            .ToList();
+    }
+
+    private string GetPriorityClass(string priority) => priority switch
+    {
+        "High" => "bg-red-100 text-red-800",
+        "Medium" => "bg-yellow-100 text-yellow-800",
+        "Low" => "bg-blue-100 text-blue-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Open" => "bg-red-100 text-red-800",
+        "In Progress" => "bg-yellow-100 text-yellow-800",
+        "Resolved" => "bg-green-100 text-green-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+}

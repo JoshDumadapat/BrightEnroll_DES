@@ -1,0 +1,176 @@
+@page "/system-admin/contracts"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IContractService ContractService
+
+<PageTitle>Contracts & Licensing</PageTitle>
+
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800">Contracts & Licensing</h1>
+    <p class="text-sm text-gray-600">Manage agreements and module licenses</p>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Active Contracts</p>
+        <p class="text-2xl font-bold text-green-800">@ActiveContracts</p>
+    </div>
+    <div class="rounded-xl border border-orange-200 bg-orange-50 p-4">
+        <p class="text-sm text-orange-600">Expiring Soon (≤ 30 days)</p>
+        <p class="text-2xl font-bold text-orange-800">@ExpiringSoon</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Pending Renewal (Expired)</p>
+        <p class="text-2xl font-bold text-blue-800">@PendingRenewal</p>
+    </div>
+    </div>
+
+<!-- Contracts Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b p-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-gray-800">Active Contracts</h2>
+            <button class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Upload Contract</button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Contract Period</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Max Users</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Enabled Modules</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @foreach (var contract in ContractItems)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-800">@contract.school_name</td>
+                        <td class="px-6 py-4 text-sm text-gray-600">
+                            <div>
+                                <p>Start: @contract.start_date.ToString("MMM dd, yyyy")</p>
+                                <p>End: @contract.end_date.ToString("MMM dd, yyyy")</p>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-600">@contract.max_users users</td>
+                        <td class="px-6 py-4">
+                            <div class="flex flex-wrap gap-1">
+                                @if (contract.modules_admission)
+                                {
+                                    <span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">Admission</span>
+                                }
+                                @if (contract.modules_finance)
+                                {
+                                    <span class="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Finance</span>
+                                }
+                                @if (contract.modules_hr)
+                                {
+                                    <span class="inline-flex rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">HR</span>
+                                }
+                                @if (contract.modules_grades)
+                                {
+                                    <span class="inline-flex rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">Grades</span>
+                                }
+                                @if (contract.modules_enrollment)
+                                {
+                                    <span class="inline-flex rounded-full bg-pink-100 px-2 py-1 text-xs font-medium text-pink-800">Enrollment</span>
+                                }
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="@GetStatusClass(contract) inline-flex rounded-full px-3 py-1 text-xs font-medium">
+                                @GetStatusLabel(contract)
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button class="text-blue-600 hover:text-blue-800" title="View Contract">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                </button>
+                                <button class="text-green-600 hover:text-green-800" title="Manage Modules">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<Contract> ContractItems { get; set; } = new();
+
+    private int ActiveContracts =>
+        ContractItems.Count(c => GetStatusLabel(c) == "Active");
+
+    private int ExpiringSoon =>
+        ContractItems.Count(c =>
+            GetStatusLabel(c) == "Active" &&
+            (c.end_date - DateTime.Today).TotalDays <= 30 &&
+            (c.end_date - DateTime.Today).TotalDays >= 0);
+
+    private int PendingRenewal =>
+        ContractItems.Count(c => GetStatusLabel(c) == "Expired");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        var data = await ContractService.GetAllAsync();
+        ContractItems = data.ToList();
+    }
+
+    private static string GetStatusLabel(Contract contract)
+    {
+        if (contract.status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        {
+            if (contract.end_date < DateTime.Today)
+            {
+                return "Expired";
+            }
+
+            if ((contract.end_date - DateTime.Today).TotalDays <= 30)
+            {
+                return "Expiring Soon";
+            }
+
+            return "Active";
+        }
+
+        return contract.status;
+    }
+
+    private static string GetStatusClass(Contract contract)
+    {
+        var label = GetStatusLabel(contract);
+
+        return label switch
+        {
+            "Active" => "bg-green-100 text-green-800",
+            "Expiring Soon" => "bg-orange-100 text-orange-800",
+            "Expired" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+}

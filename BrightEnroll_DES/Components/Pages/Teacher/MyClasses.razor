@@ -143,8 +143,19 @@
     {
         try
         {
-            // Load available school years
-            AvailableSchoolYears = await ClassAssignmentService.GetAvailableSchoolYearsAsync();
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser == null)
+            {
+                return;
+            }
+
+            // Load available school years from the teacher's existing classes
+            var dbClasses = await ClassService.GetClassesByTeacherIdAsync(currentUser.user_ID);
+            AvailableSchoolYears = dbClasses
+                .Select(c => c.SchoolYear)
+                .Distinct()
+                .OrderBy(y => y)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -198,6 +209,18 @@
     {
         // Reload classes with filters applied
         await LoadClasses();
+    }
+
+    // Triggered by school year dropdown
+    private async Task OnSchoolYearChanged()
+    {
+        await FilterClasses();
+    }
+
+    // Triggered by search box input
+    private async Task OnSearchChanged()
+    {
+        await FilterClasses();
     }
 
     private void ViewClassDetails(string classId)

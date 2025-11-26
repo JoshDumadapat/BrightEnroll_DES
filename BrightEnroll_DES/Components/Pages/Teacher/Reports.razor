@@ -216,8 +216,6 @@
     private string ReportPeriod { get; set; } = "All";
 
     private List<string> AvailableSchoolYears { get; set; } = new();
-    private List<string> AvailableClasses { get; set; } = new();
-    private List<string> AvailableSubjects { get; set; } = new();
     private List<ReportInfo> RecentReports { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
@@ -257,31 +255,6 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error loading initial data: {ex.Message}");
-        }
-    }
-
-    private async Task OnSchoolYearChanged()
-    {
-        try
-        {
-            var teacherId = AuthService.CurrentUser?.user_ID;
-            if (!teacherId.HasValue) return;
-
-            if (!string.IsNullOrEmpty(ReportSchoolYear))
-            {
-                // Load classes and subjects for selected school year
-                AvailableClasses = await ClassAssignmentService.GetTeacherClassesAsync(teacherId.Value, ReportSchoolYear);
-                AvailableSubjects = await ClassAssignmentService.GetTeacherSubjectsAsync(teacherId.Value, ReportSchoolYear);
-            }
-            else
-            {
-                AvailableClasses = new List<string>();
-                AvailableSubjects = new List<string>();
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading classes and subjects: {ex.Message}");
         }
     }
 

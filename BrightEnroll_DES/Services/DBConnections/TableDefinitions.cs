@@ -8,7 +8,14 @@ namespace BrightEnroll_DES.Services.DBConnections
         {
             return new List<TableDefinition>
             {
+                // Core user table
                 GetUsersTableDefinition(),
+                // System Admin CRM & Ops tables
+                GetCustomersTableDefinition(),
+                GetSalesLeadsTableDefinition(),
+                GetContractsTableDefinition(),
+                GetSubscriptionsTableDefinition(),
+                GetSupportTicketsTableDefinition(),
                 // Student registration tables (order matters: guardians first, then sequence, then students, then requirements)
                 GetGuardiansTableDefinition(),
                 GetStudentIDSequenceTableDefinition(),
@@ -77,6 +84,210 @@ namespace BrightEnroll_DES.Services.DBConnections
         // ============================================
         // ADD NEW TABLE DEFINITIONS BELOW
         // ============================================
+
+        // Creates tbl_Customers table - stores System Admin school customers (CRM)
+        public static TableDefinition GetCustomersTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Customers",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Customers](
+                        [customer_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [customer_code] VARCHAR(20) NOT NULL UNIQUE,
+                        [school_name] VARCHAR(150) NOT NULL,
+                        [school_type] VARCHAR(50) NULL,
+                        [address] VARCHAR(255) NOT NULL,
+                        [city] VARCHAR(100) NOT NULL,
+                        [province] VARCHAR(100) NULL,
+                        [contact_person] VARCHAR(150) NOT NULL,
+                        [contact_position] VARCHAR(100) NULL,
+                        [contact_email] VARCHAR(150) NOT NULL,
+                        [contact_phone] VARCHAR(50) NOT NULL,
+                        [plan] VARCHAR(20) NOT NULL,
+                        [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [contract_start_date] DATE NOT NULL,
+                        [contract_duration_months] INT NOT NULL,
+                        [contract_end_date] DATE NOT NULL,
+                        [student_count] INT NOT NULL DEFAULT 0,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [notes] TEXT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_SchoolName ON [dbo].[tbl_Customers]([school_name])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_Status' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_Status ON [dbo].[tbl_Customers]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_Plan' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_Plan ON [dbo].[tbl_Customers]([plan])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_ContractEndDate' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_ContractEndDate ON [dbo].[tbl_Customers]([contract_end_date])"
+                }
+            };
+        }
+
+        // Creates tbl_SalesLeads table - stores System Admin sales leads
+        public static TableDefinition GetSalesLeadsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SalesLeads",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SalesLeads](
+                        [lead_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [school_name] VARCHAR(150) NOT NULL,
+                        [location] VARCHAR(150) NOT NULL,
+                        [school_type] VARCHAR(50) NULL,
+                        [estimated_students] INT NOT NULL DEFAULT 0,
+                        [website] VARCHAR(200) NULL,
+                        [contact_name] VARCHAR(150) NOT NULL,
+                        [contact_position] VARCHAR(100) NULL,
+                        [email] VARCHAR(150) NOT NULL,
+                        [phone] VARCHAR(50) NOT NULL,
+                        [alternative_phone] VARCHAR(50) NULL,
+                        [lead_source] VARCHAR(50) NOT NULL,
+                        [interest_level] VARCHAR(20) NOT NULL,
+                        [interested_plan] VARCHAR(20) NULL,
+                        [expected_close_date] DATE NULL,
+                        [assigned_agent] VARCHAR(100) NULL,
+                        [budget_range] VARCHAR(50) NULL,
+                        [notes] TEXT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_SchoolName ON [dbo].[tbl_SalesLeads]([school_name])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_Status' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_Status ON [dbo].[tbl_SalesLeads]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_LeadSource' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_LeadSource ON [dbo].[tbl_SalesLeads]([lead_source])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_InterestLevel' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_InterestLevel ON [dbo].[tbl_SalesLeads]([interest_level])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_ExpectedCloseDate' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_ExpectedCloseDate ON [dbo].[tbl_SalesLeads]([expected_close_date])"
+                }
+            };
+        }
+
+        // Creates tbl_Contracts table - legal agreements and module licensing for school customers
+        public static TableDefinition GetContractsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Contracts",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Contracts](
+                        [contract_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [school_name] VARCHAR(150) NOT NULL,
+                        [customer_code] VARCHAR(20) NULL,
+                        [start_date] DATE NOT NULL,
+                        [end_date] DATE NOT NULL,
+                        [max_users] INT NOT NULL DEFAULT 0,
+                        [modules_admission] BIT NOT NULL DEFAULT 0,
+                        [modules_finance] BIT NOT NULL DEFAULT 0,
+                        [modules_hr] BIT NOT NULL DEFAULT 0,
+                        [modules_grades] BIT NOT NULL DEFAULT 0,
+                        [modules_enrollment] BIT NOT NULL DEFAULT 0,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [contract_file_path] VARCHAR(500) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_SchoolName ON [dbo].[tbl_Contracts]([school_name])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_Status' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_Status ON [dbo].[tbl_Contracts]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_EndDate' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_EndDate ON [dbo].[tbl_Contracts]([end_date])"
+                }
+            };
+        }
+
+        // Creates tbl_Subscriptions table - billing records for customer plans
+        public static TableDefinition GetSubscriptionsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Subscriptions",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Subscriptions](
+                        [subscription_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [customer_id] INT NOT NULL,
+                        [plan] VARCHAR(20) NOT NULL,
+                        [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [start_date] DATE NOT NULL,
+                        [end_date] DATE NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subscriptions_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_Subscriptions'))
+                        CREATE INDEX IX_tbl_Subscriptions_CustomerId ON [dbo].[tbl_Subscriptions]([customer_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subscriptions_Status' AND object_id = OBJECT_ID('dbo.tbl_Subscriptions'))
+                        CREATE INDEX IX_tbl_Subscriptions_Status ON [dbo].[tbl_Subscriptions]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subscriptions_EndDate' AND object_id = OBJECT_ID('dbo.tbl_Subscriptions'))
+                        CREATE INDEX IX_tbl_Subscriptions_EndDate ON [dbo].[tbl_Subscriptions]([end_date])"
+                }
+            };
+        }
+
+        // Creates tbl_SupportTickets table - help desk tickets for System Admin support
+        public static TableDefinition GetSupportTicketsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SupportTickets",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SupportTickets](
+                        [ticket_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [school_name] VARCHAR(150) NOT NULL,
+                        [subject] VARCHAR(200) NOT NULL,
+                        [description] TEXT NULL,
+                        [priority] VARCHAR(20) NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Open',
+                        [assigned_agent] VARCHAR(100) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Status' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_Status ON [dbo].[tbl_SupportTickets]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Priority' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_Priority ON [dbo].[tbl_SupportTickets]([priority])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_CreatedAt ON [dbo].[tbl_SupportTickets]([created_at])"
+                }
+            };
+        }
 
         // Creates tbl_Guardians table - must be created before tbl_Students (foreign key dependency)
         public static TableDefinition GetGuardiansTableDefinition()

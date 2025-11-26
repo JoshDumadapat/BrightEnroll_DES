@@ -1,8 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using BrightEnroll_DES.Services.AuthFunction;
 using BrightEnroll_DES.Services;
-using BrightEnroll_DES.Services.HR;
-using BrightEnroll_DES.Services.Finance;
 using BrightEnroll_DES.Services.DBConnections;
 using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Data;
@@ -45,8 +43,8 @@ namespace BrightEnroll_DES
             // Register AuthService
             builder.Services.AddSingleton<IAuthService, AuthService>();
             
-            // Register Database Seeder (scoped for EF Core DbContext)
-            builder.Services.AddScoped<DatabaseSeeder>();
+            // Register Database Seeder (scoped for EF Core DbContext) - use Seeder from Services.Seeders namespace
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Seeders.DatabaseSeeder>();
             
             // Register Loading Service
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
@@ -77,14 +75,12 @@ namespace BrightEnroll_DES
                 options.UseSqlServer(connectionString);
             });
 
-            // Register StudentService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<StudentService>();
-            
             // Register EmployeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<EmployeeService>();
-            
-            // Register FeeService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<FeeService>();
+
+            // Register SalesLead repository/service for System Admin Sales module
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.ISalesLeadRepository, BrightEnroll_DES.Services.Repositories.SalesLeadRepository>();
+            builder.Services.AddScoped<ISalesLeadService, SalesLeadService>();
             
             // Register ClassService (scoped for EF Core DbContext)
             builder.Services.AddScoped<ClassService>();
@@ -97,6 +93,18 @@ namespace BrightEnroll_DES
             
             // Register ReportService (scoped for EF Core DbContext)
             builder.Services.AddScoped<ReportService>();
+
+            // System Admin CRM/Sales/Contracts/Subscriptions/Support services (DBConnection-based repositories)
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.ICustomerRepository, BrightEnroll_DES.Services.Repositories.CustomerRepository>();
+            builder.Services.AddScoped<ICustomerService, CustomerService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.ISalesLeadRepository, BrightEnroll_DES.Services.Repositories.SalesLeadRepository>();
+            builder.Services.AddScoped<ISalesLeadService, SalesLeadService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.IContractRepository, BrightEnroll_DES.Services.Repositories.ContractRepository>();
+            builder.Services.AddScoped<IContractService, ContractService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.ISubscriptionRepository, BrightEnroll_DES.Services.Repositories.SubscriptionRepository>();
+            builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.ISupportTicketRepository, BrightEnroll_DES.Services.Repositories.SupportTicketRepository>();
+            builder.Services.AddScoped<ISupportTicketService, SupportTicketService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -120,7 +128,7 @@ namespace BrightEnroll_DES
                 // Seed initial admin user - create a scope for DbContext
                 using (var scope = app.Services.CreateScope())
                 {
-                    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                    var seeder = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Seeders.DatabaseSeeder>();
                     Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
                 }
             }

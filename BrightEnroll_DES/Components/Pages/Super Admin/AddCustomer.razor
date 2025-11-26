@@ -1,0 +1,339 @@
+@page "/system-admin/customers/add"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject ICustomerService CustomerService
+
+<PageTitle>Add New Customer</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Add New Customer</h1>
+    <div class="mx-auto max-w-5xl">
+        <div class="mb-6 flex justify-start">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+
+        <form @onsubmit="HandleSubmitAsync" @onsubmit:preventDefault="true">
+            <!-- School Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">School Information</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- School Name -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                School Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="SchoolName" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Enter school name" />
+                        </div>
+
+                        <!-- School ID -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">School ID</label>
+                            <input type="text" value="AUTO-GENERATED"
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 outline-none sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Auto-generated" disabled />
+                        </div>
+
+                        <!-- School Type -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                School Type <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="SchoolType" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select type</option>
+                                <option value="Private">Private</option>
+                                <option value="Public">Public</option>
+                                <option value="International">International</option>
+                                <option value="Vocational">Vocational</option>
+                            </select>
+                        </div>
+
+                        <!-- Address -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Address <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Address" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Complete address" />
+                        </div>
+
+                        <!-- City -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                City <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="City" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="City" />
+                        </div>
+
+                        <!-- Province -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Province</label>
+                            <input type="text" @bind="Province"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Province" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Person -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Contact Person</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- Contact Name -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Full Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="ContactPerson" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Contact person name" />
+                        </div>
+
+                        <!-- Position -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Position</label>
+                            <input type="text" @bind="ContactPosition"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="e.g., Principal, Director" />
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" @bind="ContactEmail" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="email@school.edu.ph" />
+                        </div>
+
+                        <!-- Phone -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Phone Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="tel" @bind="ContactPhone" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="+63 XXX XXX XXXX" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscription Details -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Subscription Details</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- Plan -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Subscription Plan <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Plan" @bind:after="UpdateMonthlyFee" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select plan</option>
+                                <option value="Basic">Basic - ?35,000/month</option>
+                                <option value="Standard">Standard - ?55,000/month</option>
+                                <option value="Premium">Premium - ?85,000/month</option>
+                            </select>
+                        </div>
+
+                        <!-- Monthly Fee -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Monthly Fee</label>
+                            <input type="text" value="@($"?{MonthlyFee:N0}")" disabled
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- Contract Start Date -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Contract Start Date <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" @bind="ContractStartDate" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- Contract Duration -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Contract Duration <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="ContractDuration" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select duration</option>
+                                <option value="6">6 Months</option>
+                                <option value="12">12 Months</option>
+                                <option value="24">24 Months</option>
+                                <option value="36">36 Months</option>
+                            </select>
+                        </div>
+
+                        <!-- Number of Students -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Number of Students</label>
+                            <input type="number" @bind="StudentCount" min="0"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Estimated student count" />
+                        </div>
+
+                        <!-- Status -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Status</label>
+                            <select @bind="Status"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Notes -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Additional Information</h2>
+                    
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Additional Notes</label>
+                        <textarea @bind="Notes" rows="4"
+                                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                  placeholder="Any additional information..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-6 flex justify-end gap-4">
+                <button type="button" 
+                    @onclick="Cancel"
+                    class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    Add Customer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@code {
+    private string SchoolName { get; set; } = string.Empty;
+    private string SchoolType { get; set; } = string.Empty;
+    private string Address { get; set; } = string.Empty;
+    private string City { get; set; } = string.Empty;
+    private string Province { get; set; } = string.Empty;
+    private string ContactPerson { get; set; } = string.Empty;
+    private string ContactPosition { get; set; } = string.Empty;
+    private string ContactEmail { get; set; } = string.Empty;
+    private string ContactPhone { get; set; } = string.Empty;
+    private string Plan { get; set; } = string.Empty;
+    private decimal MonthlyFee { get; set; } = 0;
+    private DateTime ContractStartDate { get; set; } = DateTime.Today;
+    private string ContractDuration { get; set; } = string.Empty;
+    private int StudentCount { get; set; } = 0;
+    private string Status { get; set; } = "Active";
+    private string Notes { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    private void UpdateMonthlyFee()
+    {
+        MonthlyFee = Plan switch
+        {
+            "Basic" => 35000,
+            "Standard" => 55000,
+            "Premium" => 85000,
+            _ => 0
+        };
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        // Basic guard (UI already enforces required fields)
+        if (string.IsNullOrWhiteSpace(SchoolName) ||
+            string.IsNullOrWhiteSpace(SchoolType) ||
+            string.IsNullOrWhiteSpace(Address) ||
+            string.IsNullOrWhiteSpace(City) ||
+            string.IsNullOrWhiteSpace(ContactPerson) ||
+            string.IsNullOrWhiteSpace(ContactEmail) ||
+            string.IsNullOrWhiteSpace(ContactPhone) ||
+            string.IsNullOrWhiteSpace(Plan) ||
+            string.IsNullOrWhiteSpace(ContractDuration))
+        {
+            return;
+        }
+
+        if (!int.TryParse(ContractDuration, out var durationMonths) || durationMonths <= 0)
+        {
+            return;
+        }
+
+        var customer = new Customer
+        {
+            school_name = SchoolName,
+            school_type = SchoolType,
+            address = Address,
+            city = City,
+            province = string.IsNullOrWhiteSpace(Province) ? null : Province,
+            contact_person = ContactPerson,
+            contact_position = string.IsNullOrWhiteSpace(ContactPosition) ? null : ContactPosition,
+            contact_email = ContactEmail,
+            contact_phone = ContactPhone,
+            plan = Plan,
+            monthly_fee = MonthlyFee,
+            contract_start_date = ContractStartDate,
+            contract_duration_months = durationMonths,
+            student_count = StudentCount,
+            status = Status,
+            notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes
+        };
+
+        await CustomerService.CreateAsync(customer);
+
+        // Navigate back with success message
+        Navigation.NavigateTo("/system-admin/customers?toast=customer_added");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/system-admin/customers");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/system-admin/customers");
+    }
+}

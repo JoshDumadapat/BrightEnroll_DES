@@ -17,6 +17,26 @@ public class ReportService
         _logger = logger;
     }
 
+    // Get distinct school years where the teacher has grades/classes recorded
+    public async Task<List<string>> GetAvailableSchoolYearsAsync(int teacherId)
+    {
+        try
+        {
+            return await _context.Grades
+                .Include(g => g.Class)
+                .Where(g => g.Class != null && g.Class.TeacherId == teacherId)
+                .Select(g => g.SchoolYear)
+                .Distinct()
+                .OrderBy(y => y)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting available school years for teacher {TeacherId}", teacherId);
+            throw;
+        }
+    }
+
     // Get recent reports for a teacher
     public async Task<List<ReportInfo>> GetRecentReportsByTeacherIdAsync(int teacherId, int limit = 10)
     {

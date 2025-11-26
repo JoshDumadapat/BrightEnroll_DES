@@ -1,0 +1,317 @@
+@page "/system-admin/customers"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject ICustomerService CustomerService
+
+<PageTitle>Customer Management</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Customer Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Manage school customers and their subscriptions</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+            <button @onclick="ShowAddCustomerModal" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Customer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Subscription Plan</label>
+            <select @bind="SelectedPlan" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All Plans</option>
+                <option value="Basic">Basic</option>
+                <option value="Standard">Standard</option>
+                <option value="Premium">Premium</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+            <select @bind="SelectedStatus" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Suspended">Suspended</option>
+                <option value="Expired">Expired</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Sort By</label>
+            <select @bind="SortBy" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="name">School Name</option>
+                <option value="date">Registration Date</option>
+                <option value="revenue">Revenue</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Search</label>
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterCustomers" placeholder="School name..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Total Customers</p>
+        <p class="text-2xl font-bold text-blue-800">@FilteredCustomers.Count</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Active</p>
+        <p class="text-2xl font-bold text-green-800">@GetActiveCount()</p>
+    </div>
+    <div class="rounded-xl border border-orange-200 bg-orange-50 p-4">
+        <p class="text-sm text-orange-600">Expiring Soon</p>
+        <p class="text-2xl font-bold text-orange-800">@GetExpiringSoonCount()</p>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <p class="text-sm text-purple-600">Total Revenue</p>
+        <p class="text-2xl font-bold text-purple-800">?@GetTotalRevenue().ToString("N0")</p>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-800">School Customers</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Contact Person</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Plan</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Contract End</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Monthly Fee</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+                @foreach (var customer in FilteredCustomers)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <div>
+                                <p class="font-semibold text-gray-800">@customer.SchoolName</p>
+                                <p class="text-xs text-gray-500">@customer.Address</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">
+                            <div>
+                                <p class="font-medium">@customer.ContactPerson</p>
+                                <p class="text-xs text-gray-500">@customer.ContactEmail</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPlanClass(customer.Plan)">
+                                @customer.Plan
+                            </span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@customer.ContractEndDate.ToString("MMM dd, yyyy")</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-800">?@customer.MonthlyFee.ToString("N0")</td>
+                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(customer.Status)">
+                                @customer.Status
+                            </span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button @onclick="() => ViewCustomer(customer.CustomerId)" class="text-blue-600 hover:text-blue-800" title="View Details">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                </button>
+                                <button @onclick="() => EditCustomer(customer.CustomerId)" class="text-green-600 hover:text-green-800" title="Edit">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!FilteredCustomers.Any())
+    {
+        <div class="py-12 text-center text-gray-500">
+            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <p>No customers found</p>
+        </div>
+    }
+</div>
+
+@code {
+    private string SelectedPlan { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = string.Empty;
+    private string SortBy { get; set; } = "name";
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private List<SchoolCustomer> CustomerList { get; set; } = new();
+    private List<SchoolCustomer> FilteredCustomers { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading customers...");
+        
+        try
+        {
+            await LoadCustomers();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task LoadCustomers()
+    {
+        var customers = await CustomerService.GetAllAsync();
+
+        CustomerList = customers.Select(c =>
+        {
+            var label = GetComputedStatus(c);
+            return new SchoolCustomer
+            {
+                CustomerId = string.IsNullOrWhiteSpace(c.customer_code) ? c.customer_id.ToString() : c.customer_code,
+                SchoolName = c.school_name,
+                ContactPerson = c.contact_person,
+                ContactEmail = c.contact_email,
+                Address = $"{c.address}, {c.city}{(string.IsNullOrWhiteSpace(c.province) ? string.Empty : $", {c.province}")}",
+                Plan = c.plan,
+                MonthlyFee = c.monthly_fee,
+                ContractEndDate = c.contract_end_date,
+                Status = label
+            };
+        }).ToList();
+
+        FilteredCustomers = CustomerList;
+    }
+
+    private void FilterCustomers()
+    {
+        FilteredCustomers = CustomerList.Where(c =>
+        {
+            bool matchesPlan = string.IsNullOrEmpty(SelectedPlan) || c.Plan == SelectedPlan;
+            bool matchesStatus = string.IsNullOrEmpty(SelectedStatus) || c.Status == SelectedStatus;
+            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) || c.SchoolName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+
+            return matchesPlan && matchesStatus && matchesSearch;
+        }).ToList();
+
+        FilteredCustomers = SortBy switch
+        {
+            "date" => FilteredCustomers.OrderBy(c => c.ContractEndDate).ToList(),
+            "revenue" => FilteredCustomers.OrderByDescending(c => c.MonthlyFee).ToList(),
+            _ => FilteredCustomers.OrderBy(c => c.SchoolName).ToList()
+        };
+    }
+
+    private int GetActiveCount() => FilteredCustomers.Count(c => c.Status == "Active");
+    private int GetExpiringSoonCount() => FilteredCustomers.Count(c => c.Status == "Expiring Soon");
+    private decimal GetTotalRevenue() => FilteredCustomers.Where(c => c.Status == "Active").Sum(c => c.MonthlyFee);
+
+    private string GetPlanClass(string plan) => plan switch
+    {
+        "Basic" => "bg-gray-100 text-gray-800",
+        "Standard" => "bg-blue-100 text-blue-800",
+        "Premium" => "bg-purple-100 text-purple-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Active" => "bg-green-100 text-green-800",
+        "Expiring Soon" => "bg-orange-100 text-orange-800",
+        "Expired" => "bg-red-100 text-red-800",
+        "Inactive" => "bg-gray-100 text-gray-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetComputedStatus(Customer customer)
+    {
+        var baseStatus = string.IsNullOrWhiteSpace(customer.status) ? "Active" : customer.status;
+
+        if (!baseStatus.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        {
+            return baseStatus;
+        }
+
+        if (customer.contract_end_date < DateTime.Today)
+        {
+            return "Expired";
+        }
+
+        if ((customer.contract_end_date - DateTime.Today).TotalDays <= 30)
+        {
+            return "Expiring Soon";
+        }
+
+        return "Active";
+    }
+
+    private void ShowAddCustomerModal()
+    {
+        Navigation.NavigateTo("/system-admin/customers/add");
+    }
+
+    private void ViewCustomer(string customerId)
+    {
+        Navigation.NavigateTo($"/system-admin/customers/view/{customerId}");
+    }
+
+    private void EditCustomer(string customerId)
+    {
+        // TODO: Navigate to edit customer page when implemented
+        Navigation.NavigateTo($"/system-admin/customers/edit/{customerId}");
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
+
+    public class SchoolCustomer
+    {
+        public string CustomerId { get; set; } = string.Empty;
+        public string SchoolName { get; set; } = string.Empty;
+        public string ContactPerson { get; set; } = string.Empty;
+        public string ContactEmail { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public string Plan { get; set; } = string.Empty;
+        public decimal MonthlyFee { get; set; }
+        public DateTime ContractEndDate { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+}

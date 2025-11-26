@@ -224,10 +224,27 @@
             }
         }
 
-        // If already logged in, redirect to dashboard
+        // If already logged in, redirect to appropriate dashboard
         if (AuthService.IsAuthenticated)
         {
-            Navigation.NavigateTo("/dashboard");
+            var userRole = AuthService.CurrentUser?.user_role;
+            
+            if (userRole == "Super Admin")
+            {
+                Navigation.NavigateTo("/system-admin/dashboard");
+            }
+            else if (userRole == "Teacher")
+            {
+                Navigation.NavigateTo("/teacher/dashboard");
+            }
+            else if (userRole == "Cashier")
+            {
+                Navigation.NavigateTo("/cashier/dashboard");
+            }
+            else
+            {
+                Navigation.NavigateTo("/dashboard");
+            }
         }
     }
 
@@ -271,7 +288,24 @@
             // Additional check after render to catch any navigation attempts
             if (AuthService.IsAuthenticated)
             {
-                Navigation.NavigateTo("/dashboard", forceLoad: true);
+                var userRole = AuthService.CurrentUser?.user_role;
+                
+                if (userRole == "Super Admin")
+                {
+                    Navigation.NavigateTo("/system-admin/dashboard", forceLoad: true);
+                }
+                else if (userRole == "Teacher")
+                {
+                    Navigation.NavigateTo("/teacher/dashboard", forceLoad: true);
+                }
+                else if (userRole == "Cashier")
+                {
+                    Navigation.NavigateTo("/cashier/dashboard", forceLoad: true);
+                }
+                else
+                {
+                    Navigation.NavigateTo("/dashboard", forceLoad: true);
+                }
             }
         }
     }
@@ -310,8 +344,26 @@
 
         if (loginResult)
         {
-            // Login successful - redirect to dashboard (loading will be shown by dashboard when loading data)
-            Navigation.NavigateTo("/dashboard");
+            // Login successful - redirect based on user role
+            var userRole = AuthService.CurrentUser?.user_role;
+            
+            if (userRole == "Super Admin")
+            {
+                Navigation.NavigateTo("/system-admin/dashboard");
+            }
+            else if (userRole == "Teacher")
+            {
+                Navigation.NavigateTo("/teacher/dashboard");
+            }
+            else if (userRole == "Cashier")
+            {
+                Navigation.NavigateTo("/cashier/dashboard");
+            }
+            else
+            {
+                // Default to admin dashboard for Admin and other roles
+                Navigation.NavigateTo("/dashboard");
+            }
         }
         else
         {

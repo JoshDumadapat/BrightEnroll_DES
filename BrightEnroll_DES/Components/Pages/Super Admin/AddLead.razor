@@ -1,0 +1,333 @@
+@page "/system-admin/sales/add-lead"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Services.AuthFunction
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject ISalesLeadService SalesLeadService
+
+<PageTitle>Add New Lead</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Add New Lead</h1>
+    <div class="mx-auto max-w-5xl">
+        <div class="mb-6 flex justify-start">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+
+        <form @onsubmit="HandleSubmitAsync" @onsubmit:preventDefault="true">
+            <!-- School Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">School Information</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- School Name -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                School Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="SchoolName" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Enter school name" />
+                        </div>
+
+                        <!-- Location -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                City/Municipality <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Location" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="City/Municipality" />
+                        </div>
+
+                        <!-- School Type -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">School Type</label>
+                            <select @bind="SchoolType"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select type</option>
+                                <option value="Private">Private</option>
+                                <option value="Public">Public</option>
+                                <option value="International">International</option>
+                                <option value="Vocational">Vocational</option>
+                            </select>
+                        </div>
+
+                        <!-- Estimated Students -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Estimated Student Count</label>
+                            <input type="number" @bind="EstimatedStudents" min="0"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Number of students" />
+                        </div>
+
+                        <!-- Website -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Website</label>
+                            <input type="url" @bind="Website"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="https://school.edu.ph" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Contact Information</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- Contact Name -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Contact Person <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="ContactName" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Full name" />
+                        </div>
+
+                        <!-- Position/Title -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Position/Title</label>
+                            <input type="text" @bind="ContactPosition"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="e.g., Principal, Owner" />
+                        </div>
+
+                        <!-- Email -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" @bind="Email" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="email@school.edu.ph" />
+                        </div>
+
+                        <!-- Phone -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Phone Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="tel" @bind="Phone" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="+63 XXX XXX XXXX" />
+                        </div>
+
+                        <!-- Secondary Contact -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Alternative Contact</label>
+                            <input type="tel" @bind="AlternativePhone"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Optional" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lead Details -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Lead Details</h2>
+                    
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                        <!-- Lead Source -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Lead Source <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="LeadSource" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select source</option>
+                                <option value="Website">Website Inquiry</option>
+                                <option value="Referral">Referral</option>
+                                <option value="Cold Call">Cold Call</option>
+                                <option value="Email Campaign">Email Campaign</option>
+                                <option value="Social Media">Social Media</option>
+                                <option value="Event">Event/Trade Show</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <!-- Interest Level -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Interest Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="InterestLevel" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select level</option>
+                                <option value="Hot">Hot - Ready to buy</option>
+                                <option value="Warm">Warm - Interested</option>
+                                <option value="Cold">Cold - Exploring options</option>
+                            </select>
+                        </div>
+
+                        <!-- Interested Plan -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Interested Plan</label>
+                            <select @bind="InterestedPlan"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Not specified</option>
+                                <option value="Basic">Basic - ?35,000/month</option>
+                                <option value="Standard">Standard - ?55,000/month</option>
+                                <option value="Premium">Premium - ?85,000/month</option>
+                            </select>
+                        </div>
+
+                        <!-- Expected Close Date -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Expected Close Date</label>
+                            <input type="date" @bind="ExpectedCloseDate"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- Assigned Sales Agent -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Assigned Sales Agent</label>
+                            <select @bind="AssignedAgent"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Unassigned</option>
+                                <option value="Juan Dela Cruz">Juan Dela Cruz</option>
+                                <option value="Maria Santos">Maria Santos</option>
+                                <option value="Pedro Reyes">Pedro Reyes</option>
+                            </select>
+                        </div>
+
+                        <!-- Budget Range -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Budget Range (Monthly)</label>
+                            <select @bind="BudgetRange"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Not specified</option>
+                                <option value="Below 35000">Below ?35,000</option>
+                                <option value="35000-55000">?35,000 - ?55,000</option>
+                                <option value="55000-85000">?55,000 - ?85,000</option>
+                                <option value="Above 85000">Above ?85,000</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Additional Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Additional Information</h2>
+                    
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Notes / Requirements</label>
+                        <textarea @bind="Notes" rows="4"
+                                  class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                  placeholder="Any specific requirements or notes about this lead..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-6 flex justify-end gap-4">
+                <button type="button" 
+                    @onclick="Cancel"
+                    class="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-md transition-all duration-300 hover:bg-gray-50 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="rounded-full bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    Add Lead
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@code {
+    private string SchoolName { get; set; } = string.Empty;
+    private string Location { get; set; } = string.Empty;
+    private string SchoolType { get; set; } = string.Empty;
+    private int EstimatedStudents { get; set; } = 0;
+    private string Website { get; set; } = string.Empty;
+    private string ContactName { get; set; } = string.Empty;
+    private string ContactPosition { get; set; } = string.Empty;
+    private string Email { get; set; } = string.Empty;
+    private string Phone { get; set; } = string.Empty;
+    private string AlternativePhone { get; set; } = string.Empty;
+    private string LeadSource { get; set; } = string.Empty;
+    private string InterestLevel { get; set; } = string.Empty;
+    private string InterestedPlan { get; set; } = string.Empty;
+    private DateTime? ExpectedCloseDate { get; set; }
+    private string AssignedAgent { get; set; } = string.Empty;
+    private string BudgetRange { get; set; } = string.Empty;
+    private string Notes { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        // Basic guard to ensure required fields (UI already enforces via required attributes)
+        if (string.IsNullOrWhiteSpace(SchoolName) ||
+            string.IsNullOrWhiteSpace(Location) ||
+            string.IsNullOrWhiteSpace(ContactName) ||
+            string.IsNullOrWhiteSpace(Email) ||
+            string.IsNullOrWhiteSpace(Phone) ||
+            string.IsNullOrWhiteSpace(LeadSource) ||
+            string.IsNullOrWhiteSpace(InterestLevel))
+        {
+            return;
+        }
+
+        var lead = new SalesLead
+        {
+            school_name = SchoolName,
+            location = Location,
+            school_type = string.IsNullOrWhiteSpace(SchoolType) ? null : SchoolType,
+            estimated_students = EstimatedStudents,
+            website = string.IsNullOrWhiteSpace(Website) ? null : Website,
+            contact_name = ContactName,
+            contact_position = string.IsNullOrWhiteSpace(ContactPosition) ? null : ContactPosition,
+            email = Email,
+            phone = Phone,
+            alternative_phone = string.IsNullOrWhiteSpace(AlternativePhone) ? null : AlternativePhone,
+            lead_source = LeadSource,
+            interest_level = InterestLevel,
+            interested_plan = string.IsNullOrWhiteSpace(InterestedPlan) ? null : InterestedPlan,
+            expected_close_date = ExpectedCloseDate,
+            assigned_agent = string.IsNullOrWhiteSpace(AssignedAgent) ? null : AssignedAgent,
+            budget_range = string.IsNullOrWhiteSpace(BudgetRange) ? null : BudgetRange,
+            notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes,
+            status = "Active"
+        };
+
+        await SalesLeadService.CreateLeadAsync(lead);
+
+        // Navigate back with success message
+        Navigation.NavigateTo("/system-admin/sales?toast=lead_added");
+    }
+
+    private void Cancel()
+    {
+        Navigation.NavigateTo("/system-admin/sales");
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/system-admin/sales");
+    }
+}
