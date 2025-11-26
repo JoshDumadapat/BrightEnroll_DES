@@ -31,6 +31,10 @@ public class AppDbContext : DbContext
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
 
+    // Payment tables
+    public DbSet<StudentAccount> StudentAccounts { get; set; }
+    public DbSet<Payment> Payments { get; set; }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
@@ -166,6 +170,55 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ChangedBy)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure StudentAccount entity
+        modelBuilder.Entity<StudentAccount>(entity =>
+        {
+            entity.HasKey(e => e.AccountId);
+            entity.ToTable("tbl_StudentAccounts");
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.PaymentStatus);
+            entity.HasIndex(e => e.SchoolYear);
+            entity.HasIndex(e => e.IsActive);
+
+            entity.HasOne(a => a.Student)
+                  .WithMany()
+                  .HasForeignKey(a => a.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(a => a.Payments)
+                  .WithOne(p => p.Account)
+                  .HasForeignKey(p => p.AccountId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure Payment entity
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.HasKey(e => e.PaymentId);
+            entity.ToTable("tbl_Payments");
+            entity.HasIndex(e => e.ORNumber).IsUnique();
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.TransactionDate);
+            entity.HasIndex(e => e.PaymentType);
+            entity.HasIndex(e => e.ProcessedBy);
+            entity.HasIndex(e => e.IsVoid);
+
+            entity.HasOne(p => p.Student)
+                  .WithMany()
+                  .HasForeignKey(p => p.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(p => p.Account)
+                  .WithMany(a => a.Payments)
+                  .HasForeignKey(p => p.AccountId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(p => p.ProcessedByUser)
+                  .WithMany()
+                  .HasForeignKey(p => p.ProcessedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
