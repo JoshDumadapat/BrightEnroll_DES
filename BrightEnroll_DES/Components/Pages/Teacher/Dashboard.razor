@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject TeacherDashboardService DashboardService
 
 <PageTitle>Teacher Dashboard</PageTitle>
 
@@ -185,21 +186,46 @@
 
     private async Task LoadDashboardData()
     {
-        // TODO: Load actual data from database
-        // For now, using mock data
-        await Task.Delay(500);
-
-        TotalClasses = 5;
-        TotalStudents = 150;
-        PendingGrades = 12;
-        ClassesToday = 3;
-
-        TodaySchedule = new List<ScheduleItem>
+        try
         {
-            new ScheduleItem { Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section A", Time = "8:00 AM - 9:00 AM", Room = "Room 101" },
-            new ScheduleItem { Subject = "Science", GradeLevel = "Grade 8", Section = "Section B", Time = "10:00 AM - 11:00 AM", Room = "Room 205" },
-            new ScheduleItem { Subject = "English", GradeLevel = "Grade 7", Section = "Section C", Time = "1:00 PM - 2:00 PM", Room = "Room 102" }
-        };
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue)
+            {
+                TotalClasses = 0;
+                TotalStudents = 0;
+                PendingGrades = 0;
+                ClassesToday = 0;
+                TodaySchedule = new List<ScheduleItem>();
+                return;
+            }
+
+            // Load dashboard statistics
+            var stats = await DashboardService.GetDashboardStatsAsync(teacherId.Value);
+            TotalClasses = stats.TotalClasses;
+            TotalStudents = stats.TotalStudents;
+            PendingGrades = stats.PendingGrades;
+            ClassesToday = stats.ClassesToday;
+
+            // Load today's schedule
+            var todaySchedule = await DashboardService.GetTodayScheduleAsync(teacherId.Value);
+            TodaySchedule = todaySchedule.Select(s => new ScheduleItem
+            {
+                Subject = s.Subject,
+                GradeLevel = s.GradeLevel,
+                Section = s.Section,
+                Time = s.Time,
+                Room = s.Room
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading dashboard data: {ex.Message}");
+            TotalClasses = 0;
+            TotalStudents = 0;
+            PendingGrades = 0;
+            ClassesToday = 0;
+            TodaySchedule = new List<ScheduleItem>();
+        }
     }
 
     private string GetTeacherName()

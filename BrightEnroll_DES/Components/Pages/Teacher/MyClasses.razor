@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassAssignmentService ClassAssignmentService
 
 <PageTitle>My Classes</PageTitle>
 
@@ -28,15 +29,17 @@
     <div class="flex flex-wrap items-center gap-4">
         <div class="flex-1 min-w-[200px]">
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
-            <select @bind="SelectedSchoolYear" @bind:after="FilterClasses" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+            <select @bind="SelectedSchoolYear" @bind:after="OnSchoolYearChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">All School Years</option>
-                <option value="2023-2024">2023-2024</option>
-                <option value="2024-2025">2024-2025</option>
+                @foreach (var year in AvailableSchoolYears)
+                {
+                    <option value="@year">@year</option>
+                }
             </select>
         </div>
         <div class="flex-1 min-w-[200px]">
             <label class="mb-2 block text-sm font-medium text-gray-700">Search</label>
-            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterClasses" placeholder="Search class or subject..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="OnSearchChanged" placeholder="Search class or subject..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
         </div>
     </div>
 </div>
@@ -105,6 +108,7 @@
     private string SelectedSchoolYear { get; set; } = string.Empty;
     private string SearchTerm { get; set; } = string.Empty;
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
     private List<ClassInfo> Classes { get; set; } = new();
     private List<ClassInfo> FilteredClasses { get; set; } = new();
 
@@ -121,7 +125,12 @@
         
         try
         {
+            await LoadInitialData();
             await LoadClasses();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
         }
         finally
         {
@@ -129,24 +138,80 @@
         }
     }
 
-    private async Task LoadClasses()
+    private async Task LoadInitialData()
     {
-        // TODO: Load from database based on teacher's assignments
-        await Task.Delay(500);
-
-        Classes = new List<ClassInfo>
+        try
         {
-            new ClassInfo { Id = "1", Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section A", StudentCount = 35, Schedule = "MWF 8:00-9:00 AM", Room = "Room 101", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "2", Subject = "Mathematics", GradeLevel = "Grade 7", Section = "Section B", StudentCount = 32, Schedule = "MWF 9:00-10:00 AM", Room = "Room 101", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "3", Subject = "Science", GradeLevel = "Grade 8", Section = "Section A", StudentCount = 38, Schedule = "TTH 10:00-11:30 AM", Room = "Room 205", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "4", Subject = "Science", GradeLevel = "Grade 8", Section = "Section B", StudentCount = 30, Schedule = "TTH 1:00-2:30 PM", Room = "Room 205", Status = "Active", SchoolYear = "2024-2025" },
-            new ClassInfo { Id = "5", Subject = "English", GradeLevel = "Grade 7", Section = "Section C", StudentCount = 28, Schedule = "MWF 1:00-2:00 PM", Room = "Room 102", Status = "Active", SchoolYear = "2024-2025" }
-        };
-
-        FilteredClasses = Classes;
+            // Load available school years
+            AvailableSchoolYears = await ClassAssignmentService.GetAvailableSchoolYearsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading school years: {ex.Message}");
+        }
     }
 
-    private void FilterClasses()
+    private async Task LoadClasses()
+    {
+        try
+        {
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue)
+            {
+                Classes = new List<ClassInfo>();
+                FilteredClasses = Classes;
+                return;
+            }
+
+            // Load class assignments from database
+            var assignments = await ClassAssignmentService.GetTeacherClassAssignmentsAsync(
+                teacherId.Value,
+                string.IsNullOrEmpty(SelectedSchoolYear) ? null : SelectedSchoolYear);
+
+            // Convert to ClassInfo
+            Classes = assignments.Select(a => new ClassInfo
+            {
+                Id = a.Id,
+                Subject = a.Subject,
+                GradeLevel = a.GradeLevel,
+                Section = a.Section,
+                StudentCount = a.StudentCount,
+                Schedule = a.Schedule,
+                Room = a.Room,
+                Status = a.Status,
+                SchoolYear = a.SchoolYear
+            }).ToList();
+
+            ApplySearchFilter();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
+            Classes = new List<ClassInfo>();
+            FilteredClasses = Classes;
+        }
+    }
+
+    private async Task OnSchoolYearChanged()
+    {
+        LoadingService.ShowLoading("Loading classes...");
+        try
+        {
+            await LoadClasses();
+            ApplySearchFilter();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        ApplySearchFilter();
+    }
+
+    private void ApplySearchFilter()
     {
         FilteredClasses = Classes.Where(c =>
         {

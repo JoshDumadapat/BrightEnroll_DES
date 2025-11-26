@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject GradeService GradeService
 
 <PageTitle>Grade Entry</PageTitle>
 
@@ -31,8 +32,10 @@
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
             <select @bind="SelectedSchoolYear" @bind:after="LoadClassData" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">Select School Year</option>
-                <option value="2023-2024">2023-2024</option>
-                <option value="2024-2025">2024-2025</option>
+                @foreach (var year in AvailableSchoolYears)
+                {
+                    <option value="@year">@year</option>
+                }
             </select>
         </div>
         <div>
@@ -99,16 +102,16 @@
                             <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">@student.StudentId</td>
                             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">@student.Name</td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.FirstQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.FirstQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.SecondQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.SecondQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.ThirdQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.ThirdQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-6 py-4">
-                                <input type="number" @bind="student.FourthQuarter" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                <input type="number" @bind="student.FourthQuarter" @bind:event="onchange" min="0" max="100" step="0.01" class="w-20 rounded border border-gray-300 px-2 py-1 text-center text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="whitespace-nowrap px-6 py-4 text-center text-sm font-semibold text-gray-800">
                                 @CalculateFinalGrade(student)
@@ -155,11 +158,14 @@ else
     private string SelectedClass { get; set; } = string.Empty;
     private string SelectedSubject { get; set; } = string.Empty;
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
     private List<ClassItem> Classes { get; set; } = new();
     private List<string> Subjects { get; set; } = new();
-    private List<StudentGrade> Students { get; set; } = new();
+    private List<StudentGradeDto> Students { get; set; } = new();
+    private string? SelectedGradeLevel { get; set; }
+    private string? SelectedSection { get; set; }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Check if user is a teacher
         if (AuthService.CurrentUser?.user_role != "Teacher")
@@ -169,34 +175,66 @@ else
         }
 
         // Load initial data
-        LoadClassData();
+        await LoadInitialData();
     }
 
-    private void LoadClassData()
+    private async Task LoadInitialData()
     {
-        // TODO: Load from database based on teacher's assigned classes
-        Classes = new List<ClassItem>
+        LoadingService.ShowLoading("Loading data...");
+        try
         {
-            new ClassItem { Id = "1", Name = "Grade 7 - Section A" },
-            new ClassItem { Id = "2", Name = "Grade 7 - Section B" },
-            new ClassItem { Id = "3", Name = "Grade 8 - Section A" },
-            new ClassItem { Id = "4", Name = "Grade 8 - Section B" }
-        };
+            // Load available school years
+            AvailableSchoolYears = await GradeService.GetAvailableSchoolYearsAsync();
+            
+            // Load available subjects
+            Subjects = GradeService.GetAvailableSubjects();
+        }
+        catch (Exception ex)
+        {
+            // Handle error - could show toast notification
+            Console.WriteLine($"Error loading initial data: {ex.Message}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
 
-        Subjects = new List<string>
+    private async Task LoadClassData()
+    {
+        if (string.IsNullOrEmpty(SelectedSchoolYear))
         {
-            "Mathematics",
-            "Science",
-            "English",
-            "Filipino",
-            "History",
-            "MAPEH"
-        };
+            Classes.Clear();
+            return;
+        }
+
+        LoadingService.ShowLoading("Loading classes...");
+        try
+        {
+            // Get available grade levels for the selected school year
+            var gradeLevels = await GradeService.GetAvailableGradeLevelsAsync(SelectedSchoolYear);
+            
+            // Build class list from grade levels
+            // Note: Sections would need to come from a separate table or be parsed from student data
+            Classes = gradeLevels.Select(gl => new ClassItem 
+            { 
+                Id = gl, 
+                Name = $"Grade {gl}" 
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes: {ex.Message}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
     }
 
     private async Task LoadStudents()
     {
-        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSubject))
+        if (string.IsNullOrEmpty(SelectedClass) || string.IsNullOrEmpty(SelectedSubject) || string.IsNullOrEmpty(SelectedSchoolYear))
         {
             Students.Clear();
             return;
@@ -206,16 +244,42 @@ else
         
         try
         {
-            // TODO: Load actual student data from database
-            await Task.Delay(500);
+            // Parse grade level from SelectedClass (format: "Grade 7" or "7")
+            SelectedGradeLevel = SelectedClass;
+            SelectedSection = null; // Sections not yet implemented in database
 
-            Students = new List<StudentGrade>
+            // First, get students for the class
+            var studentsForClass = await GradeService.GetStudentsForClassAsync(
+                SelectedSchoolYear, 
+                SelectedGradeLevel, 
+                SelectedSection);
+
+            // Then, get existing grades for these students
+            var existingGrades = await GradeService.GetStudentGradesAsync(
+                SelectedSchoolYear,
+                SelectedGradeLevel,
+                SelectedSection,
+                SelectedSubject);
+
+            // Merge: create StudentGradeDto for each student, using existing grades if available
+            Students = studentsForClass.Select(s => 
             {
-                new StudentGrade { StudentId = "2024-001", Name = "Juan Dela Cruz", FirstQuarter = 85, SecondQuarter = 88, ThirdQuarter = 90, FourthQuarter = 87 },
-                new StudentGrade { StudentId = "2024-002", Name = "Maria Santos", FirstQuarter = 92, SecondQuarter = 90, ThirdQuarter = 94, FourthQuarter = 93 },
-                new StudentGrade { StudentId = "2024-003", Name = "Pedro Reyes", FirstQuarter = 78, SecondQuarter = 80, ThirdQuarter = 82, FourthQuarter = 79 },
-                new StudentGrade { StudentId = "2024-004", Name = "Ana Garcia", FirstQuarter = 88, SecondQuarter = 86, ThirdQuarter = 89, FourthQuarter = 90 }
-            };
+                var existingGrade = existingGrades.FirstOrDefault(g => g.StudentId == s.StudentId);
+                return existingGrade ?? new StudentGradeDto
+                {
+                    StudentId = s.StudentId,
+                    Name = s.Name,
+                    FirstQuarter = null,
+                    SecondQuarter = null,
+                    ThirdQuarter = null,
+                    FourthQuarter = null
+                };
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading students: {ex.Message}");
+            // Show error message to user
         }
         finally
         {
@@ -225,14 +289,27 @@ else
 
     private string GetSelectedClassName()
     {
-        return Classes.FirstOrDefault(c => c.Id == SelectedClass)?.Name ?? "";
+        if (string.IsNullOrEmpty(SelectedClass))
+            return "";
+        
+        var className = Classes.FirstOrDefault(c => c.Id == SelectedClass)?.Name;
+        if (!string.IsNullOrEmpty(className))
+            return className;
+        
+        // Fallback: return the grade level directly
+        return $"Grade {SelectedClass}";
     }
 
-    private string CalculateFinalGrade(StudentGrade student)
+    private string CalculateFinalGrade(StudentGradeDto student)
     {
+        if (student.FinalGrade.HasValue)
+        {
+            return student.FinalGrade.Value.ToString("F2");
+        }
+
         var grades = new[] { student.FirstQuarter, student.SecondQuarter, student.ThirdQuarter, student.FourthQuarter }
             .Where(g => g.HasValue)
-            .Select(g => g!.Value)
+            .Select(g => (double)g!.Value)
             .ToList();
 
         if (!grades.Any()) return "-";
@@ -241,8 +318,13 @@ else
         return average.ToString("F2");
     }
 
-    private string GetRemarks(StudentGrade student)
+    private string GetRemarks(StudentGradeDto student)
     {
+        if (!string.IsNullOrWhiteSpace(student.Remarks))
+        {
+            return student.Remarks;
+        }
+
         var finalGrade = CalculateFinalGrade(student);
         if (finalGrade == "-") return "Incomplete";
 
@@ -250,7 +332,7 @@ else
         return grade >= 75 ? "PASSED" : "FAILED";
     }
 
-    private string GetRemarksClass(StudentGrade student)
+    private string GetRemarksClass(StudentGradeDto student)
     {
         var remarks = GetRemarks(student);
         return remarks switch
@@ -261,16 +343,42 @@ else
         };
     }
 
-    private async Task SaveStudentGrade(StudentGrade student)
+    private async Task SaveStudentGrade(StudentGradeDto student)
     {
+        if (string.IsNullOrEmpty(SelectedSchoolYear) || string.IsNullOrEmpty(SelectedGradeLevel) || string.IsNullOrEmpty(SelectedSubject))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Saving grade...");
         
         try
         {
-            // TODO: Save to database
-            await Task.Delay(500);
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            var createdBy = AuthService.CurrentUser?.system_ID;
+
+            await GradeService.SaveStudentGradeWithContextAsync(
+                student.StudentId,
+                SelectedSchoolYear,
+                SelectedGradeLevel,
+                SelectedSection,
+                SelectedSubject,
+                student.FirstQuarter,
+                student.SecondQuarter,
+                student.ThirdQuarter,
+                student.FourthQuarter,
+                teacherId,
+                createdBy);
+
+            // Reload to get updated final grade and remarks
+            await LoadStudents();
             
             // Show success message (could use toast notification)
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving grade: {ex.Message}");
+            // Show error message to user
         }
         finally
         {
@@ -280,14 +388,36 @@ else
 
     private async Task SaveAllGrades()
     {
+        if (string.IsNullOrEmpty(SelectedSchoolYear) || string.IsNullOrEmpty(SelectedGradeLevel) || string.IsNullOrEmpty(SelectedSubject))
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Saving all grades...");
         
         try
         {
-            // TODO: Save all grades to database
-            await Task.Delay(1000);
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            var createdBy = AuthService.CurrentUser?.system_ID;
+
+            await GradeService.SaveMultipleGradesAsync(
+                SelectedSchoolYear,
+                SelectedGradeLevel,
+                SelectedSection,
+                SelectedSubject,
+                Students,
+                teacherId,
+                createdBy);
+
+            // Reload to get updated final grades and remarks
+            await LoadStudents();
             
             // Show success message
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving grades: {ex.Message}");
+            // Show error message to user
         }
         finally
         {
@@ -304,15 +434,5 @@ else
     {
         public string Id { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
-    }
-
-    public class StudentGrade
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string Name { get; set; } = string.Empty;
-        public double? FirstQuarter { get; set; }
-        public double? SecondQuarter { get; set; }
-        public double? ThirdQuarter { get; set; }
-        public double? FourthQuarter { get; set; }
     }
 }

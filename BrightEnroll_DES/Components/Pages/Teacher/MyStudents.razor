@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassAssignmentService ClassAssignmentService
 
 <PageTitle>My Students</PageTitle>
 
@@ -28,7 +29,7 @@
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Class</label>
-            <select @bind="SelectedClass" @bind:after="FilterStudents" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+            <select @bind="SelectedClass" @bind:after="OnClassChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">All Classes</option>
                 @foreach (var cls in Classes)
                 {
@@ -38,7 +39,7 @@
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Subject</label>
-            <select @bind="SelectedSubject" @bind:after="FilterStudents" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+            <select @bind="SelectedSubject" @bind:after="OnSubjectChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">All Subjects</option>
                 @foreach (var subject in Subjects)
                 {
@@ -48,7 +49,7 @@
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Search Student</label>
-            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterStudents" placeholder="Search by name or ID..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="OnSearchChanged" placeholder="Search by name or ID..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
         </div>
     </div>
 </div>
@@ -161,37 +162,98 @@
 
     private async Task LoadStudents()
     {
-        // TODO: Load from database based on teacher's classes
-        await Task.Delay(500);
-
-        Classes = new List<string>
+        try
         {
-            "Grade 7 - Section A",
-            "Grade 7 - Section B",
-            "Grade 8 - Section A",
-            "Grade 8 - Section B"
-        };
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue)
+            {
+                Students = new List<StudentInfo>();
+                FilteredStudents = Students;
+                return;
+            }
 
-        Subjects = new List<string>
+            // Load classes and subjects from database
+            Classes = await ClassAssignmentService.GetTeacherClassesAsync(teacherId.Value);
+            Subjects = await ClassAssignmentService.GetTeacherSubjectsAsync(teacherId.Value);
+
+            // Parse selected class to get grade level and section
+            string? gradeLevel = null;
+            string? section = null;
+            if (!string.IsNullOrEmpty(SelectedClass))
+            {
+                var parts = SelectedClass.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 1)
+                    gradeLevel = parts[0].Trim();
+                if (parts.Length >= 2)
+                {
+                    var sectionPart = parts[1].Trim();
+                    if (sectionPart != "N/A")
+                        section = sectionPart;
+                }
+            }
+
+            // Load students from database
+            var students = await ClassAssignmentService.GetTeacherStudentsAsync(
+                teacherId.Value,
+                gradeLevel: gradeLevel,
+                section: section,
+                subject: string.IsNullOrEmpty(SelectedSubject) ? null : SelectedSubject);
+
+            // Convert to StudentInfo
+            Students = students.Select(s => new StudentInfo
+            {
+                StudentId = s.StudentId,
+                Name = s.Name,
+                Email = s.Email,
+                GradeLevel = s.GradeLevel,
+                Section = s.Section,
+                ContactNumber = s.ContactNumber,
+                Average = s.Average,
+                Status = s.Status
+            }).ToList();
+
+            ApplyFilters();
+        }
+        catch (Exception ex)
         {
-            "Mathematics",
-            "Science",
-            "English"
-        };
-
-        Students = new List<StudentInfo>
-        {
-            new StudentInfo { StudentId = "2024-001", Name = "Juan Dela Cruz", Email = "juan.delacruz@email.com", GradeLevel = "Grade 7", Section = "Section A", ContactNumber = "09123456789", Average = 87.5, Status = "Active" },
-            new StudentInfo { StudentId = "2024-002", Name = "Maria Santos", Email = "maria.santos@email.com", GradeLevel = "Grade 7", Section = "Section A", ContactNumber = "09234567890", Average = 92.3, Status = "Active" },
-            new StudentInfo { StudentId = "2024-003", Name = "Pedro Reyes", Email = "pedro.reyes@email.com", GradeLevel = "Grade 7", Section = "Section B", ContactNumber = "09345678901", Average = 79.8, Status = "Active" },
-            new StudentInfo { StudentId = "2024-004", Name = "Ana Garcia", Email = "ana.garcia@email.com", GradeLevel = "Grade 8", Section = "Section A", ContactNumber = "09456789012", Average = 88.6, Status = "Active" },
-            new StudentInfo { StudentId = "2024-005", Name = "Carlos Mendoza", Email = "carlos.mendoza@email.com", GradeLevel = "Grade 8", Section = "Section B", ContactNumber = "09567890123", Average = 85.2, Status = "Active" }
-        };
-
-        FilteredStudents = Students;
+            Console.WriteLine($"Error loading students: {ex.Message}");
+            Students = new List<StudentInfo>();
+            FilteredStudents = Students;
+        }
     }
 
-    private void FilterStudents()
+    private async Task OnClassChanged()
+    {
+        LoadingService.ShowLoading("Loading students...");
+        try
+        {
+            await LoadStudents();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private async Task OnSubjectChanged()
+    {
+        LoadingService.ShowLoading("Loading students...");
+        try
+        {
+            await LoadStudents();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
     {
         FilteredStudents = Students.Where(s =>
         {
@@ -199,7 +261,7 @@
                 $"{s.GradeLevel} - {s.Section}" == SelectedClass;
             
             bool matchesSubject = string.IsNullOrEmpty(SelectedSubject);
-            // TODO: Filter by subject when that data is available
+            // Subject filtering is done at database level in LoadStudents
             
             bool matchesSearch = string.IsNullOrEmpty(SearchTerm) ||
                 s.Name.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||

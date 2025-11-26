@@ -5,6 +5,7 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ClassAssignmentService ClassAssignmentService
 
 <PageTitle>My Schedule</PageTitle>
 
@@ -159,20 +160,34 @@
 
     private async Task LoadSchedule()
     {
-        // TODO: Load from database
-        await Task.Delay(500);
-
-        Schedule = new List<ScheduleItem>
+        try
         {
-            new ScheduleItem { Day = "Monday", StartTime = "8:00 AM", EndTime = "9:00 AM", Subject = "Mathematics", Class = "Grade 7-A", Room = "Room 101" },
-            new ScheduleItem { Day = "Monday", StartTime = "10:00 AM", EndTime = "11:00 AM", Subject = "Mathematics", Class = "Grade 7-B", Room = "Room 101" },
-            new ScheduleItem { Day = "Tuesday", StartTime = "10:00 AM", EndTime = "11:30 AM", Subject = "Science", Class = "Grade 8-A", Room = "Room 205" },
-            new ScheduleItem { Day = "Wednesday", StartTime = "8:00 AM", EndTime = "9:00 AM", Subject = "Mathematics", Class = "Grade 7-A", Room = "Room 101" },
-            new ScheduleItem { Day = "Wednesday", StartTime = "1:00 PM", EndTime = "2:00 PM", Subject = "English", Class = "Grade 7-C", Room = "Room 102" },
-            new ScheduleItem { Day = "Thursday", StartTime = "10:00 AM", EndTime = "11:30 AM", Subject = "Science", Class = "Grade 8-B", Room = "Room 205" },
-            new ScheduleItem { Day = "Friday", StartTime = "8:00 AM", EndTime = "9:00 AM", Subject = "Mathematics", Class = "Grade 7-A", Room = "Room 101" },
-            new ScheduleItem { Day = "Friday", StartTime = "10:00 AM", EndTime = "11:00 AM", Subject = "Mathematics", Class = "Grade 7-B", Room = "Room 101" }
-        };
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue)
+            {
+                Schedule = new List<ScheduleItem>();
+                return;
+            }
+
+            // Load schedule items from database
+            var scheduleItems = await ClassAssignmentService.GetTeacherScheduleItemsAsync(teacherId.Value);
+
+            // Convert to ScheduleItem for display
+            Schedule = scheduleItems.Select(s => new ScheduleItem
+            {
+                Day = s.Day,
+                StartTime = s.StartTime,
+                EndTime = s.EndTime,
+                Subject = s.Subject,
+                Class = s.Class,
+                Room = s.Room
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading schedule: {ex.Message}");
+            Schedule = new List<ScheduleItem>();
+        }
     }
 
     private string GetWeekRange()

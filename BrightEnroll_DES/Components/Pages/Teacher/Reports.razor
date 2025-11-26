@@ -5,6 +5,8 @@
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject ReportService ReportService
+@inject ClassAssignmentService ClassAssignmentService
 
 <PageTitle>Reports</PageTitle>
 
@@ -90,10 +92,12 @@
         <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
-                <select @bind="ReportSchoolYear" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <select @bind="ReportSchoolYear" @bind:after="OnSchoolYearChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                     <option value="">Select School Year</option>
-                    <option value="2023-2024">2023-2024</option>
-                    <option value="2024-2025">2024-2025</option>
+                    @foreach (var year in AvailableSchoolYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
                 </select>
             </div>
 
@@ -103,9 +107,10 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700">Class</label>
                     <select @bind="ReportClass" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                         <option value="">Select Class</option>
-                        <option value="Grade 7-A">Grade 7 - Section A</option>
-                        <option value="Grade 7-B">Grade 7 - Section B</option>
-                        <option value="Grade 8-A">Grade 8 - Section A</option>
+                        @foreach (var cls in AvailableClasses)
+                        {
+                            <option value="@cls">@cls</option>
+                        }
                     </select>
                 </div>
             }
@@ -116,9 +121,10 @@
                     <label class="mb-2 block text-sm font-medium text-gray-700">Subject</label>
                     <select @bind="ReportSubject" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                         <option value="">Select Subject</option>
-                        <option value="Mathematics">Mathematics</option>
-                        <option value="Science">Science</option>
-                        <option value="English">English</option>
+                        @foreach (var subject in AvailableSubjects)
+                        {
+                            <option value="@subject">@subject</option>
+                        }
                     </select>
                 </div>
             }
@@ -208,6 +214,9 @@
     private string ReportStudent { get; set; } = string.Empty;
     private string ReportPeriod { get; set; } = "All";
 
+    private List<string> AvailableSchoolYears { get; set; } = new();
+    private List<string> AvailableClasses { get; set; } = new();
+    private List<string> AvailableSubjects { get; set; } = new();
     private List<ReportInfo> RecentReports { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
@@ -223,6 +232,7 @@
         
         try
         {
+            await LoadInitialData();
             await LoadRecentReports();
         }
         finally
@@ -231,17 +241,74 @@
         }
     }
 
+    private async Task LoadInitialData()
+    {
+        try
+        {
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue) return;
+
+            // Load available school years
+            AvailableSchoolYears = await ReportService.GetAvailableSchoolYearsAsync(teacherId.Value);
+            
+            // Load classes and subjects will be loaded when school year is selected
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading initial data: {ex.Message}");
+        }
+    }
+
+    private async Task OnSchoolYearChanged()
+    {
+        try
+        {
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue) return;
+
+            if (!string.IsNullOrEmpty(ReportSchoolYear))
+            {
+                // Load classes and subjects for selected school year
+                AvailableClasses = await ClassAssignmentService.GetTeacherClassesAsync(teacherId.Value, ReportSchoolYear);
+                AvailableSubjects = await ClassAssignmentService.GetTeacherSubjectsAsync(teacherId.Value, ReportSchoolYear);
+            }
+            else
+            {
+                AvailableClasses = new List<string>();
+                AvailableSubjects = new List<string>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading classes and subjects: {ex.Message}");
+        }
+    }
+
     private async Task LoadRecentReports()
     {
-        // TODO: Load from database
-        await Task.Delay(500);
-
-        RecentReports = new List<ReportInfo>
+        try
         {
-            new ReportInfo { Title = "Grade 7-A Mathematics - 1st Quarter", GeneratedDate = DateTime.Now.AddDays(-2) },
-            new ReportInfo { Title = "Grade 8-A Science - Final Grades", GeneratedDate = DateTime.Now.AddDays(-5) },
-            new ReportInfo { Title = "Class Performance Summary - Grade 7-B", GeneratedDate = DateTime.Now.AddDays(-7) }
-        };
+            var teacherId = AuthService.CurrentUser?.user_ID;
+            if (!teacherId.HasValue)
+            {
+                RecentReports = new List<ReportInfo>();
+                return;
+            }
+
+            var reports = await ReportService.GetRecentReportsAsync(teacherId.Value);
+
+            RecentReports = reports.Select(r => new ReportInfo
+            {
+                ReportId = r.ReportId,
+                Title = r.Title,
+                GeneratedDate = r.GeneratedDate
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading recent reports: {ex.Message}");
+            RecentReports = new List<ReportInfo>();
+        }
     }
 
     private void SelectReportType(ReportType type)
@@ -272,12 +339,32 @@
 
     private async Task PreviewReport()
     {
+        if (!ValidateReportParameters())
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Generating preview...");
         
         try
         {
-            // TODO: Generate preview
-            await Task.Delay(1000);
+            // Parse class to get grade level and section
+            var (gradeLevel, section) = ParseClass(ReportClass);
+
+            // Generate report data based on type
+            var reportType = SelectedReportType.ToString();
+            var teacherId = AuthService.CurrentUser?.user_ID ?? 0;
+            var generatedBy = AuthService.CurrentUser?.system_ID;
+
+            // For preview, we just validate the data can be generated
+            // In a real implementation, you would generate and display the preview
+            await Task.Delay(500);
+            
+            // Show success message (could use toast notification)
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating preview: {ex.Message}");
         }
         finally
         {
@@ -287,24 +374,85 @@
 
     private async Task GenerateReport()
     {
+        if (!ValidateReportParameters())
+        {
+            return;
+        }
+
         LoadingService.ShowLoading("Generating report...");
         
         try
         {
-            // TODO: Generate and download report
-            await Task.Delay(1500);
+            var teacherId = AuthService.CurrentUser?.user_ID ?? 0;
+            var generatedBy = AuthService.CurrentUser?.system_ID;
+
+            // Parse class to get grade level and section
+            var (gradeLevel, section) = ParseClass(ReportClass);
+
+            // Create report record
+            var report = await ReportService.CreateReportAsync(
+                teacherId,
+                SelectedReportType.ToString(),
+                ReportSchoolYear,
+                gradeLevel,
+                section,
+                string.IsNullOrEmpty(ReportSubject) ? null : ReportSubject,
+                ReportPeriod == "All" ? null : ReportPeriod,
+                string.IsNullOrEmpty(ReportStudent) ? null : ReportStudent,
+                null, // filePath - could be set if file is saved
+                generatedBy);
+
+            // Reload recent reports
+            await LoadRecentReports();
             
-            // Add to recent reports
-            RecentReports.Insert(0, new ReportInfo 
-            { 
-                Title = GetReportTitle(), 
-                GeneratedDate = DateTime.Now 
-            });
+            // Show success message (could use toast notification)
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating report: {ex.Message}");
         }
         finally
         {
             LoadingService.HideLoading();
         }
+    }
+
+    private bool ValidateReportParameters()
+    {
+        if (string.IsNullOrEmpty(ReportSchoolYear))
+        {
+            // Show error: School year is required
+            return false;
+        }
+
+        if (SelectedReportType != ReportType.SubjectSummary)
+        {
+            if (string.IsNullOrEmpty(ReportClass))
+            {
+                // Show error: Class is required
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private (string? gradeLevel, string? section) ParseClass(string classString)
+    {
+        if (string.IsNullOrEmpty(classString))
+            return (null, null);
+
+        var parts = classString.Split(new[] { " - " }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 1)
+        {
+            var gradeLevel = parts[0].Trim();
+            var section = parts.Length >= 2 ? parts[1].Trim() : null;
+            if (section == "N/A")
+                section = null;
+            return (gradeLevel, section);
+        }
+
+        return (null, null);
     }
 
     private void GoBack()
@@ -322,6 +470,7 @@
 
     public class ReportInfo
     {
+        public int ReportId { get; set; }
         public string Title { get; set; } = string.Empty;
         public DateTime GeneratedDate { get; set; }
     }
