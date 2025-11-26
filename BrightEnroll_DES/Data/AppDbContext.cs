@@ -31,17 +31,9 @@ public class AppDbContext : DbContext
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
 
-    // Student grades
-    public DbSet<StudentGrade> StudentGrades { get; set; }
-
-    // Class assignments
-    public DbSet<ClassAssignment> ClassAssignments { get; set; }
-
-    // Teacher schedules
-    public DbSet<TeacherSchedule> TeacherSchedules { get; set; }
-
-    // Teacher reports
-    public DbSet<TeacherReport> TeacherReports { get; set; }
+    // Payment tables
+    public DbSet<StudentAccount> StudentAccounts { get; set; }
+    public DbSet<Payment> Payments { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -180,87 +172,52 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Configure StudentGrade entity
-        modelBuilder.Entity<StudentGrade>(entity =>
+        // Configure StudentAccount entity
+        modelBuilder.Entity<StudentAccount>(entity =>
         {
-            entity.HasKey(e => e.GradeId);
-            entity.ToTable("tbl_StudentGrades");
+            entity.HasKey(e => e.AccountId);
+            entity.ToTable("tbl_StudentAccounts");
             entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.PaymentStatus);
             entity.HasIndex(e => e.SchoolYear);
-            entity.HasIndex(e => e.GradeLevel);
-            entity.HasIndex(e => e.Subject);
-            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => e.IsActive);
 
-            // Unique constraint: one grade per student per school year per grade level per subject
-            entity.HasIndex(e => new { e.StudentId, e.SchoolYear, e.GradeLevel, e.Subject })
-                  .IsUnique();
-
-            entity.HasOne(g => g.Student)
+            entity.HasOne(a => a.Student)
                   .WithMany()
-                  .HasForeignKey(g => g.StudentId)
+                  .HasForeignKey(a => a.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(g => g.Teacher)
-                  .WithMany()
-                  .HasForeignKey(g => g.TeacherId)
+            entity.HasMany(a => a.Payments)
+                  .WithOne(p => p.Account)
+                  .HasForeignKey(p => p.AccountId)
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // Configure ClassAssignment entity
-        modelBuilder.Entity<ClassAssignment>(entity =>
+        // Configure Payment entity
+        modelBuilder.Entity<Payment>(entity =>
         {
-            entity.HasKey(e => e.AssignmentId);
-            entity.ToTable("tbl_ClassAssignments");
-            entity.HasIndex(e => e.TeacherId);
-            entity.HasIndex(e => e.SchoolYear);
-            entity.HasIndex(e => e.GradeLevel);
-            entity.HasIndex(e => e.Subject);
-            entity.HasIndex(e => e.Status);
-
-            // Unique constraint: one assignment per teacher per school year per grade level per section per subject
-            entity.HasIndex(e => new { e.TeacherId, e.SchoolYear, e.GradeLevel, e.Section, e.Subject })
-                  .IsUnique();
-
-            entity.HasOne(c => c.Teacher)
-                  .WithMany()
-                  .HasForeignKey(c => c.TeacherId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Configure TeacherSchedule entity
-        modelBuilder.Entity<TeacherSchedule>(entity =>
-        {
-            entity.HasKey(e => e.ScheduleId);
-            entity.ToTable("tbl_TeacherSchedules");
-            entity.HasIndex(e => e.AssignmentId);
-            entity.HasIndex(e => e.DayOfWeek);
-            entity.HasIndex(e => e.StartTime);
-
-            entity.HasOne(s => s.ClassAssignment)
-                  .WithMany(c => c.Schedules)
-                  .HasForeignKey(s => s.AssignmentId)
-                  .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Configure TeacherReport entity
-        modelBuilder.Entity<TeacherReport>(entity =>
-        {
-            entity.HasKey(e => e.ReportId);
-            entity.ToTable("tbl_TeacherReports");
-            entity.HasIndex(e => e.TeacherId);
-            entity.HasIndex(e => e.ReportType);
-            entity.HasIndex(e => e.SchoolYear);
-            entity.HasIndex(e => e.GeneratedDate);
+            entity.HasKey(e => e.PaymentId);
+            entity.ToTable("tbl_Payments");
+            entity.HasIndex(e => e.ORNumber).IsUnique();
             entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.TransactionDate);
+            entity.HasIndex(e => e.PaymentType);
+            entity.HasIndex(e => e.ProcessedBy);
+            entity.HasIndex(e => e.IsVoid);
 
-            entity.HasOne(r => r.Teacher)
+            entity.HasOne(p => p.Student)
                   .WithMany()
-                  .HasForeignKey(r => r.TeacherId)
+                  .HasForeignKey(p => p.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(r => r.Student)
+            entity.HasOne(p => p.Account)
+                  .WithMany(a => a.Payments)
+                  .HasForeignKey(p => p.AccountId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(p => p.ProcessedByUser)
                   .WithMany()
-                  .HasForeignKey(r => r.StudentId)
+                  .HasForeignKey(p => p.ProcessedBy)
                   .OnDelete(DeleteBehavior.SetNull);
         });
     }

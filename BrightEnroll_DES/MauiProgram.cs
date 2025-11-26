@@ -3,6 +3,7 @@ using BrightEnroll_DES.Services.AuthFunction;
 using BrightEnroll_DES.Services;
 using BrightEnroll_DES.Services.HR;
 using BrightEnroll_DES.Services.Finance;
+using BrightEnroll_DES.Services.Cashier;
 using BrightEnroll_DES.Services.DBConnections;
 using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Data;
@@ -86,17 +87,8 @@ namespace BrightEnroll_DES
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
             
-            // Register GradeService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<GradeService>();
-            
-            // Register ClassAssignmentService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<ClassAssignmentService>();
-            
-            // Register ReportService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<ReportService>();
-            
-            // Register TeacherDashboardService (scoped for EF Core DbContext)
-            builder.Services.AddScoped<TeacherDashboardService>();
+            // Register CashierService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<CashierService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

@@ -2,23 +2,27 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.Cashier
+@using BrightEnroll_DES.Services.Finance
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject CashierService CashierService
+@inject FeeService FeeService
 
 <PageTitle>Student Accounts</PageTitle>
 
 <div class="text-gray-800">
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">Student Accounts</h1>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Student Accounts</h1>
             <p class="mt-1 text-sm text-gray-600">View student account balances and payment status</p>
         </div>
-        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button @onclick="GoBack" class="flex items-center justify-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg flex-shrink-0">
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back
+            <span class="hidden sm:inline">Back</span>
         </button>
     </div>
 </div>
@@ -30,10 +34,10 @@
             <label class="mb-2 block text-sm font-medium text-gray-700">Grade Level</label>
             <select @bind="SelectedGradeLevel" @bind:after="FilterStudents" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
                 <option value="">All Grade Levels</option>
-                <option value="Grade 7">Grade 7</option>
-                <option value="Grade 8">Grade 8</option>
-                <option value="Grade 9">Grade 9</option>
-                <option value="Grade 10">Grade 10</option>
+                @foreach (var gradeLevel in GradeLevels)
+                {
+                    <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                }
             </select>
         </div>
         <div>
@@ -64,22 +68,22 @@
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
     <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <p class="text-sm text-blue-600">Total Assessment</p>
-        <p class="text-2xl font-bold text-blue-800">?@GetTotalAssessment().ToString("N2")</p>
+        <p class="text-2xl font-bold text-blue-800">₱@GetTotalAssessment().ToString("N2")</p>
     </div>
     <div class="rounded-xl border border-green-200 bg-green-50 p-4">
         <p class="text-sm text-green-600">Total Collected</p>
-        <p class="text-2xl font-bold text-green-800">?@GetTotalCollected().ToString("N2")</p>
+        <p class="text-2xl font-bold text-green-800">₱@GetTotalCollected().ToString("N2")</p>
     </div>
     <div class="rounded-xl border border-red-200 bg-red-50 p-4">
         <p class="text-sm text-red-600">Outstanding Balance</p>
-        <p class="text-2xl font-bold text-red-800">?@GetOutstandingBalance().ToString("N2")</p>
+        <p class="text-2xl font-bold text-red-800">₱@GetOutstandingBalance().ToString("N2")</p>
     </div>
 </div>
 
 <!-- Students Table -->
 <div class="rounded-xl border border-gray-100 bg-white shadow-sm">
     <div class="border-b border-gray-200 p-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <h2 class="text-lg font-bold text-gray-800">Student Accounts</h2>
             <span class="text-sm text-gray-600">Total Students: @FilteredStudents.Count</span>
         </div>
@@ -89,43 +93,48 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Student ID</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Full Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Grade Level</th>
-                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Assessment</th>
-                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Paid</th>
-                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Balance</th>
-                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
-                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Student ID</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Full Name</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden md:table-cell">Grade Level</th>
+                    <th class="px-3 sm:px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Assessment</th>
+                    <th class="px-3 sm:px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600 hidden sm:table-cell">Paid</th>
+                    <th class="px-3 sm:px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Balance</th>
+                    <th class="px-3 sm:px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">Status</th>
+                    <th class="px-3 sm:px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white">
                 @foreach (var student in FilteredStudents)
                 {
                     <tr class="hover:bg-gray-50">
-                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-800">@student.StudentId</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">@student.FullName</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@student.GradeLevel</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-gray-800">?@student.TotalAssessment.ToString("N2")</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm text-green-600">?@student.TotalPaid.ToString("N2")</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-red-600">?@student.Balance.ToString("N2")</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm font-medium text-gray-800">@student.StudentId</td>
+                        <td class="px-3 sm:px-6 py-4 text-sm text-gray-800">
+                            <div>
+                                <p class="font-medium">@student.FullName</p>
+                                <p class="text-xs text-gray-500 md:hidden">@student.GradeLevel</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm text-gray-600 hidden md:table-cell">@student.GradeLevel</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-right text-sm text-gray-800">₱@student.TotalAssessment.ToString("N2")</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-right text-sm text-green-600 hidden sm:table-cell">₱@student.TotalPaid.ToString("N2")</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-right text-sm font-semibold text-red-600">₱@student.Balance.ToString("N2")</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-center hidden lg:table-cell">
                             <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(student)">
                                 @GetPaymentStatus(student)
                             </span>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-center">
                             <div class="flex items-center justify-center gap-2">
-                                <button @onclick="() => ViewAccount(student.StudentId)" class="text-blue-600 hover:text-blue-800" title="View Details">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <button @onclick="() => ViewAccount(student.StudentId)" class="flex-shrink-0 text-blue-600 hover:text-blue-800" title="View Details">
+                                    <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
                                 </button>
                                 @if (student.Balance > 0)
                                 {
-                                    <button @onclick="() => ProcessPaymentForStudent(student.StudentId)" class="text-green-600 hover:text-green-800" title="Process Payment">
-                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <button @onclick="() => ProcessPaymentForStudent(student.StudentId)" class="flex-shrink-0 text-green-600 hover:text-green-800" title="Process Payment">
+                                        <svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                                         </svg>
                                     </button>
@@ -157,6 +166,7 @@
 
     private List<StudentAccountInfo> Students { get; set; } = new();
     private List<StudentAccountInfo> FilteredStudents { get; set; } = new();
+    private List<BrightEnroll_DES.Data.Models.GradeLevel> GradeLevels { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -171,6 +181,10 @@
         
         try
         {
+            // Load grade levels for filter dropdown
+            GradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            
+            // Load student accounts
             await LoadStudents();
         }
         finally
@@ -181,47 +195,57 @@
 
     private async Task LoadStudents()
     {
-        // TODO: Load from database
-        await Task.Delay(500);
-
-        Students = new List<StudentAccountInfo>
+        try
         {
-            new StudentAccountInfo { StudentId = "2024-001", FullName = "Juan Dela Cruz", GradeLevel = "Grade 7", TotalAssessment = 50000.00m, TotalPaid = 25000.00m, Balance = 25000.00m },
-            new StudentAccountInfo { StudentId = "2024-002", FullName = "Maria Santos", GradeLevel = "Grade 7", TotalAssessment = 50000.00m, TotalPaid = 50000.00m, Balance = 0.00m },
-            new StudentAccountInfo { StudentId = "2024-003", FullName = "Pedro Reyes", GradeLevel = "Grade 8", TotalAssessment = 55000.00m, TotalPaid = 0.00m, Balance = 55000.00m },
-            new StudentAccountInfo { StudentId = "2024-004", FullName = "Ana Garcia", GradeLevel = "Grade 8", TotalAssessment = 55000.00m, TotalPaid = 20000.00m, Balance = 35000.00m },
-            new StudentAccountInfo { StudentId = "2024-005", FullName = "Carlos Mendoza", GradeLevel = "Grade 9", TotalAssessment = 60000.00m, TotalPaid = 30000.00m, Balance = 30000.00m }
-        };
-
-        FilteredStudents = Students;
+            // Load all student accounts from database
+            Students = await CashierService.GetAllStudentAccountsAsync();
+            FilteredStudents = Students;
+        }
+        catch (Exception ex)
+        {
+            // Log error and use empty list
+            System.Diagnostics.Debug.WriteLine($"Error loading student accounts: {ex.Message}");
+            Students = new List<StudentAccountInfo>();
+            FilteredStudents = new List<StudentAccountInfo>();
+        }
     }
 
-    private void FilterStudents()
+    private async Task FilterStudents()
     {
-        FilteredStudents = Students.Where(s =>
+        try
         {
-            bool matchesGrade = string.IsNullOrEmpty(SelectedGradeLevel) || s.GradeLevel == SelectedGradeLevel;
+            LoadingService.ShowLoading("Filtering students...");
             
-            bool matchesStatus = string.IsNullOrEmpty(SelectedPaymentStatus) || GetPaymentStatus(s) == SelectedPaymentStatus;
-            
-            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) ||
-                s.FullName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                s.StudentId.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+            // Reload from database with filters applied
+            Students = await CashierService.GetAllStudentAccountsAsync(
+                gradeLevel: string.IsNullOrWhiteSpace(SelectedGradeLevel) ? null : SelectedGradeLevel,
+                paymentStatus: string.IsNullOrWhiteSpace(SelectedPaymentStatus) ? null : SelectedPaymentStatus,
+                searchTerm: string.IsNullOrWhiteSpace(SearchTerm) ? null : SearchTerm
+            );
 
-            return matchesGrade && matchesStatus && matchesSearch;
-        }).ToList();
-
-        // Apply sorting
-        FilteredStudents = SortBy switch
+            // Apply sorting
+            FilteredStudents = SortBy switch
+            {
+                "balance" => Students.OrderByDescending(s => s.Balance).ToList(),
+                "studentId" => Students.OrderBy(s => s.StudentId).ToList(),
+                _ => Students.OrderBy(s => s.FullName).ToList()
+            };
+        }
+        catch (Exception ex)
         {
-            "balance" => FilteredStudents.OrderByDescending(s => s.Balance).ToList(),
-            "studentId" => FilteredStudents.OrderBy(s => s.StudentId).ToList(),
-            _ => FilteredStudents.OrderBy(s => s.FullName).ToList()
-        };
+            // Log error
+            System.Diagnostics.Debug.WriteLine($"Error filtering students: {ex.Message}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
     }
 
     private string GetPaymentStatus(StudentAccountInfo student)
     {
+        // Use the payment status from the database if available, otherwise calculate it
+        // The database already has PaymentStatus, but we calculate it here for consistency
         if (student.Balance <= 0) return "Fully Paid";
         if (student.TotalPaid > 0) return "Partial";
         return "Unpaid";
@@ -267,15 +291,5 @@
     private void GoBack()
     {
         Navigation.NavigateTo("/cashier/dashboard");
-    }
-
-    public class StudentAccountInfo
-    {
-        public string StudentId { get; set; } = string.Empty;
-        public string FullName { get; set; } = string.Empty;
-        public string GradeLevel { get; set; } = string.Empty;
-        public decimal TotalAssessment { get; set; }
-        public decimal TotalPaid { get; set; }
-        public decimal Balance { get; set; }
     }
 }

@@ -2,23 +2,25 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.Cashier
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
+@inject CashierService CashierService
 
 <PageTitle>Payment History</PageTitle>
 
 <div class="text-gray-800">
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-800">Payment History</h1>
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Payment History</h1>
             <p class="mt-1 text-sm text-gray-600">View all payment transactions</p>
         </div>
-        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button @onclick="GoBack" class="flex items-center justify-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg flex-shrink-0">
+            <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
-            Back
+            <span class="hidden sm:inline">Back</span>
         </button>
     </div>
 </div>
@@ -55,15 +57,15 @@
 <!-- Transactions Table -->
 <div class="rounded-xl border border-gray-100 bg-white shadow-sm">
     <div class="border-b border-gray-200 p-6">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h2 class="text-lg font-bold text-gray-800">Transaction Records</h2>
-            <div class="flex items-center gap-3">
-                <span class="text-sm text-gray-600">Total Amount: <span class="font-bold text-green-600">?@GetTotalAmount().ToString("N2")</span></span>
-                <button @onclick="ExportToExcel" class="flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-green-700">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+                <span class="text-sm text-gray-600">Total Amount: <span class="font-bold text-green-600">₱@GetTotalAmount().ToString("N2")</span></span>
+                <button @onclick="ExportToExcel" class="flex items-center justify-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-green-700 flex-shrink-0">
+                    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Export
+                    <span>Export</span>
                 </button>
             </div>
         </div>
@@ -73,35 +75,36 @@
         <table class="w-full">
             <thead class="bg-gray-50">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">OR Number</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Date & Time</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Student</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Payment Type</th>
-                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Method</th>
-                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Amount</th>
-                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">OR Number</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden sm:table-cell">Date & Time</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Student</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden md:table-cell">Payment Type</th>
+                    <th class="px-3 sm:px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600 hidden lg:table-cell">Method</th>
+                    <th class="px-3 sm:px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Amount</th>
+                    <th class="px-3 sm:px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200 bg-white">
                 @foreach (var transaction in FilteredTransactions)
                 {
                     <tr class="hover:bg-gray-50">
-                        <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-blue-600">@transaction.ORNumber</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@transaction.TransactionDate.ToString("MMM dd, yyyy hh:mm tt")</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm font-medium text-blue-600">@transaction.ORNumber</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm text-gray-600 hidden sm:table-cell">@transaction.TransactionDate.ToString("MMM dd, yyyy hh:mm tt")</td>
+                        <td class="px-3 sm:px-6 py-4 text-sm text-gray-800">
                             <div>
                                 <p class="font-medium">@transaction.StudentName</p>
                                 <p class="text-xs text-gray-500">@transaction.StudentId</p>
+                                <p class="text-xs text-gray-500 sm:hidden">@transaction.TransactionDate.ToString("MMM dd, yyyy")</p>
                             </div>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@transaction.PaymentType</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-sm">
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm text-gray-600 hidden md:table-cell">@transaction.PaymentType</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-sm hidden lg:table-cell">
                             <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @GetPaymentMethodClass(transaction.PaymentMethod)">
                                 @transaction.PaymentMethod
                             </span>
                         </td>
-                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-800">?@transaction.Amount.ToString("N2")</td>
-                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-right text-sm font-semibold text-gray-800">₱@transaction.Amount.ToString("N2")</td>
+                        <td class="whitespace-nowrap px-3 sm:px-6 py-4 text-center">
                             <button @onclick="() => ViewReceipt(transaction.ORNumber)" class="text-blue-600 hover:text-blue-800">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -158,37 +161,46 @@
 
     private async Task LoadTransactions()
     {
-        // TODO: Load from database
-        await Task.Delay(500);
-
-        Transactions = new List<PaymentTransaction>
+        try
         {
-            new PaymentTransaction { ORNumber = "2024-001234", TransactionDate = DateTime.Now.AddHours(-2), StudentId = "2024-001", StudentName = "Juan Dela Cruz", PaymentType = "Tuition Fee", PaymentMethod = "Cash", Amount = 5000.00m },
-            new PaymentTransaction { ORNumber = "2024-001235", TransactionDate = DateTime.Now.AddHours(-3), StudentId = "2024-002", StudentName = "Maria Santos", PaymentType = "Miscellaneous Fee", PaymentMethod = "GCash", Amount = 2500.00m },
-            new PaymentTransaction { ORNumber = "2024-001236", TransactionDate = DateTime.Now.AddHours(-4), StudentId = "2024-003", StudentName = "Pedro Reyes", PaymentType = "Books", PaymentMethod = "Cash", Amount = 1800.00m },
-            new PaymentTransaction { ORNumber = "2024-001237", TransactionDate = DateTime.Now.AddDays(-1), StudentId = "2024-004", StudentName = "Ana Garcia", PaymentType = "Tuition Fee", PaymentMethod = "Bank Transfer", Amount = 5000.00m },
-            new PaymentTransaction { ORNumber = "2024-001238", TransactionDate = DateTime.Now.AddDays(-1), StudentId = "2024-005", StudentName = "Carlos Mendoza", PaymentType = "Uniform", PaymentMethod = "Cash", Amount = 1200.00m }
-        };
-
-        FilteredTransactions = Transactions;
+            // Load all transactions from database
+            Transactions = await CashierService.GetPaymentTransactionsAsync();
+            FilteredTransactions = Transactions;
+        }
+        catch (Exception ex)
+        {
+            // Log error and use empty list
+            System.Diagnostics.Debug.WriteLine($"Error loading transactions: {ex.Message}");
+            Transactions = new List<PaymentTransaction>();
+            FilteredTransactions = new List<PaymentTransaction>();
+        }
     }
 
-    private void FilterTransactions()
+    private async Task FilterTransactions()
     {
-        FilteredTransactions = Transactions.Where(t =>
+        try
         {
-            bool matchesDate = (!DateFrom.HasValue || t.TransactionDate.Date >= DateFrom.Value.Date) &&
-                               (!DateTo.HasValue || t.TransactionDate.Date <= DateTo.Value.Date);
+            LoadingService.ShowLoading("Filtering transactions...");
             
-            bool matchesType = string.IsNullOrEmpty(SelectedPaymentType) || t.PaymentType == SelectedPaymentType;
-            
-            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) ||
-                t.StudentName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                t.ORNumber.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase) ||
-                t.StudentId.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+            // Reload from database with filters applied
+            Transactions = await CashierService.GetPaymentTransactionsAsync(
+                dateFrom: DateFrom,
+                dateTo: DateTo,
+                paymentType: string.IsNullOrWhiteSpace(SelectedPaymentType) ? null : SelectedPaymentType,
+                searchTerm: string.IsNullOrWhiteSpace(SearchTerm) ? null : SearchTerm
+            );
 
-            return matchesDate && matchesType && matchesSearch;
-        }).ToList();
+            FilteredTransactions = Transactions;
+        }
+        catch (Exception ex)
+        {
+            // Log error
+            System.Diagnostics.Debug.WriteLine($"Error filtering transactions: {ex.Message}");
+        }
+        finally
+        {
+            LoadingService.HideLoading();
+        }
     }
 
     private decimal GetTotalAmount()
@@ -232,16 +244,5 @@
     private void GoBack()
     {
         Navigation.NavigateTo("/cashier/dashboard");
-    }
-
-    public class PaymentTransaction
-    {
-        public string ORNumber { get; set; } = string.Empty;
-        public DateTime TransactionDate { get; set; }
-        public string StudentId { get; set; } = string.Empty;
-        public string StudentName { get; set; } = string.Empty;
-        public string PaymentType { get; set; } = string.Empty;
-        public string PaymentMethod { get; set; } = string.Empty;
-        public decimal Amount { get; set; }
     }
 }
