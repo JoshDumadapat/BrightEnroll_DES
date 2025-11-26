@@ -98,6 +98,8 @@ namespace BrightEnroll_DES
             
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
+            // Register ExpenseService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ExpenseService>();
             
             // Register CurriculumService (scoped for EF Core DbContext)
             builder.Services.AddScoped<CurriculumService>();

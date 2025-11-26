@@ -2,6 +2,7 @@
 @layout Components.Layout.MainLayout
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Services.Business.Finance.FeeService FeeService
+@inject BrightEnroll_DES.Services.Business.Finance.ExpenseService ExpenseService
 @inject ILoadingService LoadingService
 @inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
 
@@ -59,8 +60,10 @@
         }
         else if (activeTab == "Expenses")
         {
-            <Expenses ExpenseForm="ExpenseForm" 
-                      OnExpenseSaved="HandleExpenseSaved" />
+            <Expenses ExpenseForm="ExpenseForm"
+                      ExpenseList="ExpenseRecords"
+                      OnExpenseSaved="HandleExpenseSaved"
+                      OnArchiveExpense="HandleArchiveExpense" />
         }
         else if (activeTab == "Records")
         {
@@ -110,6 +113,7 @@
         PaymentMethod = "Cash",
         Status = "Pending"
     };
+    private List<ExpenseRecord> ExpenseRecords = new();
 
     // Records Data
     private List<PaymentRecord> PaymentRecords = new()
@@ -178,6 +182,19 @@
             isLoadingFees = false;
             StateHasChanged();
         }
+
+        // Load expenses list
+        try
+        {
+            await LoadExpensesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load expenses: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
     }
 
     private async Task LoadFeesAsync()
@@ -226,6 +243,38 @@
             {
                 Logger?.LogError("Timeout loading fees: Operation took too long (10 seconds)");
                 throw new TimeoutException("Loading fees timed out. The service may not be properly connected.");
+            }
+        }
+    }
+
+    private async Task LoadExpensesAsync()
+    {
+        // Add timeout to prevent infinite loading
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            try
+            {
+                var expenses = await ExpenseService.GetExpensesAsync();
+
+                ExpenseRecords = expenses.Select(e => new ExpenseRecord
+                {
+                    ExpenseId = e.ExpenseCode,
+                    ExpenseDate = e.ExpenseDate,
+                    Category = e.Category,
+                    Description = e.Description ?? string.Empty,
+                    Payee = e.Payee ?? string.Empty,
+                    Amount = e.Amount,
+                    PaymentMethod = e.PaymentMethod,
+                    ReceiptNumber = e.OrNumber ?? string.Empty,
+                    RecordedBy = e.RecordedBy ?? string.Empty,
+                    ApprovedBy = e.ApprovedBy ?? string.Empty,
+                    Status = e.Status
+                }).ToList();
+            }
+            catch (OperationCanceledException)
+            {
+                Logger?.LogError("Timeout loading expenses: Operation took too long (10 seconds)");
+                throw new TimeoutException("Loading expenses timed out. The service may not be properly connected.");
             }
         }
     }
@@ -434,19 +483,124 @@
         StateHasChanged();
     }
 
-    private void HandleExpenseSaved(ExpenseFormModel expenseForm)
+    private async Task HandleExpenseSaved(ExpenseFormModel expenseForm)
     {
-        // TODO: Save expense to database
-        // For now, just reset the form
-        ExpenseForm = new ExpenseFormModel
+        try
         {
-            ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
-            RecordedBy = "Admin User",
-            ExpenseDate = DateTime.Now,
-            PaymentMethod = "Cash",
-            Status = "Pending"
-        };
-        StateHasChanged();
+            // Parse amount string (e.g., "Php 1,000.00") to decimal
+            decimal amount = 0;
+            if (!string.IsNullOrWhiteSpace(expenseForm.Amount))
+            {
+                var cleaned = expenseForm.Amount
+                    .Replace("Php", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("₱", string.Empty)
+                    .Replace(",", string.Empty)
+                    .Trim();
+
+                if (!decimal.TryParse(cleaned, out amount))
+                {
+                    throw new Exception("Invalid amount. Please enter a valid number (e.g., 1000 or 1,000.00).");
+                }
+            }
+
+            bool isExisting = ExpenseRecords.Any(e => 
+                !string.IsNullOrWhiteSpace(e.ExpenseId) && 
+                e.ExpenseId == expenseForm.ExpenseId);
+
+            if (!isExisting)
+            {
+                var createRequest = new CreateExpenseRequest
+                {
+                    ExpenseCode = expenseForm.ExpenseId,
+                    Category = expenseForm.Category,
+                    Description = expenseForm.Description,
+                    Amount = amount,
+                    ExpenseDate = expenseForm.ExpenseDate,
+                    Payee = expenseForm.Payee,
+                    OrNumber = expenseForm.OrNumber,
+                    PaymentMethod = expenseForm.PaymentMethod,
+                    ApprovedBy = expenseForm.ApprovedBy,
+                    Status = expenseForm.Status,
+                    RecordedBy = expenseForm.RecordedBy
+                };
+
+                await ExpenseService.CreateExpenseAsync(createRequest);
+
+                toastMessage = "Expense added successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            else
+            {
+                var updateRequest = new UpdateExpenseRequest
+                {
+                    Category = expenseForm.Category,
+                    Description = expenseForm.Description,
+                    Amount = amount,
+                    ExpenseDate = expenseForm.ExpenseDate,
+                    Payee = expenseForm.Payee,
+                    OrNumber = expenseForm.OrNumber,
+                    PaymentMethod = expenseForm.PaymentMethod,
+                    ApprovedBy = expenseForm.ApprovedBy,
+                    Status = expenseForm.Status,
+                    RecordedBy = expenseForm.RecordedBy
+                };
+
+                await ExpenseService.UpdateExpenseAsync(expenseForm.ExpenseId, updateRequest);
+
+                toastMessage = "Expense updated successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+
+            // Refresh expenses list after add or update
+            await LoadExpensesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error saving expense: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to save expense: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            // Reset the form after saving or error, keeping UX consistent
+            ExpenseForm = new ExpenseFormModel
+            {
+                ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+                RecordedBy = "Admin User",
+                ExpenseDate = DateTime.Now,
+                PaymentMethod = "Cash",
+                Status = "Pending"
+            };
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleArchiveExpense(string expenseId)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(expenseId))
+            {
+                return;
+            }
+
+            await ExpenseService.ArchiveExpenseAsync(expenseId);
+            await LoadExpensesAsync();
+
+            toastMessage = "Expense archived successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error archiving expense: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to archive expense: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
     }
 
     private void HandleViewPaymentDetails(PaymentRecord record)

@@ -36,6 +36,9 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Payroll tables (standalone, no foreign keys)
                 GetRolesTableDefinition(),
                 GetDeductionsTableDefinition(),
+                // Finance - expenses
+                GetExpensesTableDefinition(),
+                GetExpenseAttachmentsTableDefinition(),
             };
         }
 
@@ -752,6 +755,70 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_deductions_is_active' AND object_id = OBJECT_ID('dbo.tbl_deductions'))
                         CREATE INDEX IX_tbl_deductions_is_active ON [dbo].[tbl_deductions]([is_active])"
+                }
+            };
+        }
+
+        // Creates tbl_Expenses table - standalone finance table for school expenses
+        public static TableDefinition GetExpensesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Expenses",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Expenses](
+                        [expense_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [expense_code] VARCHAR(40) NOT NULL UNIQUE,
+                        [category] VARCHAR(50) NOT NULL,
+                        [description] VARCHAR(500) NULL,
+                        [amount] DECIMAL(18,2) NOT NULL,
+                        [expense_date] DATE NOT NULL,
+                        [payee] VARCHAR(150) NULL,
+                        [or_number] VARCHAR(50) NULL,
+                        [payment_method] VARCHAR(30) NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                        [recorded_by] VARCHAR(100) NULL,
+                        [approved_by] VARCHAR(100) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_ExpenseDate' AND object_id = OBJECT_ID('dbo.tbl_Expenses'))
+                        CREATE INDEX IX_tbl_Expenses_ExpenseDate ON [dbo].[tbl_Expenses]([expense_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_Category' AND object_id = OBJECT_ID('dbo.tbl_Expenses'))
+                        CREATE INDEX IX_tbl_Expenses_Category ON [dbo].[tbl_Expenses]([category])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_Status' AND object_id = OBJECT_ID('dbo.tbl_Expenses'))
+                        CREATE INDEX IX_tbl_Expenses_Status ON [dbo].[tbl_Expenses]([status])"
+                }
+            };
+        }
+
+        // Creates tbl_ExpenseAttachments table - stores uploaded receipts for expenses
+        public static TableDefinition GetExpenseAttachmentsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_ExpenseAttachments",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_ExpenseAttachments](
+                        [attachment_ID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [expense_ID] INT NOT NULL,
+                        [file_name] VARCHAR(255) NOT NULL,
+                        [file_path] VARCHAR(500) NOT NULL,
+                        [uploaded_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_ExpenseAttachments_tbl_Expenses FOREIGN KEY ([expense_ID]) REFERENCES [dbo].[tbl_Expenses]([expense_ID]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ExpenseAttachments_ExpenseId' AND object_id = OBJECT_ID('dbo.tbl_ExpenseAttachments'))
+                        CREATE INDEX IX_tbl_ExpenseAttachments_ExpenseId ON [dbo].[tbl_ExpenseAttachments]([expense_ID])"
                 }
             };
         }

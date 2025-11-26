@@ -27,6 +27,8 @@ public class AppDbContext : DbContext
     public DbSet<GradeLevel> GradeLevels { get; set; }
     public DbSet<Fee> Fees { get; set; }
     public DbSet<FeeBreakdown> FeeBreakdowns { get; set; }
+    public DbSet<Expense> Expenses { get; set; }
+    public DbSet<ExpenseAttachment> ExpenseAttachments { get; set; }
 
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
@@ -166,6 +168,31 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_FeeBreakdown");
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
+        });
+
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.HasKey(e => e.ExpenseId);
+            entity.ToTable("tbl_Expenses");
+
+            entity.HasIndex(e => e.ExpenseCode).IsUnique();
+            entity.HasIndex(e => e.ExpenseDate);
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+        });
+
+        modelBuilder.Entity<ExpenseAttachment>(entity =>
+        {
+            entity.HasKey(e => e.AttachmentId);
+            entity.ToTable("tbl_ExpenseAttachments");
+            entity.HasIndex(e => e.ExpenseId);
+
+            entity.HasOne(a => a.Expense)
+                  .WithMany(e => e.Attachments)
+                  .HasForeignKey(a => a.ExpenseId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Configure UserStatusLog entity
