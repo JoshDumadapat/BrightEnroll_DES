@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
-// Handles fee setup and fee breakdown operations
 public class FeeService
 {
     private readonly AppDbContext _context;
@@ -17,7 +16,6 @@ public class FeeService
         _logger = logger;
     }
 
-    // Gets all fees with grade levels and breakdowns
     public async Task<List<Fee>> GetAllFeesAsync()
     {
         try
@@ -39,7 +37,6 @@ public class FeeService
         }
     }
 
-    // Gets fee by grade level ID
     public async Task<Fee?> GetFeeByGradeLevelIdAsync(int gradeLevelId)
     {
         try
@@ -56,7 +53,6 @@ public class FeeService
         }
     }
 
-    // Gets all grade levels
     public async Task<List<GradeLevel>> GetAllGradeLevelsAsync()
     {
         try
@@ -73,7 +69,6 @@ public class FeeService
         }
     }
 
-    // Creates a new fee with breakdown items
     public async Task<Fee> CreateFeeAsync(CreateFeeRequest request)
     {
         try
@@ -81,7 +76,6 @@ public class FeeService
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Create fee
                 var fee = new Fee
                 {
                     GradeLevelId = request.GradeLevelId,
@@ -96,10 +90,8 @@ public class FeeService
                 _context.Fees.Add(fee);
                 await _context.SaveChangesAsync();
 
-                // Create breakdown items
                 int displayOrder = 0;
                 
-                // Tuition breakdown
                 foreach (var item in request.TuitionBreakdown ?? new List<FeeBreakdownItemDto>())
                 {
                     _context.FeeBreakdowns.Add(new FeeBreakdown
@@ -145,8 +137,6 @@ public class FeeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Fee created successfully for grade level ID {GradeLevelId}", request.GradeLevelId);
-                
-                // Reload with includes
                 return await GetFeeByGradeLevelIdAsync(request.GradeLevelId) ?? fee;
             }
             catch (Exception ex)
@@ -163,7 +153,6 @@ public class FeeService
         }
     }
 
-    // Updates an existing fee with breakdown items
     public async Task<Fee> UpdateFeeAsync(int feeId, UpdateFeeRequest request)
     {
         try
@@ -180,20 +169,16 @@ public class FeeService
                     throw new Exception($"Fee with ID {feeId} not found");
                 }
 
-                // Update fee
                 fee.TuitionFee = request.TuitionFee;
                 fee.MiscFee = request.MiscFee;
                 fee.OtherFee = request.OtherFee;
                 fee.UpdatedDate = DateTime.Now;
                 fee.UpdatedBy = request.UpdatedBy;
 
-                // Remove existing breakdowns
                 _context.FeeBreakdowns.RemoveRange(fee.Breakdowns);
 
-                // Add new breakdown items
                 int displayOrder = 0;
 
-                // Tuition breakdown
                 foreach (var item in request.TuitionBreakdown ?? new List<FeeBreakdownItemDto>())
                 {
                     _context.FeeBreakdowns.Add(new FeeBreakdown
@@ -239,8 +224,6 @@ public class FeeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Fee updated successfully: Fee ID {FeeId}", feeId);
-                
-                // Reload with includes
                 return await _context.Fees
                     .Include(f => f.GradeLevel)
                     .Include(f => f.Breakdowns)
@@ -261,7 +244,6 @@ public class FeeService
     }
 }
 
-// DTOs for fee operations
 public class CreateFeeRequest
 {
     public int GradeLevelId { get; set; }

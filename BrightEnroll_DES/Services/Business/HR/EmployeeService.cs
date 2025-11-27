@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.HR;
 
-// Handles employee registration - creates user account and related employee records
 public class EmployeeService
 {
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
@@ -21,12 +20,14 @@ public class EmployeeService
         _logger = logger;
     }
 
-    // Registers a new employee - creates user account and employee-related records
     public async Task<int> RegisterEmployeeAsync(EmployeeRegistrationData employeeData)
     {
         try
         {
-            // Step 1: Create User account (via UserRepository)
+            _logger?.LogInformation("=== STARTING EMPLOYEE REGISTRATION ===");
+            _logger?.LogInformation("Employee Data: FirstName={FirstName}, LastName={LastName}, Email={Email}, SystemId={SystemId}", 
+                employeeData.FirstName, employeeData.LastName, employeeData.Email, employeeData.SystemId);
+            
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(employeeData.DefaultPassword);
             
             var user = new User
@@ -47,22 +48,39 @@ public class EmployeeService
                 status = "active"
             };
 
-            await _userRepository.InsertAsync(user);
+            _logger?.LogInformation("Creating user account with SystemId={SystemId}, Email={Email}, Role={Role}", 
+                user.system_ID, user.email, user.user_role);
+            
+            try
+            {
+                await _userRepository.InsertAsync(user);
+                _logger?.LogInformation("User account created successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "FAILED TO CREATE USER ACCOUNT. SystemId={SystemId}, Email={Email}", 
+                    user.system_ID, user.email);
+                LogDetailedException(ex, "UserRepository.InsertAsync");
+                throw new Exception($"Failed to create user account: {ex.Message}", ex);
+            }
 
-            // Step 2: Get user_ID
+            _logger?.LogInformation("Retrieving created user with SystemId={SystemId}", user.system_ID);
             var insertedUser = await _userRepository.GetBySystemIdAsync(user.system_ID);
             if (insertedUser == null)
             {
-                throw new Exception("Failed to retrieve created user");
+                _logger?.LogError("CRITICAL: User was created but cannot be retrieved. SystemId={SystemId}", user.system_ID);
+                throw new Exception($"Failed to retrieve created user with SystemId: {user.system_ID}");
             }
             int userId = insertedUser.user_ID;
+            _logger?.LogInformation("User retrieved successfully. UserId={UserId}", userId);
 
             // Step 3: Create employee-related records (EF Core transaction)
-            await using var _context = await _contextFactory.CreateDbContextAsync();
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            _logger?.LogInformation("Starting EF Core transaction for employee records (UserId={UserId})", userId);
+            using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
-                // Create address
+                _logger?.LogInformation("Creating employee address record");
                 var address = new EmployeeAddress
                 {
                     UserId = userId,
@@ -75,10 +93,12 @@ public class EmployeeService
                     ZipCode = string.IsNullOrWhiteSpace(employeeData.ZipCode) ? null : employeeData.ZipCode,
                     IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
+                _logger?.LogInformation("Address data: HouseNo={HouseNo}, Street={Street}, City={City}, Province={Province}", 
+                    address.HouseNo, address.StreetName, address.City, address.Province);
 
-                _context.EmployeeAddresses.Add(address);
+                context.EmployeeAddresses.Add(address);
 
-                // Create emergency contact
+                _logger?.LogInformation("Creating emergency contact record");
                 var emergencyContact = new EmployeeEmergencyContact
                 {
                     UserId = userId,
@@ -91,10 +111,12 @@ public class EmployeeService
                     Address = string.IsNullOrWhiteSpace(employeeData.EmergencyContactAddress) ? null : employeeData.EmergencyContactAddress,
                     IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
+                _logger?.LogInformation("Emergency contact data: Name={FirstName} {LastName}, Relationship={Relationship}, Contact={ContactNumber}", 
+                    emergencyContact.FirstName, emergencyContact.LastName, emergencyContact.Relationship, emergencyContact.ContactNumber);
 
-                _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                context.EmployeeEmergencyContacts.Add(emergencyContact);
 
-                // Create salary info
+                _logger?.LogInformation("Creating salary info record");
                 var salaryInfo = new SalaryInfo
                 {
                     UserId = userId,
@@ -104,33 +126,165 @@ public class EmployeeService
                     IsActive = true,
                     IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
+                _logger?.LogInformation("Salary data: BaseSalary={BaseSalary}, Allowance={Allowance}, Total={Total}", 
+                    salaryInfo.BaseSalary, salaryInfo.Allowance, salaryInfo.BaseSalary + salaryInfo.Allowance);
 
-                _context.SalaryInfos.Add(salaryInfo);
+                context.SalaryInfos.Add(salaryInfo);
 
-                // Save all changes
-                await _context.SaveChangesAsync();
+                _logger?.LogInformation("Entities to be saved: Address={AddressState}, EmergencyContact={EmergencyContactState}, SalaryInfo={SalaryInfoState}", 
+                    context.Entry(address).State,
+                    context.Entry(emergencyContact).State,
+                    context.Entry(salaryInfo).State);
 
-                // Commit transaction
+                _logger?.LogInformation("Calling SaveChangesAsync()...");
+                try
+                {
+                    await context.SaveChangesAsync();
+                    _logger?.LogInformation("SaveChangesAsync() completed successfully");
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    _logger?.LogError(dbEx, "=== DATABASE UPDATE EXCEPTION ===");
+                    LogDetailedException(dbEx, "SaveChangesAsync");
+                    
+                    // Log all entries that failed
+                    if (dbEx.Entries != null && dbEx.Entries.Any())
+                    {
+                        _logger?.LogError("Failed entries count: {Count}", dbEx.Entries.Count);
+                        foreach (var entry in dbEx.Entries)
+                        {
+                            _logger?.LogError("Failed Entry: EntityType={EntityType}, State={State}", 
+                                entry.Entity.GetType().Name, entry.State);
+                            
+                            foreach (var prop in entry.Properties)
+                            {
+                                _logger?.LogError("  Property: {PropertyName}={PropertyValue} (IsModified={IsModified}, CurrentValue={CurrentValue})", 
+                                    prop.Metadata.Name, prop.CurrentValue, prop.IsModified, prop.CurrentValue);
+                            }
+                        }
+                    }
+                    
+                    throw;
+                }
+
+                _logger?.LogInformation("Committing transaction...");
                 await transaction.CommitAsync();
+                _logger?.LogInformation("Transaction committed successfully");
 
+                _logger?.LogInformation("=== EMPLOYEE REGISTRATION SUCCESS ===");
                 _logger?.LogInformation("Employee registered successfully: {SystemId} (User ID: {UserId})", user.system_ID, userId);
                 return userId;
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "=== ROLLING BACK TRANSACTION ===");
                 await transaction.RollbackAsync();
                 _logger?.LogError(ex, "Error creating employee records for user {UserId}: {Message}", userId, ex.Message);
+                LogDetailedException(ex, "Employee Records Creation");
                 throw new Exception($"Failed to create employee records: {ex.Message}", ex);
             }
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "=== EMPLOYEE REGISTRATION FAILED ===");
             _logger?.LogError(ex, "Error registering employee: {Message}", ex.Message);
+            LogDetailedException(ex, "RegisterEmployeeAsync");
             throw new Exception($"Failed to register employee: {ex.Message}", ex);
         }
     }
 
-    // Checks for duplicate employees based on name matching
+    private void LogDetailedException(Exception ex, string context)
+    {
+        _logger?.LogError("=== DETAILED EXCEPTION LOG - {Context} ===", context);
+        _logger?.LogError("Exception Type: {ExceptionType}", ex.GetType().FullName);
+        _logger?.LogError("Exception Message: {Message}", ex.Message);
+        _logger?.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
+        
+        var sqlEx = ex as Microsoft.Data.SqlClient.SqlException;
+        if (sqlEx == null && ex.InnerException is Microsoft.Data.SqlClient.SqlException innerSqlEx)
+        {
+            sqlEx = innerSqlEx;
+        }
+        
+        if (sqlEx != null)
+        {
+            _logger?.LogError("=== SQL EXCEPTION DETAILS ===");
+            _logger?.LogError("SQL Error Number: {Number}", sqlEx.Number);
+            _logger?.LogError("SQL Severity: {Severity}", sqlEx.Class);
+            _logger?.LogError("SQL State: {State}", sqlEx.State);
+            _logger?.LogError("SQL Server: {Server}", sqlEx.Server ?? "N/A");
+            _logger?.LogError("SQL Procedure: {Procedure}", sqlEx.Procedure ?? "N/A");
+            _logger?.LogError("SQL Line Number: {LineNumber}", sqlEx.LineNumber);
+            _logger?.LogError("SQL Error Message: {Message}", sqlEx.Message);
+            
+            if (sqlEx.Errors != null && sqlEx.Errors.Count > 0)
+            {
+                _logger?.LogError("SQL Errors Count: {Count}", sqlEx.Errors.Count);
+                for (int i = 0; i < sqlEx.Errors.Count; i++)
+                {
+                    var error = sqlEx.Errors[i];
+                    _logger?.LogError("  SQL Error #{Index}: Number={Number}, Message={Message}, Class={Class}, State={State}", 
+                        i + 1, error.Number, error.Message, error.Class, error.State);
+                }
+            }
+        }
+        
+        var dbUpdateEx = ex as Microsoft.EntityFrameworkCore.DbUpdateException;
+        if (dbUpdateEx == null && ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateException innerDbUpdateEx)
+        {
+            dbUpdateEx = innerDbUpdateEx;
+        }
+        
+        if (dbUpdateEx != null)
+        {
+            _logger?.LogError("=== DB UPDATE EXCEPTION DETAILS ===");
+            _logger?.LogError("Entries Count: {Count}", dbUpdateEx.Entries?.Count ?? 0);
+            
+            if (dbUpdateEx.Entries != null && dbUpdateEx.Entries.Any())
+            {
+                foreach (var entry in dbUpdateEx.Entries)
+                {
+                    _logger?.LogError("Failed Entity: Type={EntityType}, State={State}", 
+                        entry.Entity.GetType().Name, entry.State);
+                    
+                    foreach (var prop in entry.Properties)
+                    {
+                        var currentValue = prop.CurrentValue;
+                        var originalValue = prop.OriginalValue;
+                        var maxLength = prop.Metadata.GetMaxLength();
+                        
+                        _logger?.LogError("  Property: {PropertyName}", prop.Metadata.Name);
+                        _logger?.LogError("    Current Value: {CurrentValue} (Length: {CurrentLength})", 
+                            currentValue, currentValue?.ToString()?.Length ?? 0);
+                        _logger?.LogError("    Original Value: {OriginalValue}", originalValue);
+                        _logger?.LogError("    Is Modified: {IsModified}", prop.IsModified);
+                        if (maxLength.HasValue)
+                        {
+                            _logger?.LogError("    Max Length: {MaxLength}", maxLength.Value);
+                            if (currentValue != null && currentValue.ToString()?.Length > maxLength.Value)
+                            {
+                                _logger?.LogError("    *** VALUE EXCEEDS MAX LENGTH! ***");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Exception? innerEx = ex.InnerException;
+        int depth = 1;
+        while (innerEx != null && depth <= 5) // Limit depth to prevent infinite loops
+        {
+            _logger?.LogError("--- Inner Exception #{Depth} ---", depth);
+            _logger?.LogError("Type: {Type}", innerEx.GetType().FullName);
+            _logger?.LogError("Message: {Message}", innerEx.Message);
+            innerEx = innerEx.InnerException;
+            depth++;
+        }
+        
+        _logger?.LogError("=== END DETAILED EXCEPTION LOG ===");
+    }
+
     public async Task<EmployeeDuplicateCheckResult?> CheckForDuplicateEmployeeAsync(EmployeeRegistrationData employeeData)
     {
         try
@@ -156,10 +310,7 @@ public class EmployeeService
                 };
             }
 
-            // Return first match as potential duplicate
             var duplicateEmployee = matchingEmployees.First();
-            
-            // Build full name with suffix if available
             var fullName = duplicateEmployee.FullName ?? 
                 $"{duplicateEmployee.FirstName} {duplicateEmployee.MiddleName ?? ""} {duplicateEmployee.LastName}".Trim();
             if (!string.IsNullOrWhiteSpace(duplicateEmployee.Suffix))
@@ -190,7 +341,6 @@ public class EmployeeService
         }
     }
 
-    // Helper method to build address string
     private string BuildAddressString(string? houseNo, string? streetName, string? barangay, 
         string? city, string? province, string? country, string? zipCode)
     {
@@ -206,7 +356,6 @@ public class EmployeeService
         return string.Join(", ", addressParts);
     }
 
-    // Gets all employees as display DTOs
     public async Task<List<EmployeeDisplayDto>> GetAllEmployeesAsync()
     {
         try
@@ -236,7 +385,6 @@ public class EmployeeService
         }
     }
 
-    // Gets employee by ID
     public async Task<EmployeeDataView?> GetEmployeeByIdAsync(int userId)
     {
         try
@@ -252,13 +400,6 @@ public class EmployeeService
         }
     }
 
-    // Gets employee data view by ID (alias for GetEmployeeByIdAsync for consistency)
-    public async Task<EmployeeDataView?> GetEmployeeDataViewByIdAsync(int userId)
-    {
-        return await GetEmployeeByIdAsync(userId);
-    }
-
-    // Gets employee by system ID
     public async Task<EmployeeDataView?> GetEmployeeBySystemIdAsync(string systemId)
     {
         try
@@ -274,7 +415,6 @@ public class EmployeeService
         }
     }
 
-    // Updates user status and logs the change
     public async Task<bool> UpdateUserStatusAsync(int userId, string newStatus, int changedByUserId, string? reason)
     {
         try
@@ -289,7 +429,6 @@ public class EmployeeService
             var oldStatus = user.status ?? "active";
             var normalizedNewStatus = newStatus.Trim();
 
-            // Update user status
             user.status = normalizedNewStatus;
             await _userRepository.UpdateAsync(user);
 
@@ -320,7 +459,6 @@ public class EmployeeService
         }
     }
 
-    // Gets the inactive reason for an employee
     public async Task<string?> GetInactiveReasonAsync(int userId)
     {
         try
@@ -341,7 +479,6 @@ public class EmployeeService
         }
     }
 
-    // Updates employee contact information (email and contact number only)
     public async Task<bool> UpdateEmployeeContactInfoAsync(int userId, string contactNumber, string email)
     {
         try
@@ -353,7 +490,6 @@ public class EmployeeService
                 return false;
             }
 
-            // Update contact information
             user.contact_num = contactNumber;
             user.email = email;
 
@@ -369,7 +505,6 @@ public class EmployeeService
         }
     }
 
-    // Updates employee information
     public async Task<bool> UpdateEmployeeInfoAsync(int userId, EmployeeUpdateData updateData)
     {
         try
@@ -385,7 +520,6 @@ public class EmployeeService
             using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
-                // Update user entity
                 user.first_name = updateData.FirstName;
                 user.mid_name = string.IsNullOrWhiteSpace(updateData.MiddleName) ? null : updateData.MiddleName;
                 user.last_name = updateData.LastName;
@@ -480,10 +614,8 @@ public class EmployeeService
     }
 }
 
-// DTO for employee registration
 public class EmployeeRegistrationData
 {
-    // Personal Information
     public string FirstName { get; set; } = string.Empty;
     public string MiddleName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
@@ -506,7 +638,6 @@ public class EmployeeRegistrationData
     public string Country { get; set; } = string.Empty;
     public string ZipCode { get; set; } = string.Empty;
 
-    // Emergency Contact Information
     public string EmergencyContactFirstName { get; set; } = string.Empty;
     public string EmergencyContactMiddleName { get; set; } = string.Empty;
     public string EmergencyContactLastName { get; set; } = string.Empty;
@@ -515,12 +646,10 @@ public class EmployeeRegistrationData
     public string EmergencyContactNumber { get; set; } = string.Empty;
     public string EmergencyContactAddress { get; set; } = string.Empty;
 
-    // Salary Information
     public decimal BaseSalary { get; set; }
     public decimal Allowance { get; set; }
 }
 
-// Result of duplicate employee check
 public class EmployeeDuplicateCheckResult
 {
     public bool IsDuplicate { get; set; }
@@ -534,7 +663,6 @@ public class EmployeeDuplicateCheckResult
     public string? ExistingAddress { get; set; }
 }
 
-// DTO for displaying employees in lists
 public class EmployeeDisplayDto
 {
     public int UserId { get; set; }
@@ -547,7 +675,6 @@ public class EmployeeDisplayDto
     public string Address { get; set; } = string.Empty;
 }
 
-// DTO for updating employee information
 public class EmployeeUpdateData
 {
     public string FirstName { get; set; } = string.Empty;

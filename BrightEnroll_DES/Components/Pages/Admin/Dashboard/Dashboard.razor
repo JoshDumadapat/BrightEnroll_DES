@@ -104,11 +104,21 @@
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
             <div class="group relative w-full">
-                <button @onclick="ClearFilters"
-                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-gray-500 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
-                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                <button @onclick="ClearFilters" disabled="@IsClearingFilters"
+                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto md:px-4 md:py-2 md:text-sm">
+                    @if (IsClearingFilters)
+                    {
+                        <svg class="h-3.5 w-3.5 animate-spin md:h-4 md:w-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    }
                     Clear
                 </button>
                 <span class="tooltip-delay">Clear all filters and reset dashboard to default view</span>
@@ -119,12 +129,22 @@
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
             <div class="group relative w-full">
-                <button @onclick="ApplyFilters"
-                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-blue-600 px-3 py-1.5 font-semibold text-white text-xs shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto md:px-4 md:py-2 md:text-sm">
-                    <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
+                <button @onclick="ApplyFilters" disabled="@IsApplyingFilters"
+                        class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto md:px-4 md:py-2 md:text-sm">
+                    @if (IsApplyingFilters)
+                    {
+                        <svg class="h-3.5 w-3.5 animate-spin md:h-4 md:w-4" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    }
+                    else
+                    {
+                        <svg class="h-3.5 w-3.5 md:h-4 md:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                    }
                     Apply Filter
                 </button>
                 <span class="tooltip-delay">Apply selected filters to update dashboard statistics</span>
@@ -145,7 +165,7 @@
 <!-- Stats Cards -->
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:mb-8 md:gap-6 lg:grid-cols-4">
     <!-- Total Enrolled -->
-    <div @onclick="NavigateToEnrollment" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-blue-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+    <div @onclick="NavigateToEnrollment" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-300 hover:shadow-lg md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Enrolled</p>
@@ -165,7 +185,7 @@
     </div>
 
     <!-- Total Employees -->
-    <div @onclick="NavigateToHumanResource" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-purple-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+    <div @onclick="NavigateToHumanResource" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:shadow-lg md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Employees</p>
@@ -185,7 +205,7 @@
     </div>
 
     <!-- Pending Applications -->
-    <div @onclick="NavigateToPendingApplications" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-yellow-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+    <div @onclick="NavigateToPendingApplications" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-yellow-300 hover:shadow-lg md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Pending Applications</p>
@@ -205,7 +225,7 @@
     </div>
 
     <!-- Total Tuition Collected -->
-    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-green-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-green-300 hover:shadow-lg md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Total Tuition Collected</p>
@@ -339,7 +359,7 @@
     </div>
 
     <!-- Tuition Fees List -->
-    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:border-indigo-300 hover:shadow-lg hover:scale-[1.02] md:p-6">
+    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-indigo-300 hover:shadow-lg md:p-6">
         <div class="mb-3 flex items-start justify-between md:mb-4">
             <div>
                 <p class="mb-1 text-xs font-medium text-gray-500 md:text-sm">Tuition Fees</p>
@@ -392,6 +412,10 @@
     private string? SelectedMonth { get; set; }
     private string? SelectedYear { get; set; }
 
+    // Loading states for buttons
+    private bool IsApplyingFilters { get; set; } = false;
+    private bool IsClearingFilters { get; set; } = false;
+
     // Dashboard statistics
     private int TotalEnrolled { get; set; } = 0;
     private int TotalEmployees { get; set; } = 0;
@@ -424,9 +448,8 @@
             // Load dashboard data inline (no loading screen)
             await LoadDashboardStatistics();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error initializing dashboard: {ex.Message}");
             // Error handled inline - no loading screen needed
         }
     }
@@ -560,7 +583,11 @@
 
     private async Task ApplyFilters()
     {
-        LoadingService.ShowLoading("Applying filters...");
+        if (IsApplyingFilters) return; // Prevent multiple simultaneous calls
+        
+        IsApplyingFilters = true;
+        StateHasChanged();
+        
         try
         {
             // Apply date filters based on selected month/year
@@ -620,12 +647,13 @@
                 filterToDate = ToDate.Value;
             }
 
-            // Apply filters to data loading
+            // Apply filters to data loading - updates immediately without loading screen
             await LoadFilteredStatistics(filterFromDate, filterToDate);
         }
         finally
         {
-            LoadingService.HideLoading();
+            IsApplyingFilters = false;
+            StateHasChanged();
         }
     }
 
@@ -687,9 +715,8 @@
 
             StateHasChanged();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading filtered statistics: {ex.Message}");
         }
     }
 
@@ -707,21 +734,26 @@
 
     private async Task ClearFilters()
     {
-        FromDate = null;
-        ToDate = null;
-        QuickSelect = null;
-        SelectedMonth = null;
-        SelectedYear = null;
+        if (IsClearingFilters) return; // Prevent multiple simultaneous calls
         
-        // Reload all data without filters
-        LoadingService.ShowLoading("Clearing filters...");
+        IsClearingFilters = true;
+        StateHasChanged();
+        
         try
         {
+            FromDate = null;
+            ToDate = null;
+            QuickSelect = null;
+            SelectedMonth = null;
+            SelectedYear = null;
+            
+            // Reload all data without filters - updates immediately without loading screen
             await LoadDashboardStatistics();
         }
         finally
         {
-            LoadingService.HideLoading();
+            IsClearingFilters = false;
+            StateHasChanged();
         }
     }
 
@@ -809,9 +841,8 @@
                 })
                 .ToList();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading tuition fees: {ex.Message}");
             TuitionFeesList = new List<TuitionFeeItem>();
         }
     }

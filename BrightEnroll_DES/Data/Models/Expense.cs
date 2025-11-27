@@ -31,7 +31,7 @@ public class Expense
     public decimal Amount { get; set; }
 
     [Required]
-    [Column("expense_date")]
+    [Column("expense_date", TypeName = "date")]
     public DateTime ExpenseDate { get; set; }
 
     [MaxLength(150)]

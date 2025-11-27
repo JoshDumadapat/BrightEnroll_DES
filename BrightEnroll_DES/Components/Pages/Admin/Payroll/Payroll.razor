@@ -1,4 +1,4 @@
-@page "/payroll"
+﻿@page "/payroll"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
@@ -15,6 +15,39 @@
 
 <!-- Toast Notification -->
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
+
+<!-- Confirmation Modal -->
+@if (showConfirmModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseConfirmModal">
+        <div id="payroll-role-confirm-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white px-6 py-2.5">
+                <h3 class="text-base font-semibold text-blue-600">View Calculation Details</h3>
+                <button @onclick="CloseConfirmModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Do you want to view the calculation details and legal basis for the role <strong>@pendingSelectedRole</strong>?</p>
+            </div>
+            
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseConfirmModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmViewDetails" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    View Details
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Payroll Management</h1>
@@ -53,7 +86,7 @@
             </div>
             
             <!-- Salary Configuration Tab -->
-            <PayrollTable PayrollData="payrollData" OnSalaryUpdated="HandleSalaryUpdated" OnRoleSelected="HandleRoleSelected" />
+            <PayrollTable PayrollData="payrollData" OnSalaryUpdated="HandleSalaryUpdated" OnRoleSelected="HandleRoleSelected" SelectedRole="selectedRole" />
             
             <!-- Calculation Details Card -->
             <div class="overflow-hidden rounded-xl bg-white shadow">
@@ -61,8 +94,361 @@
                     <h2 class="text-lg font-semibold text-gray-800">Calculation Details & Legal Basis</h2>
                 </div>
                 
-                <div class="p-6">
-                    <CalculationDetails SelectedRole="selectedRole" PayrollData="payrollData" />
+                <div class="p-4 print:p-6">
+                    @if (selectedRole != null && payrollData.Any(p => p.Role == selectedRole))
+                    {
+                        var selected = payrollData.First(p => p.Role == selectedRole);
+                        
+                        <!-- Action Buttons (Only shown when details are displayed, aligned with container) -->
+                        <div class="mx-auto mb-4 flex max-w-5xl justify-end gap-2 print:hidden print:max-w-full">
+                            <button @onclick="CloseDetails"
+                                    class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Close
+                            </button>
+                            <button @onclick="PrintDetails"
+                                    class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                            </button>
+                        </div>
+                        
+                        <!-- Document Container -->
+                        <div class="mx-auto max-w-5xl print:max-w-full">
+                            <!-- Document-like container with paper styling -->
+                            <div id="calculation-details-print" class="rounded-lg border-2 border-gray-300 bg-white p-8 shadow-2xl print:border-0 print:p-6 print:shadow-none" style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05);">
+                                <!-- Print Header (Hidden on screen, shown when printing) -->
+                                <div class="mb-6 hidden border-b-2 border-gray-300 pb-4 print:mb-4 print:block print:pb-2">
+                                    <h1 class="text-2xl font-bold text-gray-800 print:text-xl">Salary Calculation Details</h1>
+                                    <p class="mt-1 text-sm text-gray-600">Generated on: @DateTime.Now.ToString("MMMM dd, yyyy hh:mm tt")</p>
+                                </div>
+                                
+
+                                
+                                <div class="space-y-5 print:space-y-4">
+                                    <!-- Selected Role Header -->
+                                    <div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 print:border-2 print:border-gray-400 print:bg-white">
+                                <h3 class="text-lg font-semibold text-blue-800 print:text-base print:text-gray-800">
+                                    Calculation Details for: <span class="font-bold text-blue-600 print:text-gray-900">@selectedRole</span>
+                                </h3>
+                            </div>
+                            
+                            <!-- Quick Summary -->
+                            <div class="grid grid-cols-2 gap-3 print:grid-cols-4 print:gap-2 md:grid-cols-4">
+                                <div class="rounded-lg border-2 border-green-300 bg-green-50 p-3 print:border-gray-400 print:bg-white print:p-2">
+                                    <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Gross Pay</p>
+                                    <p class="text-lg font-bold text-green-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.GrossPay)</p>
+                                </div>
+                                <div class="rounded-lg border-2 border-red-300 bg-red-50 p-3 print:border-gray-400 print:bg-white print:p-2">
+                                    <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Total Deductions</p>
+                                    <p class="text-lg font-bold text-red-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.TotalDeductions)</p>
+                                </div>
+                                <div class="rounded-lg border-2 border-blue-300 bg-blue-50 p-3 print:border-gray-400 print:bg-white print:p-2">
+                                    <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Net Pay</p>
+                                    <p class="text-lg font-bold text-blue-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.NetPay)</p>
+                                </div>
+                                <div class="rounded-lg border-2 border-purple-300 bg-purple-50 p-3 print:border-gray-400 print:bg-white print:p-2">
+                                    <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">13th Month Pay</p>
+                                    <p class="text-lg font-bold text-purple-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.ThirteenthMonthPay)</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Role Information (Dynamic Values) -->
+                            <div class="rounded-lg border-2 border-blue-300 bg-blue-50 p-3 print:border-gray-400 print:bg-white print:p-3">
+                                <h4 class="mb-2 text-sm font-semibold text-blue-800 print:mb-2 print:text-sm print:text-gray-800">Role Information (Dynamic Values)</h4>
+                                <div class="grid grid-cols-1 gap-4 print:grid-cols-3 print:gap-2 md:grid-cols-3">
+                                    <div class="rounded-lg border border-blue-200 bg-white p-3 print:border-gray-300 print:bg-transparent print:p-2">
+                                        <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Role Name</p>
+                                        <p class="text-lg font-bold text-blue-700 print:text-base print:text-gray-900">@selectedRole</p>
+                                    </div>
+                                    <div class="rounded-lg border border-blue-200 bg-white p-3 print:border-gray-300 print:bg-transparent print:p-2">
+                                        <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Base Salary</p>
+                                        <p class="text-lg font-bold text-blue-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.BaseSalary)</p>
+                                    </div>
+                                    <div class="rounded-lg border border-blue-200 bg-white p-3 print:border-gray-300 print:bg-transparent print:p-2">
+                                        <p class="mb-1 text-xs text-gray-600 print:text-xs print:text-gray-700">Allowance</p>
+                                        <p class="text-lg font-bold text-blue-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.Allowance)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Calculated Values (Static) -->
+                            <div class="rounded-lg border-2 border-gray-300 bg-gray-50 p-3 print:border-gray-400 print:bg-white print:p-3">
+                                <h4 class="mb-2 text-sm font-semibold text-gray-800 print:mb-2 print:text-sm">Calculated Values (Based on Philippine Labor Laws)</h4>
+                                
+                                <!-- Earnings Section -->
+                                <div class="mb-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm print:mb-3 print:p-3">
+                                    <h5 class="mb-2 text-sm font-semibold text-gray-800 print:mb-2 print:text-xs">Earnings</h5>
+                                    <div class="space-y-2 print:space-y-1">
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">Base Salary:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.BaseSalary)</span>
+                                        </div>
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">Allowance:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.Allowance)</span>
+                                        </div>
+                                        <div class="flex justify-between border-t-2 border-green-300 pt-2 print:border-gray-400 print:pt-1">
+                                            <span class="text-sm font-semibold text-gray-800 print:text-xs">Gross Pay:</span>
+                                            <span class="text-base font-bold text-green-600 print:text-sm print:text-gray-900">@Salary.FormatPeso(selected.GrossPay)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Deductions Section -->
+                                <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm print:p-3">
+                                    <h5 class="mb-2 text-sm font-semibold text-gray-800 print:mb-2 print:text-xs">Mandatory Deductions</h5>
+                                    <div class="space-y-2 print:space-y-1">
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">SSS:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.SSS)</span>
+                                        </div>
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">PhilHealth:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.PhilHealth)</span>
+                                        </div>
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">Pag-IBIG:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.PagIbig)</span>
+                                        </div>
+                                        <div class="flex justify-between border-b border-gray-100 pb-2 print:pb-1">
+                                            <span class="text-sm text-gray-600 print:text-xs">Withholding Tax:</span>
+                                            <span class="text-sm font-medium text-gray-800 print:text-xs">@Salary.FormatPeso(selected.WithholdingTax)</span>
+                                        </div>
+                                        <div class="flex justify-between border-t-2 border-red-300 pt-2 print:border-gray-400 print:pt-1">
+                                            <span class="text-sm font-semibold text-gray-800 print:text-xs">Total Deductions:</span>
+                                            <span class="text-base font-bold text-red-600 print:text-sm print:text-gray-900">@Salary.FormatPeso(selected.TotalDeductions)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Net Pay and 13th Month -->
+                            <div class="grid grid-cols-1 gap-4 print:grid-cols-2 print:gap-3 md:grid-cols-2">
+                                <div class="rounded-lg border-2 border-green-300 bg-white p-4 shadow-sm print:border-gray-400 print:bg-white print:p-3">
+                                    <h4 class="mb-2 text-base font-semibold text-green-800 print:mb-1 print:text-sm print:text-gray-800">Net Pay</h4>
+                                    <p class="text-2xl font-bold text-green-600 print:text-xl print:text-gray-900">@Salary.FormatPeso(selected.NetPay)</p>
+                                    <p class="mt-2 text-xs text-green-700 print:mt-1 print:text-xs print:text-gray-600">Gross Pay - Total Deductions</p>
+                                </div>
+                                <div class="rounded-lg border-2 border-blue-300 bg-blue-50 p-4 shadow-sm print:border-gray-400 print:bg-white print:p-3">
+                                    <h4 class="mb-2 text-base font-semibold text-blue-800 print:mb-1 print:text-sm print:text-gray-800">13th Month Pay (Annual)</h4>
+                                    <p class="text-2xl font-bold text-blue-600 print:text-xl print:text-gray-900">@Salary.FormatPeso(selected.ThirteenthMonthPay)</p>
+                                    <p class="mt-2 text-xs text-blue-700 print:mt-1 print:text-xs print:text-gray-600">Base Salary ÷ 12 (PD 851)</p>
+                                </div>
+                            </div>
+
+                            <!-- Step-by-Step Calculation Breakdown with Formulas and Legal Basis -->
+                            <div class="rounded-lg border-2 border-gray-300 bg-gray-50 p-3 shadow-sm print:break-inside-avoid print:border-gray-400 print:bg-white print:p-3">
+                                <h4 class="mb-3 text-sm font-bold text-gray-800 print:mb-2 print:text-sm">Complete Legal Basis & Calculation Formulas Reference</h4>
+                                <p class="mb-3 text-xs text-gray-600 print:mb-2 print:text-xs">This section provides the complete legal framework and mathematical formulas used in all payroll calculations, as mandated by Philippine labor and tax laws.</p>
+                                <div class="space-y-3 print:space-y-3">
+                                    <!-- Step 1: Gross Pay -->
+                                    <div class="rounded-lg border-2 border-blue-200 bg-white p-3 shadow-sm print:border-gray-300 print:p-3">
+                                        <div class="mb-2 border-b border-gray-200 pb-2">
+                                            <p class="text-sm font-bold text-blue-700 print:text-xs print:text-gray-800">1. Gross Pay</p>
+                                            <p class="mt-1 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 6727 (Wage Rationalization Act)</p>
+                                        </div>
+                                        <div class="space-y-2 print:space-y-1">
+                                            <div class="rounded bg-blue-50 p-2 print:bg-gray-50 print:p-1.5">
+                                                <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs"><strong>Gross Pay = Base Salary + Allowance</strong></p>
+                                            </div>
+                                            <div class="rounded bg-gray-50 p-2 print:bg-transparent print:p-1.5">
+                                                <p class="mb-1 text-xs text-gray-600 print:text-xs">Calculation:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs">@Salary.FormatPeso(selected.BaseSalary) + @Salary.FormatPeso(selected.Allowance) = <strong class="text-blue-700 print:text-gray-900">@Salary.FormatPeso(selected.GrossPay)</strong></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Step 2: Mandatory Deductions -->
+                                    <div class="rounded-lg border-2 border-orange-200 bg-white p-3 shadow-sm print:border-gray-300 print:p-3">
+                                        <div class="mb-2 border-b border-gray-200 pb-2">
+                                            <p class="text-sm font-bold text-orange-700 print:text-xs print:text-gray-800">2. Mandatory Deductions</p>
+                                        </div>
+                                        <div class="space-y-3 print:space-y-2">
+                                            <!-- SSS -->
+                                            <div class="rounded border border-gray-200 bg-gray-50 p-3 print:bg-white print:p-2">
+                                                <p class="mb-1 text-xs font-semibold text-gray-800 print:text-xs">SSS Contribution</p>
+                                                <p class="mb-2 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 11199 (Social Security Act of 2018)</p>
+                                                <div class="mb-1 rounded bg-white p-2 print:bg-transparent print:p-1">
+                                                    <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                    <p class="font-mono text-xs text-gray-800 print:text-xs"><strong>SSS = Base Salary × 11%</strong> (capped at ₱2,000/month)</p>
+                                                </div>
+                                                <p class="text-xs text-gray-700 print:text-xs">Calculation: @Salary.FormatPeso(selected.BaseSalary) × 11% = <strong class="text-gray-900">@Salary.FormatPeso(selected.SSS)</strong></p>
+                                            </div>
+                                            
+                                            <!-- PhilHealth -->
+                                            <div class="rounded border border-gray-200 bg-gray-50 p-3 print:bg-white print:p-2">
+                                                <p class="mb-1 text-xs font-semibold text-gray-800 print:text-xs">PhilHealth Contribution</p>
+                                                <p class="mb-2 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 11223 (Universal Health Care Act)</p>
+                                                <div class="mb-1 rounded bg-white p-2 print:bg-transparent print:p-1">
+                                                    <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                    <p class="font-mono text-xs text-gray-800 print:text-xs"><strong>PhilHealth = Base Salary × 3%</strong></p>
+                                                </div>
+                                                <p class="text-xs text-gray-700 print:text-xs">Calculation: @Salary.FormatPeso(selected.BaseSalary) × 3% = <strong class="text-gray-900">@Salary.FormatPeso(selected.PhilHealth)</strong></p>
+                                            </div>
+                                            
+                                            <!-- Pag-IBIG -->
+                                            <div class="rounded border border-gray-200 bg-gray-50 p-3 print:bg-white print:p-2">
+                                                <p class="mb-1 text-xs font-semibold text-gray-800 print:text-xs">Pag-IBIG Contribution</p>
+                                                <p class="mb-2 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 9679 (Pag-IBIG Fund Law of 2009)</p>
+                                                <div class="mb-1 rounded bg-white p-2 print:bg-transparent print:p-1">
+                                                    <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                    <p class="font-mono text-xs text-gray-800 print:text-xs"><strong>Pag-IBIG = Base Salary × 2%</strong> (capped at ₱200/month)</p>
+                                                </div>
+                                                <p class="text-xs text-gray-700 print:text-xs">Calculation: @Salary.FormatPeso(selected.BaseSalary) × 2% = <strong class="text-gray-900">@Salary.FormatPeso(selected.PagIbig)</strong></p>
+                                            </div>
+                                            
+                                            <div class="mt-2 rounded border-2 border-orange-300 bg-orange-50 p-2 print:border-gray-400 print:bg-white print:p-1.5">
+                                                <p class="text-xs font-semibold text-orange-800 print:text-xs print:text-gray-800">Total Mandatory Deductions: <strong class="text-gray-900">@Salary.FormatPeso(selected.SSS + selected.PhilHealth + selected.PagIbig)</strong></p>
+                                                <p class="mt-1 text-xs text-gray-600 print:text-xs">Formula: Total = SSS + PhilHealth + Pag-IBIG</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Step 3: Taxable Income -->
+                                    <div class="rounded-lg border-2 border-indigo-200 bg-white p-3 shadow-sm print:border-gray-300 print:p-3">
+                                        <div class="mb-2 border-b border-gray-200 pb-2">
+                                            <p class="text-sm font-bold text-indigo-700 print:text-xs print:text-gray-800">3. Taxable Income</p>
+                                            <p class="mt-1 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 10963 (TRAIN Law - Tax Reform for Acceleration and Inclusion)</p>
+                                        </div>
+                                        <div class="space-y-2 print:space-y-1">
+                                            <div class="rounded bg-indigo-50 p-2 print:bg-gray-50 print:p-1.5">
+                                                <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs"><strong>Taxable Income = Gross Pay - (SSS + PhilHealth + Pag-IBIG)</strong></p>
+                                            </div>
+                                            <div class="rounded bg-gray-50 p-2 print:bg-transparent print:p-1.5">
+                                                <p class="mb-1 text-xs text-gray-600 print:text-xs">Calculation:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs">@Salary.FormatPeso(selected.GrossPay) - (@Salary.FormatPeso(selected.SSS) + @Salary.FormatPeso(selected.PhilHealth) + @Salary.FormatPeso(selected.PagIbig)) = <strong class="text-indigo-700 print:text-gray-900">@Salary.FormatPeso(selected.TaxableIncome)</strong></p>
+                                            </div>
+                                            <p class="mt-1 text-xs text-gray-500 print:text-xs">Note: Mandatory deductions (SSS, PhilHealth, Pag-IBIG) are tax-exempt and deducted from gross pay before computing income tax.</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Step 4: Withholding Tax -->
+                                    <div class="rounded-lg border-2 border-red-200 bg-white p-3 shadow-sm print:border-gray-300 print:p-3">
+                                        <div class="mb-2 border-b border-gray-200 pb-2">
+                                            <p class="text-sm font-bold text-red-700 print:text-xs print:text-gray-800">4. Withholding Tax</p>
+                                            <p class="mt-1 text-xs text-gray-500 print:text-xs"><strong>Legal Basis:</strong> Republic Act No. 10963 (TRAIN Law)</p>
+                                        </div>
+                                        <div class="space-y-2 print:space-y-1">
+                                            <div class="rounded bg-red-50 p-2 print:bg-gray-50 print:p-1.5">
+                                                <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                <p class="font-mono text-xs text-gray-800 print:text-xs"><strong>Progressive Tax Brackets based on Taxable Income</strong></p>
+                                                <p class="mt-1 text-xs text-gray-600 print:text-xs">Taxable Income: <strong>@Salary.FormatPeso(selected.TaxableIncome)</strong></p>
+                                                <p class="text-xs text-gray-600 print:text-xs">Applied Tax Bracket: <strong>@selected.TaxBracket</strong></p>
+                                            </div>
+                                            <div class="rounded bg-gray-50 p-2 print:bg-transparent print:p-1.5">
+                                                <p class="mb-1 text-xs text-gray-600 print:text-xs">Withholding Tax Calculation:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs">Withholding Tax = <strong class="text-red-700 print:text-gray-900">@Salary.FormatPeso(selected.WithholdingTax)</strong></p>
+                                            </div>
+                                            <p class="mt-1 text-xs text-gray-500 print:text-xs">Note: No tax if Taxable Income ≤ ₱20,833.33/month (₱250,000/year annual exemption under TRAIN Law)</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Step 5: Net Pay -->
+                                    <div class="rounded-lg border-2 border-green-300 bg-white p-3 shadow-sm print:border-gray-400 print:bg-white print:p-3">
+                                        <div class="mb-2 border-b border-gray-200 pb-2 print:border-gray-300">
+                                            <p class="text-sm font-bold text-green-800 print:text-xs print:text-gray-800">5. Net Pay</p>
+                                            <p class="mt-1 text-xs text-green-700 print:text-xs print:text-gray-600"><strong>Legal Basis:</strong> Republic Act No. 6727 (Wage Rationalization Act) - Net pay is the employee's final compensation after all deductions.</p>
+                                        </div>
+                                        <div class="space-y-2 print:space-y-1">
+                                            <div class="rounded border-2 border-green-200 bg-white p-2 print:border-gray-300 print:bg-transparent print:p-1.5">
+                                                <p class="mb-1 text-xs font-semibold text-gray-700 print:text-xs">Formula:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs"><strong>Net Pay = Gross Pay - Total Deductions</strong></p>
+                                                <p class="mt-1 text-xs text-gray-600 print:text-xs">Where: Total Deductions = SSS + PhilHealth + Pag-IBIG + Withholding Tax</p>
+                                            </div>
+                                            <div class="rounded bg-green-100 p-2 print:bg-gray-50 print:p-1.5">
+                                                <p class="mb-1 text-xs text-gray-600 print:text-xs">Calculation:</p>
+                                                <p class="font-mono text-sm text-gray-800 print:text-xs">@Salary.FormatPeso(selected.GrossPay) - @Salary.FormatPeso(selected.TotalDeductions) = <strong class="text-lg text-green-700 print:text-base print:text-gray-900">@Salary.FormatPeso(selected.NetPay)</strong></p>
+                                            </div>
+                                            <div class="rounded border border-green-200 bg-white p-2 print:border-gray-300 print:bg-transparent print:p-1.5">
+                                                <p class="text-xs text-gray-600 print:text-xs">Breakdown of Total Deductions:</p>
+                                                <p class="text-xs text-gray-700 print:text-xs">SSS: @Salary.FormatPeso(selected.SSS) + PhilHealth: @Salary.FormatPeso(selected.PhilHealth) + Pag-IBIG: @Salary.FormatPeso(selected.PagIbig) + Withholding Tax: @Salary.FormatPeso(selected.WithholdingTax) = <strong>@Salary.FormatPeso(selected.TotalDeductions)</strong></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tax Information -->
+                            <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm print:p-3">
+                                <h4 class="mb-3 text-sm font-semibold text-gray-800 print:mb-2 print:text-sm">Tax Information</h4>
+                                <div class="grid grid-cols-1 gap-4 print:grid-cols-2 print:gap-2 md:grid-cols-2">
+                                    <div class="rounded-lg bg-gray-50 p-3 print:bg-transparent print:p-2">
+                                        <p class="text-sm text-gray-600 print:text-xs">Taxable Income:</p>
+                                        <p class="text-lg font-semibold text-gray-800 print:text-base">@Salary.FormatPeso(selected.TaxableIncome)</p>
+                                        <p class="mt-1 text-xs text-gray-500 print:mt-0.5 print:text-xs">Gross Pay - (SSS + PhilHealth + Pag-IBIG)</p>
+                                    </div>
+                                    <div class="rounded-lg bg-gray-50 p-3 print:bg-transparent print:p-2">
+                                        <p class="text-sm text-gray-600 print:text-xs">Tax Bracket:</p>
+                                        <p class="text-lg font-semibold text-gray-800 print:text-base">@selected.TaxBracket</p>
+                                        <p class="mt-1 text-xs text-gray-500 print:mt-0.5 print:text-xs">Based on TRAIN Law (RA 10963)</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tax Bracket Table -->
+                            <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-sm print:break-inside-avoid print:p-3">
+                                <h4 class="mb-3 text-sm font-semibold text-gray-800 print:mb-2 print:text-sm">TRAIN Law Tax Brackets (Monthly)</h4>
+                                <div class="overflow-x-auto print:overflow-visible">
+                                    <table class="w-full border-collapse text-sm print:text-xs">
+                                        <thead>
+                                            <tr class="bg-gray-50 print:bg-gray-100">
+                                                <th class="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">Taxable Income Range</th>
+                                                <th class="border border-gray-200 px-3 py-2 text-center font-semibold text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">Tax Rate</th>
+                                                <th class="border border-gray-200 px-3 py-2 text-left font-semibold text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">Base Tax + Rate on Excess</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱0 - ₱20,833.33</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-green-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">0%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">No tax</td>
+                                            </tr>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱20,833.34 - ₱33,333.33</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-blue-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">20%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">20% of excess over ₱20,833.33</td>
+                                            </tr>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱33,333.34 - ₱66,666.67</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-blue-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">25%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱2,500 + 25% of excess over ₱33,333.33</td>
+                                            </tr>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱66,666.68 - ₱166,666.67</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-orange-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">30%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱10,833.33 + 30% of excess over ₱66,666.67</td>
+                                            </tr>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱166,666.68 - ₱666,666.67</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-orange-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">32%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱40,833.33 + 32% of excess over ₱166,666.67</td>
+                                            </tr>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-700 print:border-gray-400 print:px-2 print:py-1 print:text-xs">Above ₱666,666.67</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-center font-medium text-red-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs print:text-gray-900">35%</td>
+                                                <td class="border border-gray-200 px-3 py-2 text-gray-600 print:border-gray-400 print:px-2 print:py-1 print:text-xs">₱200,833.33 + 35% of excess over ₱666,666.67</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                            <p class="text-gray-500">Select a role from the table above to view detailed calculations and legal basis.</p>
+                        </div>
+                    }
                 </div>
             </div>
         }
@@ -100,6 +486,10 @@
     private List<PayrollRoleData> payrollData = new();
     private string? selectedRole = null;
     private string activeTab = "SalaryConfig";
+    
+    // Confirmation modal state
+    private bool showConfirmModal = false;
+    private string? pendingSelectedRole = null;
     
     // Toast notification state
     private bool showToast = false;
@@ -141,9 +531,8 @@
             
             StateHasChanged();
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading payroll data: {ex.Message}");
             // On error, show empty list instead of hardcoded data
             payrollData = new List<PayrollRoleData>();
             StateHasChanged();
@@ -227,10 +616,49 @@
         StateHasChanged();
     }
 
-    private void HandleRoleSelected(string role)
+    private Task HandleRoleSelected(string role)
     {
-        selectedRole = role;
+        // Show confirmation modal instead of directly showing details
+        pendingSelectedRole = role;
+        showConfirmModal = true;
         StateHasChanged();
+        return Task.CompletedTask;
+    }
+    
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        pendingSelectedRole = null;
+        StateHasChanged();
+    }
+    
+    private async Task ConfirmViewDetails()
+    {
+        if (pendingSelectedRole != null)
+        {
+            selectedRole = pendingSelectedRole;
+            showConfirmModal = false;
+            pendingSelectedRole = null;
+            
+            // Force state update to ensure calculation details section re-renders
+            await InvokeAsync(StateHasChanged);
+            
+            // Scroll to calculation details section after a brief delay
+            await Task.Delay(300);
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("eval", @"
+                    const element = document.querySelector('[id=""calculation-details-print""]');
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                ");
+            }
+            catch
+            {
+                // Ignore JS errors
+            }
+        }
     }
 
     private async Task HandleRoleAdded()
@@ -251,6 +679,17 @@
     private void CloseToast()
     {
         showToast = false;
+        StateHasChanged();
+    }
+    
+    private async Task PrintDetails()
+    {
+        await JSRuntime.InvokeVoidAsync("window.print");
+    }
+    
+    private void CloseDetails()
+    {
+        selectedRole = null;
         StateHasChanged();
     }
 }

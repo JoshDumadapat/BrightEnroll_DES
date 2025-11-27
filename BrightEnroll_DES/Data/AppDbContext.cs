@@ -80,6 +80,10 @@ public class AppDbContext : DbContext
                   .WithOne(r => r.Student)
                   .HasForeignKey(r => r.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
+            
+            // Temporarily ignore ArchiveReason property until database column is added
+            // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.ArchiveReason);
         });
 
         modelBuilder.Entity<Guardian>(entity =>
@@ -96,6 +100,10 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
             entity.HasIndex(e => e.IsSynced);
+            
+            // Temporarily ignore IsVerified property until database column is added
+            // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.IsVerified);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>
@@ -128,6 +136,11 @@ public class AppDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView("vw_EmployeeData");
+            
+            // Configure decimal precision for view columns
+            entity.Property(e => e.BaseSalary).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.Allowance).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.TotalSalary).HasColumnType("decimal(12,2)");
         });
 
         modelBuilder.Entity<StudentDataView>(entity =>

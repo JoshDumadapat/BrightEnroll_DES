@@ -17,27 +17,13 @@
                 <input type="text" placeholder="Search here..." @bind="SearchText"
                        class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
             </div>
-            <select @bind="GradeFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                <option value="">Grade</option>
-                <option value="Kinder">Kinder</option>
-                <option value="G1">G1</option>
-                <option value="G2">G2</option>
-                <option value="G3">G3</option>
-                <option value="G4">G4</option>
-                <option value="G5">G5</option>
-                <option value="G6">G6</option>
-            </select>
             <select @bind="StatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                 <option value="">Status</option>
+                <option value="Rejected by School">Rejected by School</option>
+                <option value="Application Withdrawn">Application Withdrawn</option>
+                <option value="Withdrawn">Withdrawn</option>
                 <option value="Graduated">Graduated</option>
                 <option value="Transferred">Transferred</option>
-                <option value="Withdrawn">Withdrawn</option>
-            </select>
-            <select @bind="DocumentStatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                <option value="">Document Status</option>
-                <option value="Verified">Verified</option>
-                <option value="Not verified">Not verified</option>
-                <option value="Pending">Pending</option>
             </select>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -71,9 +57,7 @@
             <th class="px-4 py-3 text-left">Name</th>
             <th class="px-4 py-3 text-left">LRN</th>
             <th class="px-4 py-3 text-left">Date</th>
-            <th class="px-4 py-3 text-left">Grade Level</th>
-            <th class="px-4 py-3 text-left">Section</th>
-            <th class="px-4 py-3 text-left">Documents</th>
+            <th class="px-4 py-3 text-left">Reason</th>
             <th class="px-4 py-3 text-left">Status</th>
             <th class="px-4 py-3 text-left">Archived Date</th>
             <th class="px-4 py-3 text-center">Actions</th>
@@ -91,10 +75,8 @@
                         <span class="text-gray-900">@student.LRN</span>
                     </td>
                     <td class="px-4 py-3">@student.Date</td>
-                    <td class="px-4 py-3">@student.GradeLevel</td>
-                    <td class="px-4 py-3">@student.Section</td>
                     <td class="px-4 py-3">
-                        <span class="text-gray-900 no-underline hover:no-underline cursor-default">@student.Documents</span>
+                        <span class="text-gray-700 text-xs">@(string.IsNullOrWhiteSpace(student.Reason) ? "-" : (student.Reason.Length > 50 ? student.Reason.Substring(0, 50) + "..." : student.Reason))</span>
                     </td>
                     <td class="px-4 py-3">
                         @if (student.Status == "Graduated")
@@ -105,9 +87,17 @@
                         {
                             <span class="rounded-md bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">@student.Status</span>
                         }
-                        else if (student.Status == "Withdrawn")
+                        else if (student.Status == "Withdrawn" || student.Status == "Application Withdrawn")
+                        {
+                            <span class="rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">@student.Status</span>
+                        }
+                        else if (student.Status == "Rejected by School")
                         {
                             <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">@student.Status</span>
+                        }
+                        else
+                        {
+                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">@student.Status</span>
                         }
                     </td>
                     <td class="px-4 py-3 text-gray-600">@student.ArchivedDate</td>
@@ -127,7 +117,7 @@
         else
         {
             <tr>
-                <td colspan="10" class="px-4 py-12 text-center text-gray-500">
+                <td colspan="8" class="px-4 py-12 text-center text-gray-500">
                     <div class="flex flex-col items-center justify-center">
                         <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -158,9 +148,7 @@
 
     // Filter properties
     private string SearchText { get; set; } = "";
-    private string GradeFilter { get; set; } = "";
     private string StatusFilter { get; set; } = "";
-    private string DocumentStatusFilter { get; set; } = "";
 
     // Pagination state
     private int CurrentPage { get; set; } = 1;
@@ -181,25 +169,14 @@
                 filtered = filtered.Where(s => 
                     s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                     s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
-            }
-
-            // Grade filter
-            if (!string.IsNullOrWhiteSpace(GradeFilter))
-            {
-                filtered = filtered.Where(s => s.GradeLevel == GradeFilter);
+                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (s.Reason != null && s.Reason.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
             }
 
             // Status filter
             if (!string.IsNullOrWhiteSpace(StatusFilter))
             {
                 filtered = filtered.Where(s => s.Status == StatusFilter);
-            }
-
-            // Document status filter
-            if (!string.IsNullOrWhiteSpace(DocumentStatusFilter))
-            {
-                filtered = filtered.Where(s => s.Documents == DocumentStatusFilter);
             }
 
             return filtered.ToList();
@@ -222,9 +199,7 @@
     private void ClearFilters()
     {
         SearchText = "";
-        GradeFilter = "";
         StatusFilter = "";
-        DocumentStatusFilter = "";
         CurrentPage = 1;
         StateHasChanged();
     }

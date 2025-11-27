@@ -7,7 +7,6 @@ using System.Text.RegularExpressions;
 
 namespace BrightEnroll_DES.Services.DataAccess.Repositories
 {
-    // Repository interface for user operations - uses EF Core ORM for security
     public interface IUserRepository
     {
         Task<User?> GetByIdAsync(int userId);
@@ -33,11 +32,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
         public UserRepository(AppDbContext context, ILogger<UserRepository>? logger = null)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
-            _logger = logger;
-        }
+        _logger = logger;
+    }
 
-        // Gets user by ID using EF Core ORM
-        public async Task<User?> GetByIdAsync(int userId)
+    public async Task<User?> GetByIdAsync(int userId)
         {
             try
             {
@@ -50,11 +48,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error getting user by ID {UserId}: {Message}", userId, ex.Message);
                 throw new Exception($"Failed to get user by ID: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Gets user by email using EF Core ORM
-        public async Task<User?> GetByEmailAsync(string email)
+    public async Task<User?> GetByEmailAsync(string email)
         {
             if (!IsValidEmail(email))
             {
@@ -73,11 +70,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error getting user by email {Email}: {Message}", email, ex.Message);
                 throw new Exception($"Failed to get user by email: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Gets user by system ID using EF Core ORM
-        public async Task<User?> GetBySystemIdAsync(string systemId)
+    public async Task<User?> GetBySystemIdAsync(string systemId)
         {
             if (string.IsNullOrWhiteSpace(systemId))
             {
@@ -96,11 +92,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error getting user by system ID {SystemId}: {Message}", systemId, ex.Message);
                 throw new Exception($"Failed to get user by system ID: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Gets user by email or system ID (for login) using EF Core ORM
-        public async Task<User?> GetByEmailOrSystemIdAsync(string emailOrSystemId)
+    public async Task<User?> GetByEmailOrSystemIdAsync(string emailOrSystemId)
         {
             if (string.IsNullOrWhiteSpace(emailOrSystemId))
             {
@@ -119,11 +114,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error getting user by email or system ID: {Message}", ex.Message);
                 throw new Exception($"Failed to get user: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Gets all users using EF Core ORM
-        public async Task<IEnumerable<User>> GetAllAsync()
+    public async Task<IEnumerable<User>> GetAllAsync()
         {
             try
             {
@@ -137,26 +131,20 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error getting all users: {Message}", ex.Message);
                 throw new Exception($"Failed to get all users: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Creates a new user using EF Core ORM
-        public async Task<int> InsertAsync(User user)
+    public async Task<int> InsertAsync(User user)
         {
             if (user == null)
             {
                 throw new ArgumentNullException(nameof(user));
             }
 
-            System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] Starting user insertion...");
-            System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] User data: SystemID={user.system_ID}, Email={user.email}, Role={user.user_role}");
-
             ValidateUser(user);
-            System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] ✓ User validation passed.");
 
             try
             {
-                System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] Creating UserEntity...");
                 var userEntity = new UserEntity
                 {
                     SystemId = SanitizeString(user.system_ID, 50),
@@ -176,53 +164,18 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
                     IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
 
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] UserEntity created:");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync]   - SystemId: {userEntity.SystemId}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync]   - Email: {userEntity.Email}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync]   - UserRole: {userEntity.UserRole}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync]   - Status: {userEntity.Status}");
-
-                System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] Adding user to context...");
                 _context.Users.Add(userEntity);
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Entity state after Add: {_context.Entry(userEntity).State}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Calling SaveChangesAsync...");
-
-                int savedCount = await _context.SaveChangesAsync();
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] SaveChangesAsync completed. Entities saved: {savedCount}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Generated UserId: {userEntity.UserId}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Entity state after SaveChanges: {_context.Entry(userEntity).State}");
-
-                // Verify the user was actually saved
-                System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] Verifying user was saved to database...");
-                var verifyEntity = await _context.Users.FirstOrDefaultAsync(u => u.UserId == userEntity.UserId);
-                if (verifyEntity == null)
-                {
-                    System.Diagnostics.Debug.WriteLine("[UserRepository.InsertAsync] ✗ CRITICAL: User not found in database after SaveChanges!");
-                    throw new Exception("User was not saved to database.");
-                }
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] ✓ User verified in database. UserId: {verifyEntity.UserId}, Role: {verifyEntity.UserRole}");
-
-                return userEntity.UserId; // Return the generated ID
+                await _context.SaveChangesAsync();
+                return userEntity.UserId;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] ✗ ERROR inserting user!");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Error message: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Error type: {ex.GetType().Name}");
-                if (ex.InnerException != null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Inner exception: {ex.InnerException.Message}");
-                    System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Inner exception type: {ex.InnerException.GetType().Name}");
-                }
-                System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] Stack trace: {ex.StackTrace}");
-                
                 _logger?.LogError(ex, "Error inserting user: {Message}", ex.Message);
                 throw new Exception($"Failed to insert user: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Updates an existing user using EF Core ORM
-        public async Task<int> UpdateAsync(User user)
+    public async Task<int> UpdateAsync(User user)
         {
             if (user == null)
             {
@@ -259,8 +212,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
                 userEntity.DateHired = user.date_hired;
                 userEntity.Status = string.IsNullOrWhiteSpace(user.status) ? "active" : SanitizeString(user.status, 20);
 
-                // Explicitly mark Password as modified to ensure EF Core saves it
-                // This is important because EF Core might not detect the change if the hash looks similar
                 _context.Entry(userEntity).Property(u => u.Password).IsModified = true;
 
                 var rowsAffected = await _context.SaveChangesAsync();
@@ -274,11 +225,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error updating user {UserId}: {Message}", user.user_ID, ex.Message);
                 throw new Exception($"Failed to update user: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Deletes a user by ID using EF Core ORM
-        public async Task<int> DeleteAsync(int userId)
+    public async Task<int> DeleteAsync(int userId)
         {
             try
             {
@@ -295,11 +245,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error deleting user {UserId}: {Message}", userId, ex.Message);
                 throw new Exception($"Failed to delete user: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Checks if user exists by email using EF Core ORM
-        public async Task<bool> ExistsByEmailAsync(string email)
+    public async Task<bool> ExistsByEmailAsync(string email)
         {
             if (!IsValidEmail(email))
             {
@@ -316,32 +265,27 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error checking if user exists by email: {Message}", ex.Message);
                 return false;
-            }
+        }
+    }
+
+    public async Task<bool> ExistsByContactNumberAsync(string contactNumber)
+    {
+        if (string.IsNullOrWhiteSpace(contactNumber))
+        {
+            return false;
         }
 
-        // Checks if user exists by contact number using EF Core ORM
-        // Normalizes contact numbers for comparison (removes spaces, dashes, etc.)
-        public async Task<bool> ExistsByContactNumberAsync(string contactNumber)
+        try
         {
-            if (string.IsNullOrWhiteSpace(contactNumber))
-            {
-                return false;
-            }
-
-            try
-            {
-                // Normalize contact number (remove spaces, dashes, etc.)
-                var normalizedContact = contactNumber.Trim().Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
-                var sanitizedContact = SanitizeString(normalizedContact, 20);
-                
-                // Get all contact numbers from database
-                var allContacts = await _context.Users
-                    .Where(u => u.ContactNum != null && u.ContactNum != "")
-                    .Select(u => u.ContactNum)
-                    .ToListAsync();
-                
-                // Check if any normalized contact matches
-                foreach (var existingContact in allContacts)
+            var normalizedContact = contactNumber.Trim().Replace(" ", "").Replace("-", "").Replace("(", "").Replace(")", "");
+            var sanitizedContact = SanitizeString(normalizedContact, 20);
+            
+            var allContacts = await _context.Users
+                .Where(u => u.ContactNum != null && u.ContactNum != "")
+                .Select(u => u.ContactNum)
+                .ToListAsync();
+            
+            foreach (var existingContact in allContacts)
                 {
                     if (!string.IsNullOrWhiteSpace(existingContact))
                     {
@@ -359,11 +303,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error checking if user exists by contact number: {Message}", ex.Message);
                 return false;
-            }
         }
+    }
 
-        // Checks if user exists by system ID using EF Core ORM
-        public async Task<bool> ExistsBySystemIdAsync(string systemId)
+    public async Task<bool> ExistsBySystemIdAsync(string systemId)
         {
             if (string.IsNullOrWhiteSpace(systemId))
             {
@@ -380,11 +323,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error checking if user exists by system ID: {Message}", ex.Message);
                 return false;
-            }
         }
+    }
 
-        // Checks if user exists by ID using EF Core ORM
-        public async Task<bool> ExistsByIdAsync(int userId)
+    public async Task<bool> ExistsByIdAsync(int userId)
         {
             try
             {
@@ -395,26 +337,21 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error checking if user exists by ID: {Message}", ex.Message);
                 return false;
-            }
         }
+    }
 
-        // Generates the next system ID in sequence (BDES-0001, BDES-0002, etc.) using EF Core ORM
-        // Finds the highest existing number and adds 1
-        // This method checks the database first to ensure no duplicate system IDs
-        public async Task<string> GetNextSystemIdAsync()
+    public async Task<string> GetNextSystemIdAsync()
+    {
+        try
         {
-            try
-            {
-                // Get all system IDs that match BDES- pattern
-                var bdesIds = await _context.Users
+            var bdesIds = await _context.Users
                     .Where(u => u.SystemId.StartsWith("BDES-") && u.SystemId.Length >= 10)
                     .Select(u => u.SystemId)
                     .ToListAsync();
 
-                int maxNumber = 0;
+            int maxNumber = 0;
 
-                // Extract numbers from BDES- IDs
-                foreach (var id in bdesIds)
+            foreach (var id in bdesIds)
                 {
                     if (id.Length > 5)
                     {
@@ -430,12 +367,8 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
                 }
 
                 int nextNumber = maxNumber + 1;
-
-                // Format with 4 digits: 1 becomes BDES-0001, 2 becomes BDES-0002
                 string nextSystemId = $"BDES-{nextNumber:D4}";
 
-                // Double-check to ensure the generated ID doesn't already exist (safety check)
-                // This prevents race conditions where another process might have inserted the same ID
                 bool exists = await ExistsBySystemIdAsync(nextSystemId);
                 int retryCount = 0;
                 const int maxRetries = 100; // Prevent infinite loop
@@ -459,11 +392,10 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             {
                 _logger?.LogError(ex, "Error generating next system ID: {Message}", ex.Message);
                 throw new Exception($"Failed to generate system ID: {ex.Message}", ex);
-            }
         }
+    }
 
-        // Validates user data before saving
-        private void ValidateUser(User user)
+    private void ValidateUser(User user)
         {
             if (string.IsNullOrWhiteSpace(user.first_name))
                 throw new ArgumentException("First name is required", nameof(user));
@@ -487,7 +419,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
                 throw new ArgumentException("Password is required", nameof(user));
         }
 
-        // Converts UserEntity to User model
         private User MapEntityToUser(UserEntity entity)
         {
             return new User
@@ -510,7 +441,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             };
         }
 
-        // Trims and limits string length (security sanitization)
         private string SanitizeString(string? input, int maxLength = 255)
         {
             if (string.IsNullOrWhiteSpace(input))
@@ -526,7 +456,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             return sanitized;
         }
 
-        // Checks if email format is valid
         private bool IsValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email))

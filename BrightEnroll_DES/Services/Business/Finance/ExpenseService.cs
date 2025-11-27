@@ -5,7 +5,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
-// Handles expense recording operations
 public class ExpenseService
 {
     private readonly AppDbContext _context;
@@ -17,19 +16,16 @@ public class ExpenseService
         _logger = logger;
     }
 
-    // Creates a new expense record from the UI request
     public async Task<Expense> CreateExpenseAsync(CreateExpenseRequest request)
     {
         try
         {
-            // Basic validation/sanitization
             if (string.IsNullOrWhiteSpace(request.ExpenseCode))
                 throw new ArgumentException("Expense code is required.", nameof(request.ExpenseCode));
 
             if (request.Amount <= 0)
                 throw new ArgumentException("Amount must be greater than zero.", nameof(request.Amount));
 
-            // If an expense with the same code already exists, treat this as an update instead of insert
             var existingExpense = await _context.Expenses
                 .FirstOrDefaultAsync(e => e.ExpenseCode == request.ExpenseCode);
 
@@ -55,14 +51,14 @@ public class ExpenseService
             var expense = new Expense
             {
                 ExpenseCode = request.ExpenseCode.Trim(),
-                Category = Sanitize(request.Category, 50),
+                Category = Sanitize(request.Category, 50) ?? string.Empty,
                 Description = Sanitize(request.Description, 500, allowNull: true),
                 Amount = request.Amount,
                 ExpenseDate = request.ExpenseDate,
                 Payee = Sanitize(request.Payee, 150, allowNull: true),
                 OrNumber = Sanitize(request.OrNumber, 50, allowNull: true),
-                PaymentMethod = Sanitize(request.PaymentMethod, 30),
-                Status = Sanitize(string.IsNullOrWhiteSpace(request.Status) ? "Pending" : request.Status, 20),
+                PaymentMethod = Sanitize(request.PaymentMethod, 30) ?? string.Empty,
+                Status = Sanitize(string.IsNullOrWhiteSpace(request.Status) ? "Pending" : request.Status, 20) ?? string.Empty,
                 RecordedBy = Sanitize(request.RecordedBy, 100, allowNull: true),
                 ApprovedBy = Sanitize(request.ApprovedBy, 100, allowNull: true),
                 CreatedAt = DateTime.Now
@@ -82,7 +78,6 @@ public class ExpenseService
         }
     }
 
-    // Updates an existing expense record identified by its expense code
     public async Task<Expense> UpdateExpenseAsync(string expenseCode, UpdateExpenseRequest request)
     {
         try
@@ -101,14 +96,14 @@ public class ExpenseService
             if (request.Amount <= 0)
                 throw new ArgumentException("Amount must be greater than zero.", nameof(request.Amount));
 
-            expense.Category = Sanitize(request.Category, 50);
+            expense.Category = Sanitize(request.Category, 50) ?? string.Empty;
             expense.Description = Sanitize(request.Description, 500, allowNull: true);
             expense.Amount = request.Amount;
             expense.ExpenseDate = request.ExpenseDate;
             expense.Payee = Sanitize(request.Payee, 150, allowNull: true);
             expense.OrNumber = Sanitize(request.OrNumber, 50, allowNull: true);
-            expense.PaymentMethod = Sanitize(request.PaymentMethod, 30);
-            expense.Status = Sanitize(request.Status, 20);
+            expense.PaymentMethod = Sanitize(request.PaymentMethod, 30) ?? string.Empty;
+            expense.Status = Sanitize(request.Status, 20) ?? string.Empty;
             expense.RecordedBy = Sanitize(request.RecordedBy, 100, allowNull: true);
             expense.ApprovedBy = Sanitize(request.ApprovedBy, 100, allowNull: true);
             expense.UpdatedAt = DateTime.Now;
@@ -125,7 +120,6 @@ public class ExpenseService
         }
     }
 
-    // Archives an expense (soft delete) by marking its status as Archived
     public async Task ArchiveExpenseAsync(string expenseCode)
     {
         try
@@ -155,7 +149,6 @@ public class ExpenseService
         }
     }
 
-    // Gets expenses within an optional date range (for future records tab)
     public async Task<List<Expense>> GetExpensesAsync(DateTime? from = null, DateTime? to = null)
     {
         try

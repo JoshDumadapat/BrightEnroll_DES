@@ -60,12 +60,19 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_Users");
             entity.HasIndex(e => e.SystemId).IsUnique();
             entity.HasIndex(e => e.Email).IsUnique();
+            // IsSynced column exists in cloud DB but we don't query by it
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<Student>(entity =>
         {
             entity.HasKey(e => e.StudentId);
             entity.ToTable("tbl_Students");
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
+            
+            // Temporarily ignore ArchiveReason property until database column is added
+            // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.ArchiveReason);
 
             entity.HasOne(s => s.Guardian)
                   .WithMany(g => g.Students)
@@ -82,6 +89,7 @@ public class CloudDbContext : DbContext
         {
             entity.HasKey(e => e.GuardianId);
             entity.ToTable("tbl_Guardians");
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<StudentRequirement>(entity =>
@@ -90,6 +98,11 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_StudentRequirements");
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
+            
+            // Temporarily ignore IsVerified property until database column is added
+            // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.IsVerified);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>
@@ -97,6 +110,7 @@ public class CloudDbContext : DbContext
             entity.HasKey(e => e.AddressId);
             entity.ToTable("tbl_employee_address");
             entity.HasIndex(e => e.UserId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<EmployeeEmergencyContact>(entity =>
@@ -104,6 +118,7 @@ public class CloudDbContext : DbContext
             entity.HasKey(e => e.EmergencyId);
             entity.ToTable("tbl_employee_emergency_contact");
             entity.HasIndex(e => e.UserId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<SalaryInfo>(entity =>
@@ -112,6 +127,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_salary_info");
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         // View entities removed - they are read-only and may not exist in cloud database
@@ -123,6 +139,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_GradeLevel");
             entity.HasIndex(e => e.GradeLevelName).IsUnique();
             entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<Fee>(entity =>
@@ -131,6 +148,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_Fees");
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(f => f.GradeLevel)
                   .WithMany()
@@ -149,6 +167,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_FeeBreakdown");
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<Expense>(entity =>
@@ -160,6 +179,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => e.ExpenseDate);
             entity.HasIndex(e => e.Category);
             entity.HasIndex(e => e.Status);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
         });
@@ -169,6 +189,7 @@ public class CloudDbContext : DbContext
             entity.HasKey(e => e.AttachmentId);
             entity.ToTable("tbl_ExpenseAttachments");
             entity.HasIndex(e => e.ExpenseId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(a => a.Expense)
                   .WithMany(e => e.Attachments)
@@ -184,6 +205,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.ChangedBy);
             entity.HasIndex(e => e.CreatedAt);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(e => e.User)
                   .WithMany()
@@ -203,6 +225,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_Classrooms");
             entity.HasIndex(e => e.RoomName);
             entity.HasIndex(e => e.Status);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<Section>(entity =>
@@ -212,6 +235,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => e.SectionName);
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.ClassroomId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -230,6 +254,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_Subjects");
             entity.HasIndex(e => e.SubjectName);
             entity.HasIndex(e => e.GradeLevelId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -243,6 +268,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_SubjectSection");
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(ss => ss.Section)
                   .WithMany(s => s.SubjectSections)
@@ -309,6 +335,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => new { e.SubjectId, e.GradeLevelId, e.DayOfWeek })
                   .HasDatabaseName("IX_tbl_SubjectSchedule_Subject_Grade_Day");
             entity.HasIndex(e => e.IsDefault).HasDatabaseName("IX_tbl_SubjectSchedule_IsDefault");
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             // Configure relationships with explicit foreign key column names
             entity.HasOne(ss => ss.Subject)
@@ -332,6 +359,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
             entity.HasIndex(e => e.Role);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(a => a.Teacher)
                   .WithMany()
@@ -357,6 +385,7 @@ public class CloudDbContext : DbContext
             entity.HasIndex(e => e.RoomId);
             entity.HasIndex(e => e.DayOfWeek);
             entity.HasIndex(e => new { e.AssignmentId, e.DayOfWeek, e.StartTime, e.EndTime });
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
 
             entity.HasOne(s => s.Assignment)
                   .WithMany(a => a.ClassSchedules)
@@ -374,6 +403,7 @@ public class CloudDbContext : DbContext
             entity.HasKey(e => e.BuildingId);
             entity.ToTable("tbl_Buildings");
             entity.HasIndex(e => e.BuildingName);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         // Configure Payroll entities
@@ -383,6 +413,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_roles");
             entity.HasIndex(e => e.RoleName).IsUnique();
             entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<Deduction>(entity =>
@@ -391,6 +422,7 @@ public class CloudDbContext : DbContext
             entity.ToTable("tbl_deductions");
             entity.HasIndex(e => e.DeductionType).IsUnique();
             entity.HasIndex(e => e.IsActive);
+            entity.Property(e => e.IsSynced).HasDefaultValue(false);
         });
     }
 }

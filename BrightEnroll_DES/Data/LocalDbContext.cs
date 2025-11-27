@@ -70,6 +70,10 @@ public class LocalDbContext : DbContext
             entity.HasKey(e => e.StudentId);
             entity.ToTable("tbl_Students");
             entity.HasIndex(e => e.IsSynced);
+            
+            // Temporarily ignore ArchiveReason property until database column is added
+            // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.ArchiveReason);
 
             entity.HasOne(s => s.Guardian)
                   .WithMany(g => g.Students)
@@ -96,6 +100,10 @@ public class LocalDbContext : DbContext
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
             entity.HasIndex(e => e.IsSynced);
+            
+            // Temporarily ignore IsVerified property until database column is added
+            // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.IsVerified);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>

@@ -661,20 +661,54 @@
     </div>
 </div>
 
-<!-- Toast Notification (only for error cases) -->
+<!-- Toast Notification -->
 @if (showToast)
 {
     <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
 }
 
-<!-- Confirmation Modal -->
-@if (showConfirmModal)
+<!-- Dedicated Blue Confirmation Modal for Submit (Add Employee) -->
+@if (showSubmitConfirmModal)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
-        <div id="add-employee-confirm-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSubmitConfirmModal">
+        <div id="add-employee-submit-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden" @onclick:stopPropagation="true">
             <!-- Modal Header -->
             <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
-                <h3 class="text-base font-semibold @(confirmModalType == "cancel" || confirmModalType == "navigate" ? "text-red-500" : "text-blue-600")">@confirmModalTitle</h3>
+                <h3 class="text-base font-semibold text-blue-600">Confirm Add Employee</h3>
+                <button @onclick="CloseSubmitConfirmModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">Are all the information correct? Do you want to add this employee?</p>
+
+                <div class="flex justify-end gap-2 border-t border-gray-200 pt-4 mt-4">
+                    <button type="button" @onclick="CloseSubmitConfirmModal"
+                            class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="ConfirmSubmitEmployee"
+                            class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                        Add Employee
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Navigation/Cancel Confirmation Modal (Red) -->
+@if (showConfirmModal && (confirmModalType == "cancel" || confirmModalType == "navigate"))
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="add-employee-navigate-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">@confirmModalTitle</h3>
                 <button @onclick="CloseConfirmModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -692,9 +726,9 @@
                         Cancel
                     </button>
                     <button type="button" @onclick="ConfirmAction"
-                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90 @(confirmModalType == "cancel" || confirmModalType == "navigate" ? "" : "bg-blue-600")"
-                            style="@(confirmModalType == "cancel" || confirmModalType == "navigate" ? "background-color: #ef4444;" : "")">
-                        @(confirmModalType == "submit" ? "Add Employee" : confirmModalType == "navigate" ? "Leave Page" : "Confirm")
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90"
+                            style="background-color: #ef4444;">
+                        @(confirmModalType == "navigate" ? "Leave Page" : "Confirm")
                     </button>
                 </div>
             </div>
@@ -865,16 +899,18 @@
     private bool showValidationModal = false;
     private List<string> missingFields = new();
     
-    // Confirmation modal
-    private bool showConfirmModal = false;
+    // Confirmation modals
+    private bool showSubmitConfirmModal = false; // Blue modal for submit
+    private bool showConfirmModal = false; // Red modal for navigation/cancel
     private string confirmModalTitle = "";
     private string confirmModalMessage = "";
-    private string confirmModalType = ""; // "submit" or "cancel"
+    private string confirmModalType = ""; // "cancel" or "navigate"
     
     // Loading state
     private bool isSubmitting = false;
+    private bool isProcessingSubmit = false; // Flag to prevent navigation guard during submit
     
-    // Toast notification (only for error cases)
+    // Toast notification
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
@@ -966,6 +1002,12 @@
     // Handle navigation BEFORE it happens using NavigationLock
     private async Task OnBeforeInternalNavigation(LocationChangingContext context)
     {
+        // If we're processing a submit or showing submit confirmation modal, don't interfere
+        if (isProcessingSubmit || showSubmitConfirmModal)
+        {
+            return; // Don't prevent navigation during submit processing
+        }
+        
         // If we're already navigating away (confirmed), allow it
         if (isNavigatingAway)
         {
@@ -1558,10 +1600,8 @@
             // Get next available system ID from database (incremental)
             return await UserRepository.GetNextSystemIdAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Fallback to random if database query fails
-            Console.WriteLine($"Error generating system ID: {ex.Message}");
             var random = new Random();
             var number = random.Next(1000, 9999);
             return $"BDES-{number}";
@@ -1635,10 +1675,8 @@
             // Expected when user types again before delay completes - do nothing
             // Flag remains false (already set above)
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block user input
-            Console.WriteLine($"Error checking email uniqueness: {ex.Message}");
             // Only update flag if email still matches current value and this is still the active check
             var emailAfterError = EmployeeData.Email?.Trim() ?? string.Empty;
             if (emailAfterError == currentEmail && emailCheckCancellationTokenSource == tokenSource)
@@ -1677,75 +1715,85 @@
 
     private async Task HandleSubmitClick()
     {
-        // Only trigger validation when submit button is clicked
-        if (editContext != null)
+        // Set flag IMMEDIATELY to prevent navigation guard from interfering
+        isProcessingSubmit = true;
+        StateHasChanged(); // Update state immediately
+        
+        try
         {
-            // Check for duplicate email before validating form
-            if (isEmailDuplicate)
+            // Only trigger validation when submit button is clicked
+            if (editContext != null)
             {
-                // Show validation error modal with email duplicate message
-                missingFields.Clear();
-                missingFields.Add("Email: This email is already registered. Please use a different email address.");
-                showValidationModal = true;
-                // Force UI update to show red border on email field
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email)));
-                StateHasChanged();
-                return; // Prevent form submission
-            }
-            
-            // Check for duplicate contact number before validating form
-            if (isContactDuplicate)
-            {
-                // Show validation error modal with contact duplicate message
-                missingFields.Clear();
-                missingFields.Add("Contact Number: This contact number is already registered. Please use a different contact number.");
-                showValidationModal = true;
-                // Force UI update to show red border on contact field
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber)));
-                StateHasChanged();
-                return; // Prevent form submission
-            }
-            
-            // Validate the form - this will show validation errors
-            var isValid = editContext.Validate();
-            
-            // Notify all required fields to ensure validation state is updated
-            if (!isValid)
-            {
-                // Explicitly notify dropdown fields to trigger validation display
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Province)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.City)));
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Barangay)));
-            }
-            
-            // Only proceed if form is valid AND email/contact are not duplicate
-            if (isValid && !isEmailDuplicate && !isContactDuplicate)
-            {
-                // Check for duplicate employee before showing confirmation modal
-                // Duplicate check is based on: Full Name + DOB + Address
-                await CheckForDuplicateEmployee();
-                
-                // If duplicate found, the modal will be shown by CheckForDuplicateEmployee
-                // If no duplicate, proceed with normal confirmation
-                if (!showDuplicateModal)
+                // Check for duplicate email before validating form
+                if (isEmailDuplicate)
                 {
-                    // Show confirmation modal
-                    confirmModalTitle = "Confirm Add Employee";
-                    confirmModalMessage = "Are all the information correct? Do you want to add this employee?";
-                    confirmModalType = "submit";
-                    showConfirmModal = true;
+                    // Show validation error modal with email duplicate message
+                    missingFields.Clear();
+                    missingFields.Add("Email: This email is already registered. Please use a different email address.");
+                    showValidationModal = true;
+                    // Force UI update to show red border on email field
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Email)));
+                    StateHasChanged();
+                    return; // Prevent form submission
+                }
+                
+                // Check for duplicate contact number before validating form
+                if (isContactDuplicate)
+                {
+                    // Show validation error modal with contact duplicate message
+                    missingFields.Clear();
+                    missingFields.Add("Contact Number: This contact number is already registered. Please use a different contact number.");
+                    showValidationModal = true;
+                    // Force UI update to show red border on contact field
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.ContactNumber)));
+                    StateHasChanged();
+                    return; // Prevent form submission
+                }
+                
+                // Validate the form - this will show validation errors
+                var isValid = editContext.Validate();
+                
+                // Notify all required fields to ensure validation state is updated
+                if (!isValid)
+                {
+                    // Explicitly notify dropdown fields to trigger validation display
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Province)));
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.City)));
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Barangay)));
+                }
+                
+                // Only proceed if form is valid AND email/contact are not duplicate
+                if (isValid && !isEmailDuplicate && !isContactDuplicate)
+                {
+                    // Check for duplicate employee before showing confirmation modal
+                    // Duplicate check is based on: Full Name + DOB + Address
+                    await CheckForDuplicateEmployee();
+                    
+                    // If duplicate found, the modal will be shown by CheckForDuplicateEmployee
+                    // If no duplicate, proceed with normal confirmation
+                    if (!showDuplicateModal)
+                    {
+                        // Show dedicated blue confirmation modal for SUBMITTING
+                        showSubmitConfirmModal = true;
+                        StateHasChanged();
+                    }
+                }
+                else
+                {
+                    // Collect all validation errors
+                    CollectMissingFields();
+                    // Show validation error modal
+                    showValidationModal = true;
+                    // Force UI update to show validation errors
                     StateHasChanged();
                 }
             }
-            else
-            {
-                // Collect all validation errors
-                CollectMissingFields();
-                // Show validation error modal
-                showValidationModal = true;
-                // Force UI update to show validation errors
-                StateHasChanged();
-            }
+        }
+        finally
+        {
+            // Reset flag after a short delay to allow modal to show
+            await Task.Delay(100);
+            isProcessingSubmit = false;
         }
     }
     
@@ -1773,10 +1821,8 @@
                 StateHasChanged();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block submission
-            Console.WriteLine($"Error checking for duplicate employee: {ex.Message}");
             // Continue with normal flow if check fails
         }
     }
@@ -1846,10 +1892,8 @@
             // Expected when user types again before delay completes - do nothing
             // Flag remains false (already set above)
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block user input
-            Console.WriteLine($"Error checking contact uniqueness: {ex.Message}");
             // Only update flag if contact still matches current value and this is still the active check
             var contactAfterError = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
             if (contactAfterError == currentContact && contactCheckCancellationTokenSource == tokenSource)
@@ -1973,7 +2017,7 @@
     private async Task HandleBackdropClick()
     {
         // If nested modals are open, don't close on backdrop click
-        if (showConfirmModal || showValidationModal || showDuplicateModal)
+        if (showSubmitConfirmModal || showConfirmModal || showValidationModal || showDuplicateModal)
         {
             return;
         }
@@ -1990,13 +2034,18 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "add-employee-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
 
+    private void CloseSubmitConfirmModal()
+    {
+        showSubmitConfirmModal = false;
+        StateHasChanged();
+    }
+    
     private void CloseConfirmModal()
     {
         showConfirmModal = false;
@@ -2005,6 +2054,23 @@
         confirmModalType = "";
         pendingNavigationUrl = null;
         StateHasChanged();
+    }
+    
+    // Handle confirmation for submit modal
+    private async Task ConfirmSubmitEmployee()
+    {
+        // Close the submit confirmation modal
+        showSubmitConfirmModal = false;
+        StateHasChanged();
+        
+        // Set processing flag to prevent navigation guard interference
+        isProcessingSubmit = true;
+        
+        // Submit the employee
+        await SubmitEmployee();
+        
+        // Reset processing flag
+        isProcessingSubmit = false;
     }
     
     // Close duplicate warning modal
@@ -2054,8 +2120,6 @@
         }
         catch (Exception ex)
         {
-            // Handle error
-            Console.WriteLine($"Error updating employee: {ex.Message}");
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update employee: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
@@ -2078,34 +2142,61 @@
 
     private async Task ConfirmAction()
     {
+        var modalType = confirmModalType;
+        
+        if (modalType == "cancel" || modalType == "navigate")
+        {
+            isNavigatingAway = true;
+        }
+        
         showConfirmModal = false;
-        StateHasChanged();
-        
-        if (confirmModalType == "submit")
-        {
-            await SubmitEmployee();
-        }
-        else if (confirmModalType == "cancel")
-        {
-            // Navigate without toast notification for cancel
-            isNavigatingAway = true;
-            NavigationManager.NavigateTo("/human-resource");
-        }
-        else if (confirmModalType == "navigate")
-        {
-            // Confirm navigation away from page - always redirect to HR page
-            isNavigatingAway = true;
-            NavigationManager.NavigateTo("/human-resource");
-            pendingNavigationUrl = null;
-        }
-        
         confirmModalTitle = "";
         confirmModalMessage = "";
         confirmModalType = "";
+        StateHasChanged();
+        
+        if (modalType == "cancel" || modalType == "navigate")
+        {
+            ResetFormData();
+            await Task.Delay(50);
+            
+            if (!string.IsNullOrWhiteSpace(pendingNavigationUrl))
+            {
+                NavigationManager.NavigateTo(pendingNavigationUrl);
+            }
+            else
+            {
+                NavigationManager.NavigateTo("/human-resource");
+            }
+            
+            pendingNavigationUrl = null;
+        }
+    }
+    
+    private void ResetFormData()
+    {
+        EmployeeData = new EmployeeFormData();
+        editContext = new EditContext(EmployeeData);
+        isEmailDuplicate = false;
+        isContactDuplicate = false;
+        showDuplicateModal = false;
+        isSubmitting = false; // Ensure submitting flag is cleared
+        isNavigatingAway = true; // Ensure navigation flag is set
+        StateHasChanged();
     }
 
     private async Task SubmitEmployee()
     {
+        if (isNavigatingAway)
+        {
+            return;
+        }
+        
+        if (confirmModalType == "navigate" || confirmModalType == "cancel")
+        {
+            return;
+        }
+        
         isSubmitting = true;
         StateHasChanged(); // Update UI to show loading state
         
@@ -2185,18 +2276,159 @@
                 Allowance = EmployeeData.Allowance
             };
 
-            // Register employee using EmployeeService
             var userId = await EmployeeService.RegisterEmployeeAsync(employeeData);
             
-            // Success - navigate to human resource page, toast will show on destination page
-            NavigationManager.NavigateTo("/human-resource?toast=employee_added");
+            // Reset submitting flag
+            isSubmitting = false;
+            
+            // Navigate to human resource page with toast parameter - force reload to ensure toast shows
+            NavigationManager.NavigateTo("/human-resource?toast=employee_added", forceLoad: true);
         }
         catch (Exception ex)
         {
-            // Handle error - show error message to user
-            Console.WriteLine($"Error adding employee: {ex.Message}");
-            // For errors, show toast on current page since we're not navigating
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to add employee: {ex.Message}");
+            // Build comprehensive error details for debugging
+            var errorDetails = new System.Text.StringBuilder();
+            errorDetails.AppendLine($"Exception Type: {ex.GetType().FullName}");
+            errorDetails.AppendLine($"Message: {ex.Message}");
+            errorDetails.AppendLine($"Stack Trace: {ex.StackTrace}");
+            
+            // Extract SQL error details for user-friendly display
+            string userFriendlyError = ex.Message;
+            Microsoft.Data.SqlClient.SqlException? sqlEx = null;
+            Microsoft.EntityFrameworkCore.DbUpdateException? dbUpdateEx = null;
+            
+            // Recursively get all inner exceptions
+            Exception? currentEx = ex.InnerException;
+            int depth = 1;
+            while (currentEx != null && depth <= 10)
+            {
+                errorDetails.AppendLine($"\n--- Inner Exception #{depth} ---");
+                errorDetails.AppendLine($"Type: {currentEx.GetType().FullName}");
+                errorDetails.AppendLine($"Message: {currentEx.Message}");
+                errorDetails.AppendLine($"Stack Trace: {currentEx.StackTrace}");
+                
+                // Check for SqlException in inner exceptions
+                if (currentEx is Microsoft.Data.SqlClient.SqlException foundSqlEx)
+                {
+                    sqlEx = foundSqlEx;
+                    errorDetails.AppendLine($"\n=== SQL EXCEPTION DETAILS ===");
+                    errorDetails.AppendLine($"  Error Number: {sqlEx.Number}");
+                    errorDetails.AppendLine($"  Severity: {sqlEx.Class}");
+                    errorDetails.AppendLine($"  State: {sqlEx.State}");
+                    errorDetails.AppendLine($"  Procedure: {sqlEx.Procedure ?? "N/A"}");
+                    errorDetails.AppendLine($"  Line Number: {sqlEx.LineNumber}");
+                    errorDetails.AppendLine($"  Server: {sqlEx.Server ?? "N/A"}");
+                    
+                    // Build user-friendly SQL error message
+                    var sqlErrorMsg = new System.Text.StringBuilder();
+                    sqlErrorMsg.AppendLine($"SQL Error #{sqlEx.Number}: {sqlEx.Message}");
+                    
+                    if (sqlEx.Errors != null && sqlEx.Errors.Count > 0)
+                    {
+                        sqlErrorMsg.AppendLine($"\nSQL Errors ({sqlEx.Errors.Count}):");
+                        for (int i = 0; i < sqlEx.Errors.Count; i++)
+                        {
+                            Microsoft.Data.SqlClient.SqlError error = sqlEx.Errors[i];
+                            errorDetails.AppendLine($"  SQL Error #{i + 1}: Number={error.Number}, Message={error.Message}, Class={error.Class}, State={error.State}");
+                            sqlErrorMsg.AppendLine($"  • Error {error.Number}: {error.Message}");
+                        }
+                    }
+                    
+                    userFriendlyError = sqlErrorMsg.ToString();
+                }
+                
+                // Check for DbUpdateException
+                if (currentEx is Microsoft.EntityFrameworkCore.DbUpdateException foundDbUpdateEx)
+                {
+                    dbUpdateEx = foundDbUpdateEx;
+                    errorDetails.AppendLine($"\n=== DB UPDATE EXCEPTION DETAILS ===");
+                    errorDetails.AppendLine($"  Entries Count: {dbUpdateEx.Entries?.Count ?? 0}");
+                    if (dbUpdateEx.Entries != null && dbUpdateEx.Entries.Any())
+                    {
+                        foreach (var entry in dbUpdateEx.Entries)
+                        {
+                            errorDetails.AppendLine($"    Entity: {entry.Entity.GetType().Name}, State: {entry.State}");
+                            
+                            // Log property details for truncation errors
+                            foreach (var prop in entry.Properties)
+                            {
+                                var currentValue = prop.CurrentValue;
+                                var maxLength = prop.Metadata.GetMaxLength();
+                                errorDetails.AppendLine($"      Property: {prop.Metadata.Name} = '{currentValue}' (Length: {currentValue?.ToString()?.Length ?? 0})");
+                                if (maxLength.HasValue)
+                                {
+                                    errorDetails.AppendLine($"        Max Length: {maxLength.Value}");
+                                    if (currentValue != null && currentValue.ToString()?.Length > maxLength.Value)
+                                    {
+                                        errorDetails.AppendLine($"        *** VALUE EXCEEDS MAX LENGTH BY {currentValue.ToString()!.Length - maxLength.Value} CHARACTERS! ***");
+                                        
+                                        // Add to user-friendly error
+                                        userFriendlyError += $"\n\n⚠️ Data Truncation Error:\n";
+                                        userFriendlyError += $"  Field: {prop.Metadata.Name}\n";
+                                        userFriendlyError += $"  Value Length: {currentValue.ToString()!.Length} characters\n";
+                                        userFriendlyError += $"  Max Allowed: {maxLength.Value} characters\n";
+                                        userFriendlyError += $"  Value: '{currentValue}'\n";
+                                        userFriendlyError += $"  Truncated Value: '{currentValue.ToString()!.Substring(0, Math.Min(maxLength.Value, currentValue.ToString()!.Length))}'";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                currentEx = currentEx.InnerException;
+                depth++;
+            }
+            
+            var fullErrorDetails = errorDetails.ToString();
+            
+            // Show detailed error to user
+            var displayError = new System.Text.StringBuilder();
+            displayError.AppendLine("❌ Failed to add employee");
+            displayError.AppendLine("");
+            displayError.AppendLine($"Error: {ex.Message}");
+            
+            if (sqlEx != null)
+            {
+                displayError.AppendLine("");
+                displayError.AppendLine("=== SQL ERROR DETAILS ===");
+                displayError.AppendLine($"SQL Error #{sqlEx.Number}: {sqlEx.Message}");
+                if (sqlEx.Errors != null && sqlEx.Errors.Count > 0)
+                {
+                    foreach (Microsoft.Data.SqlClient.SqlError error in sqlEx.Errors)
+                    {
+                        displayError.AppendLine($"  • Error {error.Number}: {error.Message}");
+                    }
+                }
+            }
+            
+            if (dbUpdateEx != null && dbUpdateEx.Entries != null)
+            {
+                displayError.AppendLine("");
+                displayError.AppendLine("=== DATABASE UPDATE ERRORS ===");
+                foreach (var entry in dbUpdateEx.Entries)
+                {
+                    displayError.AppendLine($"Entity: {entry.Entity.GetType().Name}");
+                    foreach (var prop in entry.Properties)
+                    {
+                        var maxLength = prop.Metadata.GetMaxLength();
+                        if (maxLength.HasValue && prop.CurrentValue != null)
+                        {
+                            var valueLength = prop.CurrentValue.ToString()?.Length ?? 0;
+                            if (valueLength > maxLength.Value)
+                            {
+                                displayError.AppendLine($"  ⚠️ {prop.Metadata.Name}: Value too long ({valueLength} > {maxLength.Value} chars)");
+                            }
+                        }
+                    }
+                }
+            }
+            
+            displayError.AppendLine("");
+            displayError.AppendLine("Check browser console (F12) for full error details.");
+            
+            // Handle error - show detailed error message to user
+            toastMessage = displayError.ToString();
             toastType = ToastType.Error;
             showToast = true;
             isSubmitting = false;

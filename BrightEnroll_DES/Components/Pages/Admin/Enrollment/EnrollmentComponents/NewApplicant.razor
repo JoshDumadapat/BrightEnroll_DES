@@ -64,21 +64,22 @@
 </div>
 
 <!-- Table -->
-<table class="min-w-full text-sm">
-    <thead class="bg-gray-100 font-semibold text-gray-600">
-        <tr>
-            <th class="px-4 py-3 text-left">ID</th>
-            <th class="px-4 py-3 text-left">Name</th>
-            <th class="px-4 py-3 text-left">LRN</th>
-            <th class="px-4 py-3 text-left">Date</th>
-            <th class="px-4 py-3 text-left">Type</th>
-            <th class="px-4 py-3 text-left">Grade Level</th>
-            <th class="px-4 py-3 text-left">Documents</th>
-            <th class="px-4 py-3 text-left">Status</th>
-            <th class="px-4 py-3 text-center">Actions</th>
+<div class="overflow-x-auto w-full">
+<table class="w-full border-collapse">
+    <thead>
+        <tr class="border-b border-gray-200 bg-gray-50">
+            <th class="py-3 pl-6 pr-4 text-left text-xs font-semibold text-gray-700">ID</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Name</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">LRN</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Date</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Type</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Grade Level</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Documents</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Status</th>
+            <th class="py-3 pr-6 pl-4 text-center text-xs font-semibold text-gray-700">Actions</th>
         </tr>
     </thead>
-    <tbody class="divide-y">
+    <tbody>
         @if (IsLoading)
         {
             <tr>
@@ -97,10 +98,10 @@
         {
             @foreach (var student in PaginatedStudents)
             {
-                <tr class="transition hover:bg-gray-50">
-                    <td class="px-4 py-3">@student.Id</td>
-                    <td class="px-4 py-3">@student.Name</td>
-                    <td class="px-4 py-3">
+                <tr class="border-b border-gray-100 transition hover:bg-gray-50">
+                    <td class="py-3 pl-6 pr-4 text-sm text-gray-700">@student.Id</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@student.Name</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
                         @if (student.LRN == "N/A")
                         {
                             <span class="text-xs font-semibold text-gray-400">@student.LRN</span>
@@ -110,16 +111,26 @@
                             <span class="text-gray-900">@student.LRN</span>
                         }
                     </td>
-                    <td class="px-4 py-3">@student.Date</td>
-                    <td class="px-4 py-3">@student.Type</td>
-                    <td class="px-4 py-3">@student.GradeLevel</td>
-                    <td class="px-4 py-3"><span class="text-xs font-semibold text-gray-400">Not verified</span></td>
-                    <td class="px-4 py-3">
+                    <td class="py-3 px-4 text-sm text-gray-700">@FormatDate(student.Date)</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@student.Type</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@student.GradeLevel</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        @if (student.DocumentsVerified)
+                        {
+                            <span class="text-xs font-semibold text-green-600">Verified</span>
+                        }
+                        else
+                        {
+                            <span class="text-xs font-semibold text-gray-400">Not verified</span>
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
                         <span class="rounded-full bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-600">@student.Status</span>
                     </td>
-                    <td class="flex items-center justify-center gap-2 px-4 py-3">
+                    <td class="py-3 pr-6 pl-4 text-center">
                         <!-- Edit Button -->
-                        <button class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
+                        <button @onclick="() => EditStudent(student.Id)"
+                                class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                             </svg>
@@ -145,6 +156,7 @@
         }
     </tbody>
 </table>
+</div>
 
 <!-- Footer with Pagination -->
 <Pagination TotalItems="@(FilteredStudents?.Count ?? 0)" 
@@ -163,6 +175,9 @@
 
     [Parameter]
     public bool IsLoading { get; set; } = false;
+
+    [Parameter]
+    public EventCallback<string> OnEditStudent { get; set; }
 
     // Filter properties
     private string SearchText { get; set; } = "";
@@ -316,6 +331,39 @@
         // Export PDF logic will be implemented here
     }
 
+    private async Task EditStudent(string studentId)
+    {
+        if (OnEditStudent.HasDelegate)
+        {
+            await OnEditStudent.InvokeAsync(studentId);
+        }
+    }
+
+    private string FormatDate(string dateString)
+    {
+        if (string.IsNullOrWhiteSpace(dateString))
+            return "N/A";
+
+        // Try to parse the date string in various formats
+        if (DateTime.TryParse(dateString, out DateTime date))
+        {
+            return date.ToString("MMM. d, yyyy");
+        }
+
+        // If parsing fails, try common formats
+        string[] formats = { "dd MMM yyyy", "MMM dd, yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy" };
+        foreach (var format in formats)
+        {
+            if (DateTime.TryParseExact(dateString, format, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date))
+            {
+                return date.ToString("MMM. d, yyyy");
+            }
+        }
+
+        // If all parsing fails, return original string
+        return dateString;
+    }
+
     public class Student
     {
         public string Id { get; set; } = "";
@@ -325,5 +373,6 @@
         public string Type { get; set; } = "";
         public string GradeLevel { get; set; } = "";
         public string Status { get; set; } = "";
+        public bool DocumentsVerified { get; set; } = false;
     }
 }

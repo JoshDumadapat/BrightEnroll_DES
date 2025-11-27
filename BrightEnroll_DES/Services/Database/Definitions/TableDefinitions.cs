@@ -138,7 +138,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     CREATE TABLE [dbo].[tbl_Students](
                         [student_id] VARCHAR(6) NOT NULL PRIMARY KEY,
                         [first_name] VARCHAR(50) NOT NULL,
-                        [middle_name] VARCHAR(50) NOT NULL,
+                        [middle_name] VARCHAR(50) NULL,
                         [last_name] VARCHAR(50) NOT NULL,
                         [suffix] VARCHAR(10) NULL,
                         [birthdate] DATE NOT NULL,

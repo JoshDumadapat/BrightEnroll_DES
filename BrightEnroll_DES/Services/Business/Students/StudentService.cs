@@ -9,7 +9,6 @@ using System.Data.Common;
 
 namespace BrightEnroll_DES.Services.Business.Students;
 
-// Handles student registration - creates student, guardian, and requirements
 public class StudentService
 {
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
@@ -21,69 +20,47 @@ public class StudentService
         _logger = logger;
     }
 
-    // Creates a new student with guardian and requirements
-    // This method performs comprehensive duplicate checking and error handling
-    // Includes automatic sequence table synchronization to prevent primary key conflicts
     public async Task<Student> RegisterStudentAsync(StudentRegistrationData studentData)
     {
         return await RegisterStudentInternalAsync(studentData, isRetry: false);
     }
 
-    // Internal method that handles the actual registration logic
-    // isRetry flag prevents infinite recursion when retrying after sequence sync
     private async Task<Student> RegisterStudentInternalAsync(StudentRegistrationData studentData, bool isRetry)
     {
-        await using var _context = await _contextFactory.CreateDbContextAsync();
-        
-        // STEP 1: Perform local duplicate checks BEFORE starting transaction
-        // This prevents false positives from cloud database sync and provides early validation
-        // Validation errors don't need transaction rollback, so we check before transaction starts
-        // Checks are performed on LOCAL database only to avoid conflicts with cloud data
         _logger?.LogInformation("Starting student registration for: {FirstName} {LastName} (Retry: {IsRetry})", 
             studentData.FirstName, studentData.LastName, isRetry);
         
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        IDbContextTransaction? transaction = null;
+        var transactionRolledBack = false;
+        
         try
         {
-            await CheckForDuplicateStudentAsync(_context, studentData);
+            await CheckForDuplicateStudentAsync(context, studentData);
             _logger?.LogInformation("Local duplicate check passed for: {FirstName} {LastName}", studentData.FirstName, studentData.LastName);
         }
         catch (Exception duplicateEx)
         {
-            // Local duplicate check failed - this is a VALIDATION ERROR, not a database error
-            // No transaction to rollback since we haven't started one yet
             _logger?.LogWarning("Local duplicate check failed: {Message}", duplicateEx.Message);
             throw new Exception($"DUPLICATE_DETECTED: {duplicateEx.Message}", duplicateEx);
         }
 
-        // STEP 2: Ensure sequence table is synchronized with existing student IDs
-        // This prevents primary key conflicts when the sequence table is out of sync with cloud database
-        // The sequence table must always be >= the highest existing student ID to avoid conflicts
-        // Only sync on first attempt, not on retry (retry means we already tried to sync)
         if (!isRetry)
         {
             try
             {
-                await SyncStudentIDSequenceAsync(_context);
+                await SyncStudentIDSequenceAsync(context);
                 _logger?.LogInformation("Student ID sequence table synchronized");
             }
             catch (Exception syncEx)
             {
-                // Sequence sync failed - log but don't fail registration yet
-                // The stored procedure will handle the conflict if it occurs
                 _logger?.LogWarning(syncEx, "Failed to sync student ID sequence table: {Message}. Registration will continue, but may fail if sequence is out of sync.", syncEx.Message);
             }
         }
 
-        // STEP 3: Begin database transaction for atomicity
-        // All operations (guardian creation, student creation, requirements) must succeed or all rollback
-        // Transaction starts AFTER validation passes to avoid rollback conflicts
-        var transaction = await _context.Database.BeginTransactionAsync();
-        var transactionRolledBack = false; // Track rollback state to prevent multiple rollbacks
+        transaction = await context.Database.BeginTransactionAsync();
         try
         {
-
-            // STEP 4: Create guardian record first (required foreign key for student)
-            // Guardian must be created before student due to foreign key constraint
             var guardian = new Guardian
             {
                 FirstName = studentData.GuardianFirstName,
@@ -95,16 +72,12 @@ public class StudentService
                 IsSynced = false // Explicitly mark as unsynced for offline-first
             };
 
-            _context.Guardians.Add(guardian);
-            await _context.SaveChangesAsync();
+            context.Guardians.Add(guardian);
+            await context.SaveChangesAsync();
             _logger?.LogInformation("Guardian created successfully with ID: {GuardianId}", guardian.GuardianId);
             
-            // STEP 5: Call stored procedure to create student with auto-generated ID
-            // The stored procedure handles ID generation atomically using sequence table
-            // If primary key conflict occurs, it means sequence table is still out of sync
-            // The error handler will attempt to sync and retry
             string generatedStudentId;
-            var connection = _context.Database.GetDbConnection();
+            var connection = context.Database.GetDbConnection();
             var wasOpen = connection.State == System.Data.ConnectionState.Open;
             
             if (!wasOpen)
@@ -117,12 +90,8 @@ public class StudentService
                 using var command = connection.CreateCommand();
                 command.CommandText = "[dbo].[sp_CreateStudent]";
                 command.CommandType = System.Data.CommandType.StoredProcedure;
-                
-                // Associate the command with the EF Core transaction to ensure atomicity
                 command.Transaction = transaction.GetDbTransaction();
 
-                // STEP 5: Add all input parameters to stored procedure
-                // All parameters are properly null-handled to avoid SQL errors
                 command.Parameters.Add(new SqlParameter("@first_name", studentData.FirstName));
                 command.Parameters.Add(new SqlParameter("@middle_name", string.IsNullOrWhiteSpace(studentData.MiddleName) ? string.Empty : studentData.MiddleName));
                 command.Parameters.Add(new SqlParameter("@last_name", studentData.LastName));
@@ -156,19 +125,12 @@ public class StudentService
                 command.Parameters.Add(new SqlParameter("@grade_level", studentData.GradeToEnroll));
                 command.Parameters.Add(new SqlParameter("@guardian_id", guardian.GuardianId));
                 
-                // Add output parameter to receive generated student ID
                 var studentIdParam = new SqlParameter("@student_id", System.Data.SqlDbType.VarChar, 6)
                 {
                     Direction = System.Data.ParameterDirection.Output
                 };
                 command.Parameters.Add(studentIdParam);
 
-                // STEP 6: Execute stored procedure
-                // This may throw SqlException for various reasons:
-                // - Primary key conflicts (student_id already exists)
-                // - Unique constraint violations (LRN, name+birthdate)
-                // - Sequence table conflicts
-                // - Missing parameters or invalid data
                 _logger?.LogInformation("Executing stored procedure sp_CreateStudent for: {FirstName} {LastName}", studentData.FirstName, studentData.LastName);
                 await command.ExecuteNonQueryAsync();
                 generatedStudentId = studentIdParam.Value?.ToString() ?? string.Empty;
@@ -182,16 +144,10 @@ public class StudentService
             }
             catch (SqlException spEx)
             {
-                // STEP 7: Handle SQL exceptions from stored procedure with detailed logging
-                // This is a STORED PROCEDURE FAILURE (not a local duplicate check failure)
-                
-                // Check if this is a primary key conflict due to sequence table mismatch
-                // If so, attempt to sync sequence table and retry once
                 if (spEx.Number == 2627 && spEx.Message.Contains("PRIMARY KEY", StringComparison.OrdinalIgnoreCase))
                 {
                     _logger?.LogWarning("Primary key conflict detected. Attempting to sync sequence table and retry...");
                     
-                    // Rollback current transaction before syncing
                     if (!transactionRolledBack)
                     {
                         try
@@ -206,15 +162,12 @@ public class StudentService
                         }
                     }
                     
-                    // Dispose current transaction
                     try
                     {
                         transaction?.Dispose();
                     }
                     catch { }
                     
-                    // Attempt to sync sequence table and retry
-                    // Only retry once to prevent infinite loops
                     if (!isRetry)
                     {
                         try
@@ -223,14 +176,11 @@ public class StudentService
                             await using var retryContext = await _contextFactory.CreateDbContextAsync();
                             await SyncStudentIDSequenceAsync(retryContext);
                             _logger?.LogInformation("Sequence table synced successfully. Retrying student registration...");
-                            
-                            // Retry registration with a new transaction (set isRetry flag to prevent infinite recursion)
                             return await RegisterStudentInternalAsync(studentData, isRetry: true);
                         }
                         catch (Exception syncEx)
                         {
                             _logger?.LogError(syncEx, "Failed to sync sequence table during retry: {Message}", syncEx.Message);
-                            // Fall through to normal error handling
                         }
                     }
                     else
@@ -239,7 +189,6 @@ public class StudentService
                     }
                 }
                 
-                // Rollback transaction only once and mark as rolled back
                 if (!transactionRolledBack && transaction != null)
                 {
                     try
@@ -254,7 +203,6 @@ public class StudentService
                     }
                 }
                 
-                // Log comprehensive SQL error details
                 _logger?.LogError(spEx, 
                     "STORED PROCEDURE FAILURE - SQL Error registering student. " +
                     "Error Number: {Number}, " +
@@ -274,28 +222,23 @@ public class StudentService
                     spEx.Server ?? "N/A",
                     connection.Database ?? "N/A");
                 
-                // Handle specific SQL error codes with clear messages
                 var errorMessage = HandleSqlException(spEx, studentData);
                 throw new Exception($"STORED_PROCEDURE_ERROR: {errorMessage}", spEx);
             }
             finally
             {
-                // Ensure connection is closed if we opened it
                 if (!wasOpen)
                 {
                     await connection.CloseAsync();
                 }
             }
 
-            // STEP 8: Load the created student from database to verify insertion
-            // Verify that the student was actually inserted into the database
-            var student = await _context.Students
+            var student = await context.Students
                 .Include(s => s.Guardian)
                 .FirstOrDefaultAsync(s => s.StudentId == generatedStudentId);
 
             if (student == null)
             {
-                // Student not found after insertion - rollback transaction
                 if (!transactionRolledBack)
                 {
                     try
@@ -312,9 +255,7 @@ public class StudentService
                 throw new Exception($"Failed to retrieve created student with ID: {generatedStudentId}. The stored procedure may have failed silently.");
             }
             
-            // STEP 9: Create default requirements based on student type
-            // Requirements are created after student is successfully inserted
-            var requirements = GetDefaultRequirements(student.StudentId, student.StudentType);
+            var requirements = GetDefaultRequirements(student.StudentId, student.StudentType, studentData);
             
             if (requirements.Any())
             {
@@ -323,18 +264,44 @@ public class StudentService
                 {
                     req.IsSynced = false;
                 }
-                _context.StudentRequirements.AddRange(requirements);
-                await _context.SaveChangesAsync();
-                _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
+                
+                try
+                {
+                    context.StudentRequirements.AddRange(requirements);
+                    await context.SaveChangesAsync();
+                    _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    // Extract the innermost SQL exception for detailed error information
+                    var innerEx = dbEx.InnerException;
+                    var sqlEx = innerEx as Microsoft.Data.SqlClient.SqlException;
+                    
+                    // Build detailed error message
+                    var errorMsg = $"Failed to save student requirements: {dbEx.Message}";
+                    if (sqlEx != null)
+                    {
+                        errorMsg += $"\nSQL Error Number: {sqlEx.Number}";
+                        errorMsg += $"\nSQL Error Message: {sqlEx.Message}";
+                        errorMsg += $"\nSQL Error Severity: {sqlEx.Class}";
+                        errorMsg += $"\nSQL Error State: {sqlEx.State}";
+                        if (sqlEx.LineNumber > 0)
+                            errorMsg += $"\nSQL Error Line: {sqlEx.LineNumber}";
+                    }
+                    else if (innerEx != null)
+                    {
+                        errorMsg += $"\nInner Exception: {innerEx.GetType().Name} - {innerEx.Message}";
+                    }
+                    
+                    _logger?.LogError(dbEx, "Error saving student requirements: {ErrorMessage}", errorMsg);
+                    throw new Exception(errorMsg, dbEx);
+                }
             }
             
             // Mark student as unsynced (stored procedure creates it, so we need to update it)
             student.IsSynced = false;
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
 
-            // STEP 10: Commit transaction - all operations succeeded
-            // Only commit if transaction hasn't been rolled back (shouldn't happen in success path)
-            // Only commit if transaction hasn't been rolled back
             if (!transactionRolledBack)
             {
                 await transaction.CommitAsync();
@@ -345,21 +312,13 @@ public class StudentService
                 _logger?.LogWarning("Transaction was already rolled back, skipping commit");
             }
             
-            // Load related data for return
-            await _context.Entry(student).Reference(s => s.Guardian).LoadAsync();
-            await _context.Entry(student).Collection(s => s.Requirements).LoadAsync();
+            await context.Entry(student).Reference(s => s.Guardian).LoadAsync();
+            await context.Entry(student).Collection(s => s.Requirements).LoadAsync();
 
             return student;
         }
         catch (Exception ex)
         {
-            // STEP 11: Handle all other exceptions (non-SQL exceptions)
-            // This includes other validation errors or unexpected errors
-            // Note: SqlException from stored procedure is already handled and rolled back in inner catch
-            // Note: Duplicate check errors are thrown before transaction starts, so no rollback needed
-            
-            // Only rollback if this is NOT a SqlException and transaction hasn't been rolled back
-            // Duplicate errors are thrown before transaction, so they won't reach here
             if (!(ex is SqlException) && !transactionRolledBack)
             {
                 try
@@ -377,21 +336,16 @@ public class StudentService
                 }
             }
             
-            // Check if this is a duplicate error from local check (shouldn't reach here, but handle just in case)
             if (ex.Message.StartsWith("DUPLICATE_DETECTED:", StringComparison.OrdinalIgnoreCase))
             {
-                // Re-throw duplicate errors as-is (they already have clear messages)
                 throw;
             }
             
-            // Check if this is a stored procedure error (already logged with full details)
             if (ex.Message.StartsWith("STORED_PROCEDURE_ERROR:", StringComparison.OrdinalIgnoreCase))
             {
-                // Re-throw stored procedure errors as-is (they already have detailed messages)
                 throw;
             }
             
-            // Log other exceptions
             _logger?.LogError(ex, 
                 "GENERAL ERROR registering student: {Message}. " +
                 "Type: {ExceptionType}, " +
@@ -416,17 +370,12 @@ public class StudentService
         }
     }
 
-    // Handles SQL exceptions from stored procedure with specific error code handling
-    // Returns user-friendly error messages based on SQL error number
     private string HandleSqlException(SqlException sqlEx, StudentRegistrationData studentData)
     {
-        // SQL Error Number Reference:
-        // https://docs.microsoft.com/en-us/sql/relational-databases/errors-events/database-engine-events-and-errors
         
         switch (sqlEx.Number)
         {
-            case 2627: // Unique constraint violation (primary key or unique index)
-                // Check if this is a primary key violation (student ID conflict)
+            case 2627:
                 if (sqlEx.Message.Contains("PRIMARY KEY", StringComparison.OrdinalIgnoreCase) ||
                     sqlEx.Message.Contains("PK__tbl_Stud", StringComparison.OrdinalIgnoreCase))
                 {
@@ -436,91 +385,54 @@ public class StudentService
                            $"If this error persists, please contact your administrator to manually sync the sequence table. " +
                            $"SQL Error: {sqlEx.Message}";
                 }
-                return $"Unique constraint violation. " +
-                       $"A student with this ID or unique identifier already exists in the database. " +
-                       $"This may indicate a sequence table conflict or duplicate data. " +
-                       $"SQL Error: {sqlEx.Message}";
+                return $"Unique constraint violation. A student with this ID or unique identifier already exists. SQL Error: {sqlEx.Message}";
             
-            case 2601: // Cannot insert duplicate key row (unique index violation)
-                return $"Unique constraint violation. " +
-                       $"A student with duplicate data (possibly LRN '{studentData.LearnerReferenceNo}' or Name+Birthdate combination) already exists. " +
-                       $"SQL Error: {sqlEx.Message}";
+            case 2601:
+                return $"Unique constraint violation. A student with duplicate data (possibly LRN '{studentData.LearnerReferenceNo}' or Name+Birthdate combination) already exists. SQL Error: {sqlEx.Message}";
             
-            case 515: // Cannot insert NULL value (NOT NULL constraint)
-                return $"Required field is missing (NULL value not allowed). " +
-                       $"Please ensure all required student fields are provided. " +
-                       $"SQL Error: {sqlEx.Message}";
+            case 515:
+                return $"Required field is missing (NULL value not allowed). Please ensure all required student fields are provided. SQL Error: {sqlEx.Message}";
             
-            case 547: // Foreign key constraint violation
-                return $"Foreign key constraint violation. " +
-                       $"A referenced record (e.g., guardian) does not exist or is invalid. " +
-                       $"SQL Error: {sqlEx.Message}";
+            case 547:
+                return $"Foreign key constraint violation. A referenced record (e.g., guardian) does not exist or is invalid. SQL Error: {sqlEx.Message}";
             
-            case 2812: // Object (stored procedure) not found
-                return $"The stored procedure 'sp_CreateStudent' was not found in the database. " +
-                       $"Please ensure the database is properly initialized and the stored procedure exists. " +
-                       $"SQL Error: {sqlEx.Message}";
+            case 2812:
+                return $"The stored procedure 'sp_CreateStudent' was not found in the database. Please ensure the database is properly initialized. SQL Error: {sqlEx.Message}";
             
-            case 208: // Invalid object name (table/view not found)
-                return $"A required database table is missing. " +
-                       $"The table 'tbl_Students' or 'tbl_StudentID_Sequence' may not exist. " +
-                       $"Please ensure the database is properly initialized. " +
-                       $"SQL Error: {sqlEx.Message}";
+            case 208:
+                return $"A required database table is missing. The table 'tbl_Students' or 'tbl_StudentID_Sequence' may not exist. Please ensure the database is properly initialized. SQL Error: {sqlEx.Message}";
             
-            case 50000: // User-defined error (RAISERROR)
-                // Check if it's a sequence table limit error
+            case 50000:
                 if (sqlEx.Message.Contains("Student ID limit reached", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"Student ID generation limit reached (999999). " +
-                           $"Cannot generate more student IDs. " +
-                           $"Please contact system administrator. " +
-                           $"SQL Error: {sqlEx.Message}";
+                    return $"Student ID generation limit reached (999999). Cannot generate more student IDs. Please contact system administrator. SQL Error: {sqlEx.Message}";
                 }
-                // Check if it's a duplicate student error from stored procedure
                 if (sqlEx.Message.Contains("already exists", StringComparison.OrdinalIgnoreCase) ||
                     sqlEx.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"Duplicate student detected by stored procedure. " +
-                           $"A student with the same information already exists in the database. " +
-                           $"This check was performed by the stored procedure (not local check). " +
-                           $"SQL Error: {sqlEx.Message}";
+                    return $"Duplicate student detected by stored procedure. A student with the same information already exists in the database. SQL Error: {sqlEx.Message}";
                 }
-                return $"Database constraint or business rule violation. " +
-                       $"SQL Error: {sqlEx.Message}";
+                return $"Database constraint or business rule violation. SQL Error: {sqlEx.Message}";
             
             default:
-                // Generic SQL error - log all details
-                var errorDetails = $"SQL Error Number: {sqlEx.Number}, " +
-                                 $"Severity: {sqlEx.Class}, " +
-                                 $"State: {sqlEx.State}, " +
-                                 $"Procedure: {sqlEx.Procedure ?? "N/A"}, " +
-                                 $"Line: {sqlEx.LineNumber}, " +
-                                 $"Message: {sqlEx.Message}";
+                var errorDetails = $"SQL Error Number: {sqlEx.Number}, Severity: {sqlEx.Class}, State: {sqlEx.State}, Procedure: {sqlEx.Procedure ?? "N/A"}, Line: {sqlEx.LineNumber}, Message: {sqlEx.Message}";
                 
-                // Check for common error patterns in message
                 if (sqlEx.Message.Contains("PRIMARY KEY", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"Primary key conflict. The generated student ID already exists. " +
-                           $"This may indicate a sequence table synchronization issue. " +
-                           $"{errorDetails}";
+                    return $"Primary key conflict. The generated student ID already exists. This may indicate a sequence table synchronization issue. {errorDetails}";
                 }
                 
                 if (sqlEx.Message.Contains("UNIQUE", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"Unique constraint violation. A duplicate record exists. " +
-                           $"This may be due to LRN or name+birthdate uniqueness. " +
-                           $"{errorDetails}";
+                    return $"Unique constraint violation. A duplicate record exists. This may be due to LRN or name+birthdate uniqueness. {errorDetails}";
                 }
                 
                 if (sqlEx.Message.Contains("sequence", StringComparison.OrdinalIgnoreCase))
                 {
-                    return $"Sequence table error. There may be a conflict in the student ID sequence. " +
-                           $"Please verify the tbl_StudentID_Sequence table. " +
-                           $"{errorDetails}";
+                    return $"Sequence table error. There may be a conflict in the student ID sequence. Please verify the tbl_StudentID_Sequence table. {errorDetails}";
                 }
                 
-                return $"Database error occurred during student registration. " +
-                       $"{errorDetails}";
+                return $"Database error occurred during student registration. {errorDetails}";
         }
     }
 
@@ -530,9 +442,6 @@ public class StudentService
     // to avoid false duplicate detection for students without real LRN values
     private async Task CheckForDuplicateStudentAsync(AppDbContext context, StudentRegistrationData studentData)
     {
-        // Check by LRN if provided AND it's a valid (non-placeholder) value
-        // Placeholder values like 'N/A' or 'Pending' should not be checked for duplicates
-        // because multiple students can legitimately have these placeholder values
         if (IsValidLRNForDuplicateCheck(studentData.LearnerReferenceNo))
         {
             var existingByLRN = await context.Students
@@ -545,13 +454,10 @@ public class StudentService
         }
         else
         {
-            // Log that LRN duplicate check was skipped due to placeholder value
             _logger?.LogInformation("LRN duplicate check skipped for placeholder value: '{LRN}'", 
                 studentData.LearnerReferenceNo ?? "null");
         }
 
-        // Check by name + birthdate combination (common duplicate detection)
-        // Only check if we have the required fields
         if (!string.IsNullOrWhiteSpace(studentData.FirstName) && 
             !string.IsNullOrWhiteSpace(studentData.LastName) && 
             studentData.BirthDate != default)
@@ -585,12 +491,10 @@ public class StudentService
                 .Select(s => s.StudentId)
                 .ToListAsync();
             
-            int maxId = 158021; // Default starting value if no students exist
+            int maxId = 158021;
             
             foreach (var studentId in highestStudentId)
             {
-                // Try to parse the student ID as an integer
-                // Student IDs are formatted as 6-digit strings (e.g., "158022")
                 if (int.TryParse(studentId, out int idValue))
                 {
                     if (idValue > maxId)
@@ -616,12 +520,9 @@ public class StudentService
                     DECLARE @CurrentSequence INT;
                     DECLARE @MaxStudentID INT = @maxId;
                     
-                    -- Get current sequence value
                     SELECT @CurrentSequence = [LastStudentID]
                     FROM [dbo].[tbl_StudentID_Sequence] WITH (UPDLOCK);
                     
-                    -- Update sequence if it's lower than the highest student ID
-                    -- This ensures the sequence is always ahead of existing IDs
                     IF @CurrentSequence < @MaxStudentID
                     BEGIN
                         UPDATE [dbo].[tbl_StudentID_Sequence]
@@ -671,31 +572,21 @@ public class StudentService
         }
     }
 
-    // Helper method to determine if an LRN value is valid for duplicate checking
-    // Returns true only if LRN is a real value (not a placeholder)
-    // Placeholder values like 'N/A', 'Pending', null, or empty should not be checked
-    // because multiple students can legitimately have these placeholder values
     private bool IsValidLRNForDuplicateCheck(string? lrn)
     {
-        // Return false if LRN is null, empty, or whitespace
         if (string.IsNullOrWhiteSpace(lrn))
         {
             return false;
         }
         
-        // Normalize the LRN value for comparison (trim and convert to uppercase)
         var normalized = lrn.Trim().ToUpperInvariant();
-        
-        // Return false for known placeholder values
-        // These are not real LRN values and should not be checked for duplicates
         return normalized != "N/A" && 
                normalized != "PENDING" &&
                normalized != "NA" &&
                normalized != "NULL";
     }
 
-    // Returns default requirements list based on student type
-    private List<StudentRequirement> GetDefaultRequirements(string studentId, string studentType)
+    private List<StudentRequirement> GetDefaultRequirements(string studentId, string studentType, StudentRegistrationData? studentData = null)
     {
         var requirements = new List<StudentRequirement>();
 
@@ -704,27 +595,30 @@ public class StudentService
             case "new student":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = studentData?.HasPSABirthCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = studentData?.HasBaptismalCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = studentData?.HasReportCard == true ? "verified" : "not submitted", IsVerified = studentData?.HasReportCard ?? false }
                 });
                 break;
 
             case "transferee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "transferee", Status = studentData?.HasPSABirthCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "transferee", Status = studentData?.HasBaptismalCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = studentData?.HasForm138 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm138 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = studentData?.HasForm137 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm137 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = studentData?.HasGoodMoralCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasGoodMoralCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = studentData?.HasTransferCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasTransferCert ?? false }
                 });
                 break;
 
             case "returnee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "returnee", Status = studentData?.HasForm138 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm138 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = studentData?.HasUpdatedEnrollmentForm == true ? "verified" : "not submitted", IsVerified = studentData?.HasUpdatedEnrollmentForm ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = studentData?.HasClearance == true ? "verified" : "not submitted", IsVerified = studentData?.HasClearance ?? false }
                 });
                 break;
 
@@ -736,7 +630,6 @@ public class StudentService
         return requirements;
     }
 
-    // Gets student by ID with guardian and requirements
     public async Task<Student?> GetStudentByIdAsync(string studentId)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -746,8 +639,6 @@ public class StudentService
             .FirstOrDefaultAsync(s => s.StudentId == studentId);
     }
 
-    // Gets all students with guardian and requirements using EF Core ORM
-    // Uses EF Core's Include for eager loading - fully ORM approach
     public async Task<List<Student>> GetAllStudentsAsync()
     {
         try
@@ -770,16 +661,10 @@ public class StudentService
         }
     }
 
-    // Gets enrolled students from view for enrollment table display using EF Core ORM
-    // Returns only the data needed for the Enrolled tab
-    // Uses EF Core's FromSqlRaw with parameterized WHERE clause for security
     public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync()
     {
         try
         {
-            // Use EF Core's FromSqlRaw with parameterized query - secure ORM approach
-            // Status is hardcoded in the query (not user input), so it's safe
-            // EF Core still provides connection management and query validation
             var enrolledStatus = "Enrolled";
             
             await using var context = await _contextFactory.CreateDbContextAsync();
@@ -828,19 +713,14 @@ public class StudentService
         }
     }
 
-    // Gets pending students (new applicants) from view for enrollment table display using EF Core ORM
-    // Returns only the data needed for the New Applicants tab
-    // Uses EF Core's FromSqlRaw with parameterized WHERE clause for security
     public async Task<List<NewApplicantDto>> GetNewApplicantsAsync()
     {
         try
         {
-            // Use EF Core's FromSqlRaw with parameterized query - secure ORM approach
-            // Status is hardcoded in the query (not user input), so it's safe
             var pendingStatus = "Pending";
             
             await using var context = await _contextFactory.CreateDbContextAsync();
-            var newApplicants = await context.StudentDataViews
+            var students = await context.StudentDataViews
                 .FromSqlRaw(@"
                     SELECT 
                         StudentId,
@@ -861,19 +741,30 @@ public class StudentService
                     WHERE Status = {0}", pendingStatus)
                 .Where(s => s.Status == pendingStatus)
                 .OrderByDescending(s => s.DateRegistered)
-                .Select(s => new NewApplicantDto
+                .ToListAsync();
+
+            // Get full student entities with requirements for document verification
+            var studentIds = students.Select(s => s.StudentId).ToList();
+            var studentsWithRequirements = await context.Students
+                .Include(s => s.Requirements)
+                .Where(s => studentIds.Contains(s.StudentId))
+                .ToListAsync();
+
+            var newApplicants = students.Select(s => 
+            {
+                var fullStudent = studentsWithRequirements.FirstOrDefault(st => st.StudentId == s.StudentId);
+                return new NewApplicantDto
                 {
                     Id = s.StudentId ?? "N/A",
-                    Name = s.FullName ?? "N/A",
+                    Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
                     LRN = s.LRN ?? "N/A",
-                    Date = s.DateRegistered.HasValue 
-                        ? s.DateRegistered.Value.ToString("MMMM dd, yyyy") 
-                        : "N/A",
-                    Type = s.StudentType ?? "New",
+                    Date = s.DateRegistered.HasValue ? s.DateRegistered.Value.ToString("MMMM dd, yyyy") : "N/A",
+                    Type = s.StudentType ?? "N/A",
                     GradeLevel = s.GradeLevel ?? "N/A",
-                    Status = s.Status ?? "Pending"
-                })
-                .ToListAsync();
+                    Status = s.Status ?? "Pending",
+                    DocumentsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(fullStudent?.Requirements, fullStudent?.StudentType)
+                };
+            }).ToList();
 
             return newApplicants;
         }
@@ -883,9 +774,275 @@ public class StudentService
             throw new Exception($"Failed to fetch new applicants: {ex.Message}", ex);
         }
     }
+
+    public async Task UpdateStudentAsync(Components.Pages.Admin.Enrollment.EnrollmentCS.StudentEditModel model)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        try
+        {
+            var student = await context.Students
+                .Include(s => s.Guardian)
+                .Include(s => s.Requirements)
+                .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
+
+            if (student == null)
+            {
+                _logger?.LogWarning("Student {StudentId} not found for update", model.StudentId);
+                throw new Exception($"Student {model.StudentId} not found");
+            }
+
+            // Update student basic information
+            student.FirstName = model.FirstName;
+            // middle_name is NOT NULL in database, so use empty string instead of null
+            student.MiddleName = string.IsNullOrWhiteSpace(model.MiddleName) ? string.Empty : model.MiddleName;
+            student.LastName = model.LastName;
+            student.Suffix = string.IsNullOrWhiteSpace(model.Suffix) ? null : model.Suffix;
+            student.Birthdate = model.BirthDate;
+            student.Age = model.Age;
+            student.PlaceOfBirth = string.IsNullOrWhiteSpace(model.PlaceOfBirth) ? null : model.PlaceOfBirth;
+            student.Sex = model.Sex;
+            student.MotherTongue = string.IsNullOrWhiteSpace(model.MotherTongue) ? null : model.MotherTongue;
+            student.IpComm = model.IsIPCommunity == "Yes";
+            student.IpSpecify = string.IsNullOrWhiteSpace(model.IPCommunitySpecify) ? null : model.IPCommunitySpecify;
+            student.FourPs = model.Is4PsBeneficiary == "Yes";
+            student.FourPsHseId = string.IsNullOrWhiteSpace(model.FourPsHouseholdId) ? null : model.FourPsHouseholdId;
+
+            // Update address
+            student.HseNo = string.IsNullOrWhiteSpace(model.CurrentHouseNo) ? null : model.CurrentHouseNo;
+            student.Street = string.IsNullOrWhiteSpace(model.CurrentStreetName) ? null : model.CurrentStreetName;
+            student.Brngy = string.IsNullOrWhiteSpace(model.CurrentBarangay) ? null : model.CurrentBarangay;
+            student.City = string.IsNullOrWhiteSpace(model.CurrentCity) ? null : model.CurrentCity;
+            student.Province = string.IsNullOrWhiteSpace(model.CurrentProvince) ? null : model.CurrentProvince;
+            student.Country = string.IsNullOrWhiteSpace(model.CurrentCountry) ? null : model.CurrentCountry;
+            student.ZipCode = string.IsNullOrWhiteSpace(model.CurrentZipCode) ? null : model.CurrentZipCode;
+
+            // Update permanent address
+            student.PhseNo = string.IsNullOrWhiteSpace(model.PermanentHouseNo) ? null : model.PermanentHouseNo;
+            student.Pstreet = string.IsNullOrWhiteSpace(model.PermanentStreetName) ? null : model.PermanentStreetName;
+            student.Pbrngy = string.IsNullOrWhiteSpace(model.PermanentBarangay) ? null : model.PermanentBarangay;
+            student.Pcity = string.IsNullOrWhiteSpace(model.PermanentCity) ? null : model.PermanentCity;
+            student.Pprovince = string.IsNullOrWhiteSpace(model.PermanentProvince) ? null : model.PermanentProvince;
+            student.Pcountry = string.IsNullOrWhiteSpace(model.PermanentCountry) ? null : model.PermanentCountry;
+            student.PzipCode = string.IsNullOrWhiteSpace(model.PermanentZipCode) ? null : model.PermanentZipCode;
+
+            // Update enrollment details
+            student.StudentType = model.StudentType;
+            student.Lrn = model.HasLRN == "Yes" && !string.IsNullOrWhiteSpace(model.LearnerReferenceNo) && model.LearnerReferenceNo != "N/A"
+                ? model.LearnerReferenceNo
+                : null;
+            student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
+            student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+            
+            if (!string.IsNullOrWhiteSpace(model.Status) && model.Status.Length > 20)
+            {
+                student.Status = model.Status.Substring(0, 20);
+                _logger?.LogWarning("Status truncated from '{OriginalStatus}' to '{TruncatedStatus}' for student {StudentId}. Please update database column size.", 
+                    model.Status, student.Status, model.StudentId);
+            }
+            else
+            {
+                student.Status = model.Status;
+            }
+
+            // Update guardian if exists
+            if (student.Guardian != null)
+            {
+                student.Guardian.FirstName = model.GuardianFirstName;
+                student.Guardian.MiddleName = string.IsNullOrWhiteSpace(model.GuardianMiddleName) ? null : model.GuardianMiddleName;
+                student.Guardian.LastName = model.GuardianLastName;
+                student.Guardian.Suffix = string.IsNullOrWhiteSpace(model.GuardianSuffix) ? null : model.GuardianSuffix;
+                student.Guardian.ContactNum = string.IsNullOrWhiteSpace(model.GuardianContactNumber) ? null : model.GuardianContactNumber;
+                student.Guardian.Relationship = string.IsNullOrWhiteSpace(model.GuardianRelationship) ? null : model.GuardianRelationship;
+            }
+
+            // Ensure Requirements collection is initialized
+            if (student.Requirements == null)
+            {
+                student.Requirements = new List<StudentRequirement>();
+            }
+            
+            // Update or create ALL requirements - this ensures all requirements exist for proper mapping
+            // UpdateRequirement will create missing requirements if they don't exist
+            // Pass student ID and type to help create new requirements
+            UpdateRequirement(student.Requirements, student.StudentId, "PSA Birth Certificate", model.HasPSABirthCert, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Baptismal Certificate", model.HasBaptismalCert, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Report Card", model.HasReportCard, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Form 138 (Report Card)", model.HasForm138, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Form 137 (Permanent Record)", model.HasForm137, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Good Moral Certificate", model.HasGoodMoralCert, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Transfer Certificate", model.HasTransferCert, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm, student.StudentType, context);
+            UpdateRequirement(student.Requirements, student.StudentId, "Clearance", model.HasClearance, student.StudentType, context);
+
+            try
+            {
+                await context.SaveChangesAsync();
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+            {
+                // Extract the innermost SQL exception for detailed error information
+                var innerEx = dbEx.InnerException;
+                var sqlEx = innerEx as Microsoft.Data.SqlClient.SqlException;
+                
+                if (sqlEx != null && sqlEx.Number == 207 && sqlEx.Message.Contains("is_verified", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogWarning("is_verified column not found. Updating only Status field for requirements.");
+                    
+                    if (student.Requirements != null && student.Requirements.Any())
+                    {
+                        UpdateRequirementStatusOnly(student.Requirements, "PSA Birth Certificate", model.HasPSABirthCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Baptismal Certificate", model.HasBaptismalCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Report Card", model.HasReportCard);
+                        UpdateRequirementStatusOnly(student.Requirements, "Form 138 (Report Card)", model.HasForm138);
+                        UpdateRequirementStatusOnly(student.Requirements, "Form 137 (Permanent Record)", model.HasForm137);
+                        UpdateRequirementStatusOnly(student.Requirements, "Good Moral Certificate", model.HasGoodMoralCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Transfer Certificate", model.HasTransferCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm);
+                        UpdateRequirementStatusOnly(student.Requirements, "Clearance", model.HasClearance);
+                    }
+                    
+                    await context.SaveChangesAsync();
+                    _logger?.LogInformation("Student {StudentId} updated successfully (using Status field only)", model.StudentId);
+                }
+                else if (sqlEx != null && sqlEx.Number == 2628 && sqlEx.Message.Contains("status", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger?.LogWarning("Status column truncation detected. Truncating status value to fit column size.");
+                    
+                    if (student.Status != null && student.Status.Length > 20)
+                    {
+                        var originalStatus = student.Status;
+                        student.Status = student.Status.Substring(0, 20);
+                        _logger?.LogWarning("Status truncated from '{OriginalStatus}' to '{TruncatedStatus}'", originalStatus, student.Status);
+                        
+                        await context.SaveChangesAsync();
+                        _logger?.LogInformation("Student {StudentId} updated successfully (status truncated to fit column)", model.StudentId);
+                        
+                        throw new Exception(
+                            $"Status value was truncated due to database column size limit. " +
+                            $"Please run the SQL script 'Database_Scripts/Update_Status_Column_Size.sql' to fix this. " +
+                            $"Current status saved as: '{student.Status}' (truncated from '{originalStatus}')", dbEx);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+                else
+                {
+                    var errorMsg = $"Failed to update student: {dbEx.Message}";
+                    if (sqlEx != null)
+                    {
+                        errorMsg += $"\nSQL Error Number: {sqlEx.Number}";
+                        errorMsg += $"\nSQL Error Message: {sqlEx.Message}";
+                        errorMsg += $"\nSQL Error Severity: {sqlEx.Class}";
+                        errorMsg += $"\nSQL Error State: {sqlEx.State}";
+                        if (sqlEx.LineNumber > 0)
+                            errorMsg += $"\nSQL Error Line: {sqlEx.LineNumber}";
+                    }
+                    else if (innerEx != null)
+                    {
+                        errorMsg += $"\nInner Exception: {innerEx.GetType().Name} - {innerEx.Message}";
+                    }
+                    
+                    _logger?.LogError(dbEx, "Error updating student requirements: {ErrorMessage}", errorMsg);
+                    throw new Exception(errorMsg, dbEx);
+                }
+            }
+            _logger?.LogInformation("Student {StudentId} updated successfully", model.StudentId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error updating student {StudentId}: {Message}", model.StudentId, ex.Message);
+            throw;
+        }
+    }
+
+    private void UpdateRequirement(ICollection<StudentRequirement> requirements, string studentId, string requirementName, bool isVerified, string? studentType = null, AppDbContext? context = null)
+    {
+        var requirement = requirements.FirstOrDefault(r => r.RequirementName == requirementName);
+        if (requirement != null)
+        {
+            // Since IsVerified is ignored in AppDbContext, only Status field is saved to database
+            // Set IsVerified for code logic, but Status is what persists
+            requirement.IsVerified = isVerified;
+            requirement.Status = isVerified ? "verified" : "not verified";
+            
+            _logger?.LogDebug("Updated requirement {RequirementName}: IsVerified={IsVerified}, Status={Status}", 
+                requirementName, isVerified, requirement.Status);
+        }
+        else
+        {
+            // Requirement doesn't exist - create it
+            // Determine requirement type based on student type first, then fallback to requirement name
+            string requirementType = "new"; // default
+            
+            if (!string.IsNullOrWhiteSpace(studentType))
+            {
+                // Use student type to determine requirement type
+                var studentTypeLower = studentType.ToLower();
+                if (studentTypeLower == "transferee")
+                {
+                    requirementType = "transferee";
+                }
+                else if (studentTypeLower == "returnee")
+                {
+                    requirementType = "returnee";
+                }
+                else if (studentTypeLower == "new student")
+                {
+                    requirementType = "new";
+                }
+            }
+            
+            // Fallback: Determine requirement type based on requirement name if student type not available
+            if (requirementType == "new" && !string.IsNullOrWhiteSpace(requirementName))
+            {
+                if (requirementName.Contains("Form 138") || requirementName.Contains("Form 137") || 
+                    requirementName.Contains("Good Moral") || requirementName.Contains("Transfer Certificate"))
+                {
+                    requirementType = "transferee";
+                }
+                else if (requirementName.Contains("Updated Enrollment") || requirementName.Contains("Clearance"))
+                {
+                    requirementType = "returnee";
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(studentId) && context != null)
+            {
+                var newRequirement = new StudentRequirement
+                {
+                    StudentId = studentId,
+                    RequirementName = requirementName,
+                    RequirementType = requirementType,
+                    Status = isVerified ? "verified" : "not verified",
+                    IsVerified = isVerified,
+                    IsSynced = false
+                };
+                
+                requirements.Add(newRequirement);
+                context.StudentRequirements.Add(newRequirement);
+                
+                _logger?.LogInformation("Created new requirement {RequirementName} for student {StudentId} (type: {RequirementType}): IsVerified={IsVerified}, Status={Status}", 
+                    requirementName, studentId, requirementType, isVerified, newRequirement.Status);
+            }
+            else
+            {
+                _logger?.LogWarning("Cannot create requirement {RequirementName} - student ID not provided", requirementName);
+            }
+        }
+    }
+
+    private void UpdateRequirementStatusOnly(ICollection<StudentRequirement> requirements, string requirementName, bool isVerified)
+    {
+        var requirement = requirements.FirstOrDefault(r => r.RequirementName == requirementName);
+        if (requirement != null)
+        {
+            requirement.Status = isVerified ? "verified" : "not verified";
+        }
+    }
 }
 
-// DTO for enrolled student display in enrollment table
 public class EnrolledStudentDto
 {
     public string Id { get; set; } = string.Empty;
@@ -898,7 +1055,6 @@ public class EnrolledStudentDto
     public string Status { get; set; } = string.Empty;
 }
 
-// DTO for new applicant display in enrollment table
 public class NewApplicantDto
 {
     public string Id { get; set; } = string.Empty;
@@ -908,9 +1064,93 @@ public class NewApplicantDto
     public string Type { get; set; } = string.Empty;
     public string GradeLevel { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public bool DocumentsVerified { get; set; } = false;
 }
 
-// Holds student registration form data
+// Helper methods for calculating documents verified status
+public static class DocumentsVerifiedHelper
+{
+    // Helper method to calculate if all required documents for a student type are verified
+    public static bool CalculateDocumentsVerified(ICollection<StudentRequirement>? requirements, string? studentType)
+    {
+        if (requirements == null || !requirements.Any())
+        {
+            return false;
+        }
+        
+        // Get the list of required document names for this student type
+        var requiredNames = GetRequiredDocumentNamesForStudentType(studentType);
+        
+        if (!requiredNames.Any())
+        {
+            return false; // No requirements defined for this student type
+        }
+        
+        // Check if all required documents are verified
+        foreach (var requiredName in requiredNames)
+        {
+            var requirement = requirements.FirstOrDefault(r => r.RequirementName == requiredName);
+            if (requirement == null)
+            {
+                // Required document doesn't exist - not verified
+                return false;
+            }
+            
+            // Check if this requirement is verified (using Status field since IsVerified is ignored)
+            bool isVerified = !string.IsNullOrWhiteSpace(requirement.Status) && 
+                             requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+            
+            if (!isVerified)
+            {
+                // At least one required document is not verified
+                return false;
+            }
+        }
+        
+        // All required documents are verified
+        return true;
+    }
+    
+    // Helper method to get required document names for a student type
+    private static HashSet<string> GetRequiredDocumentNamesForStudentType(string? studentType)
+    {
+        var requiredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (string.IsNullOrWhiteSpace(studentType))
+        {
+            return requiredNames;
+        }
+        
+        var studentTypeLower = studentType.ToLower();
+        
+        switch (studentTypeLower)
+        {
+            case "new student":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Report Card");
+                break;
+                
+            case "transferee":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Form 137 (Permanent Record)");
+                requiredNames.Add("Good Moral Certificate");
+                requiredNames.Add("Transfer Certificate");
+                break;
+                
+            case "returnee":
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Updated Enrollment Form");
+                requiredNames.Add("Clearance");
+                break;
+        }
+        
+        return requiredNames;
+    }
+}
+
 public class StudentRegistrationData
 {
     public string FirstName { get; set; } = string.Empty;
@@ -958,5 +1198,20 @@ public class StudentRegistrationData
     public string LearnerReferenceNo { get; set; } = string.Empty;
     public string SchoolYear { get; set; } = string.Empty;
     public string GradeToEnroll { get; set; } = string.Empty;
+    
+    // Requirements - New Student
+    public bool HasPSABirthCert { get; set; } = false;
+    public bool HasBaptismalCert { get; set; } = false;
+    public bool HasReportCard { get; set; } = false;
+    
+    // Requirements - Transferee
+    public bool HasForm138 { get; set; } = false;
+    public bool HasForm137 { get; set; } = false;
+    public bool HasGoodMoralCert { get; set; } = false;
+    public bool HasTransferCert { get; set; } = false;
+    
+    // Requirements - Returnee
+    public bool HasUpdatedEnrollmentForm { get; set; } = false;
+    public bool HasClearance { get; set; } = false;
 }
 

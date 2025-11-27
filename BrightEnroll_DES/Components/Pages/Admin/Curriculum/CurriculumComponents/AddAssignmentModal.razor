@@ -390,9 +390,8 @@
             AvailableSections = allSections.OrderBy(s => s.GradeLevelId).ThenBy(s => s.SectionName).ToList();
             FilteredSections = new List<DataModels.Section>();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading data: {ex.Message}");
         }
     }
 
@@ -511,9 +510,8 @@
                 });
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading subjects with schedules: {ex.Message}");
             AvailableSubjectsWithSchedules.Clear();
         }
     }
@@ -776,9 +774,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "add-assignment-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -789,30 +786,25 @@
         {
             if (!SelectedSectionId.HasValue)
             {
-                System.Diagnostics.Debug.WriteLine("Section ID is required");
                 return;
             }
 
             var section = AvailableSections.FirstOrDefault(s => s.SectionId == SelectedSectionId.Value);
             if (section == null)
             {
-                System.Diagnostics.Debug.WriteLine("Section not found");
                 return;
             }
 
             if (SelectedRole == "adviser")
             {
-                // Handle homeroom adviser assignment
                 var adviserTeacher = Teachers.FirstOrDefault(t => 
                     $"{t.FirstName} {t.LastName}" == AdviserTeacherName);
                 
                 if (adviserTeacher == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Adviser teacher not found");
                     return;
                 }
 
-                // Check if section already has an adviser
                 var existingAdviser = await CurriculumService.GetAllTeacherAssignmentsAsync();
                 var hasAdviser = existingAdviser.Any(a => 
                     a.SectionId == section.SectionId && 
@@ -820,11 +812,9 @@
                 
                 if (hasAdviser)
                 {
-                    System.Diagnostics.Debug.WriteLine("Section already has a homeroom teacher");
                     return;
                 }
 
-                // Create adviser assignment
                 var adviserAssignment = new DataModels.TeacherSectionAssignment
                 {
                     TeacherId = adviserTeacher.UserId,
@@ -835,10 +825,8 @@
 
                 await CurriculumService.CreateTeacherAssignmentAsync(adviserAssignment);
 
-                // Create assignments for all subjects with their assigned teachers
                 if (!SelectedClassroomId.HasValue)
                 {
-                    System.Diagnostics.Debug.WriteLine("Classroom ID is required");
                     return;
                 }
 
@@ -870,10 +858,8 @@
             }
             else if (SelectedRole == "homeroom_all_subjects")
             {
-                // For homeroom_all_subjects, create one assignment with all subject schedules
                 if (string.IsNullOrWhiteSpace(AdviserTeacherName))
                 {
-                    System.Diagnostics.Debug.WriteLine("Teacher is required");
                     return;
                 }
 
@@ -882,11 +868,9 @@
                 
                 if (teacher == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Teacher not found");
                     return;
                 }
 
-                // Check if section already has an adviser
                 var existingAdviser = await CurriculumService.GetAllTeacherAssignmentsAsync();
                 var hasAdviser = existingAdviser.Any(a => 
                     a.SectionId == section.SectionId && 
@@ -894,13 +878,11 @@
                 
                 if (hasAdviser)
                 {
-                    System.Diagnostics.Debug.WriteLine("Section already has a homeroom teacher");
                     return;
                 }
 
                 if (!SelectedClassroomId.HasValue)
                 {
-                    System.Diagnostics.Debug.WriteLine("Classroom ID is required");
                     return;
                 }
 
@@ -936,9 +918,8 @@
             await OnSubmit.InvokeAsync();
             await OnClose.InvokeAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error creating assignments: {ex.Message}");
         }
     }
 }

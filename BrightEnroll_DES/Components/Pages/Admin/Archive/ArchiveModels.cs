@@ -6,10 +6,8 @@ public class ArchivedStudent
     public string Name { get; set; } = "";
     public string LRN { get; set; } = "";
     public string Date { get; set; } = "";
-    public string GradeLevel { get; set; } = "";
-    public string Section { get; set; } = "";
-    public string Documents { get; set; } = "";
-    public string Status { get; set; } = "";
+    public string Reason { get; set; } = ""; // Reason for archiving (replaces Notes)
+    public string Status { get; set; } = ""; // Archive reason: "Rejected by School", "Application Withdrawn", "Withdrawn", "Graduated", "Transferred"
     public string ArchivedDate { get; set; } = "";
     public string ArchivedReason { get; set; } = "";
 }

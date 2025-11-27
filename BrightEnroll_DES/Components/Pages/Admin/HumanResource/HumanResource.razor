@@ -389,10 +389,11 @@
             }
             else if (toastValue == "employee_added")
             {
-                toastMessage = "Employee added successfully!";
+                toastMessage = "Employee has been added successfully!";
                 toastType = ToastType.Success;
                 showToast = true;
                 hasSuccessToast = true;
+                StateHasChanged();
             }
         }
 
@@ -402,9 +403,21 @@
 
     protected override Task OnParametersSetAsync()
     {
-        // When navigating back from employee profile (forceLoad: true), 
-        // OnInitializedAsync will be called, so we don't need to reload here
-        // This method is mainly for parameter changes, not navigation
+        // Check for toast parameter when parameters change (e.g., query string changes)
+        var uri = new Uri(NavigationManager.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("toast", out var toastValue))
+        {
+            if (toastValue == "employee_added" && !showToast)
+            {
+                toastMessage = "Employee has been added successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+                StateHasChanged();
+            }
+        }
+        
         return Task.CompletedTask;
     }
 
@@ -437,20 +450,16 @@
             // Retry on concurrency errors
             if (isConcurrencyError && retryCount < maxRetries)
             {
-                Console.WriteLine($"DbContext concurrency error detected, retrying... (Attempt {retryCount + 1}/{maxRetries})");
                 await LoadEmployeesAsync(preserveSuccessToast, retryCount + 1);
                 return;
             }
 
-            // Only show error toast if we're not preserving a success message
             if (!preserveSuccessToast)
             {
                 toastMessage = ErrorMessageHelper.ToHumanReadable($"Error loading employees: {ex.Message}");
                 toastType = ToastType.Error;
                 showToast = true;
             }
-            // Log the error but don't overwrite success message
-            Console.WriteLine($"Error loading employees: {ex.Message}");
             Employees = new List<EmployeeDisplayDto>();
         }
         finally
@@ -460,19 +469,36 @@
         }
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Clean up query parameter from URL after showing toast
+            // Check for toast parameter on first render
             var uri = new Uri(NavigationManager.Uri);
-            if (uri.Query.Contains("toast="))
+            var query = ParseQueryString(uri.Query);
+            
+            if (query.TryGetValue("toast", out var toastValue))
             {
-                NavigationManager.NavigateTo("/human-resource", forceLoad: false);
+                if (toastValue == "employee_added")
+                {
+                    // Only set if not already set (avoid duplicate)
+                    if (!showToast)
+                    {
+                        toastMessage = "Employee has been added successfully!";
+                        toastType = ToastType.Success;
+                        showToast = true;
+                        StateHasChanged();
+                    }
+                    
+                    // Clean up query parameter from URL after a delay to ensure toast is shown
+                    await Task.Delay(3000);
+                    if (NavigationManager.Uri.Contains("toast=employee_added"))
+                    {
+                        NavigationManager.NavigateTo("/human-resource", forceLoad: false);
+                    }
+                }
             }
-            // Note: Employees are already loaded in OnInitializedAsync, no need to reload here
         }
-        return Task.CompletedTask;
     }
 
     private Dictionary<string, string> ParseQueryString(string queryString)
@@ -534,9 +560,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "inactive-employee-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -602,7 +627,6 @@
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating employee status: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
-            Console.WriteLine($"Error updating employee status: {ex.Message}");
         }
         finally
         {
@@ -654,7 +678,6 @@
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating employee status: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
-            Console.WriteLine($"Error updating employee status: {ex.Message}");
         }
         
         StateHasChanged();
