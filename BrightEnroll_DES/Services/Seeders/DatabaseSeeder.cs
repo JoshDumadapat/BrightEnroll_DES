@@ -22,6 +22,9 @@ namespace BrightEnroll_DES.Services.Seeders
         {
             try
             {
+                // First, ensure Admin role exists in tbl_roles
+                await SeedAdminRoleAsync();
+
                 var exists = await _userRepository.ExistsBySystemIdAsync("BDES-0001");
                 if (exists)
                 {
@@ -116,6 +119,38 @@ namespace BrightEnroll_DES.Services.Seeders
             catch (Exception ex)
             {
                 throw new Exception($"Error seeding initial admin: {ex.Message}", ex);
+            }
+        }
+
+        public async Task SeedAdminRoleAsync()
+        {
+            try
+            {
+                // Check if Admin role already exists
+                var existingRole = await _context.Roles
+                    .FirstOrDefaultAsync(r => r.RoleName == "Admin");
+                
+                if (existingRole != null)
+                {
+                    return;
+                }
+
+                // Create Admin role with salary configuration matching the admin user
+                var adminRole = new Role
+                {
+                    RoleName = "Admin",
+                    BaseSalary = 50000.00m,
+                    Allowance = 5000.00m,
+                    IsActive = true,
+                    CreatedDate = DateTime.Now
+                };
+
+                _context.Roles.Add(adminRole);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding admin role: {ex.Message}", ex);
             }
         }
 
