@@ -661,7 +661,7 @@
     </div>
 </div>
 
-<!-- Toast Notification (only for error cases) -->
+<!-- Toast Notification -->
 @if (showToast)
 {
     <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
@@ -910,7 +910,7 @@
     private bool isSubmitting = false;
     private bool isProcessingSubmit = false; // Flag to prevent navigation guard during submit
     
-    // Toast notification (only for error cases)
+    // Toast notification
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
@@ -1002,8 +1002,8 @@
     // Handle navigation BEFORE it happens using NavigationLock
     private async Task OnBeforeInternalNavigation(LocationChangingContext context)
     {
-        // If we're processing a submit, don't interfere - allow the submit flow to continue
-        if (isProcessingSubmit)
+        // If we're processing a submit or showing submit confirmation modal, don't interfere
+        if (isProcessingSubmit || showSubmitConfirmModal)
         {
             return; // Don't prevent navigation during submit processing
         }
@@ -1719,8 +1719,9 @@
 
     private async Task HandleSubmitClick()
     {
-        // Set flag to prevent navigation guard from interfering
+        // Set flag IMMEDIATELY to prevent navigation guard from interfering
         isProcessingSubmit = true;
+        StateHasChanged(); // Update state immediately
         
         try
         {
@@ -2324,18 +2325,11 @@
             Console.WriteLine($"Employee registered successfully with UserId: {userId}");
             Console.WriteLine("===========================================");
             
-            // Show success toast notification
-            toastMessage = $"Employee {EmployeeData.FirstName} {EmployeeData.LastName} has been added successfully!";
-            toastType = ToastType.Success;
-            showToast = true;
+            // Reset submitting flag
             isSubmitting = false;
-            StateHasChanged();
             
-            // Wait a moment to show the toast, then navigate
-            await Task.Delay(1500);
-            
-            // Navigate to human resource page
-            NavigationManager.NavigateTo("/human-resource");
+            // Navigate to human resource page with toast parameter - force reload to ensure toast shows
+            NavigationManager.NavigateTo("/human-resource?toast=employee_added", forceLoad: true);
         }
         catch (Exception ex)
         {

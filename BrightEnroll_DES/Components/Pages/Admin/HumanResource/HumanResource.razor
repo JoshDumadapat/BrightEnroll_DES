@@ -389,10 +389,14 @@
             }
             else if (toastValue == "employee_added")
             {
-                toastMessage = "Employee added successfully!";
+                // Set toast immediately
+                Console.WriteLine("Setting toast for employee_added");
+                toastMessage = "Employee has been added successfully!";
                 toastType = ToastType.Success;
                 showToast = true;
                 hasSuccessToast = true;
+                Console.WriteLine($"Toast set: showToast={showToast}, message={toastMessage}");
+                StateHasChanged(); // Force immediate UI update
             }
         }
 
@@ -402,9 +406,22 @@
 
     protected override Task OnParametersSetAsync()
     {
-        // When navigating back from employee profile (forceLoad: true), 
-        // OnInitializedAsync will be called, so we don't need to reload here
-        // This method is mainly for parameter changes, not navigation
+        // Check for toast parameter when parameters change (e.g., query string changes)
+        var uri = new Uri(NavigationManager.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("toast", out var toastValue))
+        {
+            if (toastValue == "employee_added" && !showToast)
+            {
+                Console.WriteLine("OnParametersSetAsync: Setting toast for employee_added");
+                toastMessage = "Employee has been added successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+                StateHasChanged();
+            }
+        }
+        
         return Task.CompletedTask;
     }
 
@@ -460,19 +477,37 @@
         }
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Clean up query parameter from URL after showing toast
+            // Check for toast parameter on first render
             var uri = new Uri(NavigationManager.Uri);
-            if (uri.Query.Contains("toast="))
+            var query = ParseQueryString(uri.Query);
+            
+            if (query.TryGetValue("toast", out var toastValue))
             {
-                NavigationManager.NavigateTo("/human-resource", forceLoad: false);
+                if (toastValue == "employee_added")
+                {
+                    // Only set if not already set (avoid duplicate)
+                    if (!showToast)
+                    {
+                        Console.WriteLine("OnAfterRenderAsync: Setting toast for employee_added");
+                        toastMessage = "Employee has been added successfully!";
+                        toastType = ToastType.Success;
+                        showToast = true;
+                        StateHasChanged();
+                    }
+                    
+                    // Clean up query parameter from URL after a delay to ensure toast is shown
+                    await Task.Delay(3000);
+                    if (NavigationManager.Uri.Contains("toast=employee_added"))
+                    {
+                        NavigationManager.NavigateTo("/human-resource", forceLoad: false);
+                    }
+                }
             }
-            // Note: Employees are already loaded in OnInitializedAsync, no need to reload here
         }
-        return Task.CompletedTask;
     }
 
     private Dictionary<string, string> ParseQueryString(string queryString)
