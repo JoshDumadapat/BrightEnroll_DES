@@ -17,10 +17,9 @@ public class Student
     [Column("first_name")]
     public string FirstName { get; set; } = string.Empty;
 
-    [Required]
     [MaxLength(50)]
     [Column("middle_name")]
-    public string MiddleName { get; set; } = string.Empty;
+    public string? MiddleName { get; set; }
 
     [Required]
     [MaxLength(50)]

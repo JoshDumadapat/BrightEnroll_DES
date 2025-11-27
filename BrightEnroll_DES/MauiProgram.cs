@@ -83,6 +83,13 @@ namespace BrightEnroll_DES
             builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
             {
                 options.UseSqlServer(localConnectionString);
+                
+                // Enable SQL query logging in DEBUG mode
+#if DEBUG
+                options.EnableSensitiveDataLogging();
+                options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SQL: {message}"), 
+                    Microsoft.Extensions.Logging.LogLevel.Information);
+#endif
             });
 
             // Register Connectivity Service
@@ -92,6 +99,12 @@ namespace BrightEnroll_DES
 
             // Register StudentService (scoped for EF Core DbContext)
             builder.Services.AddScoped<StudentService>();
+            
+            // Register ArchiveService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ArchiveService>();
+            
+            // Register EnrollmentStatusService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<EnrollmentStatusService>();
             
             // Register EmployeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<EmployeeService>();

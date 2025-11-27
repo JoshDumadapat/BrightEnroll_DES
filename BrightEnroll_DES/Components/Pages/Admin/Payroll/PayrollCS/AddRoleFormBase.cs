@@ -132,9 +132,8 @@ public class AddRoleFormBase : ComponentBase
             
             StateHasChanged();
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading roles from database: {ex.Message}");
             dbRoles = new List<PayrollRoleData>();
         }
     }

@@ -309,13 +309,42 @@ public class StudentService
             
             // STEP 9: Create default requirements based on student type
             // Requirements are created after student is successfully inserted
-            var requirements = GetDefaultRequirements(student.StudentId, student.StudentType);
+            // Pass requirement checkbox values to set IsVerified based on what user checked during registration
+            var requirements = GetDefaultRequirements(student.StudentId, student.StudentType, studentData);
             
             if (requirements.Any())
             {
-                _context.StudentRequirements.AddRange(requirements);
-                await _context.SaveChangesAsync();
-                _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
+                try
+                {
+                    _context.StudentRequirements.AddRange(requirements);
+                    await _context.SaveChangesAsync();
+                    _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    // Extract the innermost SQL exception for detailed error information
+                    var innerEx = dbEx.InnerException;
+                    var sqlEx = innerEx as Microsoft.Data.SqlClient.SqlException;
+                    
+                    // Build detailed error message
+                    var errorMsg = $"Failed to save student requirements: {dbEx.Message}";
+                    if (sqlEx != null)
+                    {
+                        errorMsg += $"\nSQL Error Number: {sqlEx.Number}";
+                        errorMsg += $"\nSQL Error Message: {sqlEx.Message}";
+                        errorMsg += $"\nSQL Error Severity: {sqlEx.Class}";
+                        errorMsg += $"\nSQL Error State: {sqlEx.State}";
+                        if (sqlEx.LineNumber > 0)
+                            errorMsg += $"\nSQL Error Line: {sqlEx.LineNumber}";
+                    }
+                    else if (innerEx != null)
+                    {
+                        errorMsg += $"\nInner Exception: {innerEx.GetType().Name} - {innerEx.Message}";
+                    }
+                    
+                    _logger?.LogError(dbEx, "Error saving student requirements: {ErrorMessage}", errorMsg);
+                    throw new Exception(errorMsg, dbEx);
+                }
             }
 
             // STEP 10: Commit transaction - all operations succeeded
@@ -681,7 +710,8 @@ public class StudentService
     }
 
     // Returns default requirements list based on student type
-    private List<StudentRequirement> GetDefaultRequirements(string studentId, string studentType)
+    // Sets IsVerified based on checkbox values from registration form
+    private List<StudentRequirement> GetDefaultRequirements(string studentId, string studentType, StudentRegistrationData? studentData = null)
     {
         var requirements = new List<StudentRequirement>();
 
@@ -690,27 +720,27 @@ public class StudentService
             case "new student":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasReportCard ?? false }
                 });
                 break;
 
             case "transferee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasForm138 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasForm137 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasGoodMoralCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasTransferCert ?? false }
                 });
                 break;
 
             case "returnee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = "not submitted" },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = "not submitted" }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = "not submitted", IsVerified = studentData?.HasUpdatedEnrollmentForm ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = "not submitted", IsVerified = studentData?.HasClearance ?? false }
                 });
                 break;
 
@@ -818,44 +848,30 @@ public class StudentService
     {
         try
         {
-            // Use EF Core's FromSqlRaw with parameterized query - secure ORM approach
-            // Status is hardcoded in the query (not user input), so it's safe
+            // Get students with Pending status and their requirements
             var pendingStatus = "Pending";
             
-            var newApplicants = await _context.StudentDataViews
-                .FromSqlRaw(@"
-                    SELECT 
-                        StudentId,
-                        FirstName,
-                        MiddleName,
-                        LastName,
-                        Suffix,
-                        FullName,
-                        BirthDate,
-                        Age,
-                        LRN,
-                        GradeLevel,
-                        SchoolYear,
-                        DateRegistered,
-                        Status,
-                        StudentType
-                    FROM [dbo].[vw_StudentData] 
-                    WHERE Status = {0}", pendingStatus)
+            var students = await _context.Students
+                .Include(s => s.Requirements)
                 .Where(s => s.Status == pendingStatus)
                 .OrderByDescending(s => s.DateRegistered)
-                .Select(s => new NewApplicantDto
-                {
-                    Id = s.StudentId ?? "N/A",
-                    Name = s.FullName ?? "N/A",
-                    LRN = s.LRN ?? "N/A",
-                    Date = s.DateRegistered.HasValue 
-                        ? s.DateRegistered.Value.ToString("MMMM dd, yyyy") 
-                        : "N/A",
-                    Type = s.StudentType ?? "New",
-                    GradeLevel = s.GradeLevel ?? "N/A",
-                    Status = s.Status ?? "Pending"
-                })
                 .ToListAsync();
+
+            var newApplicants = students.Select(s => new NewApplicantDto
+            {
+                Id = s.StudentId,
+                Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                LRN = s.Lrn ?? "N/A",
+                Date = s.DateRegistered.ToString("MMMM dd, yyyy"),
+                Type = s.StudentType,
+                GradeLevel = s.GradeLevel ?? "N/A",
+                Status = s.Status,
+                DocumentsVerified = s.Requirements != null && 
+                                   s.Requirements.Any() && 
+                                   s.Requirements.All(r => r.IsVerified || 
+                                       (!string.IsNullOrWhiteSpace(r.Status) && 
+                                        r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)))
+            }).ToList();
 
             return newApplicants;
         }
@@ -863,6 +879,219 @@ public class StudentService
         {
             _logger?.LogError(ex, "Error fetching new applicants: {Message}", ex.Message);
             throw new Exception($"Failed to fetch new applicants: {ex.Message}", ex);
+        }
+    }
+
+    // Updates student information and requirements
+    public async Task UpdateStudentAsync(Components.Pages.Admin.Enrollment.EnrollmentCS.StudentEditModel model)
+    {
+        try
+        {
+            var student = await _context.Students
+                .Include(s => s.Guardian)
+                .Include(s => s.Requirements)
+                .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
+
+            if (student == null)
+            {
+                _logger?.LogWarning("Student {StudentId} not found for update", model.StudentId);
+                throw new Exception($"Student {model.StudentId} not found");
+            }
+
+            // Update student basic information
+            student.FirstName = model.FirstName;
+            // middle_name is NOT NULL in database, so use empty string instead of null
+            student.MiddleName = string.IsNullOrWhiteSpace(model.MiddleName) ? string.Empty : model.MiddleName;
+            student.LastName = model.LastName;
+            student.Suffix = string.IsNullOrWhiteSpace(model.Suffix) ? null : model.Suffix;
+            student.Birthdate = model.BirthDate;
+            student.Age = model.Age;
+            student.PlaceOfBirth = string.IsNullOrWhiteSpace(model.PlaceOfBirth) ? null : model.PlaceOfBirth;
+            student.Sex = model.Sex;
+            student.MotherTongue = string.IsNullOrWhiteSpace(model.MotherTongue) ? null : model.MotherTongue;
+            student.IpComm = model.IsIPCommunity == "Yes";
+            student.IpSpecify = string.IsNullOrWhiteSpace(model.IPCommunitySpecify) ? null : model.IPCommunitySpecify;
+            student.FourPs = model.Is4PsBeneficiary == "Yes";
+            student.FourPsHseId = string.IsNullOrWhiteSpace(model.FourPsHouseholdId) ? null : model.FourPsHouseholdId;
+
+            // Update address
+            student.HseNo = string.IsNullOrWhiteSpace(model.CurrentHouseNo) ? null : model.CurrentHouseNo;
+            student.Street = string.IsNullOrWhiteSpace(model.CurrentStreetName) ? null : model.CurrentStreetName;
+            student.Brngy = string.IsNullOrWhiteSpace(model.CurrentBarangay) ? null : model.CurrentBarangay;
+            student.City = string.IsNullOrWhiteSpace(model.CurrentCity) ? null : model.CurrentCity;
+            student.Province = string.IsNullOrWhiteSpace(model.CurrentProvince) ? null : model.CurrentProvince;
+            student.Country = string.IsNullOrWhiteSpace(model.CurrentCountry) ? null : model.CurrentCountry;
+            student.ZipCode = string.IsNullOrWhiteSpace(model.CurrentZipCode) ? null : model.CurrentZipCode;
+
+            // Update permanent address
+            student.PhseNo = string.IsNullOrWhiteSpace(model.PermanentHouseNo) ? null : model.PermanentHouseNo;
+            student.Pstreet = string.IsNullOrWhiteSpace(model.PermanentStreetName) ? null : model.PermanentStreetName;
+            student.Pbrngy = string.IsNullOrWhiteSpace(model.PermanentBarangay) ? null : model.PermanentBarangay;
+            student.Pcity = string.IsNullOrWhiteSpace(model.PermanentCity) ? null : model.PermanentCity;
+            student.Pprovince = string.IsNullOrWhiteSpace(model.PermanentProvince) ? null : model.PermanentProvince;
+            student.Pcountry = string.IsNullOrWhiteSpace(model.PermanentCountry) ? null : model.PermanentCountry;
+            student.PzipCode = string.IsNullOrWhiteSpace(model.PermanentZipCode) ? null : model.PermanentZipCode;
+
+            // Update enrollment details
+            student.StudentType = model.StudentType;
+            student.Lrn = model.HasLRN == "Yes" && !string.IsNullOrWhiteSpace(model.LearnerReferenceNo) && model.LearnerReferenceNo != "N/A"
+                ? model.LearnerReferenceNo
+                : null;
+            student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
+            student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+            
+            // Handle status with truncation check - if status is too long, truncate it
+            // This is a temporary workaround until database column is updated
+            if (!string.IsNullOrWhiteSpace(model.Status) && model.Status.Length > 20)
+            {
+                // Truncate to 20 characters to fit current database column size
+                student.Status = model.Status.Substring(0, 20);
+                _logger?.LogWarning("Status truncated from '{OriginalStatus}' to '{TruncatedStatus}' for student {StudentId}. Please update database column size.", 
+                    model.Status, student.Status, model.StudentId);
+            }
+            else
+            {
+                student.Status = model.Status;
+            }
+
+            // Update guardian if exists
+            if (student.Guardian != null)
+            {
+                student.Guardian.FirstName = model.GuardianFirstName;
+                student.Guardian.MiddleName = string.IsNullOrWhiteSpace(model.GuardianMiddleName) ? null : model.GuardianMiddleName;
+                student.Guardian.LastName = model.GuardianLastName;
+                student.Guardian.Suffix = string.IsNullOrWhiteSpace(model.GuardianSuffix) ? null : model.GuardianSuffix;
+                student.Guardian.ContactNum = string.IsNullOrWhiteSpace(model.GuardianContactNumber) ? null : model.GuardianContactNumber;
+                student.Guardian.Relationship = string.IsNullOrWhiteSpace(model.GuardianRelationship) ? null : model.GuardianRelationship;
+            }
+
+            // Update requirements based on checkboxes
+            if (student.Requirements != null && student.Requirements.Any())
+            {
+                // Update existing requirements
+                UpdateRequirement(student.Requirements, "PSA Birth Certificate", model.HasPSABirthCert);
+                UpdateRequirement(student.Requirements, "Baptismal Certificate", model.HasBaptismalCert);
+                UpdateRequirement(student.Requirements, "Report Card", model.HasReportCard);
+                UpdateRequirement(student.Requirements, "Form 138 (Report Card)", model.HasForm138);
+                UpdateRequirement(student.Requirements, "Form 137 (Permanent Record)", model.HasForm137);
+                UpdateRequirement(student.Requirements, "Good Moral Certificate", model.HasGoodMoralCert);
+                UpdateRequirement(student.Requirements, "Transfer Certificate", model.HasTransferCert);
+                UpdateRequirement(student.Requirements, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm);
+                UpdateRequirement(student.Requirements, "Clearance", model.HasClearance);
+            }
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+            {
+                // Extract the innermost SQL exception for detailed error information
+                var innerEx = dbEx.InnerException;
+                var sqlEx = innerEx as Microsoft.Data.SqlClient.SqlException;
+                
+                // Check if this is the is_verified column error
+                if (sqlEx != null && sqlEx.Number == 207 && sqlEx.Message.Contains("is_verified", StringComparison.OrdinalIgnoreCase))
+                {
+                    // The is_verified column doesn't exist - only update Status, not IsVerified
+                    _logger?.LogWarning("is_verified column not found. Updating only Status field for requirements.");
+                    
+                    // Revert IsVerified changes and only update Status
+                    if (student.Requirements != null && student.Requirements.Any())
+                    {
+                        UpdateRequirementStatusOnly(student.Requirements, "PSA Birth Certificate", model.HasPSABirthCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Baptismal Certificate", model.HasBaptismalCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Report Card", model.HasReportCard);
+                        UpdateRequirementStatusOnly(student.Requirements, "Form 138 (Report Card)", model.HasForm138);
+                        UpdateRequirementStatusOnly(student.Requirements, "Form 137 (Permanent Record)", model.HasForm137);
+                        UpdateRequirementStatusOnly(student.Requirements, "Good Moral Certificate", model.HasGoodMoralCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Transfer Certificate", model.HasTransferCert);
+                        UpdateRequirementStatusOnly(student.Requirements, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm);
+                        UpdateRequirementStatusOnly(student.Requirements, "Clearance", model.HasClearance);
+                    }
+                    
+                    // Try saving again with only Status updates
+                    await _context.SaveChangesAsync();
+                    _logger?.LogInformation("Student {StudentId} updated successfully (using Status field only)", model.StudentId);
+                }
+                // Check if this is a status column truncation error (Error 2628)
+                else if (sqlEx != null && sqlEx.Number == 2628 && sqlEx.Message.Contains("status", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Status column is too small - truncate the status value to fit
+                    _logger?.LogWarning("Status column truncation detected. Truncating status value to fit column size.");
+                    
+                    // Truncate status to 20 characters if it's longer
+                    if (student.Status != null && student.Status.Length > 20)
+                    {
+                        var originalStatus = student.Status;
+                        student.Status = student.Status.Substring(0, 20);
+                        _logger?.LogWarning("Status truncated from '{OriginalStatus}' to '{TruncatedStatus}'", originalStatus, student.Status);
+                        
+                        // Try saving again with truncated status
+                        await _context.SaveChangesAsync();
+                        _logger?.LogInformation("Student {StudentId} updated successfully (status truncated to fit column)", model.StudentId);
+                        
+                        // Throw a helpful error message to inform user to update database
+                        throw new Exception(
+                            $"Status value was truncated due to database column size limit. " +
+                            $"Please run the SQL script 'Database_Scripts/Update_Status_Column_Size.sql' to fix this. " +
+                            $"Current status saved as: '{student.Status}' (truncated from '{originalStatus}')", dbEx);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+                else
+                {
+                    // Build detailed error message for other database errors
+                    var errorMsg = $"Failed to update student: {dbEx.Message}";
+                    if (sqlEx != null)
+                    {
+                        errorMsg += $"\nSQL Error Number: {sqlEx.Number}";
+                        errorMsg += $"\nSQL Error Message: {sqlEx.Message}";
+                        errorMsg += $"\nSQL Error Severity: {sqlEx.Class}";
+                        errorMsg += $"\nSQL Error State: {sqlEx.State}";
+                        if (sqlEx.LineNumber > 0)
+                            errorMsg += $"\nSQL Error Line: {sqlEx.LineNumber}";
+                    }
+                    else if (innerEx != null)
+                    {
+                        errorMsg += $"\nInner Exception: {innerEx.GetType().Name} - {innerEx.Message}";
+                    }
+                    
+                    _logger?.LogError(dbEx, "Error updating student requirements: {ErrorMessage}", errorMsg);
+                    throw new Exception(errorMsg, dbEx);
+                }
+            }
+            _logger?.LogInformation("Student {StudentId} updated successfully", model.StudentId);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error updating student {StudentId}: {Message}", model.StudentId, ex.Message);
+            throw;
+        }
+    }
+
+    // Helper method to update requirement verification status
+    private void UpdateRequirement(ICollection<StudentRequirement> requirements, string requirementName, bool isVerified)
+    {
+        var requirement = requirements.FirstOrDefault(r => r.RequirementName == requirementName);
+        if (requirement != null)
+        {
+            requirement.IsVerified = isVerified;
+            requirement.Status = isVerified ? "verified" : "not verified";
+        }
+    }
+
+    // Helper method to update requirement status only (when is_verified column doesn't exist)
+    private void UpdateRequirementStatusOnly(ICollection<StudentRequirement> requirements, string requirementName, bool isVerified)
+    {
+        var requirement = requirements.FirstOrDefault(r => r.RequirementName == requirementName);
+        if (requirement != null)
+        {
+            // Only update Status field, don't touch IsVerified
+            requirement.Status = isVerified ? "verified" : "not verified";
         }
     }
 }
@@ -890,6 +1119,7 @@ public class NewApplicantDto
     public string Type { get; set; } = string.Empty;
     public string GradeLevel { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public bool DocumentsVerified { get; set; } = false;
 }
 
 // Holds student registration form data
@@ -940,5 +1170,20 @@ public class StudentRegistrationData
     public string LearnerReferenceNo { get; set; } = string.Empty;
     public string SchoolYear { get; set; } = string.Empty;
     public string GradeToEnroll { get; set; } = string.Empty;
+    
+    // Requirements - New Student
+    public bool HasPSABirthCert { get; set; } = false;
+    public bool HasBaptismalCert { get; set; } = false;
+    public bool HasReportCard { get; set; } = false;
+    
+    // Requirements - Transferee
+    public bool HasForm138 { get; set; } = false;
+    public bool HasForm137 { get; set; } = false;
+    public bool HasGoodMoralCert { get; set; } = false;
+    public bool HasTransferCert { get; set; } = false;
+    
+    // Requirements - Returnee
+    public bool HasUpdatedEnrollmentForm { get; set; } = false;
+    public bool HasClearance { get; set; } = false;
 }
 

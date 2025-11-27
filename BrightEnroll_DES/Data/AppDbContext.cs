@@ -92,6 +92,10 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_StudentRequirements");
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
+            
+            // Temporarily ignore IsVerified property until database column is added
+            // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.IsVerified);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>

@@ -1,0 +1,1097 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Services.Infrastructure
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Data.Models
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Forms
+
+@if (Show)
+{
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+    <div class="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl modal-scroll"
+         @onclick:stopPropagation="true">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-yellow-400">
+            <div>
+                <h2 class="text-lg font-semibold text-blue-600">@(IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant")</h2>
+                <p class="text-xs text-gray-500">@(IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements.")</p>
+            </div>
+            <button @onclick="OnCancelClicked"
+                    class="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Body -->
+        <div class="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
+            @if (EditContext == null || Model == null)
+            {
+                <div class="flex items-center justify-center py-12 text-gray-500">
+                    <svg class="mr-2 h-5 w-5 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading student data...
+                </div>
+            }
+            else
+            {
+                <EditForm EditContext="@EditContext">
+                    <DataAnnotationsValidator />
+
+                    <!-- Personal Information (mirrors StudentRegistration) -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Personal Information</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    First Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.FirstName"
+                                           class="@GetInputClass(nameof(Model.FirstName))" />
+                                <ValidationMessage For="@(() => Model.FirstName)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                                <InputText @bind-Value="Model.MiddleName"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Last Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.LastName"
+                                           class="@GetInputClass(nameof(Model.LastName))" />
+                                <ValidationMessage For="@(() => Model.LastName)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
+                                <InputSelect @bind-Value="Model.Suffix"
+                                             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">N/A</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Birth Date <span class="text-red-500">*</span>
+                                </label>
+                                <InputDate @bind-Value="Model.BirthDate"
+                                           @bind-Value:after="HandleBirthDateChanged"
+                                           class="@GetInputClass(nameof(Model.BirthDate))" />
+                                <ValidationMessage For="@(() => Model.BirthDate)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Age <span class="text-red-500">*</span>
+                                </label>
+                                <InputNumber @bind-Value="Model.Age"
+                                             class="@GetInputClass(nameof(Model.Age))" />
+                                <ValidationMessage For="@(() => Model.Age)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Place of Birth <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.PlaceOfBirth"
+                                           class="@GetInputClass(nameof(Model.PlaceOfBirth))" />
+                                <ValidationMessage For="@(() => Model.PlaceOfBirth)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Sex <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.Sex"
+                                             class="@GetInputClass(nameof(Model.Sex))">
+                                    <option value="">Select</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => Model.Sex)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                        </div>
+
+                    <!-- Additional personal details: Mother Tongue, IP, 4Ps -->
+                    <div class="mb-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Mother Tongue <span class="text-red-500">*</span>
+                            </label>
+                            <InputSelect @bind-Value="Model.MotherTongue"
+                                         class="@GetInputClass(nameof(Model.MotherTongue))">
+                                <option value="">Select</option>
+                                <option value="Tagalog">Tagalog</option>
+                                <option value="Cebuano">Cebuano</option>
+                                <option value="Ilocano">Ilocano</option>
+                                <option value="Hiligaynon">Hiligaynon</option>
+                                <option value="Waray">Waray</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+                            <ValidationMessage For="@(() => Model.MotherTongue)" class="text-red-500 text-xs mt-1" />
+                            @if (Model.MotherTongue == "Other")
+                            {
+                                <InputText @bind-Value="Model.MotherTongueOther"
+                                           class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Please specify mother tongue" />
+                            }
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Indigenous Peoples (IP) Community?
+                            </label>
+                            <InputRadioGroup @bind-Value="Model.IsIPCommunity">
+                                <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Yes")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("No")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                If Yes, please specify:
+                            </label>
+                            <InputSelect @bind-Value="Model.IPCommunitySpecify"
+                                         disabled="@(Model.IsIPCommunity != "Yes")"
+                                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">N/A</option>
+                                <option value="Lumad">Lumad</option>
+                                <option value="Manobo">Manobo</option>
+                                <option value="B'laan">B'laan</option>
+                                <option value="Other">Other</option>
+                            </InputSelect>
+                            @if (Model.IPCommunitySpecify == "Other" && Model.IsIPCommunity == "Yes")
+                            {
+                                <InputText @bind-Value="Model.IPCommunitySpecifyOther"
+                                           class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Please specify" />
+                            }
+                        </div>
+
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                4Ps Beneficiary?
+                            </label>
+                            <InputRadioGroup @bind-Value="Model.Is4PsBeneficiary">
+                                <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Yes")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("No")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                            <label class="mt-3 mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                If Yes, 4Ps Household ID:
+                            </label>
+                            <InputText @bind-Value="Model.FourPsHouseholdId"
+                                       disabled="@(Model.Is4PsBeneficiary != "Yes")"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                       placeholder="N/A" />
+                        </div>
+                    </div>
+                    </div>
+
+                    <!-- Current Address (mirrors StudentRegistration layout, simplified inputs) -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Current Address</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-3 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    House No./Street
+                                </label>
+                                <InputText @bind-Value="Model.CurrentHouseNo"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="e.g. 123" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Street Name
+                                </label>
+                                <InputText @bind-Value="Model.CurrentStreetName"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="e.g. Rizal Street" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Barangay <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentBarangay"
+                                           class="@GetInputClass(nameof(Model.CurrentBarangay))"
+                                           placeholder="Barangay" />
+                                <ValidationMessage For="@(() => Model.CurrentBarangay)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Province <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentProvince"
+                                           class="@GetInputClass(nameof(Model.CurrentProvince))"
+                                           placeholder="Province" />
+                                <ValidationMessage For="@(() => Model.CurrentProvince)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Municipality/City <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentCity"
+                                           class="@GetInputClass(nameof(Model.CurrentCity))"
+                                           placeholder="City / Municipality" />
+                                <ValidationMessage For="@(() => Model.CurrentCity)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Country <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentCountry"
+                                           class="@GetInputClass(nameof(Model.CurrentCountry))"
+                                           placeholder="Country" />
+                                <ValidationMessage For="@(() => Model.CurrentCountry)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    ZIP Code <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentZipCode"
+                                           class="@GetInputClass(nameof(Model.CurrentZipCode))"
+                                           placeholder="ZIP Code" />
+                                <ValidationMessage For="@(() => Model.CurrentZipCode)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Permanent Address (Same as current toggle, simplified inputs) -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Permanent Address</h2>
+
+                        <div class="mb-3 sm:mb-4">
+                            <label class="flex cursor-pointer items-center">
+                                <InputCheckbox @bind-Value="Model.SameAsCurrentAddress"
+                                               @bind-Value:after="HandleSameAsCurrentAddressChanged"
+                                               class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span class="ml-2 text-xs font-medium text-gray-700 sm:text-sm">
+                                    Same with your Current Address?
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-3 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    House No./Street
+                                </label>
+                                <InputText @bind-Value="Model.PermanentHouseNo"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="House No./Street" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Street Name
+                                </label>
+                                <InputText @bind-Value="Model.PermanentStreetName"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Street Name" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Barangay
+                                </label>
+                                <InputText @bind-Value="Model.PermanentBarangay"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Barangay" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Province
+                                </label>
+                                <InputText @bind-Value="Model.PermanentProvince"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Province" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Municipality/City
+                                </label>
+                                <InputText @bind-Value="Model.PermanentCity"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="City / Municipality" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Country
+                                </label>
+                                <InputText @bind-Value="Model.PermanentCountry"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="Country" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    ZIP Code
+                                </label>
+                                <InputText @bind-Value="Model.PermanentZipCode"
+                                           disabled="Model.SameAsCurrentAddress"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="ZIP Code" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Guardian Information (mirrors StudentRegistration, simplified) -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Guardian Information</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    First Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianFirstName"
+                                           class="@GetInputClass(nameof(Model.GuardianFirstName))" />
+                                <ValidationMessage For="@(() => Model.GuardianFirstName)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                                <InputText @bind-Value="Model.GuardianMiddleName"
+                                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Last Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianLastName"
+                                           class="@GetInputClass(nameof(Model.GuardianLastName))" />
+                                <ValidationMessage For="@(() => Model.GuardianLastName)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Suffix
+                                </label>
+                                <InputSelect @bind-Value="Model.GuardianSuffix"
+                                             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">N/A</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Contact Number <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianContactNumber"
+                                           class="@GetInputClass(nameof(Model.GuardianContactNumber))" />
+                                <ValidationMessage For="@(() => Model.GuardianContactNumber)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Relationship <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.GuardianRelationship"
+                                             class="@GetInputClass(nameof(Model.GuardianRelationship))">
+                                    <option value="">Select Relationship</option>
+                                    <option value="Father">Father</option>
+                                    <option value="Mother">Mother</option>
+                                    <option value="Guardian">Guardian</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                                <ValidationMessage For="@(() => Model.GuardianRelationship)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            @if (Model.GuardianRelationship == "Other")
+                            {
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                        Please specify:
+                                    </label>
+                                    <InputText @bind-Value="Model.GuardianRelationshipOther"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                               placeholder="e.g. Yaya" />
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+
+                    <!-- Enrollment Details & Requirements -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Enrollment Details</h2>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
+                                Student Type <span class="text-red-500">*</span>
+                            </label>
+                            <InputRadioGroup @bind-Value="Model.StudentType">
+                                <div class="flex flex-wrap gap-4 sm:gap-6">
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("New Student")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">New Student</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Returnee")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Returnee</span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputRadio Value="@("Transferee")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Transferee</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                            <ValidationMessage For="@(() => Model.StudentType)" class="text-red-500 text-xs mt-1" />
+                        </div>
+
+                        <div class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    With LRN?
+                                </label>
+                                <InputRadioGroup @bind-Value="Model.HasLRN" @bind-Value:after="HandleHasLRNChange">
+                                    <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                        <label class="flex cursor-pointer items-center">
+                                            <InputRadio Value="@("Yes")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                        </label>
+                                        <label class="flex cursor-pointer items-center">
+                                            <InputRadio Value="@("No")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                        </label>
+                                    </div>
+                                </InputRadioGroup>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    LRN
+                                </label>
+                                <InputText @bind-Value="Model.LearnerReferenceNo"
+                                           disabled="@(Model.HasLRN != "Yes")"
+                                           class="@($"{GetInputClass(nameof(Model.LearnerReferenceNo))} disabled:cursor-not-allowed disabled:bg-gray-100")" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    School Year <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.SchoolYear"
+                                             class="@GetInputClass(nameof(Model.SchoolYear))">
+                                    <option value="">Select School Year</option>
+                                    @foreach (var sy in AvailableSchoolYears)
+                                    {
+                                        <option value="@sy">@sy</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => Model.SchoolYear)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Grade to Enroll <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.GradeToEnroll"
+                                             class="@GetInputClass(nameof(Model.GradeToEnroll))">
+                                    <option value="">Select Grade</option>
+                                    @foreach (var gradeLevel in AvailableGradeLevels)
+                                    {
+                                        <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => Model.GradeToEnroll)" class="text-red-500 text-xs mt-1" />
+                            </div>
+                        </div>
+
+                        <!-- Requirements - mirror StudentRegistration checkboxes with type logic -->
+                        <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                            <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
+                                Requirements
+                            </label>
+                            <div class="space-y-2">
+                                @if (Model.StudentType == "New Student")
+                                {
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasPSABirthCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            PSA Birth Certificate (photocopy &amp; original for verification)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasBaptismalCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Baptismal Certificate (if applicable, for Catholic schools)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasReportCard"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Report Card / Form 138 (from preschool if available)
+                                        </span>
+                                    </label>
+                                }
+                                else if (Model.StudentType == "Transferee")
+                                {
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasPSABirthCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            PSA Birth Certificate
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasBaptismalCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Baptismal Certificate (if applicable)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm138"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 138 (Report Card)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm137"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 137 (Permanent Record)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasGoodMoralCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Certificate of Good Moral Character
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasTransferCert"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Transfer Certificate / Honorable Dismissal
+                                        </span>
+                                    </label>
+                                }
+                                else if (Model.StudentType == "Returnee")
+                                {
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm138"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 138 (Report Card)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasUpdatedEnrollmentForm"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Updated Enrollment Form
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-pointer items-center">
+                                        <InputCheckbox @bind-Value="Model.HasClearance"
+                                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Clearance (if required)
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Status field - moved below Requirements -->
+                        <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Application Status <span class="text-red-500">*</span>
+                                </label>
+                                <select @bind="Model.Status" 
+                                        @bind:after="HandleStatusChange"
+                                        class="@GetStatusSelectClass()">
+                    @if (IsForEnrollmentContext)
+                    {
+                        <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
+                        <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                        <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                        <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                    }
+                    else
+                    {
+                        <option value="Pending" style="background-color: #fef3c7; color: #92400e;">Pending</option>
+                        <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
+                        <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                        <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                    }
+                                </select>
+                                
+                                
+                                <!-- Display reason if status is Reject or Withdraw and reason exists -->
+                                @if ((Model.Status == "Rejected by School" || Model.Status == "Application Withdrawn") && !string.IsNullOrWhiteSpace(Model.RejectionReason))
+                                {
+                                    <div class="mt-3 rounded-lg border p-3 @(Model.Status == "Rejected by School" ? "border-red-200 bg-red-50" : "border-orange-200 bg-orange-50")">
+                                        <label class="mb-1 block text-xs font-semibold text-gray-700">
+                                            Reason:
+                                        </label>
+                                        <p class="text-sm text-gray-800 whitespace-pre-wrap">@Model.RejectionReason</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mt-4 flex flex-col justify-end gap-3 sm:flex-row sm:gap-4">
+                        <button type="button"
+                                @onclick="OnCancelClicked"
+                                class="min-w-[120px] rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                            Cancel
+                        </button>
+                        <button type="button"
+                                @onclick="OnSaveClicked"
+                                disabled="@IsSaving"
+                                class="min-w-[120px] rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                            @if (IsSaving)
+                            {
+                                <span class="inline-flex items-center">
+                                    <svg class="-ml-1 mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Saving...
+                                </span>
+                            }
+                            else
+                            {
+                                <span>Save Changes</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+}
+
+<!-- Archive Confirmation Modal -->
+@if (ShowRejectionModal && Model != null)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseRejectionModal">
+        <div class="relative w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Header - Dynamic background based on status -->
+            <div class="flex items-center justify-between px-4 py-2.5 rounded-t-2xl @(Model.Status == "Rejected by School" ? "bg-red-600" : "bg-orange-600")">
+                <h2 class="text-lg font-semibold text-white">@(Model.Status == "Rejected by School" ? "Reject Application" : "Withdraw Application")</h2>
+                <button @onclick="CloseRejectionModal"
+                        class="rounded-full p-1 text-white hover:opacity-80 transition-colors">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="px-4 py-4">
+                <!-- Descriptive text -->
+                <p class="mb-3 text-sm text-gray-700">
+                    You are about to <strong>@(Model.Status == "Rejected by School" ? "reject" : "withdraw")</strong> <strong>@GetStudentFullName()</strong>'s application. Please provide a reason for this action:
+                </p>
+
+                <!-- Student info box -->
+                <div class="mb-3 rounded-lg bg-gray-50 border border-gray-200 p-2.5">
+                    <p class="text-xs font-medium text-gray-500 mb-0.5">@(Model.Status == "Rejected by School" ? "Rejecting" : "Withdrawing") application:</p>
+                    <p class="text-sm font-semibold text-gray-900">@GetStudentFullName()</p>
+                    <p class="text-xs text-gray-600">ID: @Model.StudentId</p>
+                </div>
+
+                <!-- Reason field -->
+                <div class="mb-0">
+                    <label class="mb-1.5 block text-sm font-semibold text-gray-700">
+                        Reason <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="RejectionReason"
+                              @bind:after="StateHasChanged"
+                              rows="4"
+                              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-200 resize-y"
+                              placeholder="Enter the reason for @(Model.Status == "Rejected by School" ? "rejecting" : "withdrawing") this application..."></textarea>
+                    @if (string.IsNullOrWhiteSpace(RejectionReason) && ShowRejectionError)
+                    {
+                        <p class="mt-1 text-xs text-red-600">Reason is required</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-4 py-3 rounded-b-2xl">
+                <button type="button"
+                        @onclick="ConfirmRejection"
+                        class="min-w-[100px] rounded-lg px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 @(Model.Status == "Rejected by School" ? "bg-red-600 hover:bg-red-700" : "bg-orange-600 hover:bg-orange-700")">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .modal-scroll {
+        scrollbar-width: none;
+    }
+
+    .modal-scroll::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Color-coded status options */
+    select option.status-pending {
+        background-color: #fef3c7 !important;
+        color: #92400e !important;
+    }
+
+    select option.status-for-enrollment {
+        background-color: #dbeafe !important;
+        color: #1e40af !important;
+    }
+
+    select option.status-rejected {
+        background-color: #fee2e2 !important;
+        color: #991b1b !important;
+    }
+
+    /* Ensure options are visible when dropdown is open */
+    select option {
+        padding: 8px 12px;
+    }
+</style>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public StudentEditModel? Model { get; set; }
+    [Parameter] public bool IsForEnrollmentContext { get; set; } = false;
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public EventCallback<StudentEditModel> OnSave { get; set; }
+
+    private EditContext? EditContext;
+    private bool IsSaving { get; set; }
+    private bool ShowRejectionModal { get; set; } = false;
+    private string RejectionReason { get; set; } = string.Empty;
+    private bool ShowRejectionError { get; set; } = false;
+    private string? PreviousStatus { get; set; }
+
+    private List<string> AvailableSchoolYears { get; set; } = new();
+    private List<GradeLevel> AvailableGradeLevels { get; set; } = new();
+
+    [Inject] private SchoolYearService SchoolYearService { get; set; } = null!;
+    [Inject] private CurriculumService CurriculumService { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load school years
+        AvailableSchoolYears = SchoolYearService.GetAvailableSchoolYears();
+
+        // Load grade levels for dropdown
+        await LoadGradeLevelsAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Model != null && (EditContext == null || EditContext.Model != Model))
+        {
+            EditContext = new EditContext(Model);
+            PreviousStatus = Model.Status;
+            RejectionReason = Model.RejectionReason ?? string.Empty;
+        }
+
+        // Reload grade levels when modal is shown to ensure data is fresh
+        // This is important if the modal component is reused
+        if (Show && (!AvailableGradeLevels.Any() || AvailableSchoolYears.Count == 0))
+        {
+            await LoadGradeLevelsAsync();
+            AvailableSchoolYears = SchoolYearService.GetAvailableSchoolYears();
+        }
+    }
+
+    private async Task LoadGradeLevelsAsync()
+    {
+        try
+        {
+            var gradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+            AvailableGradeLevels = gradeLevels.OrderBy(g => g.GradeLevelId).ToList();
+            
+            if (!AvailableGradeLevels.Any())
+            {
+                System.Diagnostics.Debug.WriteLine("WARNING: No active grade levels found in database. Please ensure grade levels are seeded.");
+            }
+        }
+        catch (Exception ex)
+        {
+            AvailableGradeLevels = new List<GradeLevel>();
+            System.Diagnostics.Debug.WriteLine($"ERROR: Failed to load grade levels: {ex.Message}");
+        }
+    }
+
+    private void HandleHasLRNChange()
+    {
+        if (Model == null)
+        {
+            return;
+        }
+
+        if (Model.HasLRN == "No")
+        {
+            Model.LearnerReferenceNo = "N/A";
+        }
+        else if (Model.HasLRN == "Yes" && Model.LearnerReferenceNo == "N/A")
+        {
+            Model.LearnerReferenceNo = string.Empty;
+        }
+    }
+
+    private void HandleBirthDateChanged()
+    {
+        if (Model == null)
+        {
+            return;
+        }
+
+        var today = DateTime.Today;
+        var age = today.Year - Model.BirthDate.Year;
+        if (Model.BirthDate.Date > today.AddYears(-age))
+        {
+            age--;
+        }
+        Model.Age = age;
+    }
+
+    private void HandleSameAsCurrentAddressChanged()
+    {
+        if (Model == null)
+        {
+            return;
+        }
+
+        if (Model.SameAsCurrentAddress)
+        {
+            Model.PermanentHouseNo = Model.CurrentHouseNo;
+            Model.PermanentStreetName = Model.CurrentStreetName;
+            Model.PermanentBarangay = Model.CurrentBarangay;
+            Model.PermanentCity = Model.CurrentCity;
+            Model.PermanentProvince = Model.CurrentProvince;
+            Model.PermanentCountry = Model.CurrentCountry;
+            Model.PermanentZipCode = Model.CurrentZipCode;
+        }
+        else
+        {
+            Model.PermanentHouseNo = string.Empty;
+            Model.PermanentStreetName = string.Empty;
+            Model.PermanentBarangay = string.Empty;
+            Model.PermanentCity = string.Empty;
+            Model.PermanentProvince = string.Empty;
+            Model.PermanentCountry = string.Empty;
+            Model.PermanentZipCode = string.Empty;
+        }
+    }
+
+    private void HandleStatusChange()
+    {
+        if (Model == null)
+        {
+            return;
+        }
+
+        // If status changed to "Rejected by School" or "Application Withdrawn", show confirmation modal
+        if ((Model.Status == "Rejected by School" || Model.Status == "Application Withdrawn") && 
+            PreviousStatus != Model.Status)
+        {
+            ShowRejectionModal = true;
+            RejectionReason = Model.RejectionReason ?? string.Empty;
+            ShowRejectionError = false;
+        }
+        // If status changed away from archive statuses, clear reason
+        else if (Model.Status != "Rejected by School" && Model.Status != "Application Withdrawn" && 
+                 (PreviousStatus == "Rejected by School" || PreviousStatus == "Application Withdrawn"))
+        {
+            RejectionReason = string.Empty;
+            Model.RejectionReason = null;
+        }
+
+        PreviousStatus = Model.Status;
+        StateHasChanged();
+    }
+
+    private void CloseRejectionModal()
+    {
+        if (Model != null && PreviousStatus != null)
+        {
+            // Revert status to previous value
+            Model.Status = PreviousStatus;
+        }
+        ShowRejectionModal = false;
+        RejectionReason = string.Empty;
+        ShowRejectionError = false;
+        StateHasChanged();
+    }
+
+    private void ConfirmRejection()
+    {
+        if (string.IsNullOrWhiteSpace(RejectionReason))
+        {
+            ShowRejectionError = true;
+            StateHasChanged();
+            return;
+        }
+
+        if (Model != null)
+        {
+            Model.RejectionReason = RejectionReason;
+        }
+
+        ShowRejectionModal = false;
+        ShowRejectionError = false;
+        StateHasChanged();
+    }
+
+    private string GetStudentFullName()
+    {
+        if (Model == null)
+            return "Student";
+
+        var name = $"{Model.FirstName} {Model.MiddleName} {Model.LastName}".Replace("  ", " ").Trim();
+        if (!string.IsNullOrWhiteSpace(Model.Suffix))
+        {
+            name += $" {Model.Suffix}";
+        }
+        return name;
+    }
+
+    private async Task OnSaveClicked()
+    {
+        if (EditContext == null || Model == null)
+            return;
+
+        var isValid = EditContext.Validate();
+        if (!isValid)
+        {
+            return;
+        }
+
+        if (OnSave.HasDelegate)
+        {
+            IsSaving = true;
+            try
+            {
+                await OnSave.InvokeAsync(Model);
+            }
+            finally
+            {
+                IsSaving = false;
+            }
+        }
+    }
+
+    private async Task OnCancelClicked()
+    {
+        if (OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        await OnCancelClicked();
+    }
+
+    private string GetInputClass(string fieldName)
+    {
+        if (EditContext == null)
+        {
+            return "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+        }
+
+        var fi = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, fieldName);
+        var hasError = EditContext.GetValidationMessages(fi).Any();
+        var isModified = EditContext.IsModified(fi);
+
+        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+
+        if (hasError)
+        {
+            return $"{baseClass} border-red-500 focus:border-red-500";
+        }
+
+        if (isModified && !hasError)
+        {
+            return $"{baseClass} border-green-500 focus:border-green-500";
+        }
+
+        return $"{baseClass} border-gray-300 focus:border-blue-500";
+    }
+
+    private string GetStatusSelectClass()
+    {
+        if (Model == null) return "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+
+        var baseClass = "w-full rounded-lg border px-3 py-2 text-sm font-medium focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base";
+
+        return Model.Status switch
+        {
+            "Pending" => $"{baseClass} border-yellow-300 bg-yellow-50 text-yellow-800 focus:border-yellow-500",
+            "For Payment" => $"{baseClass} border-blue-300 bg-blue-50 text-blue-800 focus:border-blue-500",
+            "Partially Paid" => $"{baseClass} border-orange-300 bg-orange-50 text-orange-800 focus:border-orange-500",
+            "Fully Paid" => $"{baseClass} border-green-300 bg-green-50 text-green-800 focus:border-green-500",
+            "Enrolled" => $"{baseClass} border-green-400 bg-green-100 text-green-900 focus:border-green-600",
+            "Rejected by School" => $"{baseClass} border-red-300 bg-red-50 text-red-800 focus:border-red-500",
+            "Application Withdrawn" => $"{baseClass} border-orange-300 bg-orange-50 text-orange-800 focus:border-orange-500",
+            _ => $"{baseClass} border-gray-300 bg-white text-gray-700 focus:border-blue-500"
+        };
+    }
+}
+
+

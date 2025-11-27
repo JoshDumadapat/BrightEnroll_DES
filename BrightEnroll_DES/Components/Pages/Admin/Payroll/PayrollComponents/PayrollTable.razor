@@ -68,8 +68,20 @@
             {
                 @foreach (var item in PaginatedPayrollData)
                 {
-                <tr class="border-b border-gray-100 hover:bg-gray-50 cursor-pointer" @onclick="() => ShowViewDetailsModal(item.Role)">
-                    <td class="py-3 pl-6 pr-4 text-sm font-medium text-gray-800">@item.Role</td>
+                var isSelected = SelectedRole == item.Role;
+                var currentItem = item;
+                <tr class="border-b border-gray-100 cursor-pointer transition-colors @(isSelected ? "bg-blue-50 border-blue-200" : "hover:bg-gray-50")" @onclick="() => HandleRowClick(currentItem.Role)">
+                    <td class="py-3 pl-6 pr-4 text-sm font-medium @(isSelected ? "text-blue-700" : "text-gray-800")">
+                        <div class="flex items-center gap-2">
+                            @item.Role
+                            @if (isSelected)
+                            {
+                                <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            }
+                        </div>
+                    </td>
                     
                     <!-- Base Salary (Read-only) -->
                     <td class="py-3 px-4 text-sm text-gray-700">
@@ -162,38 +174,12 @@
                 OnRowsPerPageChanged="HandleRowsPerPageChanged" />
 </div>
 
-<!-- Confirmation Modal -->
-@if (showViewDetailsModal)
-{
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseViewDetailsModal">
-        <div id="view-calculation-details-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
-                <h3 class="text-base font-semibold text-blue-600">View Calculation Details</h3>
-                <button @onclick="CloseViewDetailsModal" class="text-gray-400 hover:text-gray-600">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div class="px-6 py-4">
-                <p class="text-sm text-gray-700">Do you want to view the calculation details and legal basis for <strong>@selectedRoleForModal</strong>?</p>
-            </div>
-            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
-                <button @onclick="CloseViewDetailsModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Cancel
-                </button>
-                <button @onclick="ConfirmViewDetails" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-                    Yes, View Details
-                </button>
-            </div>
-        </div>
-    </div>
-}
 
 @code {
     [Parameter] public List<PayrollRoleData> PayrollData { get; set; } = new();
     [Parameter] public EventCallback<PayrollRoleData> OnSalaryUpdated { get; set; }
     [Parameter] public EventCallback<string> OnRoleSelected { get; set; }
+    [Parameter] public string? SelectedRole { get; set; }
 
     // Filter properties
     private string searchText = "";
@@ -301,36 +287,17 @@
         OnSalaryUpdated.InvokeAsync(item);
     }
 
-    // Modal state
-    private bool showViewDetailsModal = false;
-    private string? selectedRoleForModal = null;
-    
-    private void ShowViewDetailsModal(string role)
+    private async Task SelectRole(string role)
     {
-        selectedRoleForModal = role;
-        showViewDetailsModal = true;
+        SelectedRole = role; // Update local state immediately for visual feedback
         StateHasChanged();
+        await OnRoleSelected.InvokeAsync(role);
     }
     
-    private void CloseViewDetailsModal()
+    private async Task HandleRowClick(string role)
     {
-        showViewDetailsModal = false;
-        selectedRoleForModal = null;
-        StateHasChanged();
-    }
-    
-    private void ConfirmViewDetails()
-    {
-        if (!string.IsNullOrEmpty(selectedRoleForModal))
-        {
-            SelectRole(selectedRoleForModal);
-        }
-        CloseViewDetailsModal();
-    }
-    
-    private void SelectRole(string role)
-    {
-        OnRoleSelected.InvokeAsync(role);
+        // Don't update SelectedRole here - let the modal handle it
+        await OnRoleSelected.InvokeAsync(role);
     }
 }
 

@@ -26,6 +26,10 @@ public class EmployeeService
     {
         try
         {
+            _logger?.LogInformation("=== STARTING EMPLOYEE REGISTRATION ===");
+            _logger?.LogInformation("Employee Data: FirstName={FirstName}, LastName={LastName}, Email={Email}, SystemId={SystemId}", 
+                employeeData.FirstName, employeeData.LastName, employeeData.Email, employeeData.SystemId);
+            
             // Step 1: Create User account (via UserRepository)
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(employeeData.DefaultPassword);
             
@@ -47,21 +51,40 @@ public class EmployeeService
                 status = "active"
             };
 
-            await _userRepository.InsertAsync(user);
+            _logger?.LogInformation("Creating user account with SystemId={SystemId}, Email={Email}, Role={Role}", 
+                user.system_ID, user.email, user.user_role);
+            
+            try
+            {
+                await _userRepository.InsertAsync(user);
+                _logger?.LogInformation("User account created successfully");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "FAILED TO CREATE USER ACCOUNT. SystemId={SystemId}, Email={Email}", 
+                    user.system_ID, user.email);
+                LogDetailedException(ex, "UserRepository.InsertAsync");
+                throw new Exception($"Failed to create user account: {ex.Message}", ex);
+            }
 
             // Step 2: Get user_ID
+            _logger?.LogInformation("Retrieving created user with SystemId={SystemId}", user.system_ID);
             var insertedUser = await _userRepository.GetBySystemIdAsync(user.system_ID);
             if (insertedUser == null)
             {
-                throw new Exception("Failed to retrieve created user");
+                _logger?.LogError("CRITICAL: User was created but cannot be retrieved. SystemId={SystemId}", user.system_ID);
+                throw new Exception($"Failed to retrieve created user with SystemId: {user.system_ID}");
             }
             int userId = insertedUser.user_ID;
+            _logger?.LogInformation("User retrieved successfully. UserId={UserId}", userId);
 
             // Step 3: Create employee-related records (EF Core transaction)
+            _logger?.LogInformation("Starting EF Core transaction for employee records (UserId={UserId})", userId);
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 // Create address
+                _logger?.LogInformation("Creating employee address record");
                 var address = new EmployeeAddress
                 {
                     UserId = userId,
@@ -73,10 +96,13 @@ public class EmployeeService
                     Country = string.IsNullOrWhiteSpace(employeeData.Country) ? null : employeeData.Country,
                     ZipCode = string.IsNullOrWhiteSpace(employeeData.ZipCode) ? null : employeeData.ZipCode
                 };
+                _logger?.LogInformation("Address data: HouseNo={HouseNo}, Street={Street}, City={City}, Province={Province}", 
+                    address.HouseNo, address.StreetName, address.City, address.Province);
 
                 _context.EmployeeAddresses.Add(address);
 
                 // Create emergency contact
+                _logger?.LogInformation("Creating emergency contact record");
                 var emergencyContact = new EmployeeEmergencyContact
                 {
                     UserId = userId,
@@ -88,10 +114,13 @@ public class EmployeeService
                     ContactNumber = string.IsNullOrWhiteSpace(employeeData.EmergencyContactNumber) ? null : employeeData.EmergencyContactNumber,
                     Address = string.IsNullOrWhiteSpace(employeeData.EmergencyContactAddress) ? null : employeeData.EmergencyContactAddress
                 };
+                _logger?.LogInformation("Emergency contact data: Name={FirstName} {LastName}, Relationship={Relationship}, Contact={ContactNumber}", 
+                    emergencyContact.FirstName, emergencyContact.LastName, emergencyContact.Relationship, emergencyContact.ContactNumber);
 
                 _context.EmployeeEmergencyContacts.Add(emergencyContact);
 
                 // Create salary info
+                _logger?.LogInformation("Creating salary info record");
                 var salaryInfo = new SalaryInfo
                 {
                     UserId = userId,
@@ -100,30 +129,171 @@ public class EmployeeService
                     DateEffective = DateTime.Today,
                     IsActive = true
                 };
+                _logger?.LogInformation("Salary data: BaseSalary={BaseSalary}, Allowance={Allowance}, Total={Total}", 
+                    salaryInfo.BaseSalary, salaryInfo.Allowance, salaryInfo.BaseSalary + salaryInfo.Allowance);
 
                 _context.SalaryInfos.Add(salaryInfo);
 
+                // Log all entities being tracked
+                _logger?.LogInformation("Entities to be saved: Address={AddressState}, EmergencyContact={EmergencyContactState}, SalaryInfo={SalaryInfoState}", 
+                    _context.Entry(address).State,
+                    _context.Entry(emergencyContact).State,
+                    _context.Entry(salaryInfo).State);
+
                 // Save all changes
-                await _context.SaveChangesAsync();
+                _logger?.LogInformation("Calling SaveChangesAsync()...");
+                try
+                {
+                    await _context.SaveChangesAsync();
+                    _logger?.LogInformation("SaveChangesAsync() completed successfully");
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    _logger?.LogError(dbEx, "=== DATABASE UPDATE EXCEPTION ===");
+                    LogDetailedException(dbEx, "SaveChangesAsync");
+                    
+                    // Log all entries that failed
+                    if (dbEx.Entries != null && dbEx.Entries.Any())
+                    {
+                        _logger?.LogError("Failed entries count: {Count}", dbEx.Entries.Count);
+                        foreach (var entry in dbEx.Entries)
+                        {
+                            _logger?.LogError("Failed Entry: EntityType={EntityType}, State={State}", 
+                                entry.Entity.GetType().Name, entry.State);
+                            
+                            foreach (var prop in entry.Properties)
+                            {
+                                _logger?.LogError("  Property: {PropertyName}={PropertyValue} (IsModified={IsModified}, CurrentValue={CurrentValue})", 
+                                    prop.Metadata.Name, prop.CurrentValue, prop.IsModified, prop.CurrentValue);
+                            }
+                        }
+                    }
+                    
+                    throw;
+                }
 
                 // Commit transaction
+                _logger?.LogInformation("Committing transaction...");
                 await transaction.CommitAsync();
+                _logger?.LogInformation("Transaction committed successfully");
 
+                _logger?.LogInformation("=== EMPLOYEE REGISTRATION SUCCESS ===");
                 _logger?.LogInformation("Employee registered successfully: {SystemId} (User ID: {UserId})", user.system_ID, userId);
                 return userId;
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "=== ROLLING BACK TRANSACTION ===");
                 await transaction.RollbackAsync();
                 _logger?.LogError(ex, "Error creating employee records for user {UserId}: {Message}", userId, ex.Message);
+                LogDetailedException(ex, "Employee Records Creation");
                 throw new Exception($"Failed to create employee records: {ex.Message}", ex);
             }
         }
         catch (Exception ex)
         {
+            _logger?.LogError(ex, "=== EMPLOYEE REGISTRATION FAILED ===");
             _logger?.LogError(ex, "Error registering employee: {Message}", ex.Message);
+            LogDetailedException(ex, "RegisterEmployeeAsync");
             throw new Exception($"Failed to register employee: {ex.Message}", ex);
         }
+    }
+
+    // Helper method to log detailed exception information including SQL errors
+    private void LogDetailedException(Exception ex, string context)
+    {
+        _logger?.LogError("=== DETAILED EXCEPTION LOG - {Context} ===", context);
+        _logger?.LogError("Exception Type: {ExceptionType}", ex.GetType().FullName);
+        _logger?.LogError("Exception Message: {Message}", ex.Message);
+        _logger?.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
+        
+        // Check for SQL Exception
+        var sqlEx = ex as Microsoft.Data.SqlClient.SqlException;
+        if (sqlEx == null && ex.InnerException is Microsoft.Data.SqlClient.SqlException innerSqlEx)
+        {
+            sqlEx = innerSqlEx;
+        }
+        
+        if (sqlEx != null)
+        {
+            _logger?.LogError("=== SQL EXCEPTION DETAILS ===");
+            _logger?.LogError("SQL Error Number: {Number}", sqlEx.Number);
+            _logger?.LogError("SQL Severity: {Severity}", sqlEx.Class);
+            _logger?.LogError("SQL State: {State}", sqlEx.State);
+            _logger?.LogError("SQL Server: {Server}", sqlEx.Server ?? "N/A");
+            _logger?.LogError("SQL Procedure: {Procedure}", sqlEx.Procedure ?? "N/A");
+            _logger?.LogError("SQL Line Number: {LineNumber}", sqlEx.LineNumber);
+            _logger?.LogError("SQL Error Message: {Message}", sqlEx.Message);
+            
+            // Log all SQL errors if multiple
+            if (sqlEx.Errors != null && sqlEx.Errors.Count > 0)
+            {
+                _logger?.LogError("SQL Errors Count: {Count}", sqlEx.Errors.Count);
+                for (int i = 0; i < sqlEx.Errors.Count; i++)
+                {
+                    var error = sqlEx.Errors[i];
+                    _logger?.LogError("  SQL Error #{Index}: Number={Number}, Message={Message}, Class={Class}, State={State}", 
+                        i + 1, error.Number, error.Message, error.Class, error.State);
+                }
+            }
+        }
+        
+        // Check for DbUpdateException
+        var dbUpdateEx = ex as Microsoft.EntityFrameworkCore.DbUpdateException;
+        if (dbUpdateEx == null && ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateException innerDbUpdateEx)
+        {
+            dbUpdateEx = innerDbUpdateEx;
+        }
+        
+        if (dbUpdateEx != null)
+        {
+            _logger?.LogError("=== DB UPDATE EXCEPTION DETAILS ===");
+            _logger?.LogError("Entries Count: {Count}", dbUpdateEx.Entries?.Count ?? 0);
+            
+            if (dbUpdateEx.Entries != null && dbUpdateEx.Entries.Any())
+            {
+                foreach (var entry in dbUpdateEx.Entries)
+                {
+                    _logger?.LogError("Failed Entity: Type={EntityType}, State={State}", 
+                        entry.Entity.GetType().Name, entry.State);
+                    
+                    foreach (var prop in entry.Properties)
+                    {
+                        var currentValue = prop.CurrentValue;
+                        var originalValue = prop.OriginalValue;
+                        var maxLength = prop.Metadata.GetMaxLength();
+                        
+                        _logger?.LogError("  Property: {PropertyName}", prop.Metadata.Name);
+                        _logger?.LogError("    Current Value: {CurrentValue} (Length: {CurrentLength})", 
+                            currentValue, currentValue?.ToString()?.Length ?? 0);
+                        _logger?.LogError("    Original Value: {OriginalValue}", originalValue);
+                        _logger?.LogError("    Is Modified: {IsModified}", prop.IsModified);
+                        if (maxLength.HasValue)
+                        {
+                            _logger?.LogError("    Max Length: {MaxLength}", maxLength.Value);
+                            if (currentValue != null && currentValue.ToString()?.Length > maxLength.Value)
+                            {
+                                _logger?.LogError("    *** VALUE EXCEEDS MAX LENGTH! ***");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Recursively log inner exceptions
+        Exception? innerEx = ex.InnerException;
+        int depth = 1;
+        while (innerEx != null && depth <= 5) // Limit depth to prevent infinite loops
+        {
+            _logger?.LogError("--- Inner Exception #{Depth} ---", depth);
+            _logger?.LogError("Type: {Type}", innerEx.GetType().FullName);
+            _logger?.LogError("Message: {Message}", innerEx.Message);
+            innerEx = innerEx.InnerException;
+            depth++;
+        }
+        
+        _logger?.LogError("=== END DETAILED EXCEPTION LOG ===");
     }
 
     // Checks for duplicate employees based on name matching

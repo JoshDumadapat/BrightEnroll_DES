@@ -12,6 +12,9 @@ using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Components.Pages.Auth.Handlers;
 using System;
 using System.Linq;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using Microsoft.Data.SqlClient;
 
 namespace BrightEnroll_DES.Components.Pages.Auth;
 
@@ -23,6 +26,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     [Inject] private StudentService StudentService { get; set; } = null!;
     [Inject] private FeeService FeeService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
+    [Inject] private ILogger<StudentRegistration>? Logger { get; set; }
     
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
 
@@ -41,6 +45,9 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+    private bool showDebugError = false;
+    private string debugErrorMessage = "";
+    private string debugErrorDetails = "";
     private string newSchoolYear = "";
     private string startYear = "";
     private string endYear = "";
@@ -296,7 +303,22 @@ public partial class StudentRegistration : ComponentBase, IDisposable
                 StudentType = registrationModel.StudentType,
                 LearnerReferenceNo = registrationModel.LearnerReferenceNo,
                 SchoolYear = registrationModel.SchoolYear,
-                GradeToEnroll = registrationModel.GradeToEnroll
+                GradeToEnroll = registrationModel.GradeToEnroll,
+                
+                // Requirements - New Student
+                HasPSABirthCert = registrationModel.HasPSABirthCert,
+                HasBaptismalCert = registrationModel.HasBaptismalCert,
+                HasReportCard = registrationModel.HasReportCard,
+                
+                // Requirements - Transferee
+                HasForm138 = registrationModel.HasForm138,
+                HasForm137 = registrationModel.HasForm137,
+                HasGoodMoralCert = registrationModel.HasGoodMoralCert,
+                HasTransferCert = registrationModel.HasTransferCert,
+                
+                // Requirements - Returnee
+                HasUpdatedEnrollmentForm = registrationModel.HasUpdatedEnrollmentForm,
+                HasClearance = registrationModel.HasClearance
             };
 
             // Register student using StudentService
@@ -307,15 +329,90 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         }
         catch (Exception ex)
         {
-            // Handle error - show error message to user
-            // Log full exception details for debugging
-            Console.WriteLine($"Error submitting registration: {ex.Message}");
-            Console.WriteLine($"Stack trace: {ex.StackTrace}");
-            if (ex.InnerException != null)
+            // Build comprehensive error details for debugging
+            var errorDetails = new System.Text.StringBuilder();
+            errorDetails.AppendLine($"Exception Type: {ex.GetType().FullName}");
+            errorDetails.AppendLine($"Message: {ex.Message}");
+            errorDetails.AppendLine($"Stack Trace: {ex.StackTrace}");
+            
+            // Recursively get all inner exceptions
+            Exception? currentEx = ex.InnerException;
+            int depth = 1;
+            while (currentEx != null)
             {
-                Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                errorDetails.AppendLine($"\n--- Inner Exception #{depth} ---");
+                errorDetails.AppendLine($"Type: {currentEx.GetType().FullName}");
+                errorDetails.AppendLine($"Message: {currentEx.Message}");
+                errorDetails.AppendLine($"Stack Trace: {currentEx.StackTrace}");
+                
+                // Check for SqlException in inner exceptions
+                if (currentEx is Microsoft.Data.SqlClient.SqlException sqlEx)
+                {
+                    errorDetails.AppendLine($"\nSQL Error Details:");
+                    errorDetails.AppendLine($"  Error Number: {sqlEx.Number}");
+                    errorDetails.AppendLine($"  Severity: {sqlEx.Class}");
+                    errorDetails.AppendLine($"  State: {sqlEx.State}");
+                    errorDetails.AppendLine($"  Procedure: {sqlEx.Procedure ?? "N/A"}");
+                    errorDetails.AppendLine($"  Line Number: {sqlEx.LineNumber}");
+                    errorDetails.AppendLine($"  Server: {sqlEx.Server ?? "N/A"}");
+                }
+                
+                // Check for DbUpdateException
+                if (currentEx is Microsoft.EntityFrameworkCore.DbUpdateException dbUpdateEx)
+                {
+                    errorDetails.AppendLine($"\nDbUpdateException Details:");
+                    errorDetails.AppendLine($"  Entries Count: {dbUpdateEx.Entries?.Count ?? 0}");
+                    if (dbUpdateEx.Entries != null && dbUpdateEx.Entries.Any())
+                    {
+                        foreach (var entry in dbUpdateEx.Entries)
+                        {
+                            errorDetails.AppendLine($"    Entity: {entry.Entity.GetType().Name}, State: {entry.State}");
+                        }
+                    }
+                }
+                
+                currentEx = currentEx.InnerException;
+                depth++;
             }
             
+            // Also check if the main exception is SqlException
+            if (ex is Microsoft.Data.SqlClient.SqlException mainSqlEx)
+            {
+                errorDetails.AppendLine($"\n--- Main SQL Exception ---");
+                errorDetails.AppendLine($"Error Number: {mainSqlEx.Number}");
+                errorDetails.AppendLine($"Severity: {mainSqlEx.Class}");
+                errorDetails.AppendLine($"State: {mainSqlEx.State}");
+                errorDetails.AppendLine($"Procedure: {mainSqlEx.Procedure ?? "N/A"}");
+                errorDetails.AppendLine($"Line Number: {mainSqlEx.LineNumber}");
+                errorDetails.AppendLine($"Server: {mainSqlEx.Server ?? "N/A"}");
+            }
+            
+            // Log to multiple places for debugging
+            var fullErrorDetails = errorDetails.ToString();
+            
+            // Log to ILogger if available
+            Logger?.LogError(ex, "STUDENT REGISTRATION ERROR:\n{ErrorDetails}", fullErrorDetails);
+            
+            // Log to Debug output (visible in Visual Studio Output window)
+            Debug.WriteLine("===========================================");
+            Debug.WriteLine("STUDENT REGISTRATION ERROR");
+            Debug.WriteLine("===========================================");
+            Debug.WriteLine(fullErrorDetails);
+            Debug.WriteLine("===========================================");
+            
+            // Log to Console (visible in browser console for Blazor Server)
+            Console.WriteLine("===========================================");
+            Console.WriteLine("STUDENT REGISTRATION ERROR");
+            Console.WriteLine("===========================================");
+            Console.WriteLine(fullErrorDetails);
+            Console.WriteLine("===========================================");
+            
+            // Store error details for UI display
+            debugErrorMessage = ex.Message;
+            debugErrorDetails = fullErrorDetails;
+            showDebugError = true;
+            
+            // Show user-friendly message
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Registration failed: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
@@ -397,6 +494,14 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     {
         showToast = false;
         toastMessage = "";
+        StateHasChanged();
+    }
+
+    private void CloseDebugError()
+    {
+        showDebugError = false;
+        debugErrorMessage = "";
+        debugErrorDetails = "";
         StateHasChanged();
     }
 

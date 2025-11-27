@@ -47,6 +47,7 @@ public class StudentDetailData
     public string GuardianFirstName { get; set; } = string.Empty;
     public string GuardianMiddleName { get; set; } = string.Empty;
     public string GuardianLastName { get; set; } = string.Empty;
+    public string GuardianSuffix { get; set; } = string.Empty;
     public string GuardianContactNumber { get; set; } = string.Empty;
     public string GuardianRelationship { get; set; } = string.Empty;
     public string GuardianRelationshipOther { get; set; } = string.Empty;

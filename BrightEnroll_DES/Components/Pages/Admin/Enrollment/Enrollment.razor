@@ -2,12 +2,21 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Components
 @using Microsoft.Extensions.Logging
 @inject StudentService StudentService
+@inject EnrollmentStatusService EnrollmentStatusService
+@inject ArchiveService ArchiveService
 @inject ILogger<Enrollment> Logger
 
 <PageTitle>Enrollment</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
 
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Enrollment</h1>
@@ -38,11 +47,28 @@
     <div class="overflow-hidden rounded-xl bg-white shadow">
         @if (SelectedTab == TabType.NewApplicants)
         {
-            <NewApplicant Students="Applicants" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+            @if (ShowNewApplicantDetail && SelectedStudentDetail != null)
+            {
+                <StudentDetail StudentData="SelectedStudentDetail"
+                               AcademicRecords="SelectedAcademicRecords"
+                               EnrollmentRecords="SelectedEnrollmentRecords"
+                               OnBackClick="CloseNewApplicantDetail" />
+            }
+            else
+            {
+                <NewApplicant Students="Applicants"
+                              RowsPerPage="RowsPerPage"
+                              IsLoading="isLoading"
+                              OnEditStudent="HandleNewApplicantEdit" />
+            }
+
         }
         else if (SelectedTab == TabType.ForEnrollment)
         {
-            <ForEnrollment Students="ForEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+            <ForEnrollment Students="ForEnrollmentStudents" 
+                          RowsPerPage="RowsPerPage" 
+                          IsLoading="isLoading"
+                          OnEditStudent="HandleForEnrollmentEdit" />
         }
         else if (SelectedTab == TabType.ReEnrollment)
         {
@@ -53,6 +79,16 @@
             <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
         }
     </div>
+
+    <!-- Edit Modal - Shared across all tabs -->
+    @if (ShowEditModal && EditModel != null)
+    {
+        <NewApplicantEditModal Show="ShowEditModal"
+                               Model="EditModel"
+                               IsForEnrollmentContext="IsForEnrollmentContext"
+                               OnCancel="CloseEditModal"
+                               OnSave="SaveEditedApplicantAsync" />
+    }
 </div>
 
 @code {
@@ -105,18 +141,7 @@
 
     private List<NewApplicant.Student> Applicants = new();
 
-    private List<ForEnrollment.ForEnrollmentStudent> ForEnrollmentStudents = new()
-    {
-        new() { Id = "00010", Name = "John Smith", LRN = "129706182738", Date = "10 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
-        new() { Id = "00011", Name = "Jane Doe", LRN = "129706182739", Date = "11 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
-        new() { Id = "00012", Name = "Mike Johnson", LRN = "129706182740", Date = "12 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false },
-        new() { Id = "00013", Name = "Sarah Williams", LRN = "129706182741", Date = "13 Sep 2025", Type = "Transferee", GradeLevel = "G4", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
-        new() { Id = "00014", Name = "David Brown", LRN = "129706182742", Date = "14 Sep 2025", Type = "New", GradeLevel = "G5", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
-        new() { Id = "00015", Name = "Emily Davis", LRN = "129706182743", Date = "15 Sep 2025", Type = "Transferee", GradeLevel = "G6", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = false },
-        new() { Id = "00016", Name = "Robert Miller", LRN = "129706182744", Date = "16 Sep 2025", Type = "New", GradeLevel = "G1", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = true },
-        new() { Id = "00017", Name = "Lisa Wilson", LRN = "129706182745", Date = "17 Sep 2025", Type = "Transferee", GradeLevel = "G2", Status = "Partially Paid", PaymentStatus = "Partial", DocumentsVerified = true },
-        new() { Id = "00018", Name = "James Moore", LRN = "129706182746", Date = "18 Sep 2025", Type = "New", GradeLevel = "G3", Status = "For Payment", PaymentStatus = "Unpaid", DocumentsVerified = false }
-    };
+    private List<ForEnrollment.ForEnrollmentStudent> ForEnrollmentStudents = new();
 
     private List<ReEnrollmentStudent> ReEnrollmentStudents = new()
     {
@@ -134,12 +159,45 @@
     private List<EnrolledStudent> EnrolledStudents = new();
     private bool isLoading = true;
 
+    // Edit modal state for New Applicants
+    private bool ShowEditModal { get; set; } = false;
+    private StudentEditModel? EditModel { get; set; }
+    private bool IsForEnrollmentContext { get; set; } = false;
+
+    // New Applicant detail state
+    private bool ShowNewApplicantDetail { get; set; } = false;
+    private BrightEnroll_DES.Data.Models.Student? SelectedNewApplicant { get; set; }
+    private StudentDetailData? SelectedStudentDetail { get; set; }
+    private List<AcademicRecordData> SelectedAcademicRecords { get; set; } = new();
+    private List<EnrollmentStatusData> SelectedEnrollmentRecords { get; set; } = new();
+
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
         try
         {
             await LoadNewApplicantsAsync();
+            await LoadForEnrollmentStudentsAsync();
+            await LoadReEnrollmentStudentsAsync();
             await LoadEnrolledStudentsAsync();
         }
         finally
@@ -163,7 +221,8 @@
                 Date = dto.Date,
                 Type = dto.Type,
                 GradeLevel = dto.GradeLevel,
-                Status = dto.Status
+                Status = dto.Status,
+                DocumentsVerified = dto.DocumentsVerified
             }).ToList();
         }
         catch (Exception ex)
@@ -196,6 +255,489 @@
         {
             Logger?.LogError(ex, "Error loading enrolled students: {Message}", ex.Message);
             EnrolledStudents = new List<EnrolledStudent>();
+        }
+    }
+
+    private async Task HandleNewApplicantEdit(string studentId)
+    {
+        isLoading = true;
+        try
+        {
+            var student = await StudentService.GetStudentByIdAsync(studentId);
+            SelectedNewApplicant = student;
+
+            if (student != null)
+            {
+                var fullName = $"{student.FirstName} {student.MiddleName} {student.LastName}".Replace("  ", " ").Trim();
+
+                var documentsVerified = student.Requirements != null &&
+                                        student.Requirements.Any() &&
+                                        student.Requirements.All(IsRequirementVerified);
+
+                SelectedStudentDetail = new StudentDetailData
+                {
+                    Id = student.StudentId,
+                    FullName = fullName,
+                    FirstName = student.FirstName,
+                    MiddleName = student.MiddleName,
+                    LastName = student.LastName,
+                    Suffix = student.Suffix ?? "N/A",
+                    GradeLevel = student.GradeLevel ?? "N/A",
+                    Section = "N/A",
+                    SchoolYear = student.SchoolYr ?? "N/A",
+                    Status = student.Status,
+                    LRN = student.Lrn ?? "N/A",
+                    BirthDate = student.Birthdate,
+                    PlaceOfBirth = student.PlaceOfBirth ?? "N/A",
+                    Sex = student.Sex,
+                    MotherTongue = student.MotherTongue ?? "N/A",
+                    IsIPCommunity = student.IpComm == true ? "Yes" : "No",
+                    IPCommunitySpecify = student.IpSpecify ?? string.Empty,
+                    Is4PsBeneficiary = student.FourPs == true ? "Yes" : "No",
+                    FourPsHouseholdId = student.FourPsHseId ?? string.Empty,
+                    CurrentHouseNo = student.HseNo ?? string.Empty,
+                    CurrentStreetName = student.Street ?? string.Empty,
+                    CurrentBarangay = student.Brngy ?? string.Empty,
+                    CurrentCity = student.City ?? string.Empty,
+                    CurrentProvince = student.Province ?? string.Empty,
+                    CurrentCountry = student.Country ?? string.Empty,
+                    CurrentZipCode = student.ZipCode ?? string.Empty,
+                    SameAsCurrentAddress = false,
+                    PermanentHouseNo = student.PhseNo ?? string.Empty,
+                    PermanentStreetName = student.Pstreet ?? string.Empty,
+                    PermanentBarangay = student.Pbrngy ?? string.Empty,
+                    PermanentCity = student.Pcity ?? string.Empty,
+                    PermanentProvince = student.Pprovince ?? string.Empty,
+                    PermanentCountry = student.Pcountry ?? string.Empty,
+                    PermanentZipCode = student.PzipCode ?? string.Empty,
+                    GuardianFirstName = student.Guardian?.FirstName ?? string.Empty,
+                    GuardianMiddleName = student.Guardian?.MiddleName ?? string.Empty,
+                    GuardianLastName = student.Guardian?.LastName ?? string.Empty,
+                    GuardianSuffix = student.Guardian?.Suffix ?? string.Empty,
+                    GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
+                    GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
+                    StudentType = student.StudentType,
+                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
+                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    GradeToEnroll = student.GradeLevel ?? "N/A",
+                    HasBirthCertificate = student.Requirements != null && student.Requirements.Any(IsRequirementVerified)
+                };
+
+                SelectedAcademicRecords = new List<AcademicRecordData>();
+                SelectedEnrollmentRecords = new List<EnrollmentStatusData>
+                {
+                    new()
+                    {
+                        SchoolYear = student.SchoolYr ?? "N/A",
+                        Grade = student.GradeLevel ?? "N/A",
+                        Section = "N/A",
+                        Type = student.StudentType,
+                        Documents = documentsVerified ? "Verified" : "Not verified",
+                        Status = student.Status
+                    }
+                };
+
+                // Prepare edit model for modal (mirrors registration + status/requirements)
+                EditModel = new StudentEditModel
+                {
+                    StudentId = student.StudentId,
+                    FirstName = student.FirstName,
+                    MiddleName = student.MiddleName ?? string.Empty,
+                    LastName = student.LastName,
+                    Suffix = student.Suffix ?? string.Empty,
+                    BirthDate = student.Birthdate,
+                    Age = student.Age,
+                    PlaceOfBirth = student.PlaceOfBirth ?? string.Empty,
+                    Sex = student.Sex,
+                    MotherTongue = student.MotherTongue ?? string.Empty,
+                    MotherTongueOther = string.Empty, // Not stored in Student model
+                    IsIPCommunity = student.IpComm == true ? "Yes" : "No",
+                    IPCommunitySpecify = student.IpSpecify ?? string.Empty,
+                    IPCommunitySpecifyOther = string.Empty, // Not stored in Student model
+                    Is4PsBeneficiary = student.FourPs == true ? "Yes" : "No",
+                    FourPsHouseholdId = student.FourPsHseId ?? string.Empty,
+                    CurrentHouseNo = student.HseNo ?? string.Empty,
+                    CurrentStreetName = student.Street ?? string.Empty,
+                    CurrentBarangay = student.Brngy ?? string.Empty,
+                    CurrentCity = student.City ?? string.Empty,
+                    CurrentProvince = student.Province ?? string.Empty,
+                    CurrentCountry = student.Country ?? string.Empty,
+                    CurrentZipCode = student.ZipCode ?? string.Empty,
+                    SameAsCurrentAddress = false,
+                    PermanentHouseNo = student.PhseNo ?? string.Empty,
+                    PermanentStreetName = student.Pstreet ?? string.Empty,
+                    PermanentBarangay = student.Pbrngy ?? string.Empty,
+                    PermanentCity = student.Pcity ?? string.Empty,
+                    PermanentProvince = student.Pprovince ?? string.Empty,
+                    PermanentCountry = student.Pcountry ?? string.Empty,
+                    PermanentZipCode = student.PzipCode ?? string.Empty,
+                    GuardianFirstName = student.Guardian?.FirstName ?? string.Empty,
+                    GuardianMiddleName = student.Guardian?.MiddleName ?? string.Empty,
+                    GuardianLastName = student.Guardian?.LastName ?? string.Empty,
+                    GuardianSuffix = student.Guardian?.Suffix ?? string.Empty,
+                    GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
+                    GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
+                    GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
+                    StudentType = student.StudentType,
+                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
+                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    SchoolYear = student.SchoolYr ?? string.Empty,
+                    GradeToEnroll = student.GradeLevel ?? string.Empty,
+                    Status = student.Status ?? "Pending",
+                    // Map requirement checkboxes from boolean is_verified flag, with legacy fallback on Status text
+                    // Use exact requirement name matches to match UpdateStudentAsync logic
+                    HasPSABirthCert = student.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate" && IsRequirementVerified(r)) == true,
+                    HasBaptismalCert = student.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate" && IsRequirementVerified(r)) == true,
+                    HasReportCard = student.Requirements?.Any(r => r.RequirementName == "Report Card" && IsRequirementVerified(r)) == true,
+                    HasForm138 = student.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)" && IsRequirementVerified(r)) == true,
+                    HasForm137 = student.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)" && IsRequirementVerified(r)) == true,
+                    HasGoodMoralCert = student.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate" && IsRequirementVerified(r)) == true,
+                    HasTransferCert = student.Requirements?.Any(r => r.RequirementName == "Transfer Certificate" && IsRequirementVerified(r)) == true,
+                    HasUpdatedEnrollmentForm = student.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form" && IsRequirementVerified(r)) == true,
+                    HasClearance = student.Requirements?.Any(r => r.RequirementName == "Clearance" && IsRequirementVerified(r)) == true
+                };
+
+                // Load reason from archive if student was previously archived
+                if (student.Status == "Rejected by School" || student.Status == "Application Withdrawn")
+                {
+                    try
+                    {
+                        var archive = await ArchiveService.GetArchivedStudentAsync(student.StudentId);
+                        if (archive != null && !string.IsNullOrWhiteSpace(archive.Reason))
+                        {
+                            EditModel.RejectionReason = archive.Reason;
+                        }
+                    }
+                    catch
+                    {
+                        // Archive not found or error - continue without reason
+                    }
+                }
+
+                IsForEnrollmentContext = false;
+                ShowEditModal = true;
+                ShowNewApplicantDetail = false;
+            }
+            else
+            {
+                ShowNewApplicantDetail = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading new applicant detail for {StudentId}: {Message}", studentId, ex.Message);
+            SelectedNewApplicant = null;
+            SelectedStudentDetail = null;
+            SelectedAcademicRecords = new List<AcademicRecordData>();
+            SelectedEnrollmentRecords = new List<EnrollmentStatusData>();
+            ShowNewApplicantDetail = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleForEnrollmentEdit(string studentId)
+    {
+        isLoading = true;
+        IsForEnrollmentContext = true;
+        try
+        {
+            var student = await StudentService.GetStudentByIdAsync(studentId);
+
+            if (student != null)
+            {
+                // Prepare edit model for modal (mirrors registration + status/requirements)
+                EditModel = new StudentEditModel
+                {
+                    StudentId = student.StudentId,
+                    FirstName = student.FirstName,
+                    MiddleName = student.MiddleName ?? string.Empty,
+                    LastName = student.LastName,
+                    Suffix = student.Suffix ?? string.Empty,
+                    BirthDate = student.Birthdate,
+                    Age = student.Age,
+                    PlaceOfBirth = student.PlaceOfBirth ?? string.Empty,
+                    Sex = student.Sex,
+                    MotherTongue = student.MotherTongue ?? string.Empty,
+                    MotherTongueOther = string.Empty, // Not stored in Student model
+                    IsIPCommunity = student.IpComm == true ? "Yes" : "No",
+                    IPCommunitySpecify = student.IpSpecify ?? string.Empty,
+                    IPCommunitySpecifyOther = string.Empty, // Not stored in Student model
+                    Is4PsBeneficiary = student.FourPs == true ? "Yes" : "No",
+                    FourPsHouseholdId = student.FourPsHseId ?? string.Empty,
+                    CurrentHouseNo = student.HseNo ?? string.Empty,
+                    CurrentStreetName = student.Street ?? string.Empty,
+                    CurrentBarangay = student.Brngy ?? string.Empty,
+                    CurrentCity = student.City ?? string.Empty,
+                    CurrentProvince = student.Province ?? string.Empty,
+                    CurrentCountry = student.Country ?? string.Empty,
+                    CurrentZipCode = student.ZipCode ?? string.Empty,
+                    SameAsCurrentAddress = false,
+                    PermanentHouseNo = student.PhseNo ?? string.Empty,
+                    PermanentStreetName = student.Pstreet ?? string.Empty,
+                    PermanentBarangay = student.Pbrngy ?? string.Empty,
+                    PermanentCity = student.Pcity ?? string.Empty,
+                    PermanentProvince = student.Pprovince ?? string.Empty,
+                    PermanentCountry = student.Pcountry ?? string.Empty,
+                    PermanentZipCode = student.PzipCode ?? string.Empty,
+                    GuardianFirstName = student.Guardian?.FirstName ?? string.Empty,
+                    GuardianMiddleName = student.Guardian?.MiddleName ?? string.Empty,
+                    GuardianLastName = student.Guardian?.LastName ?? string.Empty,
+                    GuardianSuffix = student.Guardian?.Suffix ?? string.Empty,
+                    GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
+                    GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
+                    GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
+                    StudentType = student.StudentType,
+                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
+                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    SchoolYear = student.SchoolYr ?? string.Empty,
+                    GradeToEnroll = student.GradeLevel ?? string.Empty,
+                    Status = student.Status ?? "For Payment",
+                    // Map requirement checkboxes from boolean is_verified flag, with legacy fallback on Status text
+                    HasPSABirthCert = student.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate" && IsRequirementVerified(r)) == true,
+                    HasBaptismalCert = student.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate" && IsRequirementVerified(r)) == true,
+                    HasReportCard = student.Requirements?.Any(r => r.RequirementName == "Report Card" && IsRequirementVerified(r)) == true,
+                    HasForm138 = student.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)" && IsRequirementVerified(r)) == true,
+                    HasForm137 = student.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)" && IsRequirementVerified(r)) == true,
+                    HasGoodMoralCert = student.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate" && IsRequirementVerified(r)) == true,
+                    HasTransferCert = student.Requirements?.Any(r => r.RequirementName == "Transfer Certificate" && IsRequirementVerified(r)) == true,
+                    HasUpdatedEnrollmentForm = student.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form" && IsRequirementVerified(r)) == true,
+                    HasClearance = student.Requirements?.Any(r => r.RequirementName == "Clearance" && IsRequirementVerified(r)) == true
+                };
+
+                ShowEditModal = true;
+                StateHasChanged(); // Trigger UI update to show modal
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading for enrollment student detail for {StudentId}: {Message}", studentId, ex.Message);
+            EditModel = null;
+            ShowToast($"Error loading student: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged(); // Ensure UI updates even if there's an error
+        }
+    }
+
+    // Treat a requirement as verified if either the new boolean flag is true
+    // or, for older records, the legacy Status string is "verified".
+    private static bool IsRequirementVerified(StudentRequirement r)
+    {
+        if (r == null) return false;
+
+        if (r.IsVerified)
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(r.Status) &&
+               r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void CloseNewApplicantDetail()
+    {
+        ShowNewApplicantDetail = false;
+        SelectedNewApplicant = null;
+        SelectedStudentDetail = null;
+        SelectedAcademicRecords = new List<AcademicRecordData>();
+        SelectedEnrollmentRecords = new List<EnrollmentStatusData>();
+        ShowEditModal = false;
+        EditModel = null;
+    }
+
+    private void CloseEditModal()
+    {
+        ShowEditModal = false;
+        EditModel = null;
+        IsForEnrollmentContext = false;
+    }
+
+    private async Task SaveEditedApplicantAsync(StudentEditModel model)
+    {
+        try
+        {
+            // Get current student to check status transition
+            var currentStudent = await StudentService.GetStudentByIdAsync(model.StudentId);
+            string? oldStatus = currentStudent?.Status;
+            bool statusChanged = currentStudent != null && currentStudent.Status != model.Status;
+            
+            if (statusChanged)
+            {
+                // Use EnrollmentStatusService to validate and update status
+                var statusUpdated = await EnrollmentStatusService.UpdateStudentStatusAsync(
+                    model.StudentId, 
+                    model.Status);
+                
+                if (!statusUpdated)
+                {
+                    Logger?.LogWarning(
+                        "Status transition not allowed for student {StudentId}: {OldStatus} -> {NewStatus}",
+                        model.StudentId, oldStatus ?? "Unknown", model.Status);
+                    // Continue with update anyway, but log the warning
+                }
+            }
+
+            // Update student information
+            await StudentService.UpdateStudentAsync(model);
+            
+            // If student is rejected or withdrawn, archive them
+            // Note: Status is already updated by UpdateStudentAsync above, so we just need to mark as archived
+            if (model.Status == "Rejected by School" || model.Status == "Application Withdrawn" || model.Status == "Application Withdraw")
+            {
+                try
+                {
+                    // Check if already archived
+                    var isArchived = await ArchiveService.IsStudentArchivedAsync(model.StudentId);
+                    if (!isArchived)
+                    {
+                        // Archive the student (status is already updated, this just confirms archiving)
+                        await ArchiveService.ArchiveStudentAsync(
+                            model.StudentId,
+                            model.Status, // Status already updated by UpdateStudentAsync
+                            notes: null,
+                            archivedBy: null,
+                            reason: model.RejectionReason
+                        );
+                    }
+                    else
+                    {
+                        // Update existing archive with reason
+                        await ArchiveService.UpdateArchiveAsync(
+                            model.StudentId,
+                            archiveReason: model.Status,
+                            reason: model.RejectionReason
+                        );
+                    }
+                    
+                    // Show success toast for archiving
+                    ShowToast($"Student {model.StudentId} has been archived with status: {model.Status}.", ToastType.Success);
+                }
+                catch (Exception archiveEx)
+                {
+                    // Log full error details for debugging
+                    Logger?.LogError(archiveEx, 
+                        "Error archiving student {StudentId}: {Message}. " +
+                        "Stack Trace: {StackTrace}. " +
+                        "Inner Exception: {InnerException}",
+                        model.StudentId, 
+                        archiveEx.Message,
+                        archiveEx.StackTrace,
+                        archiveEx.InnerException?.Message ?? "None");
+                    
+                    // Show detailed error message
+                    var errorMsg = archiveEx.Message;
+                    if (archiveEx.InnerException != null)
+                    {
+                        errorMsg += $" ({archiveEx.InnerException.Message})";
+                    }
+                    ShowToast($"Error archiving student: {errorMsg}", ToastType.Error);
+                }
+            }
+            else if (statusChanged)
+            {
+                // Determine toast type based on new status
+                if (model.Status == "For Payment" || model.Status == "Eligible" || model.Status == "Enrolled")
+                {
+                    // Green toast for enrollment success
+                    string statusMessage = model.Status switch
+                    {
+                        "For Payment" => "moved to For Enrollment",
+                        "Eligible" => "marked as eligible for enrollment",
+                        "Enrolled" => "successfully enrolled",
+                        _ => $"status changed to {model.Status}"
+                    };
+                    ShowToast($"Student {model.StudentId} {statusMessage}.", ToastType.Success);
+                }
+                else
+                {
+                    // Yellow toast for other status changes
+                    ShowToast($"Student {model.StudentId} status updated from {oldStatus} to {model.Status}.", ToastType.Edit);
+                }
+            }
+            else
+            {
+                // Yellow toast for edit without status change
+                ShowToast($"Student {model.StudentId} information updated.", ToastType.Edit);
+            }
+            
+            ShowEditModal = false;
+
+            // Refresh tables so changes reflect in UI
+            await LoadNewApplicantsAsync();
+            await LoadForEnrollmentStudentsAsync();
+            await LoadReEnrollmentStudentsAsync();
+            await LoadEnrolledStudentsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error updating applicant {StudentId}: {Message}", model.StudentId, ex.Message);
+            ShowToast($"Error updating student: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private async Task LoadForEnrollmentStudentsAsync()
+    {
+        try
+        {
+            // Get students with status: For Payment
+            var students = await EnrollmentStatusService.GetStudentsByStatusAsync("For Payment");
+            
+            ForEnrollmentStudents = students.Select(s => new ForEnrollment.ForEnrollmentStudent
+            {
+                Id = s.StudentId,
+                Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                LRN = s.Lrn ?? "N/A",
+                Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                Type = s.StudentType,
+                GradeLevel = s.GradeLevel ?? "N/A",
+                Status = s.Status ?? "For Payment",
+                DocumentsVerified = s.Requirements != null && 
+                                   s.Requirements.Any() && 
+                                   s.Requirements.All(r => r.IsVerified || 
+                                       (!string.IsNullOrWhiteSpace(r.Status) && 
+                                        r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)))
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading for enrollment students: {Message}", ex.Message);
+            ForEnrollmentStudents = new List<ForEnrollment.ForEnrollmentStudent>();
+        }
+    }
+
+    private async Task LoadReEnrollmentStudentsAsync()
+    {
+        try
+        {
+            // Get students with Eligible status
+            var students = await EnrollmentStatusService.GetStudentsByStatusAsync("Eligible");
+            
+            ReEnrollmentStudents = students.Select(s => new ReEnrollmentStudent
+            {
+                Id = s.StudentId,
+                Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                LRN = s.Lrn ?? "N/A",
+                Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                Type = "Eligible", // All in re-enrollment are eligible
+                GradeLevel = s.GradeLevel ?? "N/A",
+                Documents = s.Requirements != null && 
+                           s.Requirements.Any() && 
+                           s.Requirements.All(r => r.IsVerified || 
+                               (!string.IsNullOrWhiteSpace(r.Status) && 
+                                r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
+                           ? "Verified" : "Not verified",
+                Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading re-enrollment students: {Message}", ex.Message);
+            ReEnrollmentStudents = new List<ReEnrollmentStudent>();
         }
     }
 }
