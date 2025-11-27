@@ -37,6 +37,10 @@ public class UserStatusLog
     [Column("created_at", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("UserId")]
     public virtual UserEntity? User { get; set; }

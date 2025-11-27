@@ -76,5 +76,9 @@ public class UserEntity
     [MaxLength(20)]
     [Column("status")]
     public string Status { get; set; } = "active";
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 }
 

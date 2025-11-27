@@ -10,13 +10,13 @@ namespace BrightEnroll_DES.Services.Business.HR;
 // Handles employee registration - creates user account and related employee records
 public class EmployeeService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly IUserRepository _userRepository;
     private readonly ILogger<EmployeeService>? _logger;
 
-    public EmployeeService(AppDbContext context, IUserRepository userRepository, ILogger<EmployeeService>? logger = null)
+    public EmployeeService(IDbContextFactory<AppDbContext> contextFactory, IUserRepository userRepository, ILogger<EmployeeService>? logger = null)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _logger = logger;
     }
@@ -58,6 +58,7 @@ public class EmployeeService
             int userId = insertedUser.user_ID;
 
             // Step 3: Create employee-related records (EF Core transaction)
+            await using var _context = await _contextFactory.CreateDbContextAsync();
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
@@ -71,7 +72,8 @@ public class EmployeeService
                     City = string.IsNullOrWhiteSpace(employeeData.City) ? null : employeeData.City,
                     Barangay = string.IsNullOrWhiteSpace(employeeData.Barangay) ? null : employeeData.Barangay,
                     Country = string.IsNullOrWhiteSpace(employeeData.Country) ? null : employeeData.Country,
-                    ZipCode = string.IsNullOrWhiteSpace(employeeData.ZipCode) ? null : employeeData.ZipCode
+                    ZipCode = string.IsNullOrWhiteSpace(employeeData.ZipCode) ? null : employeeData.ZipCode,
+                    IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
 
                 _context.EmployeeAddresses.Add(address);
@@ -86,7 +88,8 @@ public class EmployeeService
                     Suffix = string.IsNullOrWhiteSpace(employeeData.EmergencyContactSuffix) ? null : employeeData.EmergencyContactSuffix,
                     Relationship = string.IsNullOrWhiteSpace(employeeData.EmergencyContactRelationship) ? null : employeeData.EmergencyContactRelationship,
                     ContactNumber = string.IsNullOrWhiteSpace(employeeData.EmergencyContactNumber) ? null : employeeData.EmergencyContactNumber,
-                    Address = string.IsNullOrWhiteSpace(employeeData.EmergencyContactAddress) ? null : employeeData.EmergencyContactAddress
+                    Address = string.IsNullOrWhiteSpace(employeeData.EmergencyContactAddress) ? null : employeeData.EmergencyContactAddress,
+                    IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
 
                 _context.EmployeeEmergencyContacts.Add(emergencyContact);
@@ -98,7 +101,8 @@ public class EmployeeService
                     BaseSalary = employeeData.BaseSalary,
                     Allowance = employeeData.Allowance,
                     DateEffective = DateTime.Today,
-                    IsActive = true
+                    IsActive = true,
+                    IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
 
                 _context.SalaryInfos.Add(salaryInfo);
@@ -136,8 +140,9 @@ public class EmployeeService
                 return null;
             }
 
+            await using var context = await _contextFactory.CreateDbContextAsync();
             // Get employee data view with matching first and last name (case-insensitive)
-            var matchingEmployees = await _context.EmployeeDataViews
+            var matchingEmployees = await context.EmployeeDataViews
                 .Where(e => e.FirstName != null && e.LastName != null &&
                            e.FirstName.ToLower() == employeeData.FirstName.ToLower() &&
                            e.LastName.ToLower() == employeeData.LastName.ToLower())
@@ -206,7 +211,8 @@ public class EmployeeService
     {
         try
         {
-            var employeeViews = await _context.EmployeeDataViews
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var employeeViews = await context.EmployeeDataViews
                 .OrderBy(e => e.LastName)
                 .ThenBy(e => e.FirstName)
                 .ToListAsync();
@@ -235,7 +241,8 @@ public class EmployeeService
     {
         try
         {
-            return await _context.EmployeeDataViews
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.EmployeeDataViews
                 .FirstOrDefaultAsync(e => e.UserId == userId);
         }
         catch (Exception ex)
@@ -256,7 +263,8 @@ public class EmployeeService
     {
         try
         {
-            return await _context.EmployeeDataViews
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            return await context.EmployeeDataViews
                 .FirstOrDefaultAsync(e => e.SystemId == systemId);
         }
         catch (Exception ex)
@@ -286,6 +294,7 @@ public class EmployeeService
             await _userRepository.UpdateAsync(user);
 
             // Log the status change
+            await using var context = await _contextFactory.CreateDbContextAsync();
             var statusLog = new UserStatusLog
             {
                 UserId = userId,
@@ -293,11 +302,12 @@ public class EmployeeService
                 OldStatus = oldStatus,
                 NewStatus = normalizedNewStatus,
                 Reason = reason,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.Now,
+                IsSynced = false // Explicitly mark as unsynced for offline-first
             };
 
-            _context.UserStatusLogs.Add(statusLog);
-            await _context.SaveChangesAsync();
+            context.UserStatusLogs.Add(statusLog);
+            await context.SaveChangesAsync();
 
             _logger?.LogInformation("User {UserId} status updated from {OldStatus} to {NewStatus} by {ChangedBy}", 
                 userId, oldStatus, normalizedNewStatus, changedByUserId);
@@ -315,7 +325,8 @@ public class EmployeeService
     {
         try
         {
-            var latestInactiveLog = await _context.UserStatusLogs
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var latestInactiveLog = await context.UserStatusLogs
                 .Where(log => log.UserId == userId && 
                              log.NewStatus.Equals("Inactive", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(log => log.CreatedAt)
@@ -370,7 +381,8 @@ public class EmployeeService
                 return false;
             }
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
                 // Update user entity
@@ -388,7 +400,7 @@ public class EmployeeService
                 await _userRepository.UpdateAsync(user);
 
                 // Update address
-                var address = await _context.EmployeeAddresses
+                var address = await context.EmployeeAddresses
                     .FirstOrDefaultAsync(a => a.UserId == userId);
 
                 if (address != null)
@@ -414,11 +426,11 @@ public class EmployeeService
                         Country = string.IsNullOrWhiteSpace(updateData.Country) ? null : updateData.Country,
                         ZipCode = string.IsNullOrWhiteSpace(updateData.ZipCode) ? null : updateData.ZipCode
                     };
-                    _context.EmployeeAddresses.Add(address);
+                    context.EmployeeAddresses.Add(address);
                 }
 
                 // Update emergency contact
-                var emergencyContact = await _context.EmployeeEmergencyContacts
+                var emergencyContact = await context.EmployeeEmergencyContacts
                     .FirstOrDefaultAsync(ec => ec.UserId == userId);
 
                 if (emergencyContact != null)
@@ -444,10 +456,10 @@ public class EmployeeService
                         ContactNumber = string.IsNullOrWhiteSpace(updateData.EmergencyContactNumber) ? null : updateData.EmergencyContactNumber,
                         Address = string.IsNullOrWhiteSpace(updateData.EmergencyContactAddress) ? null : updateData.EmergencyContactAddress
                     };
-                    _context.EmployeeEmergencyContacts.Add(emergencyContact);
+                    context.EmployeeEmergencyContacts.Add(emergencyContact);
                 }
 
-                await _context.SaveChangesAsync();
+                await context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Employee {UserId} information updated successfully", userId);

@@ -47,5 +47,9 @@ public class Deduction
 
     [Column("updated_date", TypeName = "datetime")]
     public DateTime? UpdatedDate { get; set; }
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 }
 

@@ -30,6 +30,10 @@ public class Subject
     [Column("UpdatedAt", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("GradeLevelId")]
     public virtual GradeLevel? GradeLevel { get; set; }

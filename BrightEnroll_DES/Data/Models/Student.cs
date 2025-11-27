@@ -152,6 +152,10 @@ public class Student
     [Column("status")]
     public string Status { get; set; } = "Pending";
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 

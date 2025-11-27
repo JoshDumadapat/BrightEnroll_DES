@@ -40,6 +40,10 @@ public class FeeBreakdown
     [Column("updated_date")]
     public DateTime? UpdatedDate { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation property
     [ForeignKey("FeeId")]
     public virtual Fee? Fee { get; set; }

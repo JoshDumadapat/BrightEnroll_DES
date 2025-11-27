@@ -38,6 +38,10 @@ public class ClassSchedule
     [Column("UpdatedAt", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("AssignmentId")]
     public virtual TeacherSectionAssignment? Assignment { get; set; }

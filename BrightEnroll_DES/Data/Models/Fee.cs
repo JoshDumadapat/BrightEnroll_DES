@@ -50,6 +50,10 @@ public class Fee
     [Column("is_active")]
     public bool IsActive { get; set; } = true;
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("GradeLevelId")]
     public virtual GradeLevel? GradeLevel { get; set; }

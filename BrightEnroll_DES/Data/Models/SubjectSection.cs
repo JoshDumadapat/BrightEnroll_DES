@@ -19,6 +19,10 @@ public class SubjectSection
     [Column("SubjectID")]
     public int SubjectId { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("SectionId")]
     public virtual Section? Section { get; set; }

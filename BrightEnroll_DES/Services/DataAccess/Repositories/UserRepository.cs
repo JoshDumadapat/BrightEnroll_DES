@@ -172,7 +172,8 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
                     Email = SanitizeString(user.email, 150),
                     Password = user.password, // Password is already hashed, no sanitization needed
                     DateHired = user.date_hired,
-                    Status = string.IsNullOrWhiteSpace(user.status) ? "active" : SanitizeString(user.status, 20)
+                    Status = string.IsNullOrWhiteSpace(user.status) ? "active" : SanitizeString(user.status, 20),
+                    IsSynced = false // Explicitly mark as unsynced for offline-first
                 };
 
                 System.Diagnostics.Debug.WriteLine($"[UserRepository.InsertAsync] UserEntity created:");

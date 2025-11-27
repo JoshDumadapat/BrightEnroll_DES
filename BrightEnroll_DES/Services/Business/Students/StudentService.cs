@@ -12,12 +12,12 @@ namespace BrightEnroll_DES.Services.Business.Students;
 // Handles student registration - creates student, guardian, and requirements
 public class StudentService
 {
-    private readonly AppDbContext _context;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly ILogger<StudentService>? _logger;
 
-    public StudentService(AppDbContext context, ILogger<StudentService>? logger = null)
+    public StudentService(IDbContextFactory<AppDbContext> contextFactory, ILogger<StudentService>? logger = null)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
         _logger = logger;
     }
 
@@ -33,6 +33,8 @@ public class StudentService
     // isRetry flag prevents infinite recursion when retrying after sequence sync
     private async Task<Student> RegisterStudentInternalAsync(StudentRegistrationData studentData, bool isRetry)
     {
+        await using var _context = await _contextFactory.CreateDbContextAsync();
+        
         // STEP 1: Perform local duplicate checks BEFORE starting transaction
         // This prevents false positives from cloud database sync and provides early validation
         // Validation errors don't need transaction rollback, so we check before transaction starts
@@ -42,7 +44,7 @@ public class StudentService
         
         try
         {
-            await CheckForDuplicateStudentAsync(studentData);
+            await CheckForDuplicateStudentAsync(_context, studentData);
             _logger?.LogInformation("Local duplicate check passed for: {FirstName} {LastName}", studentData.FirstName, studentData.LastName);
         }
         catch (Exception duplicateEx)
@@ -61,7 +63,7 @@ public class StudentService
         {
             try
             {
-                await SyncStudentIDSequenceAsync();
+                await SyncStudentIDSequenceAsync(_context);
                 _logger?.LogInformation("Student ID sequence table synchronized");
             }
             catch (Exception syncEx)
@@ -89,7 +91,8 @@ public class StudentService
                 LastName = studentData.GuardianLastName,
                 Suffix = string.IsNullOrWhiteSpace(studentData.GuardianSuffix) ? null : studentData.GuardianSuffix,
                 ContactNum = studentData.GuardianContactNumber,
-                Relationship = studentData.GuardianRelationship
+                Relationship = studentData.GuardianRelationship,
+                IsSynced = false // Explicitly mark as unsynced for offline-first
             };
 
             _context.Guardians.Add(guardian);
@@ -216,7 +219,9 @@ public class StudentService
                     {
                         try
                         {
-                            await SyncStudentIDSequenceAsync();
+                            // Create new context for sequence sync
+                            await using var retryContext = await _contextFactory.CreateDbContextAsync();
+                            await SyncStudentIDSequenceAsync(retryContext);
                             _logger?.LogInformation("Sequence table synced successfully. Retrying student registration...");
                             
                             // Retry registration with a new transaction (set isRetry flag to prevent infinite recursion)
@@ -313,10 +318,19 @@ public class StudentService
             
             if (requirements.Any())
             {
+                // Explicitly set IsSynced = false for all requirements
+                foreach (var req in requirements)
+                {
+                    req.IsSynced = false;
+                }
                 _context.StudentRequirements.AddRange(requirements);
                 await _context.SaveChangesAsync();
                 _logger?.LogInformation("Created {Count} requirements for student {StudentId}", requirements.Count, student.StudentId);
             }
+            
+            // Mark student as unsynced (stored procedure creates it, so we need to update it)
+            student.IsSynced = false;
+            await _context.SaveChangesAsync();
 
             // STEP 10: Commit transaction - all operations succeeded
             // Only commit if transaction hasn't been rolled back (shouldn't happen in success path)
@@ -514,14 +528,14 @@ public class StudentService
     // This prevents false positives when cloud database has students but local is empty
     // IMPORTANT: This method filters out placeholder LRN values ('N/A', 'Pending', null, empty)
     // to avoid false duplicate detection for students without real LRN values
-    private async Task CheckForDuplicateStudentAsync(StudentRegistrationData studentData)
+    private async Task CheckForDuplicateStudentAsync(AppDbContext context, StudentRegistrationData studentData)
     {
         // Check by LRN if provided AND it's a valid (non-placeholder) value
         // Placeholder values like 'N/A' or 'Pending' should not be checked for duplicates
         // because multiple students can legitimately have these placeholder values
         if (IsValidLRNForDuplicateCheck(studentData.LearnerReferenceNo))
         {
-            var existingByLRN = await _context.Students
+            var existingByLRN = await context.Students
                 .FirstOrDefaultAsync(s => s.Lrn == studentData.LearnerReferenceNo);
             
             if (existingByLRN != null)
@@ -542,7 +556,7 @@ public class StudentService
             !string.IsNullOrWhiteSpace(studentData.LastName) && 
             studentData.BirthDate != default)
         {
-            var existingByNameAndDOB = await _context.Students
+            var existingByNameAndDOB = await context.Students
                 .Where(s => s.FirstName.ToLower() == studentData.FirstName.ToLower() &&
                            s.LastName.ToLower() == studentData.LastName.ToLower() &&
                            s.Birthdate == studentData.BirthDate.Date)
@@ -559,14 +573,14 @@ public class StudentService
     // This prevents primary key conflicts when the sequence table is out of sync
     // CRITICAL: This must be called before generating new student IDs to avoid conflicts
     // The sequence table's LastStudentID must always be >= the highest existing student ID
-    private async Task SyncStudentIDSequenceAsync()
+    private async Task SyncStudentIDSequenceAsync(AppDbContext context)
     {
         try
         {
             // Get the highest existing student ID from the database
             // Student IDs are stored as VARCHAR(6) but represent numeric values
             // We need to convert them to INT for comparison, handling non-numeric values
-            var highestStudentId = await _context.Students
+            var highestStudentId = await context.Students
                 .Where(s => s.StudentId != null && s.StudentId.Length == 6)
                 .Select(s => s.StudentId)
                 .ToListAsync();
@@ -587,7 +601,7 @@ public class StudentService
             }
             
             // Get current sequence value
-            var connection = _context.Database.GetDbConnection();
+            var connection = context.Database.GetDbConnection();
             var wasOpen = connection.State == System.Data.ConnectionState.Open;
             
             if (!wasOpen)
@@ -725,7 +739,8 @@ public class StudentService
     // Gets student by ID with guardian and requirements
     public async Task<Student?> GetStudentByIdAsync(string studentId)
     {
-        return await _context.Students
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        return await context.Students
             .Include(s => s.Guardian)
             .Include(s => s.Requirements)
             .FirstOrDefaultAsync(s => s.StudentId == studentId);
@@ -737,9 +752,10 @@ public class StudentService
     {
         try
         {
+            await using var context = await _contextFactory.CreateDbContextAsync();
             // Use EF Core's Include for eager loading - fully ORM, secure approach
             // No raw SQL - all queries are generated by EF Core with parameterization
-            var students = await _context.Students
+            var students = await context.Students
                 .Include(s => s.Guardian)
                 .Include(s => s.Requirements)
                 .OrderBy(s => s.StudentId)
@@ -766,7 +782,8 @@ public class StudentService
             // EF Core still provides connection management and query validation
             var enrolledStatus = "Enrolled";
             
-            var enrolledStudents = await _context.StudentDataViews
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var enrolledStudents = await context.StudentDataViews
                 .FromSqlRaw(@"
                     SELECT 
                         StudentId,
@@ -822,7 +839,8 @@ public class StudentService
             // Status is hardcoded in the query (not user input), so it's safe
             var pendingStatus = "Pending";
             
-            var newApplicants = await _context.StudentDataViews
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var newApplicants = await context.StudentDataViews
                 .FromSqlRaw(@"
                     SELECT 
                         StudentId,

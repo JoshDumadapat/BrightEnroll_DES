@@ -22,5 +22,9 @@ public class Building
     [MaxLength(500)]
     [Column("Description")]
     public string? Description { get; set; }
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 }
 

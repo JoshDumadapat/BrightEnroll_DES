@@ -46,6 +46,10 @@ public class Classroom
     [Column("UpdatedAt", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     public virtual ICollection<Section> Sections { get; set; } = new List<Section>();
     public virtual ICollection<ClassSchedule> ClassSchedules { get; set; } = new List<ClassSchedule>();

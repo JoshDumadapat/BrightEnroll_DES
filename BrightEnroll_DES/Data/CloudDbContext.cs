@@ -3,8 +3,8 @@ using BrightEnroll_DES.Data.Models;
 
 namespace BrightEnroll_DES.Data;
 
-// EF Core database context - handles student and employee tables
-public class AppDbContext : DbContext
+// Cloud database context for online operations (Monster SQL Server)
+public class CloudDbContext : DbContext
 {
     // User table
     public DbSet<UserEntity> Users { get; set; }
@@ -18,10 +18,8 @@ public class AppDbContext : DbContext
     public DbSet<EmployeeEmergencyContact> EmployeeEmergencyContacts { get; set; }
     public DbSet<SalaryInfo> SalaryInfos { get; set; }
 
-    // View entities (keyless, read-only)
-    public DbSet<EmployeeDataView> EmployeeDataViews { get; set; }
-    public DbSet<StudentDataView> StudentDataViews { get; set; }
-    public DbSet<FinalClassView> FinalClassViews { get; set; }
+    // Note: View entities removed from CloudDbContext as they are read-only
+    // and may not exist in cloud database. Views are only used in LocalDbContext.
 
     // Finance tables
     public DbSet<GradeLevel> GradeLevels { get; set; }
@@ -47,7 +45,7 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<Deduction> Deductions { get; set; }
 
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    public CloudDbContext(DbContextOptions<CloudDbContext> options) : base(options)
     {
     }
 
@@ -62,14 +60,12 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Users");
             entity.HasIndex(e => e.SystemId).IsUnique();
             entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<Student>(entity =>
         {
             entity.HasKey(e => e.StudentId);
             entity.ToTable("tbl_Students");
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(s => s.Guardian)
                   .WithMany(g => g.Students)
@@ -86,7 +82,6 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.GuardianId);
             entity.ToTable("tbl_Guardians");
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<StudentRequirement>(entity =>
@@ -95,7 +90,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_StudentRequirements");
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>
@@ -103,7 +97,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.AddressId);
             entity.ToTable("tbl_employee_address");
             entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<EmployeeEmergencyContact>(entity =>
@@ -111,7 +104,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.EmergencyId);
             entity.ToTable("tbl_employee_emergency_contact");
             entity.HasIndex(e => e.UserId);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<SalaryInfo>(entity =>
@@ -120,27 +112,9 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_salary_info");
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.IsSynced);
         });
 
-        // Configure view entities as keyless (read-only)
-        modelBuilder.Entity<EmployeeDataView>(entity =>
-        {
-            entity.HasNoKey();
-            entity.ToView("vw_EmployeeData");
-        });
-
-        modelBuilder.Entity<StudentDataView>(entity =>
-        {
-            entity.HasNoKey();
-            entity.ToView("vw_StudentData");
-        });
-
-        modelBuilder.Entity<FinalClassView>(entity =>
-        {
-            entity.HasNoKey();
-            entity.ToView("tbl_FinalClasses");
-        });
+        // View entities removed - they are read-only and may not exist in cloud database
 
         // Configure Finance entities
         modelBuilder.Entity<GradeLevel>(entity =>
@@ -149,7 +123,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_GradeLevel");
             entity.HasIndex(e => e.GradeLevelName).IsUnique();
             entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<Fee>(entity =>
@@ -158,7 +131,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Fees");
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(f => f.GradeLevel)
                   .WithMany()
@@ -177,7 +149,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_FeeBreakdown");
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<Expense>(entity =>
@@ -189,7 +160,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.ExpenseDate);
             entity.HasIndex(e => e.Category);
             entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
         });
@@ -199,7 +169,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.AttachmentId);
             entity.ToTable("tbl_ExpenseAttachments");
             entity.HasIndex(e => e.ExpenseId);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(a => a.Expense)
                   .WithMany(e => e.Attachments)
@@ -215,7 +184,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.ChangedBy);
             entity.HasIndex(e => e.CreatedAt);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(e => e.User)
                   .WithMany()
@@ -235,7 +203,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Classrooms");
             entity.HasIndex(e => e.RoomName);
             entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<Section>(entity =>
@@ -245,7 +212,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.SectionName);
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.ClassroomId);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -264,7 +230,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Subjects");
             entity.HasIndex(e => e.SubjectName);
             entity.HasIndex(e => e.GradeLevelId);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -278,7 +243,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_SubjectSection");
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(ss => ss.Section)
                   .WithMany(s => s.SubjectSections)
@@ -345,7 +309,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.SubjectId, e.GradeLevelId, e.DayOfWeek })
                   .HasDatabaseName("IX_tbl_SubjectSchedule_Subject_Grade_Day");
             entity.HasIndex(e => e.IsDefault).HasDatabaseName("IX_tbl_SubjectSchedule_IsDefault");
-            entity.HasIndex(e => e.IsSynced);
 
             // Configure relationships with explicit foreign key column names
             entity.HasOne(ss => ss.Subject)
@@ -369,7 +332,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
             entity.HasIndex(e => e.Role);
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(a => a.Teacher)
                   .WithMany()
@@ -395,7 +357,6 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.RoomId);
             entity.HasIndex(e => e.DayOfWeek);
             entity.HasIndex(e => new { e.AssignmentId, e.DayOfWeek, e.StartTime, e.EndTime });
-            entity.HasIndex(e => e.IsSynced);
 
             entity.HasOne(s => s.Assignment)
                   .WithMany(a => a.ClassSchedules)
@@ -413,7 +374,6 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.BuildingId);
             entity.ToTable("tbl_Buildings");
             entity.HasIndex(e => e.BuildingName);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         // Configure Payroll entities
@@ -423,7 +383,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_roles");
             entity.HasIndex(e => e.RoleName).IsUnique();
             entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.IsSynced);
         });
 
         modelBuilder.Entity<Deduction>(entity =>
@@ -432,7 +391,6 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_deductions");
             entity.HasIndex(e => e.DeductionType).IsUnique();
             entity.HasIndex(e => e.IsActive);
-            entity.HasIndex(e => e.IsSynced);
         });
     }
 }

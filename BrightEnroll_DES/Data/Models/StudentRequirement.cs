@@ -31,6 +31,10 @@ public class StudentRequirement
     [Column("requirement_type")]
     public string RequirementType { get; set; } = string.Empty;
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     [ForeignKey("StudentId")]
     public virtual Student Student { get; set; } = null!;
 }

@@ -45,5 +45,9 @@ public class EmployeeEmergencyContact
     [MaxLength(255)]
     [Column("address")]
     public string? Address { get; set; }
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 }
 

@@ -42,6 +42,10 @@ public class SubjectSchedule
     [Column("UpdatedAt", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     public virtual Subject? Subject { get; set; }
 

@@ -3,8 +3,8 @@ using BrightEnroll_DES.Data.Models;
 
 namespace BrightEnroll_DES.Data;
 
-// EF Core database context - handles student and employee tables
-public class AppDbContext : DbContext
+// Local database context for offline operations (LocalDB)
+public class LocalDbContext : DbContext
 {
     // User table
     public DbSet<UserEntity> Users { get; set; }
@@ -47,7 +47,7 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<Deduction> Deductions { get; set; }
 
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    public LocalDbContext(DbContextOptions<LocalDbContext> options) : base(options)
     {
     }
 

@@ -65,6 +65,10 @@ public class Expense
     [Column("updated_at")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation
     public virtual ICollection<ExpenseAttachment> Attachments { get; set; } = new List<ExpenseAttachment>();
 }
@@ -94,6 +98,10 @@ public class ExpenseAttachment
     [Required]
     [Column("uploaded_at")]
     public DateTime UploadedAt { get; set; } = DateTime.Now;
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 
     [ForeignKey(nameof(ExpenseId))]
     public virtual Expense? Expense { get; set; }

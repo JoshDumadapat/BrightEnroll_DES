@@ -43,5 +43,9 @@ public class EmployeeAddress
     [MaxLength(10)]
     [Column("zip_code")]
     public string? ZipCode { get; set; }
+
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
 }
 

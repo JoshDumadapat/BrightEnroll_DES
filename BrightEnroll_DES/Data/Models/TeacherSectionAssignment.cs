@@ -33,6 +33,10 @@ public class TeacherSectionAssignment
     [Column("UpdatedAt", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     // Navigation properties
     [ForeignKey("TeacherId")]
     public virtual UserEntity? Teacher { get; set; }

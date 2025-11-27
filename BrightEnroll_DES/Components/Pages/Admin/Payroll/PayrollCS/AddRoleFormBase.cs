@@ -1,10 +1,9 @@
-using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS;
 using BrightEnroll_DES.Components;
+using BrightEnroll_DES.Services.Business.Payroll;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.JSInterop;
 using System.Linq;
 
@@ -16,7 +15,7 @@ public class AddRoleFormBase : ComponentBase
     [Parameter] public List<PayrollRoleData>? Roles { get; set; }
     [Parameter] public EventCallback<(string message, ToastType type)> OnShowToast { get; set; }
 
-    [Inject] protected AppDbContext DbContext { get; set; } = null!;
+    [Inject] protected IRoleService RoleService { get; set; } = null!;
     [Inject] protected IJSRuntime JSRuntime { get; set; } = null!;
 
     protected Role newRole = new Role
@@ -113,9 +112,7 @@ public class AddRoleFormBase : ComponentBase
     {
         try
         {
-            var roles = await DbContext.Roles
-                .OrderBy(r => r.RoleName)
-                .ToListAsync();
+            var roles = await RoleService.GetAllRolesAsync();
 
             dbRoles = roles.Select(role =>
             {
@@ -176,7 +173,7 @@ public class AddRoleFormBase : ComponentBase
         originalRoleName = role.Role;
         
         // Find the role in database to get the ID
-        var dbRole = await DbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == role.Role);
+        var dbRole = await RoleService.GetRoleByNameAsync(role.Role);
         if (dbRole != null)
         {
             editingRoleId = dbRole.RoleId;
@@ -238,46 +235,44 @@ public class AddRoleFormBase : ComponentBase
             if (isEditing && editingRoleId.HasValue)
             {
                 // Update existing role
-                var existingRole = await DbContext.Roles.FindAsync(editingRoleId.Value);
+                var existingRole = await RoleService.GetRoleByIdAsync(editingRoleId.Value);
                 if (existingRole != null)
                 {
                     // Check if role name changed and if new name already exists
                     if (existingRole.RoleName.ToLower() != newRole.RoleName.ToLower())
                     {
-                        var duplicateRole = await DbContext.Roles
-                            .FirstOrDefaultAsync(r => r.RoleName.ToLower() == newRole.RoleName.ToLower() && r.RoleId != editingRoleId.Value);
-                        if (duplicateRole != null)
+                        var exists = await RoleService.RoleExistsAsync(newRole.RoleName, editingRoleId.Value);
+                        if (exists)
                         {
                             await ShowToast($"Role '{newRole.RoleName}' already exists!", ToastType.Error);
                             return;
                         }
                     }
 
+                    // Update properties
                     existingRole.RoleName = newRole.RoleName;
                     existingRole.BaseSalary = newRole.BaseSalary;
                     existingRole.Allowance = newRole.Allowance;
                     existingRole.IsActive = newRole.IsActive;
-                    existingRole.UpdatedDate = DateTime.Now;
                     
-                    await DbContext.SaveChangesAsync();
+                    await RoleService.UpdateRoleAsync(existingRole);
                     await ShowToast($"Role '{newRole.RoleName}' updated successfully!", ToastType.Success);
                 }
             }
             else
             {
-                // Add new role
-                var existingRole = await DbContext.Roles
-                    .FirstOrDefaultAsync(r => r.RoleName.ToLower() == newRole.RoleName.ToLower());
-
-                if (existingRole != null)
+                // Add new role - explicitly set IsSynced = false
+                newRole.IsSynced = false;
+                newRole.CreatedDate = DateTime.Now;
+                
+                var exists = await RoleService.RoleExistsAsync(newRole.RoleName);
+                if (exists)
                 {
                     await ShowToast($"Role '{newRole.RoleName}' already exists!", ToastType.Error);
                     return;
                 }
 
-                newRole.CreatedDate = DateTime.Now;
-                DbContext.Roles.Add(newRole);
-                await DbContext.SaveChangesAsync();
+                await RoleService.CreateRoleAsync(newRole);
                 await ShowToast($"Role '{newRole.RoleName}' added successfully!", ToastType.Success);
             }
 
@@ -693,13 +688,12 @@ public class AddRoleFormBase : ComponentBase
 
         try
         {
-            var dbRole = await DbContext.Roles.FirstOrDefaultAsync(r => r.RoleName == role.Role);
+            var dbRole = await RoleService.GetRoleByNameAsync(role.Role);
             if (dbRole != null)
             {
                 dbRole.BaseSalary = role.BaseSalary;
                 dbRole.Allowance = role.Allowance;
-                dbRole.UpdatedDate = DateTime.Now;
-                await DbContext.SaveChangesAsync();
+                await RoleService.UpdateRoleAsync(dbRole);
 
                 editingRoles.Remove(role.Role);
                 

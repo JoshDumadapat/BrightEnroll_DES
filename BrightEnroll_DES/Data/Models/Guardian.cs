@@ -38,6 +38,10 @@ public class Guardian
     [Column("relationship")]
     public string? Relationship { get; set; }
 
+    [Required]
+    [Column("is_synced")]
+    public bool IsSynced { get; set; } = false;
+
     public virtual ICollection<Student> Students { get; set; } = new List<Student>();
 }
 
