@@ -158,32 +158,41 @@ namespace BrightEnroll_DES
                 System.Diagnostics.Debug.WriteLine($"[MauiProgram] Error starting background sync service: {ex.Message}");
             }
 
-            // Setup connectivity change handler to trigger sync when internet returns
-            // Use the built app's service provider
-            Connectivity.ConnectivityChanged += async (sender, e) =>
+            // Start connectivity monitoring service automatically
+            try
             {
-                if (e.NetworkAccess == NetworkAccess.Internet)
+                var connectivityService = app.Services.GetRequiredService<IConnectivityService>();
+                connectivityService.StartMonitoring();
+                System.Diagnostics.Debug.WriteLine("[MauiProgram] Connectivity monitoring service started");
+                
+                // Subscribe to connectivity changes to trigger sync when going online
+                connectivityService.ConnectivityChanged += async (sender, isConnected) =>
                 {
-                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Internet connection detected, triggering sync...");
-                    try
+                    if (isConnected)
                     {
-                        using var scope = app.Services.CreateScope();
-                        var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
-                        var result = await syncService.SyncAsync();
-                        System.Diagnostics.Debug.WriteLine($"[MauiProgram] Connectivity-triggered sync completed: {result}");
+                        System.Diagnostics.Debug.WriteLine("[MauiProgram] ConnectivityService: Internet connection detected, triggering sync...");
+                        try
+                        {
+                            using var scope = app.Services.CreateScope();
+                            var syncService = scope.ServiceProvider.GetRequiredService<ISyncService>();
+                            var result = await syncService.SyncAsync();
+                            System.Diagnostics.Debug.WriteLine($"[MauiProgram] Connectivity-triggered sync completed: {result}");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[MauiProgram] Error during connectivity-triggered sync: {ex.Message}");
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        System.Diagnostics.Debug.WriteLine($"[MauiProgram] Error during connectivity-triggered sync: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine("[MauiProgram] ConnectivityService: Internet connection lost.");
                     }
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("[MauiProgram] Internet connection lost.");
-                }
-            };
-            
-            System.Diagnostics.Debug.WriteLine("[MauiProgram] Connectivity change handler registered");
+                };
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MauiProgram] Error starting connectivity monitoring: {ex.Message}");
+            }
 
             // Initialize database and seed initial admin user on startup
             // Run in background task but wait for completion with timeout
