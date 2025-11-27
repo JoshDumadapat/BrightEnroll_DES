@@ -82,6 +82,11 @@ public class AppDbContext : DbContext
             // Temporarily ignore ArchiveReason property until database column is added
             // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
             entity.Ignore(e => e.ArchiveReason);
+            
+            // Temporarily ignore payment properties until database columns are added
+            // Run Database_Scripts/Add_Payment_Columns.sql to add the columns, then remove these lines
+            entity.Ignore(e => e.AmountPaid);
+            entity.Ignore(e => e.PaymentStatus);
         });
 
         modelBuilder.Entity<Guardian>(entity =>

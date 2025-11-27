@@ -35,6 +35,24 @@ public class EnrollmentStatusService
         }
     }
 
+    // Gets students by multiple statuses
+    public async Task<List<Student>> GetStudentsByStatusesAsync(params string[] statuses)
+    {
+        try
+        {
+            return await _context.Students
+                .Include(s => s.Requirements)
+                .Where(s => statuses.Contains(s.Status))
+                .OrderByDescending(s => s.DateRegistered)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching students with statuses {Statuses}: {Message}", string.Join(", ", statuses), ex.Message);
+            return new List<Student>();
+        }
+    }
+
     // Updates student status
     public async Task<bool> UpdateStudentStatusAsync(string studentId, string newStatus)
     {

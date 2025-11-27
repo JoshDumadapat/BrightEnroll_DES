@@ -3,6 +3,7 @@
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Services.Business.Finance.FeeService FeeService
 @inject BrightEnroll_DES.Services.Business.Finance.ExpenseService ExpenseService
+@inject BrightEnroll_DES.Services.Business.Finance.PaymentService PaymentService
 @inject ILoadingService LoadingService
 @inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
 
@@ -93,13 +94,13 @@
     // Payments Data
     private PaymentDataModel PaymentData = new()
     {
-        StudentId = "547635",
-        StudentName = "Darrell Carol",
-        GradeLevel = "Grade 1",
-        TotalFee = 11300,
-        AmountPaid = 8300,
-        Balance = 3000,
-        PaymentStatus = "Partially Paid",
+        StudentId = "",
+        StudentName = "",
+        GradeLevel = "",
+        TotalFee = 0,
+        AmountPaid = 0,
+        Balance = 0,
+        PaymentStatus = "",
         NewPaymentAmount = 0,
         PaymentMethod = "Cash"
     };
@@ -116,10 +117,7 @@
     private List<ExpenseRecord> ExpenseRecords = new();
 
     // Records Data
-    private List<PaymentRecord> PaymentRecords = new()
-    {
-        new() { StudentId = "547635", Name = "Darrell Carol", Grade = "Grade 1", TotalFee = 11300, AmountPaid = 8300, Balance = 3000, PaymentStatus = "Partially Paid" }
-    };
+    private List<PaymentRecord> PaymentRecords = new();
 
     private void SetActiveTab(string tab)
     {
@@ -194,6 +192,17 @@
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load expenses: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
+        }
+
+        // Load payment records
+        try
+        {
+            await LoadPaymentRecordsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
+            // Don't show error toast for payment records as it's not critical on initial load
         }
     }
 
@@ -457,30 +466,51 @@
         StateHasChanged();
     }
 
-    private void HandlePaymentProcessed(PaymentDataModel paymentData)
+    private async Task HandlePaymentProcessed(PaymentDataModel paymentData)
     {
-        // Update payment records
-        var record = PaymentRecords.FirstOrDefault(r => r.StudentId == paymentData.StudentId);
-        if (record != null)
+        try
         {
-            record.AmountPaid = paymentData.AmountPaid;
-            record.Balance = paymentData.Balance;
-            record.PaymentStatus = paymentData.PaymentStatus;
+            // Reload payment records to get updated data
+            await LoadPaymentRecordsAsync();
+            
+            // Show success toast
+            toastMessage = $"Payment of Php {paymentData.NewPaymentAmount:N2} processed successfully for {paymentData.StudentName}";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
         }
-        else
+        catch (Exception ex)
         {
-            PaymentRecords.Add(new PaymentRecord
+            Logger?.LogError(ex, "Error handling payment processed: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating payment records: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadPaymentRecordsAsync()
+    {
+        try
+        {
+            var studentsWithPayments = await PaymentService.GetAllStudentsWithPaymentStatusAsync();
+            
+            PaymentRecords = studentsWithPayments.Select(s => new PaymentRecord
             {
-                StudentId = paymentData.StudentId,
-                Name = paymentData.StudentName,
-                Grade = paymentData.GradeLevel,
-                TotalFee = paymentData.TotalFee,
-                AmountPaid = paymentData.AmountPaid,
-                Balance = paymentData.Balance,
-                PaymentStatus = paymentData.PaymentStatus
-            });
+                StudentId = s.StudentId,
+                Name = s.StudentName,
+                Grade = s.GradeLevel,
+                TotalFee = s.TotalFee,
+                AmountPaid = s.AmountPaid,
+                Balance = s.Balance,
+                PaymentStatus = s.PaymentStatus
+            }).ToList();
         }
-        StateHasChanged();
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
+            PaymentRecords = new List<PaymentRecord>();
+        }
     }
 
     private async Task HandleExpenseSaved(ExpenseFormModel expenseForm)

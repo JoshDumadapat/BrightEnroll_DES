@@ -651,25 +651,53 @@
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                     Application Status <span class="text-red-500">*</span>
                                 </label>
-                                <select @bind="Model.Status" 
-                                        @bind:after="HandleStatusChange"
-                                        class="@GetStatusSelectClass()">
-                    @if (IsForEnrollmentContext)
-                    {
-                        <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
-                        <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
-                        <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
-                        <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
-                    }
-                    else
-                    {
-                        <option value="Pending" style="background-color: #fef3c7; color: #92400e;">Pending</option>
-                        <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
-                        <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
-                        <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
-                    }
-                                </select>
+                                @* Partially Paid and Fully Paid are automated by payment system - display only, not selectable *@
+                                @if (IsForEnrollmentContext && (Model.Status == "Partially Paid" || Model.Status == "Fully Paid"))
+                                {
+                                    <div class="flex items-center gap-2">
+                                        <input type="text" 
+                                               value="@Model.Status (Auto)" 
+                                               disabled
+                                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium focus:outline-none sm:px-4 sm:py-2.5 sm:text-base @(Model.Status == "Partially Paid" ? "text-orange-600" : "text-green-600")" 
+                                               style="@(Model.Status == "Partially Paid" ? "background-color: #fed7aa; color: #9a3412;" : "background-color: #dcfce7; color: #166534;")" />
+                                        <span class="text-xs text-gray-500">(Auto)</span>
+                                    </div>
+                                    <p class="mt-1 text-xs text-gray-500">This status is automatically set by the payment system and cannot be changed manually.</p>
+                                }
+                                else
+                                {
+                                    <select @bind="Model.Status" 
+                                            @bind:after="HandleStatusChange"
+                                            class="@GetStatusSelectClass()">
+                        @if (IsForEnrollmentContext)
+                        {
+                            <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
+                            @if (Model.Status != "For Payment")
+                            {
+                                <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                            }
+                            <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                            <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                        }
+                        else
+                        {
+                            <option value="Pending" style="background-color: #fef3c7; color: #92400e;">Pending</option>
+                            <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
+                            <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                            <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                        }
+                                    </select>
+                                }
                                 
+                                <!-- Display error if trying to enroll without payment -->
+                                @if (ShowEnrollmentError && IsForEnrollmentContext)
+                                {
+                                    <div class="mt-2 rounded-lg border border-red-200 bg-red-50 p-3">
+                                        <p class="text-sm text-red-600">
+                                            <strong>Cannot enroll student:</strong> Student must have "Partially Paid" or "Fully Paid" status to be enrolled. Please process payment first.
+                                        </p>
+                                    </div>
+                                }
                                 
                                 <!-- Display reason if status is Reject or Withdraw and reason exists -->
                                 @if ((Model.Status == "Rejected by School" || Model.Status == "Application Withdrawn") && !string.IsNullOrWhiteSpace(Model.RejectionReason))
@@ -822,6 +850,7 @@
     private bool ShowRejectionModal { get; set; } = false;
     private string RejectionReason { get; set; } = string.Empty;
     private bool ShowRejectionError { get; set; } = false;
+    private bool ShowEnrollmentError { get; set; } = false;
     private string? PreviousStatus { get; set; }
 
     private List<string> AvailableSchoolYears { get; set; } = new();
@@ -939,6 +968,32 @@
             return;
         }
 
+        // Prevent changing from automated payment statuses (Partially Paid, Fully Paid)
+        // These can only be set by the payment system - they should not appear in dropdown
+        // This is a safety check in case status is somehow changed programmatically
+        if (IsForEnrollmentContext && 
+            (PreviousStatus == "Partially Paid" || PreviousStatus == "Fully Paid") &&
+            Model.Status != PreviousStatus &&
+            Model.Status != "Enrolled" &&
+            Model.Status != "Rejected by School" &&
+            Model.Status != "Application Withdrawn")
+        {
+            // Revert to previous status - payment statuses are automated
+            Model.Status = PreviousStatus;
+            StateHasChanged();
+            return;
+        }
+
+        // Prevent enrollment if status is "For Payment"
+        if (IsForEnrollmentContext && Model.Status == "Enrolled" && PreviousStatus == "For Payment")
+        {
+            // Revert to previous status and show error message
+            Model.Status = PreviousStatus ?? "For Payment";
+            ShowEnrollmentError = true;
+            StateHasChanged();
+            return;
+        }
+
         // If status changed to "Rejected by School" or "Application Withdrawn", show confirmation modal
         if ((Model.Status == "Rejected by School" || Model.Status == "Application Withdrawn") && 
             PreviousStatus != Model.Status)
@@ -953,6 +1008,12 @@
         {
             RejectionReason = string.Empty;
             Model.RejectionReason = null;
+        }
+
+        // Clear enrollment error if status is valid for enrollment
+        if (Model.Status == "Partially Paid" || Model.Status == "Fully Paid" || Model.Status == "Enrolled")
+        {
+            ShowEnrollmentError = false;
         }
 
         PreviousStatus = Model.Status;

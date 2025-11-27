@@ -156,6 +156,13 @@ public class Student
     [Column("archive_reason", TypeName = "text")]
     public string? ArchiveReason { get; set; }
 
+    [Column("amount_paid", TypeName = "decimal(18,2)")]
+    public decimal AmountPaid { get; set; } = 0;
+
+    [MaxLength(20)]
+    [Column("payment_status")]
+    public string? PaymentStatus { get; set; }
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 

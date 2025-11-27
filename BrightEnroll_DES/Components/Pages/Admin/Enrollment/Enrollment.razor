@@ -776,8 +776,13 @@
     {
         try
         {
-            // Get students with status: For Payment
-            var students = await EnrollmentStatusService.GetStudentsByStatusAsync("For Payment");
+            // Get students with status: For Payment, Partially Paid, or Fully Paid
+            // These are all students eligible for enrollment (payment status determines eligibility)
+            var students = await EnrollmentStatusService.GetStudentsByStatusesAsync(
+                "For Payment", 
+                "Partially Paid", 
+                "Fully Paid"
+            );
             
             ForEnrollmentStudents = students.Select(s => new ForEnrollment.ForEnrollmentStudent
             {
@@ -788,6 +793,7 @@
                 Type = s.StudentType,
                 GradeLevel = s.GradeLevel ?? "N/A",
                 Status = s.Status ?? "For Payment",
+                PaymentStatus = s.PaymentStatus ?? "Unpaid",
                 DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType)
             }).ToList();
         }
