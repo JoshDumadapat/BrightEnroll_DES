@@ -60,6 +60,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.UserId);
             entity.ToTable("tbl_Users");
+            entity.Property(e => e.UserId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.SystemId).IsUnique();
             entity.HasIndex(e => e.Email).IsUnique();
             entity.HasIndex(e => e.IsSynced);
@@ -90,6 +91,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.GuardianId);
             entity.ToTable("tbl_Guardians");
+            entity.Property(e => e.GuardianId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.IsSynced);
         });
 
@@ -97,6 +99,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.RequirementId);
             entity.ToTable("tbl_StudentRequirements");
+            entity.Property(e => e.RequirementId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
             entity.HasIndex(e => e.IsSynced);
@@ -110,25 +113,46 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.AddressId);
             entity.ToTable("tbl_employee_address");
+            entity.Property(e => e.AddressId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsSynced);
+
+            // Foreign key to UserEntity (no navigation property in model)
+            entity.HasOne<UserEntity>()
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EmployeeEmergencyContact>(entity =>
         {
             entity.HasKey(e => e.EmergencyId);
             entity.ToTable("tbl_employee_emergency_contact");
+            entity.Property(e => e.EmergencyId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsSynced);
+
+            // Foreign key to UserEntity (no navigation property in model)
+            entity.HasOne<UserEntity>()
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SalaryInfo>(entity =>
         {
             entity.HasKey(e => e.SalaryId);
             entity.ToTable("tbl_salary_info");
+            entity.Property(e => e.SalaryId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsSynced);
+
+            // Foreign key to UserEntity (no navigation property in model)
+            entity.HasOne<UserEntity>()
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // Configure view entities as keyless (read-only)
@@ -160,6 +184,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.GradeLevelId);
             entity.ToTable("tbl_GradeLevel");
+            entity.Property(e => e.GradeLevelId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.GradeLevelName).IsUnique();
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsSynced);
@@ -169,6 +194,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.FeeId);
             entity.ToTable("tbl_Fees");
+            entity.Property(e => e.FeeId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsSynced);
@@ -188,6 +214,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.BreakdownId);
             entity.ToTable("tbl_FeeBreakdown");
+            entity.Property(e => e.BreakdownId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
             entity.HasIndex(e => e.IsSynced);
@@ -197,6 +224,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.ExpenseId);
             entity.ToTable("tbl_Expenses");
+            entity.Property(e => e.ExpenseId).ValueGeneratedOnAdd();
 
             entity.HasIndex(e => e.ExpenseCode).IsUnique();
             entity.HasIndex(e => e.ExpenseDate);
@@ -211,6 +239,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.AttachmentId);
             entity.ToTable("tbl_ExpenseAttachments");
+            entity.Property(e => e.AttachmentId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.ExpenseId);
             entity.HasIndex(e => e.IsSynced);
 
@@ -225,6 +254,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.LogId);
             entity.ToTable("tbl_user_status_logs");
+            entity.Property(e => e.LogId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.UserId);
             entity.HasIndex(e => e.ChangedBy);
             entity.HasIndex(e => e.CreatedAt);
@@ -246,6 +276,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.RoomId);
             entity.ToTable("tbl_Classrooms");
+            entity.Property(e => e.RoomId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.RoomName);
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.IsSynced);
@@ -255,6 +286,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.SectionId);
             entity.ToTable("tbl_Sections");
+            entity.Property(e => e.SectionId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.SectionName);
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.ClassroomId);
@@ -275,6 +307,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.SubjectId);
             entity.ToTable("tbl_Subjects");
+            entity.Property(e => e.SubjectId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.SubjectName);
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.IsSynced);
@@ -289,6 +322,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.ToTable("tbl_SubjectSection");
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
             entity.HasIndex(e => e.IsSynced);
@@ -378,6 +412,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.AssignmentId);
             entity.ToTable("tbl_TeacherSectionAssignment");
+            entity.Property(e => e.AssignmentId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.TeacherId);
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
@@ -404,6 +439,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.ScheduleId);
             entity.ToTable("tbl_ClassSchedule");
+            entity.Property(e => e.ScheduleId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.AssignmentId);
             entity.HasIndex(e => e.RoomId);
             entity.HasIndex(e => e.DayOfWeek);
@@ -425,6 +461,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.BuildingId);
             entity.ToTable("tbl_Buildings");
+            entity.Property(e => e.BuildingId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.BuildingName);
             entity.HasIndex(e => e.IsSynced);
         });
@@ -434,6 +471,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.RoleId);
             entity.ToTable("tbl_roles");
+            entity.Property(e => e.RoleId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.RoleName).IsUnique();
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsSynced);
@@ -443,6 +481,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.DeductionId);
             entity.ToTable("tbl_deductions");
+            entity.Property(e => e.DeductionId).ValueGeneratedOnAdd();
             entity.HasIndex(e => e.DeductionType).IsUnique();
             entity.HasIndex(e => e.IsActive);
             entity.HasIndex(e => e.IsSynced);

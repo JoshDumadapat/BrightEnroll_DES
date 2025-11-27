@@ -30,6 +30,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
 
     private EditContext? editContext;
+    private ValidationMessageStore? validationMessageStore;
 
     private StudentRegistrationModel registrationModel = new();
     private bool isSubmitting = false;
@@ -68,6 +69,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     protected override async Task OnInitializedAsync()
     {
         editContext = new EditContext(registrationModel);
+        validationMessageStore = new ValidationMessageStore(editContext);
         LoadSchoolYears(); // This will also call LoadAvailableStartYears()
         await LoadGradeLevelsAsync(); // Load grade levels from database
         registrationModel.StudentType = ""; // Initialize to trigger requirements update
@@ -110,8 +112,19 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private Task HandleSubmitClick()
     {
         // Only trigger validation when submit button is clicked
-        if (editContext != null)
+        if (editContext != null && validationMessageStore != null)
         {
+            // Clear any previous custom validation errors
+            validationMessageStore.Clear();
+            
+            // Custom validation: Check if age is less than 4
+            if (registrationModel.Age.HasValue && registrationModel.Age.Value < 4)
+            {
+                var ageField = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age));
+                validationMessageStore.Add(ageField, "Age must be 4 or above.");
+                editContext.NotifyValidationStateChanged();
+            }
+            
             // Validate the form - this will show validation errors
             var isValid = editContext.Validate();
             
@@ -136,6 +149,9 @@ public partial class StudentRegistration : ComponentBase, IDisposable
                     editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentCountry)));
                     editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.PermanentZipCode)));
                 }
+                
+                // Notify Age field to ensure custom validation error is displayed
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age)));
             }
             
             if (isValid)
@@ -541,6 +557,9 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             if (registrationModel.BirthDate.Value.Date > today.AddYears(-age)) age--;
             registrationModel.Age = age;
             
+            // Validate age after calculation
+            ValidateAge();
+            
             // Notify EditContext that Age field has changed so validation errors are cleared
             if (editContext != null)
             {
@@ -551,12 +570,33 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         {
             // Clear age if birth date is cleared
             registrationModel.Age = null;
-            if (editContext != null)
+            if (editContext != null && validationMessageStore != null)
             {
-                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age)));
+                // Clear any age validation errors when age is cleared
+                var ageField = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age));
+                validationMessageStore.Clear(ageField);
+                editContext.NotifyFieldChanged(ageField);
             }
         }
         StateHasChanged();
+    }
+
+    private void ValidateAge()
+    {
+        if (editContext != null && validationMessageStore != null)
+        {
+            var ageField = new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age));
+            
+            // Clear previous custom validation error
+            validationMessageStore.Clear(ageField);
+            
+            // Check if age is less than 4
+            if (registrationModel.Age.HasValue && registrationModel.Age.Value < 4)
+            {
+                validationMessageStore.Add(ageField, "Age must be 4 or above.");
+                editContext.NotifyValidationStateChanged();
+            }
+        }
     }
 
     private void HandleLRNChange()

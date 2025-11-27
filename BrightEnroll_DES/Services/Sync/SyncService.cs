@@ -225,7 +225,7 @@ public class SyncService : ISyncService
 
                 if (existingUser == null)
                 {
-                    // Create new user without setting UserId - let SQL Server auto-generate it
+                    // INSERT: Create new user without setting UserId - let SQL Server auto-generate it
                     var cloudUser = new UserEntity
                     {
                         SystemId = user.SystemId,
@@ -245,6 +245,26 @@ public class SyncService : ISyncService
                     };
 
                     await cloudContext.Users.AddAsync(cloudUser);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing user with local values (handles edits and soft deletes via Status)
+                    existingUser.FirstName = user.FirstName;
+                    existingUser.MidName = user.MidName;
+                    existingUser.LastName = user.LastName;
+                    existingUser.Suffix = user.Suffix;
+                    existingUser.Birthdate = user.Birthdate;
+                    existingUser.Age = user.Age;
+                    existingUser.Gender = user.Gender;
+                    existingUser.ContactNum = user.ContactNum;
+                    existingUser.UserRole = user.UserRole;
+                    existingUser.Email = user.Email;
+                    // Don't update password unless it changed (password updates should be explicit)
+                    // existingUser.Password = user.Password;
+                    existingUser.DateHired = user.DateHired;
+                    existingUser.Status = user.Status; // Handles soft delete/archiving
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
@@ -282,11 +302,12 @@ public class SyncService : ISyncService
         {
             try
             {
-                var exists = await cloudContext.Students
-                    .AnyAsync(s => s.StudentId == student.StudentId);
+                var existingStudent = await cloudContext.Students
+                    .FirstOrDefaultAsync(s => s.StudentId == student.StudentId);
 
-                if (!exists)
+                if (existingStudent == null)
                 {
+                    // INSERT: Create new student
                     var cloudStudent = new Student
                     {
                         StudentId = student.StudentId,
@@ -327,6 +348,47 @@ public class SyncService : ISyncService
                     };
 
                     cloudContext.Students.Add(cloudStudent);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing student with local values (handles edits and soft deletes via Status)
+                    existingStudent.FirstName = student.FirstName;
+                    existingStudent.MiddleName = student.MiddleName;
+                    existingStudent.LastName = student.LastName;
+                    existingStudent.Suffix = student.Suffix;
+                    existingStudent.Birthdate = student.Birthdate;
+                    existingStudent.Age = student.Age;
+                    existingStudent.PlaceOfBirth = student.PlaceOfBirth;
+                    existingStudent.Sex = student.Sex;
+                    existingStudent.MotherTongue = student.MotherTongue;
+                    existingStudent.IpComm = student.IpComm;
+                    existingStudent.IpSpecify = student.IpSpecify;
+                    existingStudent.FourPs = student.FourPs;
+                    existingStudent.FourPsHseId = student.FourPsHseId;
+                    existingStudent.HseNo = student.HseNo;
+                    existingStudent.Street = student.Street;
+                    existingStudent.Brngy = student.Brngy;
+                    existingStudent.Province = student.Province;
+                    existingStudent.City = student.City;
+                    existingStudent.Country = student.Country;
+                    existingStudent.ZipCode = student.ZipCode;
+                    existingStudent.PhseNo = student.PhseNo;
+                    existingStudent.Pstreet = student.Pstreet;
+                    existingStudent.Pbrngy = student.Pbrngy;
+                    existingStudent.Pprovince = student.Pprovince;
+                    existingStudent.Pcity = student.Pcity;
+                    existingStudent.Pcountry = student.Pcountry;
+                    existingStudent.PzipCode = student.PzipCode;
+                    existingStudent.StudentType = student.StudentType;
+                    existingStudent.Lrn = student.Lrn;
+                    existingStudent.SchoolYr = student.SchoolYr;
+                    existingStudent.GradeLevel = student.GradeLevel;
+                    existingStudent.GuardianId = student.GuardianId;
+                    existingStudent.DateRegistered = student.DateRegistered;
+                    existingStudent.Status = student.Status; // Handles soft delete/archiving (e.g., "Withdrawn", "Graduated")
+                    existingStudent.ArchiveReason = student.ArchiveReason; // Sync archive reason for soft deletes
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
@@ -594,7 +656,7 @@ public class SyncService : ISyncService
 
                 if (existingGradeLevel == null)
                 {
-                    // Create new grade level without setting GradeLevelId - let SQL Server auto-generate it
+                    // INSERT: Create new grade level without setting GradeLevelId - let SQL Server auto-generate it
                     var cloudGradeLevel = new GradeLevel
                     {
                         GradeLevelName = gradeLevel.GradeLevelName,
@@ -602,6 +664,13 @@ public class SyncService : ISyncService
                     };
 
                     await cloudContext.GradeLevels.AddAsync(cloudGradeLevel);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing grade level (handles soft delete via IsActive)
+                    existingGradeLevel.IsActive = gradeLevel.IsActive;
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
@@ -645,7 +714,7 @@ public class SyncService : ISyncService
 
                 if (existingFee == null)
                 {
-                    // Create new fee without setting FeeId - let SQL Server auto-generate it
+                    // INSERT: Create new fee without setting FeeId - let SQL Server auto-generate it
                     var cloudFee = new Fee
                     {
                         GradeLevelId = fee.GradeLevelId,
@@ -660,6 +729,18 @@ public class SyncService : ISyncService
                     };
 
                     await cloudContext.Fees.AddAsync(cloudFee);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing fee with local values (handles edits and soft deletes)
+                    existingFee.TuitionFee = fee.TuitionFee;
+                    existingFee.MiscFee = fee.MiscFee;
+                    existingFee.OtherFee = fee.OtherFee;
+                    existingFee.UpdatedDate = fee.UpdatedDate;
+                    existingFee.UpdatedBy = fee.UpdatedBy;
+                    existingFee.IsActive = fee.IsActive; // Handles soft delete
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
@@ -1378,7 +1459,7 @@ public class SyncService : ISyncService
 
                 if (existingRole == null)
                 {
-                    // Create new role without setting RoleId - let SQL Server auto-generate it
+                    // INSERT: Create new role without setting RoleId - let SQL Server auto-generate it
                     var cloudRole = new Role
                     {
                         RoleName = role.RoleName,
@@ -1390,6 +1471,16 @@ public class SyncService : ISyncService
                     };
 
                     await cloudContext.Roles.AddAsync(cloudRole);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing role with local values (handles edits and soft deletes)
+                    existingRole.BaseSalary = role.BaseSalary;
+                    existingRole.Allowance = role.Allowance;
+                    existingRole.IsActive = role.IsActive; // Handles soft delete (archiving)
+                    existingRole.UpdatedDate = role.UpdatedDate;
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
@@ -1433,7 +1524,7 @@ public class SyncService : ISyncService
 
                 if (existingDeduction == null)
                 {
-                    // Create new deduction without setting DeductionId - let SQL Server auto-generate it
+                    // INSERT: Create new deduction without setting DeductionId - let SQL Server auto-generate it
                     var cloudDeduction = new Deduction
                     {
                         DeductionType = deduction.DeductionType,
@@ -1449,6 +1540,20 @@ public class SyncService : ISyncService
                     };
 
                     await cloudContext.Deductions.AddAsync(cloudDeduction);
+                    await cloudContext.SaveChangesAsync();
+                }
+                else
+                {
+                    // UPDATE: Update existing deduction with local values (handles edits and soft deletes)
+                    existingDeduction.DeductionName = deduction.DeductionName;
+                    existingDeduction.RateOrValue = deduction.RateOrValue;
+                    existingDeduction.IsPercentage = deduction.IsPercentage;
+                    existingDeduction.MaxAmount = deduction.MaxAmount;
+                    existingDeduction.MinAmount = deduction.MinAmount;
+                    existingDeduction.Description = deduction.Description;
+                    existingDeduction.IsActive = deduction.IsActive; // Handles soft delete (archiving)
+                    existingDeduction.UpdatedDate = deduction.UpdatedDate;
+                    
                     await cloudContext.SaveChangesAsync();
                 }
 
