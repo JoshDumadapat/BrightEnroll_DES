@@ -78,6 +78,10 @@ public class AppDbContext : DbContext
                   .WithOne(r => r.Student)
                   .HasForeignKey(r => r.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
+            
+            // Temporarily ignore ArchiveReason property until database column is added
+            // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
+            entity.Ignore(e => e.ArchiveReason);
         });
 
         modelBuilder.Entity<Guardian>(entity =>

@@ -384,17 +384,17 @@
                     SchoolYear = student.SchoolYr ?? string.Empty,
                     GradeToEnroll = student.GradeLevel ?? string.Empty,
                     Status = student.Status ?? "Pending",
-                    // Map requirement checkboxes from boolean is_verified flag, with legacy fallback on Status text
-                    // Use exact requirement name matches to match UpdateStudentAsync logic
-                    HasPSABirthCert = student.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate" && IsRequirementVerified(r)) == true,
-                    HasBaptismalCert = student.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate" && IsRequirementVerified(r)) == true,
-                    HasReportCard = student.Requirements?.Any(r => r.RequirementName == "Report Card" && IsRequirementVerified(r)) == true,
-                    HasForm138 = student.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)" && IsRequirementVerified(r)) == true,
-                    HasForm137 = student.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)" && IsRequirementVerified(r)) == true,
-                    HasGoodMoralCert = student.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate" && IsRequirementVerified(r)) == true,
-                    HasTransferCert = student.Requirements?.Any(r => r.RequirementName == "Transfer Certificate" && IsRequirementVerified(r)) == true,
-                    HasUpdatedEnrollmentForm = student.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form" && IsRequirementVerified(r)) == true,
-                    HasClearance = student.Requirements?.Any(r => r.RequirementName == "Clearance" && IsRequirementVerified(r)) == true
+                    // Map requirement checkboxes from Status field (since IsVerified is ignored in AppDbContext)
+                    // Check Status field directly - "verified" means checked, anything else means unchecked
+                    HasPSABirthCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "PSA Birth Certificate")),
+                    HasBaptismalCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Baptismal Certificate")),
+                    HasReportCard = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Report Card")),
+                    HasForm138 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 138 (Report Card)")),
+                    HasForm137 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 137 (Permanent Record)")),
+                    HasGoodMoralCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Good Moral Certificate")),
+                    HasTransferCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Transfer Certificate")),
+                    HasUpdatedEnrollmentForm = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Updated Enrollment Form")),
+                    HasClearance = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Clearance"))
                 };
 
                 // Load reason from archive if student was previously archived
@@ -495,16 +495,17 @@
                     SchoolYear = student.SchoolYr ?? string.Empty,
                     GradeToEnroll = student.GradeLevel ?? string.Empty,
                     Status = student.Status ?? "For Payment",
-                    // Map requirement checkboxes from boolean is_verified flag, with legacy fallback on Status text
-                    HasPSABirthCert = student.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate" && IsRequirementVerified(r)) == true,
-                    HasBaptismalCert = student.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate" && IsRequirementVerified(r)) == true,
-                    HasReportCard = student.Requirements?.Any(r => r.RequirementName == "Report Card" && IsRequirementVerified(r)) == true,
-                    HasForm138 = student.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)" && IsRequirementVerified(r)) == true,
-                    HasForm137 = student.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)" && IsRequirementVerified(r)) == true,
-                    HasGoodMoralCert = student.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate" && IsRequirementVerified(r)) == true,
-                    HasTransferCert = student.Requirements?.Any(r => r.RequirementName == "Transfer Certificate" && IsRequirementVerified(r)) == true,
-                    HasUpdatedEnrollmentForm = student.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form" && IsRequirementVerified(r)) == true,
-                    HasClearance = student.Requirements?.Any(r => r.RequirementName == "Clearance" && IsRequirementVerified(r)) == true
+                    // Map requirement checkboxes from Status field (since IsVerified is ignored in AppDbContext)
+                    // Check Status field directly - "verified" means checked, anything else means unchecked
+                    HasPSABirthCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "PSA Birth Certificate")),
+                    HasBaptismalCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Baptismal Certificate")),
+                    HasReportCard = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Report Card")),
+                    HasForm138 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 138 (Report Card)")),
+                    HasForm137 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 137 (Permanent Record)")),
+                    HasGoodMoralCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Good Moral Certificate")),
+                    HasTransferCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Transfer Certificate")),
+                    HasUpdatedEnrollmentForm = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Updated Enrollment Form")),
+                    HasClearance = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Clearance"))
                 };
 
                 ShowEditModal = true;
@@ -537,6 +538,97 @@
 
         return !string.IsNullOrWhiteSpace(r.Status) &&
                r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+    }
+    
+    // Check if a requirement is checked based on Status field (since IsVerified is ignored in AppDbContext)
+    // Status "verified" means checked, anything else means unchecked
+    private static bool IsRequirementChecked(StudentRequirement? requirement)
+    {
+        if (requirement == null) return false;
+        
+        // Check Status field as primary source (since IsVerified is ignored in EF Core)
+        return !string.IsNullOrWhiteSpace(requirement.Status) &&
+               requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+    }
+    
+    // Helper method to calculate if all required documents for a student type are verified
+    private static bool CalculateDocumentsVerifiedForStudent(ICollection<StudentRequirement>? requirements, string? studentType)
+    {
+        if (requirements == null || !requirements.Any())
+        {
+            return false;
+        }
+        
+        // Get the list of required document names for this student type
+        var requiredNames = GetRequiredDocumentNamesForStudentType(studentType);
+        
+        if (!requiredNames.Any())
+        {
+            return false; // No requirements defined for this student type
+        }
+        
+        // Check if all required documents are verified
+        foreach (var requiredName in requiredNames)
+        {
+            var requirement = requirements.FirstOrDefault(r => r.RequirementName == requiredName);
+            if (requirement == null)
+            {
+                // Required document doesn't exist - not verified
+                return false;
+            }
+            
+            // Check if this requirement is verified (using Status field since IsVerified is ignored)
+            bool isVerified = !string.IsNullOrWhiteSpace(requirement.Status) && 
+                             requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+            
+            if (!isVerified)
+            {
+                // At least one required document is not verified
+                return false;
+            }
+        }
+        
+        // All required documents are verified
+        return true;
+    }
+    
+    // Helper method to get required document names for a student type
+    private static HashSet<string> GetRequiredDocumentNamesForStudentType(string? studentType)
+    {
+        var requiredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (string.IsNullOrWhiteSpace(studentType))
+        {
+            return requiredNames;
+        }
+        
+        var studentTypeLower = studentType.ToLower();
+        
+        switch (studentTypeLower)
+        {
+            case "new student":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Report Card");
+                break;
+                
+            case "transferee":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Form 137 (Permanent Record)");
+                requiredNames.Add("Good Moral Certificate");
+                requiredNames.Add("Transfer Certificate");
+                break;
+                
+            case "returnee":
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Updated Enrollment Form");
+                requiredNames.Add("Clearance");
+                break;
+        }
+        
+        return requiredNames;
     }
 
     private void CloseNewApplicantDetail()
@@ -696,11 +788,7 @@
                 Type = s.StudentType,
                 GradeLevel = s.GradeLevel ?? "N/A",
                 Status = s.Status ?? "For Payment",
-                DocumentsVerified = s.Requirements != null && 
-                                   s.Requirements.Any() && 
-                                   s.Requirements.All(r => r.IsVerified || 
-                                       (!string.IsNullOrWhiteSpace(r.Status) && 
-                                        r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)))
+                DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType)
             }).ToList();
         }
         catch (Exception ex)

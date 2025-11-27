@@ -153,6 +153,9 @@ public class Student
     [Column("status")]
     public string Status { get; set; } = "Pending";
 
+    [Column("archive_reason", TypeName = "text")]
+    public string? ArchiveReason { get; set; }
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 

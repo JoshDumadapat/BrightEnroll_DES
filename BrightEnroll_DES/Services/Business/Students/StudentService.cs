@@ -568,27 +568,30 @@ public class StudentService
             case "new student":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = "not submitted", IsVerified = studentData?.HasReportCard ?? false }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "new", Status = studentData?.HasPSABirthCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "new", Status = studentData?.HasBaptismalCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Report Card", RequirementType = "new", Status = studentData?.HasReportCard == true ? "verified" : "not submitted", IsVerified = studentData?.HasReportCard ?? false }
                 });
                 break;
 
             case "transferee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasForm138 ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasForm137 ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasGoodMoralCert ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = "not submitted", IsVerified = studentData?.HasTransferCert ?? false }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "PSA Birth Certificate", RequirementType = "transferee", Status = studentData?.HasPSABirthCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasPSABirthCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Baptismal Certificate", RequirementType = "transferee", Status = studentData?.HasBaptismalCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasBaptismalCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "transferee", Status = studentData?.HasForm138 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm138 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 137 (Permanent Record)", RequirementType = "transferee", Status = studentData?.HasForm137 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm137 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Good Moral Certificate", RequirementType = "transferee", Status = studentData?.HasGoodMoralCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasGoodMoralCert ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Transfer Certificate", RequirementType = "transferee", Status = studentData?.HasTransferCert == true ? "verified" : "not submitted", IsVerified = studentData?.HasTransferCert ?? false }
                 });
                 break;
 
             case "returnee":
                 requirements.AddRange(new[]
                 {
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = "not submitted", IsVerified = studentData?.HasUpdatedEnrollmentForm ?? false },
-                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = "not submitted", IsVerified = studentData?.HasClearance ?? false }
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Form 138 (Report Card)", RequirementType = "returnee", Status = studentData?.HasForm138 == true ? "verified" : "not submitted", IsVerified = studentData?.HasForm138 ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Updated Enrollment Form", RequirementType = "returnee", Status = studentData?.HasUpdatedEnrollmentForm == true ? "verified" : "not submitted", IsVerified = studentData?.HasUpdatedEnrollmentForm ?? false },
+                    new StudentRequirement { StudentId = studentId, RequirementName = "Clearance", RequirementType = "returnee", Status = studentData?.HasClearance == true ? "verified" : "not submitted", IsVerified = studentData?.HasClearance ?? false }
                 });
                 break;
 
@@ -699,11 +702,7 @@ public class StudentService
                 Type = s.StudentType,
                 GradeLevel = s.GradeLevel ?? "N/A",
                 Status = s.Status,
-                DocumentsVerified = s.Requirements != null && 
-                                   s.Requirements.Any() && 
-                                   s.Requirements.All(r => r.IsVerified || 
-                                       (!string.IsNullOrWhiteSpace(r.Status) && 
-                                        r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)))
+                DocumentsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(s.Requirements, s.StudentType)
             }).ToList();
 
             return newApplicants;
@@ -794,18 +793,24 @@ public class StudentService
                 student.Guardian.Relationship = string.IsNullOrWhiteSpace(model.GuardianRelationship) ? null : model.GuardianRelationship;
             }
 
-            if (student.Requirements != null && student.Requirements.Any())
+            // Ensure Requirements collection is initialized
+            if (student.Requirements == null)
             {
-                UpdateRequirement(student.Requirements, "PSA Birth Certificate", model.HasPSABirthCert);
-                UpdateRequirement(student.Requirements, "Baptismal Certificate", model.HasBaptismalCert);
-                UpdateRequirement(student.Requirements, "Report Card", model.HasReportCard);
-                UpdateRequirement(student.Requirements, "Form 138 (Report Card)", model.HasForm138);
-                UpdateRequirement(student.Requirements, "Form 137 (Permanent Record)", model.HasForm137);
-                UpdateRequirement(student.Requirements, "Good Moral Certificate", model.HasGoodMoralCert);
-                UpdateRequirement(student.Requirements, "Transfer Certificate", model.HasTransferCert);
-                UpdateRequirement(student.Requirements, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm);
-                UpdateRequirement(student.Requirements, "Clearance", model.HasClearance);
+                student.Requirements = new List<StudentRequirement>();
             }
+            
+            // Update or create ALL requirements - this ensures all requirements exist for proper mapping
+            // UpdateRequirement will create missing requirements if they don't exist
+            // Pass student ID and type to help create new requirements
+            UpdateRequirement(student.Requirements, student.StudentId, "PSA Birth Certificate", model.HasPSABirthCert, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Baptismal Certificate", model.HasBaptismalCert, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Report Card", model.HasReportCard, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Form 138 (Report Card)", model.HasForm138, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Form 137 (Permanent Record)", model.HasForm137, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Good Moral Certificate", model.HasGoodMoralCert, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Transfer Certificate", model.HasTransferCert, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Updated Enrollment Form", model.HasUpdatedEnrollmentForm, student.StudentType);
+            UpdateRequirement(student.Requirements, student.StudentId, "Clearance", model.HasClearance, student.StudentType);
 
             try
             {
@@ -890,13 +895,78 @@ public class StudentService
         }
     }
 
-    private void UpdateRequirement(ICollection<StudentRequirement> requirements, string requirementName, bool isVerified)
+    private void UpdateRequirement(ICollection<StudentRequirement> requirements, string studentId, string requirementName, bool isVerified, string? studentType = null)
     {
         var requirement = requirements.FirstOrDefault(r => r.RequirementName == requirementName);
         if (requirement != null)
         {
+            // Since IsVerified is ignored in AppDbContext, only Status field is saved to database
+            // Set IsVerified for code logic, but Status is what persists
             requirement.IsVerified = isVerified;
             requirement.Status = isVerified ? "verified" : "not verified";
+            
+            _logger?.LogDebug("Updated requirement {RequirementName}: IsVerified={IsVerified}, Status={Status}", 
+                requirementName, isVerified, requirement.Status);
+        }
+        else
+        {
+            // Requirement doesn't exist - create it
+            // Determine requirement type based on student type first, then fallback to requirement name
+            string requirementType = "new"; // default
+            
+            if (!string.IsNullOrWhiteSpace(studentType))
+            {
+                // Use student type to determine requirement type
+                var studentTypeLower = studentType.ToLower();
+                if (studentTypeLower == "transferee")
+                {
+                    requirementType = "transferee";
+                }
+                else if (studentTypeLower == "returnee")
+                {
+                    requirementType = "returnee";
+                }
+                else if (studentTypeLower == "new student")
+                {
+                    requirementType = "new";
+                }
+            }
+            
+            // Fallback: Determine requirement type based on requirement name if student type not available
+            if (requirementType == "new" && !string.IsNullOrWhiteSpace(requirementName))
+            {
+                if (requirementName.Contains("Form 138") || requirementName.Contains("Form 137") || 
+                    requirementName.Contains("Good Moral") || requirementName.Contains("Transfer Certificate"))
+                {
+                    requirementType = "transferee";
+                }
+                else if (requirementName.Contains("Updated Enrollment") || requirementName.Contains("Clearance"))
+                {
+                    requirementType = "returnee";
+                }
+            }
+            
+            if (!string.IsNullOrEmpty(studentId))
+            {
+                var newRequirement = new StudentRequirement
+                {
+                    StudentId = studentId,
+                    RequirementName = requirementName,
+                    RequirementType = requirementType,
+                    Status = isVerified ? "verified" : "not verified",
+                    IsVerified = isVerified
+                };
+                
+                requirements.Add(newRequirement);
+                _context.StudentRequirements.Add(newRequirement);
+                
+                _logger?.LogInformation("Created new requirement {RequirementName} for student {StudentId} (type: {RequirementType}): IsVerified={IsVerified}, Status={Status}", 
+                    requirementName, studentId, requirementType, isVerified, newRequirement.Status);
+            }
+            else
+            {
+                _logger?.LogWarning("Cannot create requirement {RequirementName} - student ID not provided", requirementName);
+            }
         }
     }
 
@@ -932,6 +1002,90 @@ public class NewApplicantDto
     public string GradeLevel { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public bool DocumentsVerified { get; set; } = false;
+}
+
+// Helper methods for calculating documents verified status
+public static class DocumentsVerifiedHelper
+{
+    // Helper method to calculate if all required documents for a student type are verified
+    public static bool CalculateDocumentsVerified(ICollection<StudentRequirement>? requirements, string? studentType)
+    {
+        if (requirements == null || !requirements.Any())
+        {
+            return false;
+        }
+        
+        // Get the list of required document names for this student type
+        var requiredNames = GetRequiredDocumentNamesForStudentType(studentType);
+        
+        if (!requiredNames.Any())
+        {
+            return false; // No requirements defined for this student type
+        }
+        
+        // Check if all required documents are verified
+        foreach (var requiredName in requiredNames)
+        {
+            var requirement = requirements.FirstOrDefault(r => r.RequirementName == requiredName);
+            if (requirement == null)
+            {
+                // Required document doesn't exist - not verified
+                return false;
+            }
+            
+            // Check if this requirement is verified (using Status field since IsVerified is ignored)
+            bool isVerified = !string.IsNullOrWhiteSpace(requirement.Status) && 
+                             requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+            
+            if (!isVerified)
+            {
+                // At least one required document is not verified
+                return false;
+            }
+        }
+        
+        // All required documents are verified
+        return true;
+    }
+    
+    // Helper method to get required document names for a student type
+    private static HashSet<string> GetRequiredDocumentNamesForStudentType(string? studentType)
+    {
+        var requiredNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (string.IsNullOrWhiteSpace(studentType))
+        {
+            return requiredNames;
+        }
+        
+        var studentTypeLower = studentType.ToLower();
+        
+        switch (studentTypeLower)
+        {
+            case "new student":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Report Card");
+                break;
+                
+            case "transferee":
+                requiredNames.Add("PSA Birth Certificate");
+                requiredNames.Add("Baptismal Certificate");
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Form 137 (Permanent Record)");
+                requiredNames.Add("Good Moral Certificate");
+                requiredNames.Add("Transfer Certificate");
+                break;
+                
+            case "returnee":
+                requiredNames.Add("Form 138 (Report Card)");
+                requiredNames.Add("Updated Enrollment Form");
+                requiredNames.Add("Clearance");
+                break;
+        }
+        
+        return requiredNames;
+    }
 }
 
 public class StudentRegistrationData

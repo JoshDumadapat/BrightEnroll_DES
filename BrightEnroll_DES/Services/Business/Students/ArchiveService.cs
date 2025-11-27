@@ -37,7 +37,7 @@ public class ArchiveService
                     LRN = s.Lrn ?? "N/A",
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
                     Status = s.Status ?? "N/A",
-                    Reason = "", // Will be populated from archive table if exists
+                    Reason = s.ArchiveReason ?? "", // Get archive reason from database
                     ArchivedDate = s.DateRegistered.ToString("dd MMM yyyy")
                 })
                 .ToListAsync();
@@ -69,7 +69,7 @@ public class ArchiveService
                 LRN = student.Lrn ?? "N/A",
                 Date = student.DateRegistered.ToString("dd MMM yyyy"),
                 Status = student.Status ?? "N/A",
-                Reason = "",
+                Reason = student.ArchiveReason ?? "", // Get archive reason from database
                 ArchivedDate = student.DateRegistered.ToString("dd MMM yyyy")
             };
         }
@@ -164,16 +164,34 @@ public class ArchiveService
             });
             
             // If status already matches (normalized), we're done
+            // But still save the reason if provided
             if (currentStatusNormalized.Equals(statusToSet, StringComparison.OrdinalIgnoreCase) || currentMatchesArchived)
             {
-                _logger?.LogInformation("Student {StudentId} already has archived status '{Status}' - archiving confirmed (no update needed)", 
-                    studentId, currentStatus);
+                // Save the archive reason if provided, even if status doesn't need updating
+                if (!string.IsNullOrWhiteSpace(reason))
+                {
+                    student.ArchiveReason = reason;
+                    await _context.SaveChangesAsync();
+                    _logger?.LogInformation("Archive reason saved for student {StudentId} (status already archived)", studentId);
+                }
+                else
+                {
+                    _logger?.LogInformation("Student {StudentId} already has archived status '{Status}' - archiving confirmed (no update needed)", 
+                        studentId, currentStatus);
+                }
                 return; // Success - status already correct, no need to update
             }
 
             // Status doesn't match - update it (shouldn't normally happen, but handle it)
             // Update status to archived status (normalized and guaranteed to fit)
             student.Status = statusToSet;
+            
+            // Save the archive reason if provided
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                student.ArchiveReason = reason;
+                _logger?.LogInformation("Archive reason saved for student {StudentId}", studentId);
+            }
             
             try
             {
@@ -251,6 +269,14 @@ public class ArchiveService
             }
 
             student.Status = statusToSet;
+            
+            // Update archive reason if provided
+            if (!string.IsNullOrWhiteSpace(reason))
+            {
+                student.ArchiveReason = reason;
+                _logger?.LogInformation("Archive reason updated for student {StudentId}", studentId);
+            }
+            
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Archive updated for student {StudentId} with reason: {Reason}", studentId, statusToSet);
