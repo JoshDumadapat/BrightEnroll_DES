@@ -389,9 +389,8 @@
             AvailableSections = allSections.OrderBy(s => s.GradeLevelId).ThenBy(s => s.SectionName).ToList();
             FilteredSections = new List<DataModels.Section>();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading data: {ex.Message}");
         }
     }
 
@@ -426,7 +425,7 @@
             if (dbAssignment.Section != null)
             {
                 SelectedGradeLevel = dbAssignment.Section.GradeLevel?.GradeLevelName ?? "";
-                SelectedSection = dbAssignment.Section.SectionName;
+                SelectedSection = dbAssignment.Section.SectionName ?? "";
                 SelectedSectionId = dbAssignment.SectionId;
                 SelectedClassroom = dbAssignment.Section.Classroom?.RoomName ?? "";
                 SelectedClassroomId = dbAssignment.Section.ClassroomId;
@@ -458,9 +457,8 @@
 
             StateHasChanged();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading existing assignment data: {ex.Message}");
         }
     }
 
@@ -489,9 +487,8 @@
 
             StateHasChanged();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading existing subject teachers: {ex.Message}");
         }
     }
 
@@ -614,9 +611,8 @@
                 });
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading subjects with schedules: {ex.Message}");
             AvailableSubjectsWithSchedules.Clear();
         }
     }
@@ -862,9 +858,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "edit-assignment-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -875,14 +870,12 @@
         {
             if (!AssignmentId.HasValue || !SelectedSectionId.HasValue)
             {
-                System.Diagnostics.Debug.WriteLine("Assignment ID or Section ID is required");
                 return;
             }
 
             var section = AvailableSections.FirstOrDefault(s => s.SectionId == SelectedSectionId.Value);
             if (section == null)
             {
-                System.Diagnostics.Debug.WriteLine("Section not found");
                 return;
             }
 
@@ -893,7 +886,6 @@
                 
                 if (adviserTeacher == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Adviser teacher not found");
                     return;
                 }
 
@@ -916,10 +908,8 @@
                     await CurriculumService.DeleteTeacherAssignmentAsync(existingAssignment.AssignmentId);
                 }
 
-                // Create new subject teacher assignments
                 if (!SelectedClassroomId.HasValue)
                 {
-                    System.Diagnostics.Debug.WriteLine("Classroom ID is required");
                     return;
                 }
 
@@ -952,7 +942,6 @@
             {
                 if (string.IsNullOrWhiteSpace(AdviserTeacherName))
                 {
-                    System.Diagnostics.Debug.WriteLine("Teacher is required");
                     return;
                 }
 
@@ -961,13 +950,11 @@
                 
                 if (teacher == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("Teacher not found");
                     return;
                 }
 
                 if (!SelectedClassroomId.HasValue)
                 {
-                    System.Diagnostics.Debug.WriteLine("Classroom ID is required");
                     return;
                 }
 
@@ -1008,9 +995,8 @@
             await OnSubmit.InvokeAsync();
             await OnClose.InvokeAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error updating assignments: {ex.Message}");
         }
     }
 }

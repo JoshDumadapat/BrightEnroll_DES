@@ -371,19 +371,14 @@
         try
         {
             GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
-            if (GradeLevels == null || !GradeLevels.Any())
-            {
-                System.Diagnostics.Debug.WriteLine("Warning: No grade levels found in database");
-            }
             
             if (!string.IsNullOrEmpty(SelectedGradeLevel))
             {
                 await LoadExistingSubjectsAndSchedules();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading grade levels: {ex.Message}");
             GradeLevels = new List<DataModels.GradeLevel>();
         }
     }
@@ -414,9 +409,8 @@
 
             ExistingSchedules = await CurriculumService.GetSubjectSchedulesByGradeLevelAsync(gradeLevel.GradeLevelId);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading existing subjects and schedules: {ex.Message}");
             ExistingSubjects = new List<DataModels.Subject>();
             ExistingSchedules = new List<DataModels.SubjectSchedule>();
         }
@@ -793,9 +787,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "add-subject-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -882,7 +875,6 @@
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error in HandleSubmit: {ex.Message}");
             databaseErrorMessage = $"An error occurred while submitting subjects to the database:\n\n{ex.Message}\n\nPlease check the console for more details.";
             showDatabaseErrorModal = true;
             isSubmitting = false;

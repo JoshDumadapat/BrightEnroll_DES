@@ -7,7 +7,6 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.HR;
 
-// Handles employee registration - creates user account and related employee records
 public class EmployeeService
 {
     private readonly AppDbContext _context;
@@ -21,7 +20,6 @@ public class EmployeeService
         _logger = logger;
     }
 
-    // Registers a new employee - creates user account and employee-related records
     public async Task<int> RegisterEmployeeAsync(EmployeeRegistrationData employeeData)
     {
         try
@@ -30,7 +28,6 @@ public class EmployeeService
             _logger?.LogInformation("Employee Data: FirstName={FirstName}, LastName={LastName}, Email={Email}, SystemId={SystemId}", 
                 employeeData.FirstName, employeeData.LastName, employeeData.Email, employeeData.SystemId);
             
-            // Step 1: Create User account (via UserRepository)
             string hashedPassword = BCrypt.Net.BCrypt.HashPassword(employeeData.DefaultPassword);
             
             var user = new User
@@ -67,7 +64,6 @@ public class EmployeeService
                 throw new Exception($"Failed to create user account: {ex.Message}", ex);
             }
 
-            // Step 2: Get user_ID
             _logger?.LogInformation("Retrieving created user with SystemId={SystemId}", user.system_ID);
             var insertedUser = await _userRepository.GetBySystemIdAsync(user.system_ID);
             if (insertedUser == null)
@@ -78,12 +74,10 @@ public class EmployeeService
             int userId = insertedUser.user_ID;
             _logger?.LogInformation("User retrieved successfully. UserId={UserId}", userId);
 
-            // Step 3: Create employee-related records (EF Core transaction)
             _logger?.LogInformation("Starting EF Core transaction for employee records (UserId={UserId})", userId);
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Create address
                 _logger?.LogInformation("Creating employee address record");
                 var address = new EmployeeAddress
                 {
@@ -101,7 +95,6 @@ public class EmployeeService
 
                 _context.EmployeeAddresses.Add(address);
 
-                // Create emergency contact
                 _logger?.LogInformation("Creating emergency contact record");
                 var emergencyContact = new EmployeeEmergencyContact
                 {
@@ -119,7 +112,6 @@ public class EmployeeService
 
                 _context.EmployeeEmergencyContacts.Add(emergencyContact);
 
-                // Create salary info
                 _logger?.LogInformation("Creating salary info record");
                 var salaryInfo = new SalaryInfo
                 {
@@ -134,13 +126,11 @@ public class EmployeeService
 
                 _context.SalaryInfos.Add(salaryInfo);
 
-                // Log all entities being tracked
                 _logger?.LogInformation("Entities to be saved: Address={AddressState}, EmergencyContact={EmergencyContactState}, SalaryInfo={SalaryInfoState}", 
                     _context.Entry(address).State,
                     _context.Entry(emergencyContact).State,
                     _context.Entry(salaryInfo).State);
 
-                // Save all changes
                 _logger?.LogInformation("Calling SaveChangesAsync()...");
                 try
                 {
@@ -172,7 +162,6 @@ public class EmployeeService
                     throw;
                 }
 
-                // Commit transaction
                 _logger?.LogInformation("Committing transaction...");
                 await transaction.CommitAsync();
                 _logger?.LogInformation("Transaction committed successfully");
@@ -199,7 +188,6 @@ public class EmployeeService
         }
     }
 
-    // Helper method to log detailed exception information including SQL errors
     private void LogDetailedException(Exception ex, string context)
     {
         _logger?.LogError("=== DETAILED EXCEPTION LOG - {Context} ===", context);
@@ -207,7 +195,6 @@ public class EmployeeService
         _logger?.LogError("Exception Message: {Message}", ex.Message);
         _logger?.LogError("Stack Trace: {StackTrace}", ex.StackTrace);
         
-        // Check for SQL Exception
         var sqlEx = ex as Microsoft.Data.SqlClient.SqlException;
         if (sqlEx == null && ex.InnerException is Microsoft.Data.SqlClient.SqlException innerSqlEx)
         {
@@ -225,7 +212,6 @@ public class EmployeeService
             _logger?.LogError("SQL Line Number: {LineNumber}", sqlEx.LineNumber);
             _logger?.LogError("SQL Error Message: {Message}", sqlEx.Message);
             
-            // Log all SQL errors if multiple
             if (sqlEx.Errors != null && sqlEx.Errors.Count > 0)
             {
                 _logger?.LogError("SQL Errors Count: {Count}", sqlEx.Errors.Count);
@@ -238,7 +224,6 @@ public class EmployeeService
             }
         }
         
-        // Check for DbUpdateException
         var dbUpdateEx = ex as Microsoft.EntityFrameworkCore.DbUpdateException;
         if (dbUpdateEx == null && ex.InnerException is Microsoft.EntityFrameworkCore.DbUpdateException innerDbUpdateEx)
         {
@@ -281,7 +266,6 @@ public class EmployeeService
             }
         }
         
-        // Recursively log inner exceptions
         Exception? innerEx = ex.InnerException;
         int depth = 1;
         while (innerEx != null && depth <= 5) // Limit depth to prevent infinite loops
@@ -296,7 +280,6 @@ public class EmployeeService
         _logger?.LogError("=== END DETAILED EXCEPTION LOG ===");
     }
 
-    // Checks for duplicate employees based on name matching
     public async Task<EmployeeDuplicateCheckResult?> CheckForDuplicateEmployeeAsync(EmployeeRegistrationData employeeData)
     {
         try
@@ -306,7 +289,6 @@ public class EmployeeService
                 return null;
             }
 
-            // Get employee data view with matching first and last name (case-insensitive)
             var matchingEmployees = await _context.EmployeeDataViews
                 .Where(e => e.FirstName != null && e.LastName != null &&
                            e.FirstName.ToLower() == employeeData.FirstName.ToLower() &&
@@ -321,10 +303,7 @@ public class EmployeeService
                 };
             }
 
-            // Return first match as potential duplicate
             var duplicateEmployee = matchingEmployees.First();
-            
-            // Build full name with suffix if available
             var fullName = duplicateEmployee.FullName ?? 
                 $"{duplicateEmployee.FirstName} {duplicateEmployee.MiddleName ?? ""} {duplicateEmployee.LastName}".Trim();
             if (!string.IsNullOrWhiteSpace(duplicateEmployee.Suffix))
@@ -355,7 +334,6 @@ public class EmployeeService
         }
     }
 
-    // Helper method to build address string
     private string BuildAddressString(string? houseNo, string? streetName, string? barangay, 
         string? city, string? province, string? country, string? zipCode)
     {
@@ -371,7 +349,6 @@ public class EmployeeService
         return string.Join(", ", addressParts);
     }
 
-    // Gets all employees as display DTOs
     public async Task<List<EmployeeDisplayDto>> GetAllEmployeesAsync()
     {
         try
@@ -400,7 +377,6 @@ public class EmployeeService
         }
     }
 
-    // Gets employee by ID
     public async Task<EmployeeDataView?> GetEmployeeByIdAsync(int userId)
     {
         try
@@ -415,13 +391,6 @@ public class EmployeeService
         }
     }
 
-    // Gets employee data view by ID (alias for GetEmployeeByIdAsync for consistency)
-    public async Task<EmployeeDataView?> GetEmployeeDataViewByIdAsync(int userId)
-    {
-        return await GetEmployeeByIdAsync(userId);
-    }
-
-    // Gets employee by system ID
     public async Task<EmployeeDataView?> GetEmployeeBySystemIdAsync(string systemId)
     {
         try
@@ -436,7 +405,6 @@ public class EmployeeService
         }
     }
 
-    // Updates user status and logs the change
     public async Task<bool> UpdateUserStatusAsync(int userId, string newStatus, int changedByUserId, string? reason)
     {
         try
@@ -451,11 +419,9 @@ public class EmployeeService
             var oldStatus = user.status ?? "active";
             var normalizedNewStatus = newStatus.Trim();
 
-            // Update user status
             user.status = normalizedNewStatus;
             await _userRepository.UpdateAsync(user);
 
-            // Log the status change
             var statusLog = new UserStatusLog
             {
                 UserId = userId,
@@ -480,7 +446,6 @@ public class EmployeeService
         }
     }
 
-    // Gets the inactive reason for an employee
     public async Task<string?> GetInactiveReasonAsync(int userId)
     {
         try
@@ -500,7 +465,6 @@ public class EmployeeService
         }
     }
 
-    // Updates employee contact information (email and contact number only)
     public async Task<bool> UpdateEmployeeContactInfoAsync(int userId, string contactNumber, string email)
     {
         try
@@ -512,7 +476,6 @@ public class EmployeeService
                 return false;
             }
 
-            // Update contact information
             user.contact_num = contactNumber;
             user.email = email;
 
@@ -528,7 +491,6 @@ public class EmployeeService
         }
     }
 
-    // Updates employee information
     public async Task<bool> UpdateEmployeeInfoAsync(int userId, EmployeeUpdateData updateData)
     {
         try
@@ -543,7 +505,6 @@ public class EmployeeService
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Update user entity
                 user.first_name = updateData.FirstName;
                 user.mid_name = string.IsNullOrWhiteSpace(updateData.MiddleName) ? null : updateData.MiddleName;
                 user.last_name = updateData.LastName;
@@ -557,7 +518,6 @@ public class EmployeeService
 
                 await _userRepository.UpdateAsync(user);
 
-                // Update address
                 var address = await _context.EmployeeAddresses
                     .FirstOrDefaultAsync(a => a.UserId == userId);
 
@@ -587,7 +547,6 @@ public class EmployeeService
                     _context.EmployeeAddresses.Add(address);
                 }
 
-                // Update emergency contact
                 var emergencyContact = await _context.EmployeeEmergencyContacts
                     .FirstOrDefaultAsync(ec => ec.UserId == userId);
 
@@ -638,10 +597,8 @@ public class EmployeeService
     }
 }
 
-// DTO for employee registration
 public class EmployeeRegistrationData
 {
-    // Personal Information
     public string FirstName { get; set; } = string.Empty;
     public string MiddleName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
@@ -664,7 +621,6 @@ public class EmployeeRegistrationData
     public string Country { get; set; } = string.Empty;
     public string ZipCode { get; set; } = string.Empty;
 
-    // Emergency Contact Information
     public string EmergencyContactFirstName { get; set; } = string.Empty;
     public string EmergencyContactMiddleName { get; set; } = string.Empty;
     public string EmergencyContactLastName { get; set; } = string.Empty;
@@ -673,12 +629,10 @@ public class EmployeeRegistrationData
     public string EmergencyContactNumber { get; set; } = string.Empty;
     public string EmergencyContactAddress { get; set; } = string.Empty;
 
-    // Salary Information
     public decimal BaseSalary { get; set; }
     public decimal Allowance { get; set; }
 }
 
-// Result of duplicate employee check
 public class EmployeeDuplicateCheckResult
 {
     public bool IsDuplicate { get; set; }
@@ -692,7 +646,6 @@ public class EmployeeDuplicateCheckResult
     public string? ExistingAddress { get; set; }
 }
 
-// DTO for displaying employees in lists
 public class EmployeeDisplayDto
 {
     public int UserId { get; set; }
@@ -705,7 +658,6 @@ public class EmployeeDisplayDto
     public string Address { get; set; } = string.Empty;
 }
 
-// DTO for updating employee information
 public class EmployeeUpdateData
 {
     public string FirstName { get; set; } = string.Empty;

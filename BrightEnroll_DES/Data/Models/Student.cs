@@ -51,15 +51,17 @@ public class Student
     [Column("mother_tongue")]
     public string? MotherTongue { get; set; }
 
+    [Required]
     [Column("ip_comm")]
-    public bool? IpComm { get; set; } = false;
+    public bool IpComm { get; set; } = false;
 
     [MaxLength(50)]
     [Column("ip_specify")]
     public string? IpSpecify { get; set; }
 
+    [Required]
     [Column("four_ps")]
-    public bool? FourPs { get; set; } = false;
+    public bool FourPs { get; set; } = false;
 
     [MaxLength(50)]
     [Column("four_ps_hseID")]

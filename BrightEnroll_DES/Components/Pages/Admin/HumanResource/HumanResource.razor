@@ -389,14 +389,11 @@
             }
             else if (toastValue == "employee_added")
             {
-                // Set toast immediately
-                Console.WriteLine("Setting toast for employee_added");
                 toastMessage = "Employee has been added successfully!";
                 toastType = ToastType.Success;
                 showToast = true;
                 hasSuccessToast = true;
-                Console.WriteLine($"Toast set: showToast={showToast}, message={toastMessage}");
-                StateHasChanged(); // Force immediate UI update
+                StateHasChanged();
             }
         }
 
@@ -414,7 +411,6 @@
         {
             if (toastValue == "employee_added" && !showToast)
             {
-                Console.WriteLine("OnParametersSetAsync: Setting toast for employee_added");
                 toastMessage = "Employee has been added successfully!";
                 toastType = ToastType.Success;
                 showToast = true;
@@ -454,20 +450,16 @@
             // Retry on concurrency errors
             if (isConcurrencyError && retryCount < maxRetries)
             {
-                Console.WriteLine($"DbContext concurrency error detected, retrying... (Attempt {retryCount + 1}/{maxRetries})");
                 await LoadEmployeesAsync(preserveSuccessToast, retryCount + 1);
                 return;
             }
 
-            // Only show error toast if we're not preserving a success message
             if (!preserveSuccessToast)
             {
                 toastMessage = ErrorMessageHelper.ToHumanReadable($"Error loading employees: {ex.Message}");
                 toastType = ToastType.Error;
                 showToast = true;
             }
-            // Log the error but don't overwrite success message
-            Console.WriteLine($"Error loading employees: {ex.Message}");
             Employees = new List<EmployeeDisplayDto>();
         }
         finally
@@ -492,7 +484,6 @@
                     // Only set if not already set (avoid duplicate)
                     if (!showToast)
                     {
-                        Console.WriteLine("OnAfterRenderAsync: Setting toast for employee_added");
                         toastMessage = "Employee has been added successfully!";
                         toastType = ToastType.Success;
                         showToast = true;
@@ -569,9 +560,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "inactive-employee-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -637,7 +627,6 @@
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating employee status: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
-            Console.WriteLine($"Error updating employee status: {ex.Message}");
         }
         finally
         {
@@ -689,7 +678,6 @@
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating employee status: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
-            Console.WriteLine($"Error updating employee status: {ex.Message}");
         }
         
         StateHasChanged();

@@ -125,6 +125,11 @@ public class AppDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView("vw_EmployeeData");
+            
+            // Configure decimal precision for view columns
+            entity.Property(e => e.BaseSalary).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.Allowance).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.TotalSalary).HasColumnType("decimal(12,2)");
         });
 
         modelBuilder.Entity<StudentDataView>(entity =>

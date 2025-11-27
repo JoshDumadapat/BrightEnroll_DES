@@ -10,7 +10,6 @@ namespace BrightEnroll_DES.Services.Database.Connections
 
         public DBConnection()
         {
-            // Try to get connection string from configuration or environment
             _connectionString = GetConnectionString();
         }
 
@@ -19,7 +18,6 @@ namespace BrightEnroll_DES.Services.Database.Connections
             _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
 
-        // Gets connection string from: 1) environment variable, 2) appsettings.json, 3) default LocalDB
         private string GetConnectionString()
         {
             var envConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection");
@@ -44,7 +42,6 @@ namespace BrightEnroll_DES.Services.Database.Connections
             }
             catch
             {
-                // appsettings.json not found, use default
             }
             var server = Environment.GetEnvironmentVariable("DB_SERVER") ?? "(localdb)\\MSSQLLocalDB";
             var database = Environment.GetEnvironmentVariable("DB_DATABASE") ?? "DB_BrightEnroll_DES";

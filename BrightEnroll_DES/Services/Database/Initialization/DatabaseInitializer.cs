@@ -52,9 +52,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                 return false;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating database: {ex.Message}");
                 return false;
             }
         }
@@ -124,9 +123,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                 return anyTableCreated;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating tables: {ex.Message}");
                 return false;
             }
         }
@@ -161,7 +159,6 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var addCommand = new SqlCommand(addColumnQuery, connection);
                     await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Status column added to tbl_Users table successfully.");
                     
                     string updateExistingQuery = @"
                         UPDATE [dbo].[tbl_Users]
@@ -170,16 +167,14 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var updateCommand = new SqlCommand(updateExistingQuery, connection);
                     await updateCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Existing records updated with 'active' status.");
                     
                     return true;
                 }
 
                 return false;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error adding status column: {ex.Message}");
                 return false;
             }
         }
@@ -217,7 +212,6 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var addDateCommand = new SqlCommand(addDateColumnQuery, connection);
                     await addDateCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("date_registered column added to tbl_Students table successfully.");
                     anyColumnAdded = true;
                 }
 
@@ -240,7 +234,6 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var addStatusCommand = new SqlCommand(addStatusColumnQuery, connection);
                     await addStatusCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("status column added to tbl_Students table successfully.");
                     anyColumnAdded = true;
                 }
 
@@ -256,9 +249,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         using var dateIndexCommand = new SqlCommand(createDateIndexQuery, connection);
                         await dateIndexCommand.ExecuteNonQueryAsync();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Warning: Could not create date_registered index: {ex.Message}");
                     }
                 }
 
@@ -273,17 +265,15 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         using var statusIndexCommand = new SqlCommand(createStatusIndexQuery, connection);
                         await statusIndexCommand.ExecuteNonQueryAsync();
                     }
-                    catch (Exception ex)
+                    catch (Exception)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Warning: Could not create status index: {ex.Message}");
                     }
                 }
 
                 return anyColumnAdded;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error adding student columns: {ex.Message}");
                 return false;
             }
         }
@@ -318,15 +308,13 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var insertCommand = new SqlCommand(insertQuery, connection);
                     await insertCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Initial sequence value inserted into tbl_StudentID_Sequence.");
                     return true;
                 }
 
                 return false;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing sequence table: {ex.Message}");
                 return false;
             }
         }
@@ -389,21 +377,17 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         using var createCommand = new SqlCommand(viewDef.CreateViewScript, connection);
                         await createCommand.ExecuteNonQueryAsync();
                         anyViewCreated = true;
-                        System.Diagnostics.Debug.WriteLine($"View [dbo].[{viewKey}] created successfully in Views folder.");
                     }
                     catch (Exception createEx)
                     {
                         System.Diagnostics.Debug.WriteLine($"Error creating view {viewKey}: {createEx.Message}");
-                        System.Diagnostics.Debug.WriteLine($"View script preview: {viewDef.CreateViewScript.Substring(0, Math.Min(200, viewDef.CreateViewScript.Length))}...");
-                        // Don't throw - continue with other views
                     }
                 }
 
                 return anyViewCreated;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating views: {ex.Message}");
                 return false;
             }
         }
@@ -534,12 +518,10 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var createCommand = new SqlCommand(createProcScript, connection);
                     await createCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Stored procedure [sp_CreateStudent] created successfully.");
                     return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error creating stored procedures: {ex.Message}");
                 return false;
             }
         }
@@ -564,11 +546,9 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                 if (count > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine("Grade levels already exist, skipping seed.");
                     return false;
                 }
 
-                // Insert grade levels
                 string insertQuery = @"
                     INSERT INTO [dbo].[tbl_GradeLevel] ([grade_level_name]) VALUES
                     ('Pre-School'),
@@ -583,12 +563,10 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 using var insertCommand = new SqlCommand(insertQuery, connection);
                 await insertCommand.ExecuteNonQueryAsync();
 
-                System.Diagnostics.Debug.WriteLine("Grade levels seeded successfully.");
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error seeding grade levels: {ex.Message}");
                 return false;
             }
         }
@@ -610,9 +588,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 
                 return dbCreated || tablesCreated;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing database: {ex.Message}");
                 return false;
             }
         }

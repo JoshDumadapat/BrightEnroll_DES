@@ -4,7 +4,6 @@ using Microsoft.Data.SqlClient;
 
 namespace BrightEnroll_DES.Services.DataAccess.Repositories
 {
-    // Base class for repositories - handles common DB operations with SQL injection protection
     public abstract class BaseRepository
     {
         protected readonly DBConnection _dbConnection;
@@ -14,28 +13,24 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             _dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
         }
 
-        // Executes SELECT query and returns DataTable - parameters are sanitized
         protected async Task<DataTable> ExecuteQueryAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteQueryAsync(query, parameters);
         }
 
-        // Executes INSERT/UPDATE/DELETE queries - parameters are sanitized
         protected async Task<int> ExecuteNonQueryAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteNonQueryAsync(query, parameters);
         }
 
-        // Executes query that returns a single value - parameters are sanitized
         protected async Task<object?> ExecuteScalarAsync(string query, params SqlParameter[] parameters)
         {
             ValidateQuery(query);
             return await _dbConnection.ExecuteScalarAsync(query, parameters);
         }
 
-        // Creates a SQL parameter with proper type handling
         protected SqlParameter CreateParameter(string parameterName, object? value, SqlDbType? dbType = null)
         {
             var parameter = new SqlParameter(parameterName, value ?? DBNull.Value);
@@ -48,7 +43,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             return parameter;
         }
 
-        // Validates query for dangerous SQL patterns (extra security layer)
         private void ValidateQuery(string query)
         {
             if (string.IsNullOrWhiteSpace(query))
@@ -80,7 +74,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             }
         }
 
-        // Trims and limits string length
         protected string SanitizeString(string? input, int maxLength = 255)
         {
             if (string.IsNullOrWhiteSpace(input))
@@ -96,7 +89,6 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             return sanitized;
         }
 
-        // Checks if email format is valid
         protected bool IsValidEmail(string email)
         {
             if (string.IsNullOrWhiteSpace(email))

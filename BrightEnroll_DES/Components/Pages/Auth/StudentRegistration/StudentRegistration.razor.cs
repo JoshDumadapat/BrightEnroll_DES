@@ -13,7 +13,6 @@ using BrightEnroll_DES.Components.Pages.Auth.Handlers;
 using System;
 using System.Linq;
 using Microsoft.Extensions.Logging;
-using System.Diagnostics;
 using Microsoft.Data.SqlClient;
 
 namespace BrightEnroll_DES.Components.Pages.Auth;
@@ -387,27 +386,9 @@ public partial class StudentRegistration : ComponentBase, IDisposable
                 errorDetails.AppendLine($"Server: {mainSqlEx.Server ?? "N/A"}");
             }
             
-            // Log to multiple places for debugging
             var fullErrorDetails = errorDetails.ToString();
             
-            // Log to ILogger if available
             Logger?.LogError(ex, "STUDENT REGISTRATION ERROR:\n{ErrorDetails}", fullErrorDetails);
-            
-            // Log to Debug output (visible in Visual Studio Output window)
-            Debug.WriteLine("===========================================");
-            Debug.WriteLine("STUDENT REGISTRATION ERROR");
-            Debug.WriteLine("===========================================");
-            Debug.WriteLine(fullErrorDetails);
-            Debug.WriteLine("===========================================");
-            
-            // Log to Console (visible in browser console for Blazor Server)
-            Console.WriteLine("===========================================");
-            Console.WriteLine("STUDENT REGISTRATION ERROR");
-            Console.WriteLine("===========================================");
-            Console.WriteLine(fullErrorDetails);
-            Console.WriteLine("===========================================");
-            
-            // Store error details for UI display
             debugErrorMessage = ex.Message;
             debugErrorDetails = fullErrorDetails;
             showDebugError = true;
@@ -544,9 +525,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
             availableGradeLevels = gradeLevels.OrderBy(g => g.GradeLevelId).ToList();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"Error loading grade levels: {ex.Message}");
             // Fallback to empty list if database fetch fails
             availableGradeLevels = new List<GradeLevel>();
         }

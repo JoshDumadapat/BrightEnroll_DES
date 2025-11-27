@@ -279,13 +279,13 @@
                     Id = student.StudentId,
                     FullName = fullName,
                     FirstName = student.FirstName,
-                    MiddleName = student.MiddleName,
+                    MiddleName = student.MiddleName ?? string.Empty,
                     LastName = student.LastName,
                     Suffix = student.Suffix ?? "N/A",
                     GradeLevel = student.GradeLevel ?? "N/A",
                     Section = "N/A",
                     SchoolYear = student.SchoolYr ?? "N/A",
-                    Status = student.Status,
+                    Status = student.Status ?? string.Empty,
                     LRN = student.Lrn ?? "N/A",
                     BirthDate = student.Birthdate,
                     PlaceOfBirth = student.PlaceOfBirth ?? "N/A",
@@ -316,7 +316,7 @@
                     GuardianSuffix = student.Guardian?.Suffix ?? string.Empty,
                     GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
-                    StudentType = student.StudentType,
+                    StudentType = student.StudentType ?? string.Empty,
                     HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
                     LearnerReferenceNo = student.Lrn ?? "N/A",
                     GradeToEnroll = student.GradeLevel ?? "N/A",
@@ -331,9 +331,9 @@
                         SchoolYear = student.SchoolYr ?? "N/A",
                         Grade = student.GradeLevel ?? "N/A",
                         Section = "N/A",
-                        Type = student.StudentType,
+                        Type = student.StudentType ?? string.Empty,
                         Documents = documentsVerified ? "Verified" : "Not verified",
-                        Status = student.Status
+                        Status = student.Status ?? string.Empty
                     }
                 };
 
@@ -378,7 +378,7 @@
                     GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
                     GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
-                    StudentType = student.StudentType,
+                    StudentType = student.StudentType ?? string.Empty,
                     HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
                     LearnerReferenceNo = student.Lrn ?? "N/A",
                     SchoolYear = student.SchoolYr ?? string.Empty,
@@ -489,7 +489,7 @@
                     GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
                     GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
-                    StudentType = student.StudentType,
+                    StudentType = student.StudentType ?? string.Empty,
                     HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
                     LearnerReferenceNo = student.Lrn ?? "N/A",
                     SchoolYear = student.SchoolYr ?? string.Empty,
@@ -692,7 +692,7 @@
                 Id = s.StudentId,
                 Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
                 LRN = s.Lrn ?? "N/A",
-                Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                Date = FormatDate(s.DateRegistered),
                 Type = s.StudentType,
                 GradeLevel = s.GradeLevel ?? "N/A",
                 Status = s.Status ?? "For Payment",
@@ -722,7 +722,7 @@
                 Id = s.StudentId,
                 Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
                 LRN = s.Lrn ?? "N/A",
-                Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                Date = FormatDate(s.DateRegistered),
                 Type = "Eligible", // All in re-enrollment are eligible
                 GradeLevel = s.GradeLevel ?? "N/A",
                 Documents = s.Requirements != null && 
@@ -739,5 +739,38 @@
             Logger?.LogError(ex, "Error loading re-enrollment students: {Message}", ex.Message);
             ReEnrollmentStudents = new List<ReEnrollmentStudent>();
         }
+    }
+
+    private string FormatDate(DateTime? date)
+    {
+        if (date == null || !date.HasValue)
+            return "N/A";
+
+        return date.Value.ToString("MMM. d, yyyy");
+    }
+
+    private string FormatDate(string dateString)
+    {
+        if (string.IsNullOrWhiteSpace(dateString))
+            return "N/A";
+
+        // Try to parse the date string in various formats
+        if (DateTime.TryParse(dateString, out DateTime date))
+        {
+            return date.ToString("MMM. d, yyyy");
+        }
+
+        // If parsing fails, try common formats
+        string[] formats = { "dd MMM yyyy", "MMM dd, yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy" };
+        foreach (var format in formats)
+        {
+            if (DateTime.TryParseExact(dateString, format, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date))
+            {
+                return date.ToString("MMM. d, yyyy");
+            }
+        }
+
+        // If all parsing fails, return original string
+        return dateString;
     }
 }

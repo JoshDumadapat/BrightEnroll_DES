@@ -1,6 +1,5 @@
-using Microsoft.Maui.Networking;
-using System;
-using System.Threading.Tasks;
+using Microsoft.JSInterop;
+using System.Runtime.InteropServices;
 
 namespace BrightEnroll_DES.Services.Infrastructure;
 
@@ -10,24 +9,31 @@ public interface IConnectivityService
     bool HasShownInitialToast { get; set; }
     event EventHandler<bool> ConnectivityChanged;
     Task<bool> CheckConnectivityAsync();
+    void SetJSRuntime(Microsoft.JSInterop.IJSRuntime jsRuntime);
     void StartMonitoring();
     void StopMonitoring();
 }
 
-public class ConnectivityService : IConnectivityService
+public class ConnectivityService : IConnectivityService, IDisposable
 {
-    private bool _isConnected;
+    private bool _isConnected = true;
     private bool _isMonitoring;
+    private IJSRuntime? _jsRuntime;
+    private DotNetObjectReference<ConnectivityService>? _dotNetRef;
+    private readonly object _lockObject = new object();
 
     public bool IsConnected
     {
         get => _isConnected;
         private set
         {
-            if (_isConnected != value)
+            lock (_lockObject)
             {
-                _isConnected = value;
-                ConnectivityChanged?.Invoke(this, value);
+                if (_isConnected != value)
+                {
+                    _isConnected = value;
+                    ConnectivityChanged?.Invoke(this, value);
+                }
             }
         }
     }
@@ -36,68 +42,119 @@ public class ConnectivityService : IConnectivityService
 
     public event EventHandler<bool>? ConnectivityChanged;
 
-    public ConnectivityService()
+    public ConnectivityService(IJSRuntime? jsRuntime = null)
     {
-        _isConnected = CheckCurrentConnectivity();
+        _jsRuntime = jsRuntime;
+        _isConnected = true;
     }
 
-    public Task<bool> CheckConnectivityAsync()
+    // Set JS Runtime (called from components that have access to it)
+    public void SetJSRuntime(IJSRuntime jsRuntime)
     {
+        _jsRuntime = jsRuntime;
+    }
+
+    public async Task<bool> CheckConnectivityAsync()
+    {
+        if (_jsRuntime == null)
+        {
+            // Fallback: assume connected if JS runtime is not available
+            IsConnected = true;
+            return true;
+        }
+
         try
         {
-            var networkAccess = Connectivity.Current.NetworkAccess;
-            var isConnected = networkAccess == NetworkAccess.Internet;
-            IsConnected = isConnected;
-            return Task.FromResult(isConnected);
+            // Check navigator.onLine via JavaScript
+            var isOnline = await _jsRuntime.InvokeAsync<bool>("window.connectivityMonitor.checkConnectivity");
+            IsConnected = isOnline;
+            return isOnline;
         }
-        catch
+        catch (Exception)
         {
-            IsConnected = false;
-            return Task.FromResult(false);
+            // If JavaScript interop fails, assume online to avoid blocking the app
+            IsConnected = true;
+            return true;
         }
     }
 
-    private bool CheckCurrentConnectivity()
-    {
-        try
-        {
-            var networkAccess = Connectivity.Current.NetworkAccess;
-            return networkAccess == NetworkAccess.Internet;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public void StartMonitoring()
+    public async void StartMonitoring()
     {
         if (_isMonitoring) return;
-
-        _isMonitoring = true;
-        Connectivity.Current.ConnectivityChanged += OnConnectivityChanged;
-
-        // Initial check
-        _ = Task.Run(async () =>
+        
+        if (_jsRuntime == null)
         {
+            // Cannot start monitoring without JS runtime
+            return;
+        }
+
+        lock (_lockObject)
+        {
+            if (_isMonitoring) return;
+            _isMonitoring = true;
+        }
+
+        try
+        {
+            // Create DotNetObjectReference for JavaScript callbacks
+            _dotNetRef = DotNetObjectReference.Create(this);
+
+            // Initialize the JavaScript connectivity monitor
+            await _jsRuntime.InvokeVoidAsync("window.connectivityMonitor.initialize", _dotNetRef);
+
+            // Perform initial connectivity check
             await CheckConnectivityAsync();
-        });
+        }
+        catch (Exception)
+        {
+            // If initialization fails, stop monitoring and fallback to default behavior
+            lock (_lockObject)
+            {
+                _isMonitoring = false;
+            }
+            _dotNetRef?.Dispose();
+            _dotNetRef = null;
+        }
     }
 
-    public void StopMonitoring()
+    public async void StopMonitoring()
     {
         if (!_isMonitoring) return;
 
-        _isMonitoring = false;
-        Connectivity.Current.ConnectivityChanged -= OnConnectivityChanged;
+        lock (_lockObject)
+        {
+            if (!_isMonitoring) return;
+            _isMonitoring = false;
+        }
+
+        try
+        {
+            if (_jsRuntime != null)
+            {
+                await _jsRuntime.InvokeVoidAsync("window.connectivityMonitor.dispose");
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore errors during cleanup
+        }
+        finally
+        {
+            _dotNetRef?.Dispose();
+            _dotNetRef = null;
+        }
     }
 
-    private void OnConnectivityChanged(object? sender, ConnectivityChangedEventArgs e)
+    [JSInvokable]
+    public void OnConnectivityChanged(bool isOnline)
     {
-        _ = Task.Run(async () =>
-        {
-            await CheckConnectivityAsync();
-        });
+        // This method is called from JavaScript when connectivity changes
+        IsConnected = isOnline;
+    }
+
+    public void Dispose()
+    {
+        StopMonitoring();
     }
 }
 

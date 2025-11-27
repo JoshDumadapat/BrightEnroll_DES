@@ -1600,10 +1600,8 @@
             // Get next available system ID from database (incremental)
             return await UserRepository.GetNextSystemIdAsync();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Fallback to random if database query fails
-            Console.WriteLine($"Error generating system ID: {ex.Message}");
             var random = new Random();
             var number = random.Next(1000, 9999);
             return $"BDES-{number}";
@@ -1677,10 +1675,8 @@
             // Expected when user types again before delay completes - do nothing
             // Flag remains false (already set above)
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block user input
-            Console.WriteLine($"Error checking email uniqueness: {ex.Message}");
             // Only update flag if email still matches current value and this is still the active check
             var emailAfterError = EmployeeData.Email?.Trim() ?? string.Empty;
             if (emailAfterError == currentEmail && emailCheckCancellationTokenSource == tokenSource)
@@ -1825,10 +1821,8 @@
                 StateHasChanged();
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block submission
-            Console.WriteLine($"Error checking for duplicate employee: {ex.Message}");
             // Continue with normal flow if check fails
         }
     }
@@ -1898,10 +1892,8 @@
             // Expected when user types again before delay completes - do nothing
             // Flag remains false (already set above)
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // Log error but don't block user input
-            Console.WriteLine($"Error checking contact uniqueness: {ex.Message}");
             // Only update flag if contact still matches current value and this is still the active check
             var contactAfterError = EmployeeData.ContactNumber?.Trim() ?? string.Empty;
             if (contactAfterError == currentContact && contactCheckCancellationTokenSource == tokenSource)
@@ -2042,9 +2034,8 @@
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "add-employee-modal");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"Error calling handleModalBackdropClick: {ex.Message}");
             }
         }
     }
@@ -2129,8 +2120,6 @@
         }
         catch (Exception ex)
         {
-            // Handle error
-            Console.WriteLine($"Error updating employee: {ex.Message}");
             toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update employee: {ex.Message}");
             toastType = ToastType.Error;
             showToast = true;
@@ -2153,61 +2142,39 @@
 
     private async Task ConfirmAction()
     {
-        // Store the modal type before clearing it - CRITICAL to prevent race conditions
         var modalType = confirmModalType;
-        Console.WriteLine($"ConfirmAction called with modalType: '{modalType}'");
         
-        // CRITICAL: Set navigation flag IMMEDIATELY if leaving, before any other operations
-        // This prevents any accidental saves from being triggered
         if (modalType == "cancel" || modalType == "navigate")
         {
-            isNavigatingAway = true; // Set flag FIRST to block any saves
-            Console.WriteLine("Navigation flag set to TRUE - all saves will be blocked");
+            isNavigatingAway = true;
         }
         
-        // Close modal
         showConfirmModal = false;
         confirmModalTitle = "";
         confirmModalMessage = "";
         confirmModalType = "";
         StateHasChanged();
         
-        // Handle based on modal type - only for cancel/navigate (submit is handled separately)
         if (modalType == "cancel" || modalType == "navigate")
         {
-            Console.WriteLine($"Leaving page without saving - modalType: '{modalType}'");
-            // For cancel or navigate, just leave without saving
-            // Clear form data to prevent accidental saves
             ResetFormData();
-            
-            // Small delay to ensure state is updated before navigation
             await Task.Delay(50);
             
-            // Navigate away - use pendingNavigationUrl if available, otherwise default to HR page
             if (!string.IsNullOrWhiteSpace(pendingNavigationUrl))
             {
-                Console.WriteLine($"Navigating to: {pendingNavigationUrl}");
                 NavigationManager.NavigateTo(pendingNavigationUrl);
             }
             else
             {
-                Console.WriteLine("Navigating to: /human-resource");
                 NavigationManager.NavigateTo("/human-resource");
             }
             
             pendingNavigationUrl = null;
         }
-        // If modalType is empty or unknown, do nothing (safety check)
-        else
-        {
-            Console.WriteLine($"Unknown modal type: '{modalType}'. No action taken.");
-        }
     }
     
-    // Reset form data when leaving without saving
     private void ResetFormData()
     {
-        Console.WriteLine("ResetFormData called - clearing all form data");
         EmployeeData = new EmployeeFormData();
         editContext = new EditContext(EmployeeData);
         isEmailDuplicate = false;
@@ -2220,17 +2187,13 @@
 
     private async Task SubmitEmployee()
     {
-        // CRITICAL Safety checks: Don't submit if we're navigating away or if modal type is not submit
         if (isNavigatingAway)
         {
-            Console.WriteLine("SubmitEmployee BLOCKED: isNavigatingAway flag is set - preventing submission");
             return;
         }
         
-        // Additional check: Verify we're not in a navigation scenario
         if (confirmModalType == "navigate" || confirmModalType == "cancel")
         {
-            Console.WriteLine($"SubmitEmployee BLOCKED: confirmModalType is '{confirmModalType}' - preventing submission");
             return;
         }
         
@@ -2313,17 +2276,7 @@
                 Allowance = EmployeeData.Allowance
             };
 
-            // Register employee using EmployeeService
-            Console.WriteLine("===========================================");
-            Console.WriteLine("ADD EMPLOYEE - STARTING REGISTRATION");
-            Console.WriteLine("===========================================");
-            Console.WriteLine($"Employee Data: FirstName={employeeData.FirstName}, LastName={employeeData.LastName}, Email={employeeData.Email}, Role={employeeData.Role}");
-            Console.WriteLine($"SystemId={employeeData.SystemId}, ContactNumber={employeeData.ContactNumber}");
-            
             var userId = await EmployeeService.RegisterEmployeeAsync(employeeData);
-            
-            Console.WriteLine($"Employee registered successfully with UserId: {userId}");
-            Console.WriteLine("===========================================");
             
             // Reset submitting flag
             isSubmitting = false;
@@ -2427,22 +2380,7 @@
                 depth++;
             }
             
-            // Log to multiple places for debugging
             var fullErrorDetails = errorDetails.ToString();
-            
-            // Log to Console (visible in browser console for Blazor Server)
-            Console.WriteLine("===========================================");
-            Console.WriteLine("ADD EMPLOYEE ERROR - FULL DETAILS");
-            Console.WriteLine("===========================================");
-            Console.WriteLine(fullErrorDetails);
-            Console.WriteLine("===========================================");
-            
-            // Log to Debug output (visible in Visual Studio Output window)
-            System.Diagnostics.Debug.WriteLine("===========================================");
-            System.Diagnostics.Debug.WriteLine("ADD EMPLOYEE ERROR - FULL DETAILS");
-            System.Diagnostics.Debug.WriteLine("===========================================");
-            System.Diagnostics.Debug.WriteLine(fullErrorDetails);
-            System.Diagnostics.Debug.WriteLine("===========================================");
             
             // Show detailed error to user
             var displayError = new System.Text.StringBuilder();
