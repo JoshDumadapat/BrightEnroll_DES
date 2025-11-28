@@ -5,11 +5,9 @@
 @using BrightEnroll_DES.Services
 @using DataModels = BrightEnroll_DES.Data.Models
 @using Microsoft.Extensions.Logging
-@using Microsoft.EntityFrameworkCore
 @using BrightEnroll_DES.Components
 @inject CurriculumService CurriculumService
 @inject ILogger<Curriculum> Logger
-@inject BrightEnroll_DES.Data.AppDbContext _context
 
 <PageTitle>Curriculum</PageTitle>
 
@@ -861,13 +859,11 @@
                     if (existingSubject != null)
                     {
                         // Check if this exact schedule combination already exists in database
-                        var existingSchedules = await _context.SubjectSchedules
-                            .Where(ss => ss.SubjectId == existingSubject.SubjectId &&
-                                       ss.GradeLevelId == gradeLevel.GradeLevelId &&
-                                       ss.StartTime == startTime &&
-                                       ss.EndTime == endTime &&
-                                       ss.IsDefault)
-                            .ToListAsync();
+                        var existingSchedules = await CurriculumService.GetSubjectSchedulesBySubjectAndTimeAsync(
+                            existingSubject.SubjectId, 
+                            gradeLevel.GradeLevelId, 
+                            startTime, 
+                            endTime);
 
                         // Check if all days in the new schedule already exist
                         var existingDays = existingSchedules.Select(ss => ss.DayOfWeek).ToList();
@@ -922,13 +918,12 @@
                         try
                         {
                             // Check if schedule already exists for this day, subject, and time
-                            var existingSchedule = await _context.SubjectSchedules
-                                .FirstOrDefaultAsync(ss => ss.SubjectId == dbSubject.SubjectId &&
-                                                          ss.GradeLevelId == gradeLevel.GradeLevelId &&
-                                                          ss.DayOfWeek == day &&
-                                                          ss.StartTime == startTime &&
-                                                          ss.EndTime == endTime &&
-                                                          ss.IsDefault);
+                            var existingSchedule = await CurriculumService.GetSubjectScheduleBySubjectDayAndTimeAsync(
+                                dbSubject.SubjectId,
+                                gradeLevel.GradeLevelId,
+                                day,
+                                startTime,
+                                endTime);
 
                             if (existingSchedule == null)
                             {
@@ -1646,42 +1641,74 @@
             // Get all class schedules
             var allSchedules = await CurriculumService.GetAllClassSchedulesAsync();
             
+            Logger.LogInformation("Building FinalClasses from {AssignmentCount} assignments and {ScheduleCount} schedules", 
+                DbAssignments.Count, allSchedules.Count);
+            
             foreach (var assignment in DbAssignments)
             {
-                if (assignment.Section == null || assignment.Teacher == null) continue;
-                
-                var section = assignment.Section;
-                var gradeLevel = section.GradeLevel;
-                var classroom = section.Classroom;
-                
-                if (gradeLevel == null || classroom == null) continue;
-                
-                // Get schedules for this assignment
-                var assignmentSchedules = allSchedules.Where(s => s.AssignmentId == assignment.AssignmentId).ToList();
-                
-                if (!assignmentSchedules.Any()) continue;
-                
-                // Create FinalClassView entries for each schedule
-                foreach (var schedule in assignmentSchedules)
+                try
                 {
-                    finalClasses.Add(new DataModels.FinalClassView
+                    if (assignment.Section == null || assignment.Teacher == null)
                     {
-                        AssignmentId = assignment.AssignmentId,
-                        Role = assignment.Role,
-                        TeacherName = $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}",
-                        TeacherId = assignment.Teacher.UserId,
-                        SectionName = section.SectionName,
-                        GradeLevel = gradeLevel.GradeLevelName,
-                        SubjectName = assignment.Subject?.SubjectName,
-                        SubjectId = assignment.SubjectId,
-                        DayOfWeek = schedule.DayOfWeek,
-                        StartTime = schedule.StartTime,
-                        EndTime = schedule.EndTime,
-                        Classroom = classroom.RoomName,
-                        BuildingName = classroom.BuildingName,
-                        AssignmentCreatedAt = assignment.CreatedAt,
-                        AssignmentUpdatedAt = assignment.UpdatedAt
-                    });
+                        Logger.LogWarning("Assignment {AssignmentId} has null Section or Teacher, skipping", assignment.AssignmentId);
+                        continue;
+                    }
+                    
+                    var section = assignment.Section;
+                    var gradeLevel = section.GradeLevel;
+                    var classroom = section.Classroom;
+                    
+                    if (gradeLevel == null)
+                    {
+                        Logger.LogWarning("Section {SectionId} has null GradeLevel, skipping assignment {AssignmentId}", 
+                            section.SectionId, assignment.AssignmentId);
+                        continue;
+                    }
+                    
+                    if (classroom == null)
+                    {
+                        Logger.LogWarning("Section {SectionId} has null Classroom, skipping assignment {AssignmentId}", 
+                            section.SectionId, assignment.AssignmentId);
+                        continue;
+                    }
+                    
+                    // Get schedules for this assignment
+                    var assignmentSchedules = allSchedules.Where(s => s.AssignmentId == assignment.AssignmentId).ToList();
+                    
+                    if (!assignmentSchedules.Any())
+                    {
+                        Logger.LogDebug("Assignment {AssignmentId} has no schedules, skipping", assignment.AssignmentId);
+                        continue;
+                    }
+                    
+                    // Create FinalClassView entries for each schedule
+                    foreach (var schedule in assignmentSchedules)
+                    {
+                        finalClasses.Add(new DataModels.FinalClassView
+                        {
+                            AssignmentId = assignment.AssignmentId,
+                            Role = assignment.Role ?? "",
+                            TeacherName = $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}",
+                            TeacherId = assignment.Teacher.UserId,
+                            SectionName = section.SectionName ?? "",
+                            GradeLevel = gradeLevel.GradeLevelName ?? "",
+                            SubjectName = assignment.Subject?.SubjectName,
+                            SubjectId = assignment.SubjectId,
+                            DayOfWeek = schedule.DayOfWeek ?? "",
+                            StartTime = schedule.StartTime,
+                            EndTime = schedule.EndTime,
+                            Classroom = classroom.RoomName ?? "",
+                            BuildingName = classroom.BuildingName,
+                            AssignmentCreatedAt = assignment.CreatedAt,
+                            AssignmentUpdatedAt = assignment.UpdatedAt
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error processing assignment {AssignmentId}: {ErrorMessage}", 
+                        assignment.AssignmentId, ex.Message);
+                    // Continue with next assignment instead of failing completely
                 }
             }
             
@@ -1689,7 +1716,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error building FinalClasses from assignments");
+            Logger.LogError(ex, "Error building FinalClasses from assignments: {ErrorMessage}", ex.Message);
         }
         
         return finalClasses;

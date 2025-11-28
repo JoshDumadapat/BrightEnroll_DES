@@ -21,6 +21,7 @@ public class CurriculumService
     public async Task<List<Classroom>> GetAllClassroomsAsync()
     {
         return await _context.Classrooms
+            .AsNoTracking()
             .OrderBy(c => c.BuildingName)
             .ThenBy(c => c.FloorNumber)
             .ThenBy(c => c.RoomName)
@@ -81,6 +82,7 @@ public class CurriculumService
     public async Task<List<Section>> GetAllSectionsAsync()
     {
         return await _context.Sections
+            .AsNoTracking()
             .Include(s => s.GradeLevel)
             .Include(s => s.Classroom)
             .OrderBy(s => s.GradeLevelId)
@@ -134,6 +136,7 @@ public class CurriculumService
         try
         {
             var subjects = await _context.Subjects
+                .AsNoTracking()
                 .Include(s => s.GradeLevel)
                 .OrderBy(s => s.GradeLevelId)
                 .ThenBy(s => s.SubjectName)
@@ -283,6 +286,7 @@ public class CurriculumService
         try
         {
             var schedules = await _context.SubjectSchedules
+                .AsNoTracking()
                 .Include(ss => ss.GradeLevel)
                 .Where(ss => ss.SubjectId == subjectId && ss.IsDefault)
                 .OrderBy(ss => ss.DayOfWeek)
@@ -391,6 +395,30 @@ public class CurriculumService
         return true;
     }
 
+    public async Task<List<SubjectSchedule>> GetSubjectSchedulesBySubjectAndTimeAsync(int subjectId, int gradeLevelId, TimeSpan startTime, TimeSpan endTime)
+    {
+        return await _context.SubjectSchedules
+            .AsNoTracking()
+            .Where(ss => ss.SubjectId == subjectId &&
+                       ss.GradeLevelId == gradeLevelId &&
+                       ss.StartTime == startTime &&
+                       ss.EndTime == endTime &&
+                       ss.IsDefault)
+            .ToListAsync();
+    }
+
+    public async Task<SubjectSchedule?> GetSubjectScheduleBySubjectDayAndTimeAsync(int subjectId, int gradeLevelId, string dayOfWeek, TimeSpan startTime, TimeSpan endTime)
+    {
+        return await _context.SubjectSchedules
+            .AsNoTracking()
+            .FirstOrDefaultAsync(ss => ss.SubjectId == subjectId &&
+                                      ss.GradeLevelId == gradeLevelId &&
+                                      ss.DayOfWeek == dayOfWeek &&
+                                      ss.StartTime == startTime &&
+                                      ss.EndTime == endTime &&
+                                      ss.IsDefault);
+    }
+
     #endregion
 
     #region Teacher Assignment Operations
@@ -398,9 +426,12 @@ public class CurriculumService
     public async Task<List<TeacherSectionAssignment>> GetAllTeacherAssignmentsAsync()
     {
         return await _context.TeacherSectionAssignments
+            .AsNoTracking()
             .Include(a => a.Teacher)
             .Include(a => a.Section)
                 .ThenInclude(s => s!.GradeLevel)
+            .Include(a => a.Section)
+                .ThenInclude(s => s!.Classroom)
             .Include(a => a.Subject)
             .OrderBy(a => a.Section!.GradeLevelId)
             .ThenBy(a => a.Section!.SectionName)
@@ -505,6 +536,7 @@ public class CurriculumService
     public async Task<List<ClassSchedule>> GetAllClassSchedulesAsync()
     {
         return await _context.ClassSchedules
+            .AsNoTracking()
             .Include(s => s.Assignment)
                 .ThenInclude(a => a!.Teacher)
             .Include(s => s.Assignment)
@@ -593,6 +625,7 @@ public class CurriculumService
     public async Task<List<GradeLevel>> GetAllGradeLevelsAsync()
     {
         return await _context.GradeLevels
+            .AsNoTracking()
             .Where(g => g.IsActive)
             .OrderBy(g => g.GradeLevelId)
             .ToListAsync();
@@ -601,6 +634,7 @@ public class CurriculumService
     public async Task<List<UserEntity>> GetTeachersAsync()
     {
         return await _context.Users
+            .AsNoTracking()
             .Where(u => u.UserRole.ToLower() == "teacher" || u.UserRole.ToLower().Contains("teacher") || u.UserRole.ToLower().Contains("faculty"))
             .Where(u => u.Status.ToLower() == "active")
             .OrderBy(u => u.LastName)
@@ -613,6 +647,7 @@ public class CurriculumService
         try
         {
             var finalClasses = await _context.FinalClassViews
+                .AsNoTracking()
                 .OrderBy(fc => fc.GradeLevel)
                 .ThenBy(fc => fc.SectionName)
                 .ThenBy(fc => fc.DayOfWeek)
