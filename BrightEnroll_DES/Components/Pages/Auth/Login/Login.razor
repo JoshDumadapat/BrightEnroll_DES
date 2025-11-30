@@ -4,9 +4,11 @@
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Components.Pages.Auth.Handlers
+@using BrightEnroll_DES.Services.RoleBase
 @using System.Threading.Tasks
 @inject NavigationManager Navigation
 @inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
 @inject ILoadingService LoadingService
 @inject IJSRuntime JSRuntime
 @inject IConnectivityService ConnectivityService
@@ -279,10 +281,12 @@
             }
         }
 
-        // If already logged in, redirect to dashboard
+        // If already logged in, redirect based on role
         if (AuthService.IsAuthenticated)
         {
-            Navigation.NavigateTo("/dashboard");
+            var userRole = AuthorizationService.GetUserRole();
+            var redirectPath = GetRedirectPathForRole(userRole);
+            Navigation.NavigateTo(redirectPath);
         }
     }
 
@@ -339,7 +343,9 @@
             // Additional check after render to catch any navigation attempts
             if (AuthService.IsAuthenticated)
             {
-                Navigation.NavigateTo("/dashboard", forceLoad: true);
+                var userRole = AuthorizationService.GetUserRole();
+                var redirectPath = GetRedirectPathForRole(userRole);
+                Navigation.NavigateTo(redirectPath, forceLoad: true);
             }
         }
     }
@@ -395,8 +401,10 @@
 
                 // Keep loading message as "Logging in... Please wait." during navigation
                 // Dashboard will hide loading immediately after navigation (no separate loading screen)
-                // Login successful - redirect to dashboard
-                Navigation.NavigateTo("/dashboard");
+                // Login successful - redirect based on user role
+                var userRole = AuthorizationService.GetUserRole();
+                var redirectPath = GetRedirectPathForRole(userRole);
+                Navigation.NavigateTo(redirectPath);
             }
             else
             {
@@ -472,6 +480,26 @@
                 InvokeAsync(StateHasChanged);
             });
         }
+    }
+
+    private string GetRedirectPathForRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return "/dashboard";
+        }
+
+        // Redirect based on role - you can customize these paths
+        return role.ToLower() switch
+        {
+            "cashier" => "/finance", // Cashier goes to Finance page
+            "registrar" => "/enrollment", // Registrar goes to Enrollment page
+            "hr" => "/human-resource", // HR goes to HR page
+            "teacher" => "/student-record", // Teacher goes to Student Record page
+            "admin" => "/dashboard",
+            "system admin" => "/dashboard",
+            _ => "/dashboard" // Default to dashboard for other roles
+        };
     }
 
     public void Dispose()

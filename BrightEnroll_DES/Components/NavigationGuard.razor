@@ -1,6 +1,8 @@
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.RoleBase
 @inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
 @implements IDisposable
@@ -22,11 +24,33 @@
 
     private void CheckAndRedirect()
     {
-        // If user is logged in and tries to navigate to login page, redirect to dashboard
+        // If user is logged in and tries to navigate to login page, redirect based on role
         if (AuthService.IsAuthenticated && Navigation.Uri.Contains("/login"))
         {
-            Navigation.NavigateTo("/admin/dashboard", forceLoad: true);
+            var userRole = AuthorizationService.GetUserRole();
+            var redirectPath = GetRedirectPathForRole(userRole);
+            Navigation.NavigateTo(redirectPath, forceLoad: true);
         }
+    }
+
+    private string GetRedirectPathForRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return "/dashboard";
+        }
+
+        // Redirect based on role - matches Login.razor logic
+        return role.ToLower() switch
+        {
+            "cashier" => "/finance",
+            "registrar" => "/enrollment",
+            "hr" => "/human-resource",
+            "teacher" => "/student-record",
+            "admin" => "/dashboard",
+            "system admin" => "/dashboard",
+            _ => "/dashboard"
+        };
     }
 
     public void Dispose()
