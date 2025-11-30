@@ -154,6 +154,60 @@ namespace BrightEnroll_DES.Services.Seeders
             }
         }
 
+        /// <summary>
+        /// Seeds all required roles in the system.
+        /// </summary>
+        public async Task SeedAllRolesAsync()
+        {
+            try
+            {
+                var requiredRoles = new[]
+                {
+                    new { Name = "SuperAdmin", BaseSalary = 60000.00m, Allowance = 10000.00m },
+                    new { Name = "Admin", BaseSalary = 50000.00m, Allowance = 5000.00m },
+                    new { Name = "Registrar", BaseSalary = 35000.00m, Allowance = 3000.00m },
+                    new { Name = "Cashier", BaseSalary = 30000.00m, Allowance = 2000.00m },
+                    new { Name = "Teacher", BaseSalary = 40000.00m, Allowance = 4000.00m },
+                    new { Name = "HR", BaseSalary = 45000.00m, Allowance = 5000.00m }
+                };
+
+                foreach (var roleInfo in requiredRoles)
+                {
+                    var existingRole = await _context.Roles
+                        .FirstOrDefaultAsync(r => r.RoleName == roleInfo.Name);
+                    
+                    if (existingRole == null)
+                    {
+                        var role = new Role
+                        {
+                            RoleName = roleInfo.Name,
+                            BaseSalary = roleInfo.BaseSalary,
+                            Allowance = roleInfo.Allowance,
+                            IsActive = true,
+                            CreatedDate = DateTime.Now
+                        };
+
+                        _context.Roles.Add(role);
+                    }
+                    else
+                    {
+                        // Update existing role to ensure it's active
+                        existingRole.IsActive = true;
+                        if (existingRole.UpdatedDate == null)
+                        {
+                            existingRole.UpdatedDate = DateTime.Now;
+                        }
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Error seeding all roles: {ex.Message}", ex);
+            }
+        }
+
         public async Task SeedDeductionsAsync()
         {
             try

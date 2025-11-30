@@ -1,0 +1,162 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Gradebook.GradebookComponents
+
+<div class="p-6">
+    <!-- Class Selection -->
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
+            <select @bind="selectedSchoolYear" 
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="2024-2025">2024-2025</option>
+                <option value="2023-2024">2023-2024</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Section:</label>
+            <select @bind="selectedSection" 
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="">Select Section</option>
+                <option value="Saturn">Saturn</option>
+                <option value="Rizal">Rizal</option>
+                <option value="Sun">Sun</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Subject:</label>
+            <select @bind="selectedSubject" 
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="">Select Subject</option>
+                <option value="Math">Mathematics</option>
+                <option value="English">English</option>
+                <option value="Science">Science</option>
+                <option value="Filipino">Filipino</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Grading Period:</label>
+            <select @bind="selectedPeriod" 
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="Q1">Quarter 1</option>
+                <option value="Q2">Quarter 2</option>
+                <option value="Q3">Quarter 3</option>
+                <option value="Q4">Quarter 4</option>
+            </select>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(selectedSection) && !string.IsNullOrEmpty(selectedSubject))
+    {
+        <!-- Grade Entry Table -->
+        <div class="mb-4 overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Student ID</th>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-center">Quiz (30%)</th>
+                        <th class="px-4 py-3 text-center">Exam (40%)</th>
+                        <th class="px-4 py-3 text-center">Project (20%)</th>
+                        <th class="px-4 py-3 text-center">Participation (10%)</th>
+                        <th class="px-4 py-3 text-center">Final Grade</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    @foreach (var student in students)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@student.StudentId</td>
+                            <td class="px-4 py-3">@student.Name</td>
+                            <td class="px-4 py-3">
+                                <input type="number" @bind="student.Quiz" min="0" max="100" step="0.01"
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="number" @bind="student.Exam" min="0" max="100" step="0.01"
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="number" @bind="student.Project" min="0" max="100" step="0.01"
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="number" @bind="student.Participation" min="0" max="100" step="0.01"
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                            <td class="px-4 py-3 text-center font-semibold">
+                                @student.FinalGrade.ToString("F2")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-end gap-3">
+            <button @onclick="ComputeGrades" 
+                    class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                Compute Grades
+            </button>
+            <button @onclick="SaveGrades" 
+                    class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                Save Grades
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Please select a section and subject to enter grades.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private string selectedSchoolYear = "2024-2025";
+    private string selectedSection = "";
+    private string selectedSubject = "";
+    private string selectedPeriod = "Q1";
+    private List<GradeStudent> students = new();
+
+    private class GradeStudent
+    {
+        public string StudentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public decimal Quiz { get; set; }
+        public decimal Exam { get; set; }
+        public decimal Project { get; set; }
+        public decimal Participation { get; set; }
+        public decimal FinalGrade => (Quiz * 0.30m) + (Exam * 0.40m) + (Project * 0.20m) + (Participation * 0.10m);
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(selectedSection) && !string.IsNullOrEmpty(selectedSubject))
+        {
+            LoadStudents();
+        }
+    }
+
+    private void LoadStudents()
+    {
+        // TODO: Load students from database
+        students = new List<GradeStudent>
+        {
+            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Quiz = 85, Exam = 90, Project = 88, Participation = 92 },
+            new() { StudentId = "ST002", Name = "Maria Santos", Quiz = 92, Exam = 95, Project = 90, Participation = 94 },
+            new() { StudentId = "ST003", Name = "Pedro Garcia", Quiz = 78, Exam = 82, Project = 80, Participation = 85 },
+        };
+    }
+
+    private void ComputeGrades()
+    {
+        // Grades are computed automatically via FinalGrade property
+        StateHasChanged();
+    }
+
+    private void SaveGrades()
+    {
+        // TODO: Save grades to database
+    }
+}
+

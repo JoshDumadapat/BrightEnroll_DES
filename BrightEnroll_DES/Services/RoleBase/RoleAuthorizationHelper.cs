@@ -104,8 +104,8 @@ namespace BrightEnroll_DES.Services.RoleBase
 
             return roleName switch
             {
+                "SuperAdmin" => "Super Administrator",
                 "Admin" => "Administrator",
-                "System Admin" => "System Administrator",
                 "HR" => "Human Resources",
                 "Registrar" => "Registrar",
                 "Cashier" => "Cashier",
@@ -123,14 +123,12 @@ namespace BrightEnroll_DES.Services.RoleBase
         {
             return new List<string>
             {
+                "SuperAdmin",
                 "Admin",
-                "System Admin",
                 "HR",
                 "Registrar",
                 "Cashier",
-                "Teacher",
-                "Janitor",
-                "Other"
+                "Teacher"
             };
         }
     }

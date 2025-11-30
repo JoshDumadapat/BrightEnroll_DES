@@ -1,0 +1,391 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Inventory.InventoryComponents
+@using BrightEnroll_DES.Services.Business.Inventory
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
+@using Microsoft.AspNetCore.Components.Web
+@inject AssetService AssetService
+@inject ILoadingService LoadingService
+
+<div class="p-6">
+    <!-- Add Asset Button -->
+    <div class="mb-6 flex justify-end">
+        <button @onclick="ShowAddModal" 
+                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+            + Add Asset
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-6 border-b border-gray-200 px-3 py-4 sm:px-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                    <span class="absolute left-4 flex items-center justify-center">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeypress="HandleSearchKeyPress"
+                           placeholder="Search assets..."
+                           class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <select @bind="selectedCategory" @bind:event="onchange"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">All Categories</option>
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+                <select @bind="selectedStatus" @bind:event="onchange"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">All Status</option>
+                    <option value="Available">Available</option>
+                    <option value="In Use">In Use</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="Damaged">Damaged</option>
+                </select>
+                <button @onclick="LoadAssets" 
+                        class="rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    Filter
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Loading assets...</p>
+        </div>
+    }
+    else if (assets.Count == 0)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">No assets found.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Asset ID</th>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-left">Category</th>
+                        <th class="px-4 py-3 text-left">Location</th>
+                        <th class="px-4 py-3 text-center">Status</th>
+                        <th class="px-4 py-3 text-right">Value</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    @foreach (var asset in assets)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@asset.AssetId</td>
+                            <td class="px-4 py-3">@asset.AssetName</td>
+                            <td class="px-4 py-3">@asset.Category</td>
+                            <td class="px-4 py-3">@asset.Location</td>
+                            <td class="px-4 py-3 text-center">
+                                @if (asset.Status == "Available")
+                                {
+                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Available</span>
+                                }
+                                else if (asset.Status == "In Use")
+                                {
+                                    <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">In Use</span>
+                                }
+                                else if (asset.Status == "Maintenance")
+                                {
+                                    <span class="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">Maintenance</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">Damaged</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3 text-right">₱@asset.CurrentValue.ToString("N2")</td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                <button @onclick="() => EditAsset(asset)" 
+                                        class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Edit
+                                </button>
+                                <button @onclick="() => DeleteAsset(asset.AssetId)" 
+                                        class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+            <span>Showing @assets.Count assets</span>
+        </div>
+    }
+</div>
+
+<!-- Add/Edit Asset Modal -->
+@if (showModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-xl font-bold text-gray-800">@(editingAsset == null ? "Add Asset" : "Edit Asset")</h2>
+                <button @onclick="CloseModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Asset Name *</label>
+                    <input type="text" @bind="assetForm.AssetName" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Category *</label>
+                    <select @bind="assetForm.Category" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Category</option>
+                        <option value="Equipment">Equipment</option>
+                        <option value="Furniture">Furniture</option>
+                        <option value="Technology">Technology</option>
+                        <option value="Supplies">Supplies</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Brand</label>
+                    <input type="text" @bind="assetForm.Brand" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Model</label>
+                    <input type="text" @bind="assetForm.Model" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Serial Number</label>
+                    <input type="text" @bind="assetForm.SerialNumber" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Location *</label>
+                    <input type="text" @bind="assetForm.Location" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Status *</label>
+                    <select @bind="assetForm.Status" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="Available">Available</option>
+                        <option value="In Use">In Use</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Damaged">Damaged</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Purchase Date</label>
+                    <input type="date" value="@(assetForm.PurchaseDate?.ToString("yyyy-MM-dd") ?? "")" 
+                           @onchange="@((ChangeEventArgs e) => { if (DateTime.TryParse(e.Value?.ToString(), out var date)) assetForm.PurchaseDate = date; })"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Purchase Cost</label>
+                    <input type="number" @bind="assetForm.PurchaseCost" step="0.01" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div class="sm:col-span-2">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Description</label>
+                    <textarea @bind="assetForm.Description" rows="3"
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="CloseModal" 
+                        class="rounded-lg bg-gray-500 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button @onclick="SaveAsset" 
+                        disabled="@isSaving"
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isSaving)
+                    {
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Save</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Asset> assets = new();
+    private List<string> categories = new();
+    private string searchTerm = "";
+    private string selectedCategory = "";
+    private string selectedStatus = "";
+    private bool isLoading = false;
+    private bool showModal = false;
+    private bool isSaving = false;
+    private Asset? editingAsset = null;
+    private Asset assetForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAssets();
+        await LoadCategories();
+    }
+
+    private async Task LoadAssets()
+    {
+        isLoading = true;
+        try
+        {
+            assets = await AssetService.GetAllAssetsAsync(
+                category: string.IsNullOrWhiteSpace(selectedCategory) ? null : selectedCategory,
+                status: string.IsNullOrWhiteSpace(selectedStatus) ? null : selectedStatus,
+                searchTerm: string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm
+            );
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading assets: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadCategories()
+    {
+        try
+        {
+            categories = await AssetService.GetAssetCategoriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading categories: {ex.Message}");
+        }
+    }
+
+    private void ShowAddModal()
+    {
+        editingAsset = null;
+        assetForm = new Asset
+        {
+            Status = "Available",
+            PurchaseDate = DateTime.Now
+        };
+        showModal = true;
+    }
+
+    private void EditAsset(Asset asset)
+    {
+        editingAsset = asset;
+        assetForm = new Asset
+        {
+            AssetId = asset.AssetId,
+            AssetName = asset.AssetName,
+            Category = asset.Category,
+            Brand = asset.Brand,
+            Model = asset.Model,
+            SerialNumber = asset.SerialNumber,
+            Location = asset.Location,
+            Status = asset.Status,
+            PurchaseDate = asset.PurchaseDate,
+            PurchaseCost = asset.PurchaseCost,
+            CurrentValue = asset.CurrentValue,
+            Description = asset.Description
+        };
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        editingAsset = null;
+        assetForm = new Asset();
+    }
+
+    private async Task SaveAsset()
+    {
+        if (string.IsNullOrWhiteSpace(assetForm.AssetName) || 
+            string.IsNullOrWhiteSpace(assetForm.Category) || 
+            string.IsNullOrWhiteSpace(assetForm.Location))
+        {
+            return; // TODO: Show validation error
+        }
+
+        isSaving = true;
+        try
+        {
+            if (editingAsset == null)
+            {
+                await AssetService.CreateAssetAsync(assetForm);
+            }
+            else
+            {
+                await AssetService.UpdateAssetAsync(assetForm.AssetId, assetForm);
+            }
+            
+            await LoadAssets();
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving asset: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task DeleteAsset(string assetId)
+    {
+        if (!await Task.Run(() => true)) // TODO: Add confirmation dialog
+        {
+            return;
+        }
+
+        try
+        {
+            await AssetService.DeleteAssetAsync(assetId);
+            await LoadAssets();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error deleting asset: {ex.Message}");
+        }
+    }
+
+    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadAssets();
+        }
+    }
+}

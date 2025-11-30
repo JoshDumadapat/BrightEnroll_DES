@@ -1,0 +1,245 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Inventory.InventoryComponents
+@using BrightEnroll_DES.Services.Business.Inventory
+@using BrightEnroll_DES.Data.Models
+@inject AssetAssignmentService AssignmentService
+@inject AssetService AssetService
+
+<div class="p-6">
+    <div class="mb-6 flex justify-end">
+        <button @onclick="ShowAssignModal" 
+                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+            + Assign Asset
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Loading assignments...</p>
+        </div>
+    }
+    else if (assignments.Count == 0)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">No asset assignments found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Asset ID</th>
+                        <th class="px-4 py-3 text-left">Asset Name</th>
+                        <th class="px-4 py-3 text-left">Assigned To</th>
+                        <th class="px-4 py-3 text-left">Type</th>
+                        <th class="px-4 py-3 text-left">Assigned Date</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    @foreach (var assignment in assignments)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@assignment.AssetId</td>
+                            <td class="px-4 py-3">@(assignment.Asset?.AssetName ?? "N/A")</td>
+                            <td class="px-4 py-3">@(assignment.AssignedToName ?? "N/A")</td>
+                            <td class="px-4 py-3">@assignment.AssignedToType</td>
+                            <td class="px-4 py-3">@assignment.AssignedDate.ToString("MMM dd, yyyy")</td>
+                            <td class="px-4 py-3">
+                                @if (assignment.Status == "Active")
+                                {
+                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">Returned</span>
+                                }
+                            </td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                @if (assignment.Status == "Active")
+                                {
+                                    <button @onclick="() => ReturnAsset(assignment.AssignmentId)" 
+                                            class="flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-100">
+                                        Return
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Assign Asset Modal -->
+@if (showModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-xl font-bold text-gray-800">Assign Asset</h2>
+                <button @onclick="CloseModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Asset *</label>
+                    <select @bind="assignmentForm.AssetId" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Asset</option>
+                        @foreach (var asset in availableAssets.Where(a => a.Status == "Available"))
+                        {
+                            <option value="@asset.AssetId">@asset.AssetName (@asset.AssetId)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Assign To Type *</label>
+                    <select @bind="assignmentForm.AssignedToType" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Type</option>
+                        <option value="Employee">Employee</option>
+                        <option value="Section">Section</option>
+                        <option value="Classroom">Classroom</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Assigned To Name *</label>
+                    <input type="text" @bind="assignmentForm.AssignedToName" 
+                           placeholder="Enter name or identifier"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea @bind="assignmentForm.Notes" rows="3"
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400"></textarea>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="CloseModal" 
+                        class="rounded-lg bg-gray-500 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button @onclick="SaveAssignment" 
+                        disabled="@isSaving"
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isSaving)
+                    {
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <span>Assign</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<AssetAssignment> assignments = new();
+    private List<Asset> availableAssets = new();
+    private bool isLoading = false;
+    private bool showModal = false;
+    private bool isSaving = false;
+    private AssetAssignment assignmentForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAssignments();
+        await LoadAvailableAssets();
+    }
+
+    private async Task LoadAssignments()
+    {
+        isLoading = true;
+        try
+        {
+            assignments = await AssignmentService.GetAssetAssignmentsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading assignments: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAvailableAssets()
+    {
+        try
+        {
+            availableAssets = await AssetService.GetAllAssetsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading assets: {ex.Message}");
+        }
+    }
+
+    private void ShowAssignModal()
+    {
+        assignmentForm = new AssetAssignment();
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        assignmentForm = new AssetAssignment();
+    }
+
+    private async Task SaveAssignment()
+    {
+        if (string.IsNullOrWhiteSpace(assignmentForm.AssetId) || 
+            string.IsNullOrWhiteSpace(assignmentForm.AssignedToType) ||
+            string.IsNullOrWhiteSpace(assignmentForm.AssignedToName))
+        {
+            return; // TODO: Show validation error
+        }
+
+        isSaving = true;
+        try
+        {
+            await AssignmentService.CreateAssignmentAsync(assignmentForm);
+            await LoadAssignments();
+            await LoadAvailableAssets(); // Refresh to update asset statuses
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving assignment: {ex.Message}");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ReturnAsset(int assignmentId)
+    {
+        try
+        {
+            await AssignmentService.ReturnAssetAsync(assignmentId);
+            await LoadAssignments();
+            await LoadAvailableAssets(); // Refresh to update asset statuses
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error returning asset: {ex.Message}");
+        }
+    }
+}
+

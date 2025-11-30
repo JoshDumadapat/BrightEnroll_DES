@@ -82,6 +82,32 @@ namespace BrightEnroll_DES.Services.RoleBase
         public const string ViewProfile = "view_profile";
         public const string EditProfile = "edit_profile";
 
+        // Attendance Monitoring
+        public const string ViewAttendance = "view_attendance";
+        public const string RecordAttendance = "record_attendance";
+        public const string EditAttendance = "edit_attendance";
+        public const string ViewAttendanceReports = "view_attendance_reports";
+
+        // Gradebook / Grading
+        public const string ViewGradebook = "view_gradebook";
+        public const string EnterGrades = "enter_grades";
+        public const string EditGrades = "edit_grades";
+        public const string ComputeGrades = "compute_grades";
+        public const string GenerateReportCard = "generate_report_card";
+
+        // Reporting / Analytics
+        public const string ViewReports = "view_reports";
+        public const string GenerateReports = "generate_reports";
+        public const string ViewAnalytics = "view_analytics";
+        public const string ExportReports = "export_reports";
+
+        // Inventory / Asset Management
+        public const string ViewInventory = "view_inventory";
+        public const string CreateInventory = "create_inventory";
+        public const string EditInventory = "edit_inventory";
+        public const string DeleteInventory = "delete_inventory";
+        public const string ManageAssets = "manage_assets";
+
         /// <summary>
         /// Gets all available permissions as a list.
         /// </summary>
@@ -100,7 +126,11 @@ namespace BrightEnroll_DES.Services.RoleBase
                 ViewAuditLog,
                 ViewCloudManagement, SyncData, ManageCloudSettings,
                 ViewSettings, EditSettings, ManageSystemSettings,
-                ViewProfile, EditProfile
+                ViewProfile, EditProfile,
+                ViewAttendance, RecordAttendance, EditAttendance, ViewAttendanceReports,
+                ViewGradebook, EnterGrades, EditGrades, ComputeGrades, GenerateReportCard,
+                ViewReports, GenerateReports, ViewAnalytics, ExportReports,
+                ViewInventory, CreateInventory, EditInventory, DeleteInventory, ManageAssets
             };
         }
     }

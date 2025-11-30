@@ -1,0 +1,91 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Gradebook.GradebookComponents
+
+<div class="p-6">
+    <!-- Report Card Generation -->
+    <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Generate Report Card</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
+                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2023-2024">2023-2024</option>
+                </select>
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Section:</label>
+                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="">Select Section</option>
+                    <option value="Saturn">Saturn</option>
+                    <option value="Rizal">Rizal</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    Generate Report Cards
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Cards List -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 font-semibold text-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left">Student ID</th>
+                    <th class="px-4 py-3 text-left">Name</th>
+                    <th class="px-4 py-3 text-left">Section</th>
+                    <th class="px-4 py-3 text-center">School Year</th>
+                    <th class="px-4 py-3 text-center">Final Grade</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                @foreach (var card in reportCards)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">@card.StudentId</td>
+                        <td class="px-4 py-3">@card.Name</td>
+                        <td class="px-4 py-3">@card.Section</td>
+                        <td class="px-4 py-3 text-center">@card.SchoolYear</td>
+                        <td class="px-4 py-3 text-center font-bold text-blue-600">@card.FinalGrade.ToString("F2")</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <button class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Download PDF
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<ReportCard> reportCards = new();
+
+    private class ReportCard
+    {
+        public string StudentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Section { get; set; } = "";
+        public string SchoolYear { get; set; } = "";
+        public decimal FinalGrade { get; set; }
+    }
+
+    protected override void OnInitialized()
+    {
+        // TODO: Load report cards from database
+        reportCards = new List<ReportCard>
+        {
+            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 88.75m },
+            new() { StudentId = "ST002", Name = "Maria Santos", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 92.75m },
+            new() { StudentId = "ST003", Name = "Pedro Garcia", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 81.75m },
+        };
+    }
+}
+

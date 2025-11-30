@@ -72,6 +72,14 @@ namespace BrightEnroll_DES.Services.RoleBase
                 return false;
             }
 
+            // SuperAdmin has access to everything
+            var userRole = _authService.CurrentUser.user_role;
+            if (!string.IsNullOrWhiteSpace(userRole) && 
+                string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
             return UserHasPermission(_authService.CurrentUser, permission);
         }
 

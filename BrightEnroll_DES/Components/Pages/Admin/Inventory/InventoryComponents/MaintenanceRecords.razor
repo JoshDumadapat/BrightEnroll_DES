@@ -1,0 +1,223 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Inventory.InventoryComponents
+@using BrightEnroll_DES.Services.Business.Inventory
+@inject AssetService AssetService
+
+<div class="p-6">
+    <div class="mb-6 flex justify-end">
+        <button @onclick="ShowScheduleModal" 
+                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+            + Schedule Maintenance
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Loading maintenance records...</p>
+        </div>
+    }
+    else if (maintenanceRecords.Count == 0)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">No maintenance records found.</p>
+        </div>
+    }
+    else
+    {
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Asset ID</th>
+                        <th class="px-4 py-3 text-left">Asset Name</th>
+                        <th class="px-4 py-3 text-left">Maintenance Type</th>
+                        <th class="px-4 py-3 text-left">Scheduled Date</th>
+                        <th class="px-4 py-3 text-left">Status</th>
+                        <th class="px-4 py-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    @foreach (var record in maintenanceRecords)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@record.AssetId</td>
+                            <td class="px-4 py-3">@record.AssetName</td>
+                            <td class="px-4 py-3">@record.MaintenanceType</td>
+                            <td class="px-4 py-3">@record.ScheduledDate.ToString("MMM dd, yyyy")</td>
+                            <td class="px-4 py-3">
+                                @if (record.Status == "Completed")
+                                {
+                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Completed</span>
+                                }
+                                else if (record.Status == "Pending")
+                                {
+                                    <span class="rounded-full bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">Pending</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-full bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">In Progress</span>
+                                }
+                            </td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                <button class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                    View
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<!-- Schedule Maintenance Modal -->
+@if (showModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-xl font-bold text-gray-800">Schedule Maintenance</h2>
+                <button @onclick="CloseModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Asset *</label>
+                    <select @bind="selectedAssetId" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Asset</option>
+                        @foreach (var asset in availableAssets)
+                        {
+                            <option value="@asset.AssetId">@asset.AssetName</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Maintenance Type *</label>
+                    <select @bind="maintenanceType" 
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-blue-400">
+                        <option value="">Select Type</option>
+                        <option value="Cleaning">Cleaning</option>
+                        <option value="Repair">Repair</option>
+                        <option value="Calibration">Calibration</option>
+                        <option value="Inspection">Inspection</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Scheduled Date *</label>
+                    <input type="date" value="@(scheduledDate.ToString("yyyy-MM-dd"))" 
+                           @onchange="@((ChangeEventArgs e) => { if (DateTime.TryParse(e.Value?.ToString(), out var date)) scheduledDate = date; })"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="CloseModal" 
+                        class="rounded-lg bg-gray-500 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    Cancel
+                </button>
+                <button @onclick="SaveMaintenance" 
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    Schedule
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<MaintenanceRecord> maintenanceRecords = new();
+    private List<BrightEnroll_DES.Data.Models.Asset> availableAssets = new();
+    private bool isLoading = false;
+    private bool showModal = false;
+    private string selectedAssetId = "";
+    private string maintenanceType = "";
+    private DateTime scheduledDate = DateTime.Now.AddDays(7);
+
+    private class MaintenanceRecord
+    {
+        public string AssetId { get; set; } = "";
+        public string AssetName { get; set; } = "";
+        public string MaintenanceType { get; set; } = "";
+        public DateTime ScheduledDate { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMaintenanceRecords();
+        await LoadAvailableAssets();
+    }
+
+    private async Task LoadMaintenanceRecords()
+    {
+        isLoading = true;
+        try
+        {
+            // TODO: Load from database when maintenance table is created
+            maintenanceRecords = new List<MaintenanceRecord>
+            {
+                new() { AssetId = "AST001", AssetName = "Projector", MaintenanceType = "Cleaning", ScheduledDate = DateTime.Now.AddDays(5), Status = "Pending" },
+                new() { AssetId = "AST003", AssetName = "Computer", MaintenanceType = "Repair", ScheduledDate = DateTime.Now.AddDays(-2), Status = "In Progress" },
+            };
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAvailableAssets()
+    {
+        try
+        {
+            availableAssets = await AssetService.GetAllAssetsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading assets: {ex.Message}");
+        }
+    }
+
+    private void ShowScheduleModal()
+    {
+        showModal = true;
+        selectedAssetId = "";
+        maintenanceType = "";
+        scheduledDate = DateTime.Now.AddDays(7);
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+    }
+
+    private async Task SaveMaintenance()
+    {
+        if (string.IsNullOrWhiteSpace(selectedAssetId) || string.IsNullOrWhiteSpace(maintenanceType))
+        {
+            return; // TODO: Show validation error
+        }
+
+        // TODO: Save to database when maintenance table is created
+        var asset = availableAssets.FirstOrDefault(a => a.AssetId == selectedAssetId);
+        if (asset != null)
+        {
+            maintenanceRecords.Add(new MaintenanceRecord
+            {
+                AssetId = asset.AssetId,
+                AssetName = asset.AssetName,
+                MaintenanceType = maintenanceType,
+                ScheduledDate = scheduledDate,
+                Status = "Pending"
+            });
+        }
+
+        CloseModal();
+    }
+}

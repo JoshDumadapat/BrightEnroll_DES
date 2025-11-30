@@ -12,9 +12,13 @@
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.RoleBase
 @using Microsoft.Extensions.Logging
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Finance</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewFinance">
 
 <!-- Toast Notification -->
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
@@ -25,19 +29,25 @@
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
-            <button @onclick='() => SetActiveTab("FeeSetup")' 
-                    class="@GetTabClasses("FeeSetup")"
-                    style="@GetFeeSetupStyle()">
-                Fee Setup
-            </button>
+            @if (AuthorizationService.HasPermission(Permissions.CreateFee) || AuthorizationService.HasPermission(Permissions.EditFee))
+            {
+                <button @onclick='() => SetActiveTab("FeeSetup")' 
+                        class="@GetTabClasses("FeeSetup")"
+                        style="@GetFeeSetupStyle()">
+                    Fee Setup
+                </button>
+            }
             <button @onclick='() => SetActiveTab("Payments")' 
                     class="@GetTabClasses("Payments")">
                 Payments
             </button>
-            <button @onclick='() => SetActiveTab("Expenses")' 
-                    class="@GetTabClasses("Expenses")">
-                Expenses
-            </button>
+            @if (AuthorizationService.HasPermission(Permissions.ManageExpenses))
+            {
+                <button @onclick='() => SetActiveTab("Expenses")' 
+                        class="@GetTabClasses("Expenses")">
+                    Expenses
+                </button>
+            }
             <button @onclick='() => SetActiveTab("Records")' 
                     class="@GetTabClasses("Records")">
                 Records
@@ -77,7 +87,7 @@
 </div>
 
 @code {
-    private string activeTab = "FeeSetup";
+    private string activeTab = "";
 
     // Fee Setup Data
     private List<FeeModel> FeeList = new();
@@ -121,6 +131,15 @@
 
     private void SetActiveTab(string tab)
     {
+        // Prevent Cashier from accessing restricted tabs
+        if (tab == "FeeSetup" && !AuthorizationService.HasPermission(Permissions.CreateFee) && !AuthorizationService.HasPermission(Permissions.EditFee))
+        {
+            return;
+        }
+        if (tab == "Expenses" && !AuthorizationService.HasPermission(Permissions.ManageExpenses))
+        {
+            return;
+        }
         activeTab = tab;
     }
 
@@ -161,6 +180,17 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Set default tab based on permissions
+        // Cashier should only see Payments and Records
+        if (AuthorizationService.HasPermission(Permissions.CreateFee) || AuthorizationService.HasPermission(Permissions.EditFee))
+        {
+            activeTab = "FeeSetup";
+        }
+        else
+        {
+            activeTab = "Payments";
+        }
+
         // Hide loading screen immediately when page loads
         LoadingService.HideLoading();
         
@@ -655,3 +685,4 @@
         await Task.CompletedTask;
     }
 }
+</RoleAuthorizeView>

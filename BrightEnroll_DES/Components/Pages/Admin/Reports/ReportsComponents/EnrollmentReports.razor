@@ -1,0 +1,159 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Reports.ReportsComponents
+@using BrightEnroll_DES.Services.Business.Reports
+@using Microsoft.JSInterop
+@inject EnrollmentReportService EnrollmentReportService
+@inject ExportService ExportService
+@inject ILoadingService LoadingService
+@inject IJSRuntime JSRuntime
+
+<div class="p-6">
+    <!-- Filters -->
+    <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Enrollment Reports</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
+                <select @bind="selectedSchoolYear" 
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="">All Years</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2023-2024">2023-2024</option>
+                </select>
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Grade Level:</label>
+                <select @bind="selectedGradeLevel" 
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="">All Grades</option>
+                    <option value="Kinder">Kinder</option>
+                    <option value="G1">Grade 1</option>
+                    <option value="G2">Grade 2</option>
+                    <option value="G3">Grade 3</option>
+                    <option value="G4">Grade 4</option>
+                    <option value="G5">Grade 5</option>
+                    <option value="G6">Grade 6</option>
+                </select>
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Status:</label>
+                <select @bind="selectedStatus" 
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="">All Status</option>
+                    <option value="Enrolled">Enrolled</option>
+                    <option value="Pending">Pending</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button @onclick="GenerateReport" 
+                        disabled="@isLoading"
+                        class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isLoading)
+                    {
+                        <span>Loading...</span>
+                    }
+                    else
+                    {
+                        <span>Generate</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (summary != null)
+    {
+        <!-- Summary Cards -->
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Total Enrolled</p>
+                <p class="text-2xl font-bold text-blue-600">@summary.TotalEnrolled</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">New Students</p>
+                <p class="text-2xl font-bold text-green-600">@summary.NewStudents</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Re-enrolled</p>
+                <p class="text-2xl font-bold text-orange-600">@summary.ReEnrolled</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Pending</p>
+                <p class="text-2xl font-bold text-red-600">@summary.Pending</p>
+            </div>
+        </div>
+
+        <!-- Export Button -->
+        <div class="mb-4 flex justify-end">
+            <button @onclick="ExportToExcel" 
+                    class="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                Export to Excel
+            </button>
+        </div>
+    }
+    else if (!isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Click "Generate" to view enrollment report.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private string selectedSchoolYear = "";
+    private string selectedGradeLevel = "";
+    private string selectedStatus = "";
+    private bool isLoading = false;
+    private EnrollmentSummary? summary = null;
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        try
+        {
+            summary = await EnrollmentReportService.GetEnrollmentSummaryAsync(
+                gradeLevel: string.IsNullOrWhiteSpace(selectedGradeLevel) ? null : selectedGradeLevel
+            );
+        }
+        catch (Exception ex)
+        {
+            // Handle error - could show toast notification
+            Console.WriteLine($"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ExportToExcel()
+    {
+        try
+        {
+            var details = await EnrollmentReportService.GetEnrollmentDetailsAsync(
+                gradeLevel: string.IsNullOrWhiteSpace(selectedGradeLevel) ? null : selectedGradeLevel,
+                status: string.IsNullOrWhiteSpace(selectedStatus) ? null : selectedStatus
+            );
+
+            var columnMappings = new Dictionary<string, Func<EnrollmentDetail, object?>>
+            {
+                { "Student ID", d => d.StudentId },
+                { "Name", d => d.Name },
+                { "Grade Level", d => d.GradeLevel },
+                { "Section", d => d.Section },
+                { "Status", d => d.Status },
+                { "Enrollment Date", d => d.EnrollmentDate.ToString("yyyy-MM-dd") },
+                { "Guardian Name", d => d.GuardianName }
+            };
+
+            var csvContent = ExportService.GenerateCsv(details, columnMappings, "enrollment_report");
+            var fileName = $"enrollment_report_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "text/csv", csvContent);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error exporting report: {ex.Message}");
+        }
+    }
+}
+

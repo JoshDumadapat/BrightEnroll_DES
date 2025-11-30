@@ -89,6 +89,16 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<ExpenseService>();
             builder.Services.AddScoped<PaymentService>();
             builder.Services.AddScoped<CurriculumService>();
+            
+            // Report services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.EnrollmentReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.FinancialReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.ExportService>();
+            
+            // Inventory services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.InventoryService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetAssignmentService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
@@ -121,6 +131,19 @@ namespace BrightEnroll_DES
                         bool seedingSuccess = false;
                         Exception? lastException = null;
                         
+                        // First, seed all roles
+                        try
+                        {
+                            await seeder.SeedAllRolesAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            var loggerFactory = app.Services.GetService<ILoggerFactory>();
+                            var logger = loggerFactory?.CreateLogger("MauiProgram");
+                            logger?.LogWarning(ex, "Role seeding failed: {Message}", ex.Message);
+                        }
+                        
+                        // Then seed admin user
                         for (int attempt = 1; attempt <= maxRetries; attempt++)
                         {
                             try

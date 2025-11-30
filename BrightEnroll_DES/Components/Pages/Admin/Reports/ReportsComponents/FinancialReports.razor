@@ -1,0 +1,88 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Reports.ReportsComponents
+@using BrightEnroll_DES.Services.Business.Reports
+@inject FinancialReportService FinancialReportService
+
+<div class="p-6">
+    <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Financial Reports</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">From Date:</label>
+                <input type="date" @bind="fromDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">To Date:</label>
+                <input type="date" @bind="toDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div class="flex items-end">
+                <button @onclick="GenerateReport" 
+                        disabled="@isLoading"
+                        class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isLoading)
+                    {
+                        <span>Loading...</span>
+                    }
+                    else
+                    {
+                        <span>Generate</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (summary != null)
+    {
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Total Collections</p>
+                <p class="text-2xl font-bold text-green-600">₱@summary.TotalCollections.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Outstanding</p>
+                <p class="text-2xl font-bold text-red-600">₱@summary.Outstanding.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Total Expenses</p>
+                <p class="text-2xl font-bold text-orange-600">₱@summary.TotalExpenses.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Net Income</p>
+                <p class="text-2xl font-bold text-blue-600">₱@summary.NetIncome.ToString("N2")</p>
+            </div>
+        </div>
+    }
+    else if (!isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Click "Generate" to view financial report.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime? fromDate = DateTime.Now.AddMonths(-1);
+    private DateTime? toDate = DateTime.Now;
+    private bool isLoading = false;
+    private FinancialSummary? summary = null;
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        try
+        {
+            summary = await FinancialReportService.GetFinancialSummaryAsync(fromDate, toDate);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

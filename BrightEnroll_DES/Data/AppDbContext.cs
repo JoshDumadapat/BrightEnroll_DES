@@ -47,6 +47,11 @@ public class AppDbContext : DbContext
     public DbSet<Role> Roles { get; set; }
     public DbSet<Deduction> Deductions { get; set; }
 
+    // Inventory & Asset Management tables
+    public DbSet<Asset> Assets { get; set; }
+    public DbSet<InventoryItem> InventoryItems { get; set; }
+    public DbSet<AssetAssignment> AssetAssignments { get; set; }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
@@ -428,6 +433,42 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_deductions");
             entity.HasIndex(e => e.DeductionType).IsUnique();
             entity.HasIndex(e => e.IsActive);
+        });
+
+        // Configure Inventory & Asset entities
+        modelBuilder.Entity<Asset>(entity =>
+        {
+            entity.HasKey(e => e.AssetId);
+            entity.ToTable("tbl_Assets");
+            entity.HasIndex(e => e.AssetId).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Location);
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<InventoryItem>(entity =>
+        {
+            entity.HasKey(e => e.ItemId);
+            entity.ToTable("tbl_InventoryItems");
+            entity.HasIndex(e => e.ItemCode).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<AssetAssignment>(entity =>
+        {
+            entity.HasKey(e => e.AssignmentId);
+            entity.ToTable("tbl_AssetAssignments");
+            entity.HasIndex(e => e.AssetId);
+            entity.HasIndex(e => e.AssignedToId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.AssignedDate);
+
+            entity.HasOne(a => a.Asset)
+                  .WithMany()
+                  .HasForeignKey(a => a.AssetId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

@@ -38,7 +38,27 @@ namespace BrightEnroll_DES.Services.RoleBase
         {
             return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
             {
-                // Admin - Full system access
+                // SuperAdmin - Full system access to everything
+                ["SuperAdmin"] = new List<string>
+                {
+                    Permissions.ViewDashboard,
+                    Permissions.ViewEnrollment, Permissions.CreateEnrollment, Permissions.EditEnrollment, Permissions.DeleteEnrollment, Permissions.ProcessReEnrollment,
+                    Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.DeleteStudentRecord, Permissions.ViewAcademicRecord,
+                    Permissions.ViewCurriculum, Permissions.CreateCurriculum, Permissions.EditCurriculum, Permissions.DeleteCurriculum, Permissions.ManageSections, Permissions.ManageSubjects, Permissions.ManageClassrooms, Permissions.AssignTeachers,
+                    Permissions.ViewFinance, Permissions.CreateFee, Permissions.EditFee, Permissions.DeleteFee, Permissions.ProcessPayment, Permissions.ViewPaymentRecords, Permissions.ManageExpenses, Permissions.ViewFinancialReports,
+                    Permissions.ViewHR, Permissions.CreateEmployee, Permissions.EditEmployee, Permissions.DeleteEmployee, Permissions.ViewEmployeeProfile, Permissions.ManageEmployeeData,
+                    Permissions.ViewPayroll, Permissions.CreatePayroll, Permissions.EditPayroll, Permissions.DeletePayroll, Permissions.GeneratePayslip, Permissions.ManageRoles,
+                    Permissions.ViewArchive, Permissions.ArchiveStudent, Permissions.ArchiveEmployee, Permissions.RestoreArchived,
+                    Permissions.ViewAuditLog,
+                    Permissions.ViewCloudManagement, Permissions.SyncData, Permissions.ManageCloudSettings,
+                    Permissions.ViewSettings, Permissions.EditSettings, Permissions.ManageSystemSettings,
+                    Permissions.ViewProfile, Permissions.EditProfile,
+                    // Added: New module permissions (Attendance and Gradebook are Teacher-only)
+                    Permissions.ViewReports, Permissions.GenerateReports, Permissions.ViewAnalytics, Permissions.ExportReports,
+                    Permissions.ViewInventory, Permissions.CreateInventory, Permissions.EditInventory, Permissions.DeleteInventory, Permissions.ManageAssets
+                },
+
+                // Admin - Full system access (Attendance and Gradebook are Teacher-only)
                 ["Admin"] = new List<string>
                 {
                     Permissions.ViewDashboard,
@@ -52,24 +72,10 @@ namespace BrightEnroll_DES.Services.RoleBase
                     Permissions.ViewAuditLog,
                     Permissions.ViewCloudManagement, Permissions.SyncData, Permissions.ManageCloudSettings,
                     Permissions.ViewSettings, Permissions.EditSettings, Permissions.ManageSystemSettings,
-                    Permissions.ViewProfile, Permissions.EditProfile
-                },
-
-                // System Admin - System administration and full access
-                ["System Admin"] = new List<string>
-                {
-                    Permissions.ViewDashboard,
-                    Permissions.ViewEnrollment, Permissions.CreateEnrollment, Permissions.EditEnrollment, Permissions.DeleteEnrollment, Permissions.ProcessReEnrollment,
-                    Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.DeleteStudentRecord, Permissions.ViewAcademicRecord,
-                    Permissions.ViewCurriculum, Permissions.CreateCurriculum, Permissions.EditCurriculum, Permissions.DeleteCurriculum, Permissions.ManageSections, Permissions.ManageSubjects, Permissions.ManageClassrooms, Permissions.AssignTeachers,
-                    Permissions.ViewFinance, Permissions.CreateFee, Permissions.EditFee, Permissions.DeleteFee, Permissions.ProcessPayment, Permissions.ViewPaymentRecords, Permissions.ManageExpenses, Permissions.ViewFinancialReports,
-                    Permissions.ViewHR, Permissions.CreateEmployee, Permissions.EditEmployee, Permissions.DeleteEmployee, Permissions.ViewEmployeeProfile, Permissions.ManageEmployeeData,
-                    Permissions.ViewPayroll, Permissions.CreatePayroll, Permissions.EditPayroll, Permissions.DeletePayroll, Permissions.GeneratePayslip, Permissions.ManageRoles,
-                    Permissions.ViewArchive, Permissions.ArchiveStudent, Permissions.ArchiveEmployee, Permissions.RestoreArchived,
-                    Permissions.ViewAuditLog,
-                    Permissions.ViewCloudManagement, Permissions.SyncData, Permissions.ManageCloudSettings,
-                    Permissions.ViewSettings, Permissions.EditSettings, Permissions.ManageSystemSettings,
-                    Permissions.ViewProfile, Permissions.EditProfile
+                    Permissions.ViewProfile, Permissions.EditProfile,
+                    // Added: New module permissions (Attendance and Gradebook are Teacher-only)
+                    Permissions.ViewReports, Permissions.GenerateReports, Permissions.ViewAnalytics, Permissions.ExportReports,
+                    Permissions.ViewInventory, Permissions.CreateInventory, Permissions.EditInventory, Permissions.DeleteInventory, Permissions.ManageAssets
                 },
 
                 // HR - Human resources management
@@ -77,6 +83,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                 {
                     Permissions.ViewDashboard,
                     Permissions.ViewHR, Permissions.CreateEmployee, Permissions.EditEmployee, Permissions.ViewEmployeeProfile, Permissions.ManageEmployeeData,
+                    // Removed: DeleteEmployee - HR should only archive, not delete
                     Permissions.ViewPayroll, Permissions.GeneratePayslip,
                     Permissions.ViewArchive, Permissions.ArchiveEmployee, Permissions.RestoreArchived,
                     Permissions.ViewProfile, Permissions.EditProfile
@@ -87,15 +94,21 @@ namespace BrightEnroll_DES.Services.RoleBase
                 {
                     Permissions.ViewDashboard,
                     Permissions.ViewEnrollment, Permissions.CreateEnrollment, Permissions.EditEnrollment, Permissions.ProcessReEnrollment,
+                    // Removed: DeleteEnrollment - Registrar should only archive, not delete
                     Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.ViewAcademicRecord,
-                    Permissions.ViewCurriculum, Permissions.ViewProfile, Permissions.EditProfile
+                    // Removed: DeleteStudentRecord - Registrar should only archive, not delete
+                    Permissions.ViewCurriculum, // To see sections/subjects for enrollment
+                    Permissions.ViewFinance, // To check payment status for enrollment
+                    Permissions.ViewArchive, // To view archived students
+                    Permissions.ViewProfile, Permissions.EditProfile
                 },
 
-                // Cashier - Payment processing
+                // Cashier - Payment processing only (no fee setup or expenses)
                 ["Cashier"] = new List<string>
                 {
                     Permissions.ViewDashboard,
                     Permissions.ViewFinance, Permissions.ProcessPayment, Permissions.ViewPaymentRecords,
+                    // Removed: CreateFee, EditFee, DeleteFee, ManageExpenses - Cashier should only process payments
                     Permissions.ViewEnrollment, // To see enrollment status for payment
                     Permissions.ViewStudentRecord, // To view student info for payment
                     Permissions.ViewProfile, Permissions.EditProfile
@@ -106,7 +119,11 @@ namespace BrightEnroll_DES.Services.RoleBase
                 {
                     Permissions.ViewDashboard,
                     Permissions.ViewStudentRecord, Permissions.ViewAcademicRecord,
+                    // Added: Edit access for academic records (limited to assigned students)
                     Permissions.ViewCurriculum, // To view assigned classes
+                    // Added: Attendance and Grading permissions
+                    Permissions.ViewAttendance, Permissions.RecordAttendance, Permissions.EditAttendance, Permissions.ViewAttendanceReports,
+                    Permissions.ViewGradebook, Permissions.EnterGrades, Permissions.EditGrades, Permissions.ComputeGrades, Permissions.GenerateReportCard,
                     Permissions.ViewProfile, Permissions.EditProfile
                 },
 

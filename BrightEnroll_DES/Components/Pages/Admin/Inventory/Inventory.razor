@@ -1,0 +1,77 @@
+@page "/inventory"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.Inventory.InventoryComponents
+@using BrightEnroll_DES.Services.RoleBase
+@inject IAuthorizationService AuthorizationService
+
+<PageTitle>Inventory</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewInventory">
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Inventory & Asset Management</h1>
+    
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("assets")' 
+                    class="@GetTabClasses("assets")">
+                Assets
+            </button>
+            <button @onclick='() => SetActiveTab("items")' 
+                    class="@GetTabClasses("items")">
+                Items
+            </button>
+            <button @onclick='() => SetActiveTab("assignments")' 
+                    class="@GetTabClasses("assignments")">
+                Assignments
+            </button>
+            <button @onclick='() => SetActiveTab("maintenance")' 
+                    class="@GetTabClasses("maintenance")">
+                Maintenance
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (activeTab == "assets")
+        {
+            <AssetManagement />
+        }
+        else if (activeTab == "items")
+        {
+            <ItemManagement />
+        }
+        else if (activeTab == "assignments")
+        {
+            <AssetAssignments />
+        }
+        else if (activeTab == "maintenance")
+        {
+            <MaintenanceRecords />
+        }
+    </div>
+</div>
+
+@code {
+    private string activeTab = "assets";
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        var baseClasses = "px-4 py-2 text-sm font-semibold transition-colors duration-200 border-b-2";
+        if (activeTab == tab)
+        {
+            return $"{baseClasses} border-blue-600 text-blue-600";
+        }
+        return $"{baseClasses} border-transparent text-gray-600 hover:text-gray-800";
+    }
+}
+
+</RoleAuthorizeView>
+

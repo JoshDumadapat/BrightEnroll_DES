@@ -1,0 +1,79 @@
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.RoleBase
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject NavigationManager Navigation
+
+@if (IsAuthorized())
+{
+    @ChildContent
+}
+else
+{
+    <div class="flex h-screen items-center justify-center">
+        <div class="text-center">
+            <h1 class="mb-4 text-2xl font-bold text-gray-800">Access Denied</h1>
+            <p class="mb-4 text-gray-600">You do not have permission to access this page.</p>
+            <button @onclick="GoToDashboard" class="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+                Go to Dashboard
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? RequiredRole { get; set; }
+    [Parameter] public string[]? RequiredRoles { get; set; }
+    [Parameter] public string? RequiredPermission { get; set; }
+    [Parameter] public string[]? RequiredPermissions { get; set; }
+
+    private bool IsAuthorized()
+    {
+        if (!AuthService.IsAuthenticated || AuthService.CurrentUser == null)
+        {
+            Navigation.NavigateTo("/login");
+            return false;
+        }
+
+        var userRole = AuthorizationService.GetUserRole();
+        
+        // SuperAdmin has access to everything
+        if (!string.IsNullOrWhiteSpace(userRole) && 
+            string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // Check role-based authorization
+        if (!string.IsNullOrWhiteSpace(RequiredRole))
+        {
+            return AuthorizationService.HasRole(RequiredRole);
+        }
+
+        if (RequiredRoles != null && RequiredRoles.Length > 0)
+        {
+            return AuthorizationService.HasAnyRole(RequiredRoles);
+        }
+
+        // Check permission-based authorization
+        if (!string.IsNullOrWhiteSpace(RequiredPermission))
+        {
+            return AuthorizationService.HasPermission(RequiredPermission);
+        }
+
+        if (RequiredPermissions != null && RequiredPermissions.Length > 0)
+        {
+            return AuthorizationService.HasAnyPermission(RequiredPermissions);
+        }
+
+        // If no specific requirements, allow authenticated users
+        return true;
+    }
+
+    private void GoToDashboard()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+}
+
