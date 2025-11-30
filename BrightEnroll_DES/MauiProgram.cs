@@ -8,6 +8,7 @@ using BrightEnroll_DES.Services.Database.Connections;
 using BrightEnroll_DES.Services.Database.Initialization;
 using BrightEnroll_DES.Services.Infrastructure;
 using BrightEnroll_DES.Services.Seeders;
+using BrightEnroll_DES.Services.RoleBase;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -45,6 +46,10 @@ namespace BrightEnroll_DES
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
             builder.Services.AddSingleton<AddressService>();
             builder.Services.AddSingleton<SchoolYearService>();
+
+            // Role-based access control services
+            builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();
+            builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();
 
             // --- LOCAL DATABASE SETUP ---
             // Get connection strings
