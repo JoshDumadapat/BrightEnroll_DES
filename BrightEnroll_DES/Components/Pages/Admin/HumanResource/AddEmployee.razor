@@ -6,6 +6,7 @@
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.Business.HR
 @using BrightEnroll_DES.Services.DataAccess.Repositories
+@using BrightEnroll_DES.Services.RoleBase
 @using Microsoft.AspNetCore.Components
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.AspNetCore.Components.Web
@@ -955,7 +956,7 @@
         await LoadRolesFromDatabase();
     }
     
-    // Load roles from database
+    // Load roles from database and merge with system-defined roles
     private async Task LoadRolesFromDatabase()
     {
         isLoadingRoles = true;
@@ -963,15 +964,53 @@
         
         try
         {
-            availableRoles = await DbContext.Roles
+            // Get roles from database
+            var dbRoles = await DbContext.Roles
                 .Where(r => r.IsActive)
-                .OrderBy(r => r.RoleName)
                 .ToListAsync();
+            
+            // Get all system-defined roles
+            var systemRoles = RoleAuthorizationHelper.GetAllRoles();
+            
+            // Create a combined list: use DB roles if they exist, otherwise create default Role objects
+            availableRoles = new List<BrightEnroll_DES.Data.Models.Role>();
+            
+            foreach (var systemRoleName in systemRoles)
+            {
+                var dbRole = dbRoles.FirstOrDefault(r => r.RoleName.Equals(systemRoleName, StringComparison.OrdinalIgnoreCase));
+                
+                if (dbRole != null)
+                {
+                    // Use role from database (has salary info)
+                    availableRoles.Add(dbRole);
+                }
+                else
+                {
+                    // Create default role object for system role not in database
+                    availableRoles.Add(new BrightEnroll_DES.Data.Models.Role
+                    {
+                        RoleName = systemRoleName,
+                        BaseSalary = 0,
+                        Allowance = 0,
+                        IsActive = true
+                    });
+                }
+            }
+            
+            // Sort by role name
+            availableRoles = availableRoles.OrderBy(r => r.RoleName).ToList();
         }
         catch (Exception)
         {
-            // Log error or show toast notification
-            availableRoles = new List<BrightEnroll_DES.Data.Models.Role>();
+            // If database fails, use system roles with default values
+            var systemRoles = RoleAuthorizationHelper.GetAllRoles();
+            availableRoles = systemRoles.Select(roleName => new BrightEnroll_DES.Data.Models.Role
+            {
+                RoleName = roleName,
+                BaseSalary = 0,
+                Allowance = 0,
+                IsActive = true
+            }).OrderBy(r => r.RoleName).ToList();
         }
         finally
         {

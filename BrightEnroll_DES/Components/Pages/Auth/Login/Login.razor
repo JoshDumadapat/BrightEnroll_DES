@@ -399,12 +399,33 @@
                     await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
                 }
 
-                // Keep loading message as "Logging in... Please wait." during navigation
-                // Dashboard will hide loading immediately after navigation (no separate loading screen)
                 // Login successful - redirect based on user role
-                var userRole = AuthorizationService.GetUserRole();
-                var redirectPath = GetRedirectPathForRole(userRole);
-                Navigation.NavigateTo(redirectPath);
+                try
+                {
+                    // Get role directly from AuthService to ensure it's available
+                    var currentUser = AuthService.CurrentUser;
+                    var userRole = currentUser?.user_role;
+                    var redirectPath = GetRedirectPathForRole(userRole);
+                    
+                    // Small delay to ensure state is updated before navigation
+                    await Task.Delay(100);
+                    
+                    // Hide loading screen before navigation to prevent it from getting stuck
+                    LoadingService.HideLoading();
+                    
+                    // Small delay to ensure loading screen is hidden
+                    await Task.Delay(50);
+                    
+                    // Navigate to the appropriate page
+                    Navigation.NavigateTo(redirectPath, forceLoad: true);
+                }
+                catch (Exception ex)
+                {
+                    // If role detection fails, just go to dashboard and hide loading
+                    LoadingService.HideLoading();
+                    await Task.Delay(50);
+                    Navigation.NavigateTo("/dashboard", forceLoad: true);
+                }
             }
             else
             {
@@ -416,7 +437,7 @@
                 StateHasChanged();
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // Ensure loading screen shows for at least 1 second even on error
             var elapsed = DateTime.Now - startTime;
@@ -490,7 +511,8 @@
         }
 
         // Redirect based on role - you can customize these paths
-        return role.ToLower() switch
+        var roleLower = role.ToLower().Trim();
+        return roleLower switch
         {
             "cashier" => "/finance", // Cashier goes to Finance page
             "registrar" => "/enrollment", // Registrar goes to Enrollment page
@@ -498,6 +520,7 @@
             "teacher" => "/student-record", // Teacher goes to Student Record page
             "admin" => "/dashboard",
             "system admin" => "/dashboard",
+            "super admin" => "/dashboard", // Super Admin goes to dashboard
             _ => "/dashboard" // Default to dashboard for other roles
         };
     }
