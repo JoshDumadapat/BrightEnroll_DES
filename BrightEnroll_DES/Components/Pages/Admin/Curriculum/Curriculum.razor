@@ -71,7 +71,7 @@
             <TeacherAssignment Assignments="Assignments" 
                               OnAddAssignment="OpenAddAssignmentModal" 
                               OnEditAssignment="@((TeacherAssignmentModel assignment) => OpenEditAssignmentModal(assignment))"
-                              OnViewAssignment="@((TeacherAssignmentModel assignment) => OpenViewAssignmentModal(assignment))" />
+                              OnArchiveAssignment="@((TeacherAssignmentModel assignment) => OpenArchiveAssignmentModal(assignment))" />
         }
         else if (ActiveTab == "classes")
         {
@@ -210,6 +210,41 @@
     </div>
 }
 
+@if (ShowArchiveAssignmentConfirmModal && ArchivingAssignment != null)
+{
+    <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowArchiveAssignmentConfirmModal = false">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
+                <h3 class="text-base font-semibold text-white">Archive Teacher Assignments</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700 mb-2">
+                    Are you sure you want to archive all subject teacher assignments for this section?
+                </p>
+                <p class="text-sm font-medium text-gray-800">
+                    Grade: <strong>@ArchivingAssignment.Grade</strong><br />
+                    Section: <strong>@ArchivingAssignment.Section</strong><br />
+                    Classroom: <strong>@ArchivingAssignment.Classroom</strong><br />
+                    Subjects: <strong>@ArchivingAssignment.SubjectsCount</strong>
+                </p>
+                <p class="text-xs text-red-600 mt-2">
+                    This is a soft delete. You can recreate assignments for this section later.
+                </p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="() => ShowArchiveAssignmentConfirmModal = false"
+                        class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmArchiveAssignmentAsync"
+                        class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                    Archive
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- Unavailable Reason Modal -->
 @if (ShowUnavailableReasonModal)
 {
@@ -331,6 +366,9 @@
     private Classroom TogglingClassroom = new();
     private string UnavailableReason = "";
     private string AvailableNote = "";
+
+    private TeacherAssignmentModel? ArchivingAssignment = null;
+    private bool ShowArchiveAssignmentConfirmModal = false;
     
     private string ClassroomValidationError = "";
     private bool ShowErrorModal = false;
@@ -421,14 +459,16 @@
                 GradeLevel = s.GradeLevel?.GradeLevelName ?? "",
                 Classroom = s.Classroom?.RoomName ?? "",
                 Capacity = s.Capacity,
-                HomeroomTeacher = GetHomeroomTeacher(s.SectionId),
+            HomeroomTeacher = s.Adviser != null
+                ? $"{s.Adviser.FirstName} {s.Adviser.LastName}"
+                : GetHomeroomTeacher(s.SectionId),
                 Notes = s.Notes ?? ""
             }).ToList();
 
             Subjects = await MapSubjectsToUIAsync();
             Logger.LogInformation("Mapped {SubjectCount} subjects to UI", Subjects.Count);
 
-            Assignments = await MapAssignmentsToUIAsync();
+            Assignments = BuildSectionAssignmentsFromDb();
             
             StateHasChanged();
         }
@@ -450,6 +490,115 @@
         return assignment?.Teacher != null 
             ? $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}" 
             : "";
+    }
+
+    private List<TeacherAssignmentModel> BuildSectionAssignmentsFromDb()
+    {
+        var result = new List<TeacherAssignmentModel>();
+
+        if (DbSections == null || !DbSections.Any())
+        {
+            return result;
+        }
+
+        // Group non-archived subject_teacher assignments by section
+        var subjectTeacherBySection = DbAssignments
+            .Where(a => a.Role == "subject_teacher" && !a.IsArchived)
+            .GroupBy(a => a.SectionId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        foreach (var section in DbSections)
+        {
+            var gradeName = section.GradeLevel?.GradeLevelName ?? "";
+            var classroomName = section.Classroom?.RoomName ?? "";
+
+            // Subject list for this section
+            subjectTeacherBySection.TryGetValue(section.SectionId, out var sectionSubjectAssignments);
+            var subjectNames = sectionSubjectAssignments?
+                .Where(a => a.Subject != null)
+                .Select(a => a.Subject!.SubjectName)
+                .Distinct()
+                .OrderBy(n => n)
+                .ToList() ?? new List<string>();
+
+            if (!subjectNames.Any())
+            {
+                // Still show the section row with zero subjects
+                subjectNames = new List<string>();
+            }
+
+            // Prefer the adviser assignment ID for editing, fall back to any subject_teacher assignment
+            var adviserAssignment = DbAssignments
+                .FirstOrDefault(a => a.SectionId == section.SectionId && a.Role == "adviser" && !a.IsArchived);
+
+            var representativeAssignmentId = adviserAssignment?.AssignmentId 
+                                            ?? sectionSubjectAssignments?.FirstOrDefault()?.AssignmentId 
+                                            ?? 0;
+
+            var uiItem = new TeacherAssignmentModel
+            {
+                Id = $"SEC-{section.SectionId:D3}",
+                AssignmentId = representativeAssignmentId,
+                Grade = gradeName,
+                Section = section.SectionName,
+                Classroom = classroomName,
+                SubjectsCount = subjectNames.Count,
+                SubjectsList = subjectNames
+            };
+
+            result.Add(uiItem);
+        }
+
+        // Order by grade then section name
+        return result
+            .OrderBy(a => a.Grade)
+            .ThenBy(a => a.Section)
+            .ToList();
+    }
+
+    private void OpenArchiveAssignmentModal(TeacherAssignmentModel assignment)
+    {
+        ArchivingAssignment = assignment;
+        ShowArchiveAssignmentConfirmModal = true;
+    }
+
+    private async Task ConfirmArchiveAssignmentAsync()
+    {
+        if (ArchivingAssignment == null)
+        {
+            ShowArchiveAssignmentConfirmModal = false;
+            return;
+        }
+
+        try
+        {
+            // Archive all teacher-section assignments for this section
+            var section = DbSections.FirstOrDefault(s => s.SectionName == ArchivingAssignment.Section);
+            if (section != null)
+            {
+                var sectionAssignments = DbAssignments
+                    .Where(a => a.SectionId == section.SectionId && a.Role == "subject_teacher" && !a.IsArchived)
+                    .ToList();
+
+                foreach (var assignment in sectionAssignments)
+                {
+                    await CurriculumService.DeleteTeacherAssignmentAsync(assignment.AssignmentId);
+                }
+
+                // Reload assignments from database to refresh UI
+                DbAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+                Assignments = BuildSectionAssignmentsFromDb();
+            }
+
+            ShowArchiveAssignmentConfirmModal = false;
+            ArchivingAssignment = null;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error archiving teacher assignments for section {Section}", ArchivingAssignment.Section);
+            ShowArchiveAssignmentConfirmModal = false;
+            ArchivingAssignment = null;
+        }
     }
 
     private async Task<List<Subject>> MapSubjectsToUIAsync()
@@ -488,6 +637,7 @@
                     .GroupBy(s => new { s.StartTime, s.EndTime })
                     .Select(g => new SubjectScheduleItem
                     {
+                        SubjectCode = dbSubject.SubjectCode ?? string.Empty,
                         SubjectName = dbSubject.SubjectName,
                         StartTime = g.Key.StartTime.ToString(@"hh\:mm"),
                         EndTime = g.Key.EndTime.ToString(@"hh\:mm"),
@@ -503,11 +653,13 @@
                 uiSubjects.Add(new Subject
                 {
                     Id = $"SUB-{dbSubject.SubjectId:D3}",
+                    Code = dbSubject.SubjectCode ?? string.Empty,
                     Name = dbSubject.SubjectName,
                     GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
                     LinkedSections = new List<string>(), // No longer used, but keep for compatibility
                     Description = dbSubject.Description ?? "",
-                    Schedules = scheduleItems
+                    Schedules = scheduleItems,
+                    IsActive = dbSubject.IsActive
                 });
             }
             catch (Exception ex)
@@ -519,11 +671,13 @@
                 uiSubjects.Add(new Subject
                 {
                     Id = $"SUB-{dbSubject.SubjectId:D3}",
+                    Code = dbSubject.SubjectCode ?? string.Empty,
                     Name = dbSubject.SubjectName,
                     GradeLevel = dbSubject.GradeLevel?.GradeLevelName ?? "",
                     LinkedSections = new List<string>(),
                     Description = dbSubject.Description ?? "",
-                    Schedules = new List<SubjectScheduleItem>() // Empty schedules if error
+                    Schedules = new List<SubjectScheduleItem>(), // Empty schedules if error
+                    IsActive = dbSubject.IsActive
                 });
             }
         }
@@ -702,16 +856,32 @@
                 return;
             }
 
+            // Map adviser (homeroom teacher) from selected name to user ID
+            int? adviserId = null;
+            if (!string.IsNullOrWhiteSpace(NewSection.HomeroomTeacher))
+            {
+                var adviser = Teachers.FirstOrDefault(t =>
+                    $"{t.FirstName} {t.LastName}".Equals(NewSection.HomeroomTeacher, StringComparison.OrdinalIgnoreCase));
+                adviserId = adviser?.UserId;
+            }
+
             var dbSection = new DataModels.Section
             {
                 SectionName = NewSection.Name,
                 GradeLevelId = gradeLevel.GradeLevelId,
                 ClassroomId = classroom?.RoomId,
+                AdviserId = adviserId,
                 Capacity = NewSection.Capacity,
                 Notes = NewSection.Notes
             };
 
-            await CurriculumService.CreateSectionAsync(dbSection);
+            dbSection = await CurriculumService.CreateSectionAsync(dbSection);
+
+            // Auto-load subjects for this section based on curriculum (grade-level subjects)
+            if (dbSection.SectionId > 0)
+            {
+                await CurriculumService.AssignDefaultSubjectsToSectionAsync(dbSection.SectionId);
+            }
             await LoadDataAsync();
             await CloseAddSectionModal();
             
@@ -739,9 +909,19 @@
                 var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSection.GradeLevel);
                 var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == EditingSection.Classroom);
 
+                // Map adviser (homeroom teacher) from selected name to user ID
+                int? adviserId = null;
+                if (!string.IsNullOrWhiteSpace(EditingSection.HomeroomTeacher))
+                {
+                    var adviser = Teachers.FirstOrDefault(t =>
+                        $"{t.FirstName} {t.LastName}".Equals(EditingSection.HomeroomTeacher, StringComparison.OrdinalIgnoreCase));
+                    adviserId = adviser?.UserId;
+                }
+
                 dbSection.SectionName = EditingSection.Name;
                 dbSection.GradeLevelId = gradeLevel?.GradeLevelId ?? dbSection.GradeLevelId;
                 dbSection.ClassroomId = classroom?.RoomId;
+                dbSection.AdviserId = adviserId;
                 dbSection.Capacity = EditingSection.Capacity;
                 dbSection.Notes = EditingSection.Notes;
 
@@ -784,6 +964,7 @@
         EditingSubject = new Subject
         {
             Id = subject.Id,
+            Code = subject.Code,
             Name = subject.Name,
             GradeLevel = subject.GradeLevel,
             LinkedSections = new List<string>(), // No longer used
@@ -791,13 +972,15 @@
             Schedules = subject.Schedules != null 
                 ? subject.Schedules.Select(s => new SubjectScheduleItem
                 {
+                    SubjectCode = s.SubjectCode,
                     SubjectName = s.SubjectName,
                     StartTime = s.StartTime,
                     EndTime = s.EndTime,
                     Days = new List<string>(s.Days),
                     Description = s.Description
                 }).ToList()
-                : new List<SubjectScheduleItem>()
+                : new List<SubjectScheduleItem>(),
+            IsActive = subject.IsActive
         };
         ShowEditSubjectModal = true;
         StateHasChanged();
@@ -825,7 +1008,7 @@
 
             if (NewSubject.Schedules == null || !NewSubject.Schedules.Any())
             {
-                Logger.LogWarning("No subjects with schedules to add");
+                Logger.LogWarning("No subjects to add");
                 return;
             }
 
@@ -833,202 +1016,77 @@
             int skipCount = 0;
             List<string> errorMessages = new List<string>();
 
-            // Refresh DbSubjects before processing
+            // Refresh subjects from database
             DbSubjects = await CurriculumService.GetAllSubjectsAsync();
 
-            // Create subjects and their schedules in batch
-            foreach (var scheduleItem in NewSubject.Schedules)
+            foreach (var item in NewSubject.Schedules)
             {
                 try
                 {
-                    if (!TimeSpan.TryParse(scheduleItem.StartTime, out var startTime) ||
-                        !TimeSpan.TryParse(scheduleItem.EndTime, out var endTime))
-                    {
-                        errorMessages.Add($"Invalid time format for subject '{scheduleItem.SubjectName}'. Skipped.");
-                        Logger.LogWarning("Invalid time format for subject: {SubjectName}", scheduleItem.SubjectName);
-                        skipCount++;
-                        continue;
-                    }
-
-                    // Refresh DbSubjects to see newly created subjects in this batch
+                    // Refresh to include any subjects created earlier in this batch
                     DbSubjects = await CurriculumService.GetAllSubjectsAsync();
 
-                    // Check if subject with same name already exists in database for this grade level
-                    var existingSubject = DbSubjects.FirstOrDefault(s => 
-                        s.SubjectName.Equals(scheduleItem.SubjectName, StringComparison.OrdinalIgnoreCase) &&
+                    var existingSubject = DbSubjects.FirstOrDefault(s =>
+                        s.SubjectName.Equals(item.SubjectName, StringComparison.OrdinalIgnoreCase) &&
                         s.GradeLevelId == gradeLevel.GradeLevelId);
 
-                    // If subject name already exists, prevent insertion and show error
                     if (existingSubject != null)
                     {
-                        // Check if this exact schedule combination already exists in database
-                        var existingSchedules = await CurriculumService.GetSubjectSchedulesBySubjectAndTimeAsync(
-                            existingSubject.SubjectId, 
-                            gradeLevel.GradeLevelId, 
-                            startTime, 
-                            endTime);
-
-                        // Check if all days in the new schedule already exist
-                        var existingDays = existingSchedules.Select(ss => ss.DayOfWeek).ToList();
-                        var allDaysExist = scheduleItem.Days.All(day => existingDays.Contains(day));
-
-                        if (allDaysExist && existingDays.Count == scheduleItem.Days.Count)
-                        {
-                            errorMessages.Add($"❌ Subject '{scheduleItem.SubjectName}' with the same schedule (Time: {scheduleItem.StartTime} - {scheduleItem.EndTime}, Days: {string.Join(", ", scheduleItem.Days)}) already exists in the database. This duplicate was not inserted.");
-                            Logger.LogWarning("Subject '{SubjectName}' with the same schedule already exists in database. Skipping.", scheduleItem.SubjectName);
-                            skipCount++;
-                            continue; // Skip this subject - exact duplicate schedule
-                        }
-                        else
-                        {
-                            // Subject name exists but with different schedule - still prevent duplicate name
-                            errorMessages.Add($"❌ Subject name '{scheduleItem.SubjectName}' already exists in the database for this grade level. Each subject name can only be added once per grade level. Please use a different subject name or edit the existing subject. This duplicate was not inserted.");
-                            Logger.LogWarning("Subject name '{SubjectName}' already exists in database for grade level {GradeLevelId}. Skipping duplicate name.", scheduleItem.SubjectName, gradeLevel.GradeLevelId);
-                            skipCount++;
-                            continue; // Skip this subject - duplicate name
-                        }
-                    }
-
-                    // Create new subject (existingSubject is null at this point because we returned early if it existed)
-                    DataModels.Subject dbSubject = new DataModels.Subject
-                    {
-                        SubjectName = scheduleItem.SubjectName,
-                        GradeLevelId = gradeLevel.GradeLevelId,
-                        Description = scheduleItem.Description
-                    };
-                    dbSubject = await CurriculumService.CreateSubjectAsync(dbSubject);
-                    
-                    // Verify subject was created successfully
-                    if (dbSubject == null || dbSubject.SubjectId <= 0)
-                    {
-                        errorMessages.Add($"❌ Failed to create subject '{scheduleItem.SubjectName}'. Subject ID is invalid.");
-                        Logger.LogError("Subject creation failed for '{SubjectName}'. SubjectId is {SubjectId}", 
-                            scheduleItem.SubjectName, dbSubject?.SubjectId ?? 0);
+                        errorMessages.Add($"❌ Subject name '{item.SubjectName}' already exists for this grade level. Skipped.");
                         skipCount++;
                         continue;
                     }
-                    
-                    Logger.LogInformation("Subject created successfully: SubjectId={SubjectId}, SubjectName={SubjectName}, GradeLevelId={GradeLevelId}", 
-                        dbSubject.SubjectId, dbSubject.SubjectName, dbSubject.GradeLevelId);
-                    
-                    // Refresh DbSubjects after creating new subject
-                    DbSubjects = await CurriculumService.GetAllSubjectsAsync();
 
-                    // Create schedules for each day (only if it doesn't already exist)
-                    int schedulesCreated = 0;
-                    foreach (var day in scheduleItem.Days)
+                    var dbSubject = new DataModels.Subject
                     {
-                        try
-                        {
-                            // Check if schedule already exists for this day, subject, and time
-                            var existingSchedule = await CurriculumService.GetSubjectScheduleBySubjectDayAndTimeAsync(
-                                dbSubject.SubjectId,
-                                gradeLevel.GradeLevelId,
-                                day,
-                                startTime,
-                                endTime);
+                        SubjectName = item.SubjectName,
+                        SubjectCode = item.SubjectCode,
+                        GradeLevelId = gradeLevel.GradeLevelId,
+                        Description = item.Description,
+                        IsActive = true
+                    };
 
-                            if (existingSchedule == null)
-                            {
-                                // Create schedule with only the required properties (no navigation properties)
-                                var subjectSchedule = new DataModels.SubjectSchedule
-                                {
-                                    SubjectId = dbSubject.SubjectId,
-                                    GradeLevelId = gradeLevel.GradeLevelId,
-                                    DayOfWeek = day.Trim().ToUpper(), // Ensure day is trimmed and uppercase
-                                    StartTime = startTime,
-                                    EndTime = endTime,
-                                    IsDefault = true,
-                                    CreatedAt = DateTime.Now
-                                };
-                                
-                                // Explicitly set navigation properties to null to avoid EF Core confusion
-                                subjectSchedule.Subject = null;
-                                subjectSchedule.GradeLevel = null;
-                                
-                                var createdSchedule = await CurriculumService.CreateSubjectScheduleAsync(subjectSchedule);
-                                schedulesCreated++;
-                                Logger.LogInformation("Created schedule for subject '{SubjectName}': Day={Day}, Time={StartTime}-{EndTime}, ScheduleId={ScheduleId}", 
-                                    scheduleItem.SubjectName, day, startTime, endTime, createdSchedule.ScheduleId);
-                            }
-                            else
-                            {
-                                Logger.LogWarning("Schedule already exists for subject '{SubjectName}': Day={Day}, Time={StartTime}-{EndTime}", 
-                                    scheduleItem.SubjectName, day, startTime, endTime);
-                            }
-                        }
-                        catch (Exception scheduleEx)
-                        {
-                            Logger.LogError(scheduleEx, "Error creating schedule for subject '{SubjectName}', day '{Day}': {Error}", 
-                                scheduleItem.SubjectName, day, scheduleEx.Message);
-                            errorMessages.Add($"❌ Failed to create schedule for subject '{scheduleItem.SubjectName}' on day '{day}': {scheduleEx.Message}");
-                        }
-                    }
+                    dbSubject = await CurriculumService.CreateSubjectAsync(dbSubject);
 
-                    if (schedulesCreated > 0)
+                    if (dbSubject == null || dbSubject.SubjectId <= 0)
                     {
-                        successCount++;
-                        Logger.LogInformation("Successfully created {ScheduleCount} schedule(s) for subject '{SubjectName}'", 
-                            schedulesCreated, scheduleItem.SubjectName);
-                    }
-                    else
-                    {
-                        errorMessages.Add($"❌ No schedules were created for subject '{scheduleItem.SubjectName}'. All schedules may already exist or there was an error.");
+                        errorMessages.Add($"❌ Failed to create subject '{item.SubjectName}'.");
                         skipCount++;
+                        continue;
                     }
+
+                    successCount++;
                 }
                 catch (Exception ex)
                 {
-                    Logger.LogError(ex, "Error processing subject: {SubjectName}", scheduleItem.SubjectName);
+                    Logger.LogError(ex, "Error processing subject: {SubjectName}", item.SubjectName);
+                    errorMessages.Add($"❌ Error creating subject '{item.SubjectName}': {ex.Message}");
                     skipCount++;
                 }
             }
 
-            Logger.LogInformation("Added {SuccessCount} subject(s), skipped {SkipCount} duplicate(s)", successCount, skipCount);
+            Logger.LogInformation("Added {SuccessCount} subject(s), skipped {SkipCount}", successCount, skipCount);
 
-            // Show error messages if any subjects were skipped
             if (errorMessages.Any())
             {
-                var errorMessage = string.Join("\n", errorMessages);
-                Logger.LogWarning("Some subjects were not added:\n{Errors}", errorMessage);
-                
-                // Show error modal to user
                 ErrorModalTitle = "Error Adding Subjects";
-                ErrorModalMessage = errorMessage;
+                ErrorModalMessage = string.Join("\n", errorMessages);
                 ShowErrorModal = true;
             }
 
-            // Reload all data to refresh UI
             await LoadDataAsync();
-            
-            // Only close modal if at least one subject was successfully added AND no errors
-            if (successCount > 0 && !errorMessages.Any())
+
+            if (successCount > 0)
             {
                 await CloseAddSubjectModal();
-                
-                // Show success toast
-                toastMessage = successCount == 1 
+
+                toastMessage = successCount == 1
                     ? $"Subject '{NewSubject.Name}' added successfully."
                     : $"{successCount} subject(s) added successfully.";
                 toastType = ToastType.Success;
                 showToast = true;
             }
-            else if (errorMessages.Any() && successCount == 0)
-            {
-                // If all subjects failed, keep modal open - error modal will show the issues
-                // Don't close the add subject modal so user can fix issues
-            }
-            else if (successCount > 0 && errorMessages.Any())
-            {
-                // Some succeeded, some failed - close modal but show error
-                await CloseAddSubjectModal();
-                
-                // Show success toast (errors are shown in error modal)
-                toastMessage = $"{successCount} subject(s) added successfully.";
-                toastType = ToastType.Success;
-                showToast = true;
-            }
-            
+
             StateHasChanged();
         }
         catch (Exception ex)
@@ -1060,8 +1118,10 @@
             
             // Update subject basic info
             dbSubject.SubjectName = EditingSubject.Name;
+            dbSubject.SubjectCode = EditingSubject.Code;
             dbSubject.GradeLevelId = gradeLevel.GradeLevelId;
             dbSubject.Description = EditingSubject.Description;
+            dbSubject.IsActive = EditingSubject.IsActive;
 
             await CurriculumService.UpdateSubjectAsync(dbSubject);
 

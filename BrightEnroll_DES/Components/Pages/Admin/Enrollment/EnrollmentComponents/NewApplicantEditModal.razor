@@ -713,38 +713,193 @@
                         </div>
                     </div>
 
-                    <!-- Actions -->
-                    <div class="mt-4 flex flex-col justify-end gap-3 sm:flex-row sm:gap-4">
-                        <button type="button"
-                                @onclick="OnCancelClicked"
-                                class="min-w-[120px] rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
-                            Cancel
-                        </button>
-                        <button type="button"
-                                @onclick="OnSaveClicked"
-                                disabled="@IsSaving"
-                                class="min-w-[120px] rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
-                            @if (IsSaving)
-                            {
-                                <span class="inline-flex items-center">
-                                    <svg class="-ml-1 mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                    Saving...
-                                </span>
-                            }
-                            else
-                            {
-                                <span>Save Changes</span>
-                            }
-                        </button>
-                    </div>
+            <!-- Actions -->
+            <div class="mt-4 flex flex-col justify-end gap-3 sm:flex-row sm:gap-4">
+                <button type="button"
+                        @onclick="OnCancelClicked"
+                        class="min-w-[120px] rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                    Cancel
+                </button>
+
+                @if (IsForEnrollmentContext && Model != null && (Model.Status == "Partially Paid" || Model.Status == "Fully Paid"))
+                {
+                    <button type="button"
+                            @onclick="OpenEnrollModal"
+                            class="min-w-[140px] rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                        Enroll Student
+                    </button>
+                }
+
+                <button type="button"
+                        @onclick="OnSaveClicked"
+                        disabled="@IsSaving"
+                        class="min-w-[120px] rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                    @if (IsSaving)
+                    {
+                        <span class="inline-flex items-center">
+                            <svg class="-ml-1 mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Saving...
+                        </span>
+                    }
+                    else
+                    {
+                        <span>Save Changes</span>
+                    }
+                </button>
+            </div>
                 </EditForm>
             }
         </div>
     </div>
 </div>
+}
+
+@* Enrollment Assignment Modal *@
+@if (ShowEnrollModal && Model != null)
+{
+    <div class="fixed inset-0 z-[55] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEnrollModal">
+        <div class="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-green-600 rounded-t-2xl">
+                <div>
+                    <h2 class="text-lg font-semibold text-white">Enroll Student to Section</h2>
+                    <p class="text-xs text-green-100">Assign the student to a section and review the adviser, schedule, and available slots.</p>
+                </div>
+                <button @onclick="CloseEnrollModal"
+                        class="rounded-full p-1 text-white hover:bg-green-700">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                              d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="px-6 py-4 space-y-4">
+                <!-- Student & Grade Info -->
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                    <p class="text-sm font-semibold text-gray-800">
+                        @Model.FirstName @Model.MiddleName @Model.LastName (@Model.StudentId)
+                    </p>
+                    <p class="mt-1 text-xs text-gray-600">
+                        Grade to Enroll: <span class="font-semibold">@Model.GradeToEnroll</span> |
+                        School Year: <span class="font-semibold">@Model.SchoolYear</span>
+                    </p>
+                    <p class="mt-1 text-xs text-gray-600">
+                        Current Status: <span class="font-semibold">@Model.Status</span> |
+                        Payment Status: <span class="font-semibold">@((Model.Status == "Fully Paid" || Model.Status == "Partially Paid") ? Model.Status : "N/A")</span>
+                    </p>
+                </div>
+
+                <!-- Section selection -->
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                            Section <span class="text-red-500">*</span>
+                        </label>
+                        <InputSelect @bind-Value="SelectedSectionId"
+                                     @bind-Value:after="OnSectionChanged"
+                                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                            @if (AvailableSections.Count == 0)
+                            {
+                                <option value="">No sections available</option>
+                            }
+                            else
+                            {
+                                @foreach (var sec in AvailableSections)
+                                {
+                                    <option value="@sec.SectionId">@sec.SectionName</option>
+                                }
+                            }
+                        </InputSelect>
+                        @if (AvailableSlots.HasValue)
+                        {
+                            <p class="mt-1 text-xs text-gray-600">
+                                Capacity: <span class="font-semibold">@SelectedSectionCapacity</span> |
+                                Enrolled: <span class="font-semibold">@SelectedSectionEnrolledCount</span> |
+                                Available Slots: <span class="font-semibold">@AvailableSlots</span>
+                            </p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                            Adviser
+                        </label>
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 sm:px-4 sm:py-2.5 sm:text-base flex flex-col gap-0.5">
+                            <span>@(!string.IsNullOrWhiteSpace(SelectedSectionAdviser) ? SelectedSectionAdviser : "N/A")</span>
+                            @if (!string.IsNullOrWhiteSpace(SelectedSectionRoom))
+                            {
+                                <span class="text-xs text-gray-600">Room: <span class="font-semibold">@SelectedSectionRoom</span></span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule preview -->
+                <div class="mt-2">
+                    <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                        Section Schedule
+                    </label>
+                    @if (IsLoadingSectionDetails)
+                    {
+                        <div class="flex items-center gap-2 text-xs text-gray-500">
+                            <svg class="h-4 w-4 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Loading schedule...
+                        </div>
+                    }
+                    else if (UnifiedScheduleRows.Any())
+                    {
+                        <div class="max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white">
+                            <table class="min-w-full text-xs sm:text-sm">
+                                <thead class="sticky top-0 bg-gray-50">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-700">Subject</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-700">Schedule</th>
+                                        <th class="px-3 py-2 text-left font-semibold text-gray-700">Teacher</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach (var row in UnifiedScheduleRows)
+                                    {
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-3 py-1.5 text-gray-800">@row.Subject</td>
+                                            <td class="px-3 py-1.5 text-gray-700">@row.DayPattern: @row.TimeRange</td>
+                                            <td class="px-3 py-1.5 text-gray-700">@row.Teacher</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-xs text-gray-500">No schedule has been configured for this section yet.</p>
+                    }
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-3 rounded-b-2xl">
+                <button type="button"
+                        @onclick="CloseEnrollModal"
+                        class="min-w-[100px] rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">
+                    Close
+                </button>
+                <button type="button"
+                        @onclick="ConfirmEnrollStudent"
+                        disabled="@(SelectedSectionId == null || AvailableSections.Count == 0)"
+                        class="min-w-[140px] rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
+                    Confirm Enrollment
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
 <!-- Archive Confirmation Modal -->
@@ -859,6 +1014,35 @@
     [Inject] private SchoolYearService SchoolYearService { get; set; } = null!;
     [Inject] private CurriculumService CurriculumService { get; set; } = null!;
 
+    // Enroll modal state
+    private bool ShowEnrollModal { get; set; } = false;
+    private List<Section> AvailableSections { get; set; } = new();
+    private int? SelectedSectionId { get; set; }
+    private bool IsLoadingSectionDetails { get; set; } = false;
+    private List<FinalClassView> SectionSchedule { get; set; } = new();
+    private string SelectedSectionAdviser { get; set; } = string.Empty;
+    private int? AvailableSlots { get; set; }
+    private int SelectedSectionCapacity { get; set; }
+    private int SelectedSectionEnrolledCount { get; set; }
+    private string SelectedSectionRoom { get; set; } = string.Empty;
+
+    // Flattened schedule rows for display
+    private class ScheduleRow
+    {
+        public string Subject { get; set; } = string.Empty;
+        public string TimeRange { get; set; } = string.Empty;
+        public string DayPattern { get; set; } = string.Empty;
+        public string Teacher { get; set; } = string.Empty;
+        public string Room { get; set; } = string.Empty;
+    }
+
+    private List<ScheduleRow> KinderScheduleRows { get; set; } = new();
+    private List<ScheduleRow> ElementaryScheduleRows { get; set; } = new();
+    private List<ScheduleRow> UnifiedScheduleRows { get; set; } = new();
+
+    private bool IsKinderOrPreSchool =>
+        Model != null && IsKinderOrPreSchoolGrade(Model.GradeToEnroll);
+
     protected override async Task OnInitializedAsync()
     {
         // Load school years
@@ -886,6 +1070,130 @@
         }
     }
 
+    private async Task LoadSectionsForEnrollmentAsync()
+    {
+        AvailableSections = new List<Section>();
+        SelectedSectionId = null;
+        AvailableSlots = null;
+        SelectedSectionAdviser = string.Empty;
+        SectionSchedule = new List<FinalClassView>();
+
+        if (Model == null || string.IsNullOrWhiteSpace(Model.GradeToEnroll))
+        {
+            return;
+        }
+
+        // Map grade level name to GradeLevelId
+        var grade = AvailableGradeLevels.FirstOrDefault(g => g.GradeLevelName == Model.GradeToEnroll);
+        var allSections = await CurriculumService.GetAllSectionsAsync();
+
+        if (grade != null)
+        {
+            AvailableSections = allSections
+                .Where(s => s.GradeLevelId == grade.GradeLevelId)
+                .OrderBy(s => s.SectionName)
+                .ToList();
+        }
+        else
+        {
+            // Fallback: all sections
+            AvailableSections = allSections
+                .OrderBy(s => s.GradeLevelId)
+                .ThenBy(s => s.SectionName)
+                .ToList();
+        }
+
+        if (AvailableSections.Any())
+        {
+            // Default to previously selected section if any, otherwise first section
+            if (Model.SectionId.HasValue && AvailableSections.Any(s => s.SectionId == Model.SectionId.Value))
+            {
+                SelectedSectionId = Model.SectionId.Value;
+            }
+            else
+            {
+                SelectedSectionId = AvailableSections.First().SectionId;
+            }
+
+            await LoadSectionDetailsAsync();
+        }
+    }
+
+    private async Task LoadSectionDetailsAsync()
+    {
+        if (Model == null || !SelectedSectionId.HasValue)
+        {
+            return;
+        }
+
+        var section = AvailableSections.FirstOrDefault(s => s.SectionId == SelectedSectionId.Value);
+        if (section == null)
+        {
+            return;
+        }
+
+        IsLoadingSectionDetails = true;
+        AvailableSlots = null;
+        SelectedSectionAdviser = string.Empty;
+        SelectedSectionRoom = string.Empty;
+        SectionSchedule = new List<FinalClassView>();
+        KinderScheduleRows = new List<ScheduleRow>();
+        ElementaryScheduleRows = new List<ScheduleRow>();
+        UnifiedScheduleRows = new List<ScheduleRow>();
+
+        try
+        {
+            SelectedSectionCapacity = section.Capacity;
+
+            // Compute enrolled count & available slots
+            if (!string.IsNullOrWhiteSpace(Model.SchoolYear))
+            {
+                SelectedSectionEnrolledCount = await CurriculumService.GetSectionEnrollmentCountAsync(section.SectionId, Model.SchoolYear);
+                AvailableSlots = Math.Max(0, section.Capacity - SelectedSectionEnrolledCount);
+            }
+
+            // Load adviser directly from section (matches curriculum pages)
+            SelectedSectionAdviser = section.Adviser != null
+                ? $"{section.Adviser.FirstName} {section.Adviser.LastName}"
+                : string.Empty;
+
+            // Room: use section classroom as primary source
+            SelectedSectionRoom = section.Classroom?.RoomName ?? string.Empty;
+
+            // Use final class view for all grade levels (matches curriculum pages)
+            var finalClasses = await CurriculumService.GetFinalClassesAsync();
+            SectionSchedule = finalClasses
+                .Where(fc => !string.IsNullOrWhiteSpace(fc.SectionName) && 
+                             fc.SectionName == section.SectionName &&
+                             !string.IsNullOrWhiteSpace(fc.GradeLevel) &&
+                             fc.GradeLevel == Model.GradeToEnroll &&
+                             fc.StartTime.HasValue &&
+                             fc.EndTime.HasValue &&
+                             !string.IsNullOrWhiteSpace(fc.DayOfWeek))
+                .OrderBy(fc => fc.DayOfWeek ?? "")
+                .ThenBy(fc => fc.StartTime ?? TimeSpan.Zero)
+                .ToList();
+
+            // Fallback room from schedule if needed
+            if (string.IsNullOrWhiteSpace(SelectedSectionRoom))
+            {
+                var firstClassWithRoom = SectionSchedule.FirstOrDefault(fc => !string.IsNullOrWhiteSpace(fc.Classroom));
+                SelectedSectionRoom = firstClassWithRoom?.Classroom ?? string.Empty;
+            }
+
+            // Build flattened schedule rows for unified display
+            if (SectionSchedule.Any())
+            {
+                UnifiedScheduleRows = BuildScheduleRows(SectionSchedule, includeTeacher: true);
+            }
+        }
+        finally
+        {
+            IsLoadingSectionDetails = false;
+            StateHasChanged();
+        }
+    }
+
     private async Task LoadGradeLevelsAsync()
     {
         try
@@ -897,6 +1205,151 @@
         {
             AvailableGradeLevels = new List<GradeLevel>();
         }
+    }
+
+    private async Task OpenEnrollModal()
+    {
+        if (!IsForEnrollmentContext || Model == null)
+        {
+            return;
+        }
+
+        // Only allow enrollment when payment is at least partial
+        if (Model.Status != "Partially Paid" && Model.Status != "Fully Paid")
+        {
+            return;
+        }
+
+        await LoadSectionsForEnrollmentAsync();
+        ShowEnrollModal = AvailableSections.Any();
+        StateHasChanged();
+    }
+
+    private async Task OnSectionChanged()
+    {
+        await LoadSectionDetailsAsync();
+    }
+
+    private void CloseEnrollModal()
+    {
+        ShowEnrollModal = false;
+        IsLoadingSectionDetails = false;
+    }
+
+    private async Task ConfirmEnrollStudent()
+    {
+        if (Model == null || !SelectedSectionId.HasValue)
+        {
+            return;
+        }
+
+        // Assign selected section to model; StudentService will persist and enforce capacity on save
+        Model.SectionId = SelectedSectionId.Value;
+
+        // Update status to Enrolled; SaveEditedApplicantAsync + StudentService.UpdateStudentAsync will persist this
+        Model.Status = "Enrolled";
+        PreviousStatus = Model.Status;
+
+        ShowEnrollModal = false;
+        IsLoadingSectionDetails = false;
+
+        // Refresh status styling
+        StateHasChanged();
+    }
+
+    private static bool IsKinderOrPreSchoolGrade(string? gradeName)
+    {
+        if (string.IsNullOrWhiteSpace(gradeName))
+        {
+            return false;
+        }
+
+        var g = gradeName.ToLowerInvariant();
+        return g.Contains("kinder") || g.Contains("pre") || g.Contains("preschool") || g.Contains("pre-school");
+    }
+
+    private static string BuildDayPattern(IEnumerable<string?> days)
+    {
+        var orderedCodes = new[] { "M", "T", "W", "TH", "F", "Sat", "Sun" };
+        var normalized = days
+            .Where(d => !string.IsNullOrWhiteSpace(d))
+            .Select(d => d!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(d =>
+            {
+                var idx = Array.FindIndex(orderedCodes, c => c.Equals(d, StringComparison.OrdinalIgnoreCase));
+                return idx < 0 ? int.MaxValue : idx;
+            })
+            .ToList();
+
+        // Map TH -> Th for readability and join with commas (e.g., "M, T, W")
+        var mapped = normalized.Select(d =>
+            d.Equals("TH", StringComparison.OrdinalIgnoreCase) ? "Th" : d);
+
+        return string.Join(", ", mapped);
+    }
+
+    private static List<ScheduleRow> BuildScheduleRows(List<FinalClassView> rawSchedule, bool includeTeacher)
+    {
+        var rows = new List<ScheduleRow>();
+
+        if (rawSchedule == null || !rawSchedule.Any())
+        {
+            return rows;
+        }
+
+        // Filter out entries with null times or days
+        var validSchedule = rawSchedule
+            .Where(fc => fc.StartTime.HasValue && fc.EndTime.HasValue && !string.IsNullOrWhiteSpace(fc.DayOfWeek))
+            .ToList();
+
+        if (!validSchedule.Any())
+        {
+            return rows;
+        }
+
+        // Group by subject + time (+ teacher/room for elementary view)
+        var groups = validSchedule
+            .GroupBy(fc => new
+            {
+                Subject = string.IsNullOrWhiteSpace(fc.SubjectName) ? "Homeroom" : fc.SubjectName!,
+                StartTime = fc.StartTime!.Value,
+                EndTime = fc.EndTime!.Value,
+                Teacher = includeTeacher ? (fc.TeacherName ?? string.Empty) : string.Empty,
+                Room = fc.Classroom ?? string.Empty
+            });
+
+        foreach (var g in groups)
+        {
+            var dayPattern = BuildDayPattern(g.Select(fc => fc.DayOfWeek));
+
+            string FormatTime(TimeSpan time)
+            {
+                var hours = time.Hours;
+                var minutes = time.Minutes;
+                var period = hours < 12 ? "AM" : "PM";
+                var displayHour = hours % 12;
+                if (displayHour == 0) displayHour = 12;
+                return $"{displayHour}:{minutes:D2} {period}";
+            }
+
+            var timeRange = $"{FormatTime(g.Key.StartTime)} - {FormatTime(g.Key.EndTime)}";
+
+            rows.Add(new ScheduleRow
+            {
+                Subject = g.Key.Subject,
+                TimeRange = timeRange,
+                DayPattern = dayPattern,
+                Teacher = includeTeacher ? (string.IsNullOrWhiteSpace(g.Key.Teacher) ? "N/A" : g.Key.Teacher) : string.Empty,
+                Room = string.IsNullOrWhiteSpace(g.Key.Room) ? "N/A" : g.Key.Room
+            });
+        }
+
+        // Order by time then subject for consistent display
+        return rows
+            .OrderBy(r => r.TimeRange)
+            .ThenBy(r => r.Subject)
+            .ToList();
     }
 
     private void HandleHasLRNChange()

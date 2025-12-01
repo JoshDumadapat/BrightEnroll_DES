@@ -33,6 +33,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetSubjectScheduleTableDefinition(),
                 GetTeacherSectionAssignmentTableDefinition(),
                 GetClassScheduleTableDefinition(),
+                GetStudentSectionEnrollmentTableDefinition(),
                 // Payroll tables (standalone, no foreign keys)
                 GetRolesTableDefinition(),
                 GetDeductionsTableDefinition(),
@@ -504,12 +505,14 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [SectionName] VARCHAR(100) NOT NULL,
                         [GradeLvlID] INT NOT NULL,
                         [ClassroomID] INT NULL,
+                        [AdviserID] INT NULL,
                         [Capacity] INT NOT NULL,
                         [Notes] VARCHAR(500) NULL,
                         [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
                         [UpdatedAt] DATETIME NULL,
                         CONSTRAINT FK_tbl_Sections_tbl_GradeLevel FOREIGN KEY ([GradeLvlID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID]),
-                        CONSTRAINT FK_tbl_Sections_tbl_Classrooms FOREIGN KEY ([ClassroomID]) REFERENCES [dbo].[tbl_Classrooms]([RoomID]) ON DELETE SET NULL
+                        CONSTRAINT FK_tbl_Sections_tbl_Classrooms FOREIGN KEY ([ClassroomID]) REFERENCES [dbo].[tbl_Classrooms]([RoomID]) ON DELETE SET NULL,
+                        CONSTRAINT FK_tbl_Sections_tbl_Users_Adviser FOREIGN KEY ([AdviserID]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL
                     )",
                 CreateIndexesScripts = new List<string>
                 {
@@ -521,7 +524,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_Sections_GradeLvlID ON [dbo].[tbl_Sections]([GradeLvlID])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Sections_ClassroomID' AND object_id = OBJECT_ID('dbo.tbl_Sections'))
-                        CREATE INDEX IX_tbl_Sections_ClassroomID ON [dbo].[tbl_Sections]([ClassroomID])"
+                        CREATE INDEX IX_tbl_Sections_ClassroomID ON [dbo].[tbl_Sections]([ClassroomID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Sections_AdviserID' AND object_id = OBJECT_ID('dbo.tbl_Sections'))
+                        CREATE INDEX IX_tbl_Sections_AdviserID ON [dbo].[tbl_Sections]([AdviserID])"
                 }
             };
         }
@@ -536,9 +542,11 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 CreateTableScript = @"
                     CREATE TABLE [dbo].[tbl_Subjects](
                         [SubjectID] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [SubjectCode] VARCHAR(50) NULL,
                         [GradeLvlID] INT NOT NULL,
                         [SubjectName] VARCHAR(100) NOT NULL,
                         [Description] VARCHAR(500) NULL,
+                        [IsActive] BIT NOT NULL DEFAULT 1,
                         [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
                         [UpdatedAt] DATETIME NULL,
                         CONSTRAINT FK_tbl_Subjects_tbl_GradeLevel FOREIGN KEY ([GradeLvlID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID])
@@ -550,7 +558,13 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_Subjects_SubjectName ON [dbo].[tbl_Subjects]([SubjectName])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subjects_GradeLvlID' AND object_id = OBJECT_ID('dbo.tbl_Subjects'))
-                        CREATE INDEX IX_tbl_Subjects_GradeLvlID ON [dbo].[tbl_Subjects]([GradeLvlID])"
+                        CREATE INDEX IX_tbl_Subjects_GradeLvlID ON [dbo].[tbl_Subjects]([GradeLvlID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subjects_SubjectCode' AND object_id = OBJECT_ID('dbo.tbl_Subjects'))
+                        CREATE INDEX IX_tbl_Subjects_SubjectCode ON [dbo].[tbl_Subjects]([SubjectCode])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subjects_IsActive' AND object_id = OBJECT_ID('dbo.tbl_Subjects'))
+                        CREATE INDEX IX_tbl_Subjects_IsActive ON [dbo].[tbl_Subjects]([IsActive])"
                 }
             };
         }
@@ -635,6 +649,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [SectionID] INT NOT NULL,
                         [SubjectID] INT NULL,
                         [Role] VARCHAR(50) NOT NULL,
+                        [IsArchived] BIT NOT NULL DEFAULT 0,
                         [CreatedAt] DATETIME NOT NULL DEFAULT GETDATE(),
                         [UpdatedAt] DATETIME NULL,
                         CONSTRAINT FK_tbl_TeacherSectionAssignment_tbl_Users FOREIGN KEY ([TeacherID]) REFERENCES [dbo].[tbl_Users]([user_ID]),
@@ -654,7 +669,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_TeacherSectionAssignment_SubjectID ON [dbo].[tbl_TeacherSectionAssignment]([SubjectID])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TeacherSectionAssignment_Role' AND object_id = OBJECT_ID('dbo.tbl_TeacherSectionAssignment'))
-                        CREATE INDEX IX_tbl_TeacherSectionAssignment_Role ON [dbo].[tbl_TeacherSectionAssignment]([Role])"
+                        CREATE INDEX IX_tbl_TeacherSectionAssignment_Role ON [dbo].[tbl_TeacherSectionAssignment]([Role])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TeacherSectionAssignment_IsArchived' AND object_id = OBJECT_ID('dbo.tbl_TeacherSectionAssignment'))
+                        CREATE INDEX IX_tbl_TeacherSectionAssignment_IsArchived ON [dbo].[tbl_TeacherSectionAssignment]([IsArchived])"
                 }
             };
         }
@@ -693,6 +711,43 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ClassSchedule_Assignment_Day_Time' AND object_id = OBJECT_ID('dbo.tbl_ClassSchedule'))
                         CREATE INDEX IX_tbl_ClassSchedule_Assignment_Day_Time ON [dbo].[tbl_ClassSchedule]([AssignmentID], [DayOfWeek], [StartTime], [EndTime])"
+                }
+            };
+        }
+
+        // Creates tbl_StudentSectionEnrollment table - links students to sections per school year
+        public static TableDefinition GetStudentSectionEnrollmentTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_StudentSectionEnrollment",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_StudentSectionEnrollment](
+                        [enrollment_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [SectionID] INT NOT NULL,
+                        [school_yr] VARCHAR(20) NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Enrolled',
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_StudentSectionEnrollment_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]),
+                        CONSTRAINT FK_tbl_StudentSectionEnrollment_tbl_Sections FOREIGN KEY ([SectionID]) REFERENCES [dbo].[tbl_Sections]([SectionID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentSectionEnrollment_StudentId' AND object_id = OBJECT_ID('dbo.tbl_StudentSectionEnrollment'))
+                        CREATE INDEX IX_tbl_StudentSectionEnrollment_StudentId ON [dbo].[tbl_StudentSectionEnrollment]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentSectionEnrollment_SectionId' AND object_id = OBJECT_ID('dbo.tbl_StudentSectionEnrollment'))
+                        CREATE INDEX IX_tbl_StudentSectionEnrollment_SectionId ON [dbo].[tbl_StudentSectionEnrollment]([SectionID])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentSectionEnrollment_Section_SchoolYear' AND object_id = OBJECT_ID('dbo.tbl_StudentSectionEnrollment'))
+                        CREATE INDEX IX_tbl_StudentSectionEnrollment_Section_SchoolYear ON [dbo].[tbl_StudentSectionEnrollment]([SectionID], [school_yr])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_tbl_StudentSectionEnrollment_Student_SchoolYear' AND object_id = OBJECT_ID('dbo.tbl_StudentSectionEnrollment'))
+                        CREATE UNIQUE INDEX UX_tbl_StudentSectionEnrollment_Student_SchoolYear ON [dbo].[tbl_StudentSectionEnrollment]([student_id], [school_yr])"
                 }
             };
         }
@@ -842,7 +897,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             return new List<ViewDefinition>
             {
                 GetEmployeeViewDefinition(),
-                GetStudentViewDefinition()
+                GetStudentViewDefinition(),
+                GetFinalClassesViewDefinition()
             };
         }
 
@@ -1014,6 +1070,57 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         g.[relationship] AS GuardianRelationship
                     FROM [dbo].[tbl_Students] s
                     LEFT JOIN [dbo].[tbl_Guardians] g ON s.[guardian_id] = g.[guardian_id];"
+            };
+        }
+
+        // Creates tbl_FinalClasses view - flattens section, teacher, subject, schedule, and room info
+        public static ViewDefinition GetFinalClassesViewDefinition()
+        {
+            return new ViewDefinition
+            {
+                ViewName = "tbl_FinalClasses",
+                SchemaName = "dbo",
+                CreateViewScript = @"
+                    CREATE VIEW [dbo].[tbl_FinalClasses]
+                    AS
+                    SELECT
+                        tsa.[AssignmentID]      AS AssignmentId,
+                        tsa.[Role]             AS Role,
+                        -- Teacher info
+                        CASE 
+                            WHEN u.[suffix] IS NOT NULL AND u.[suffix] != '' 
+                            THEN u.[first_name] + ' ' + ISNULL(u.[mid_name] + ' ', '') + u.[last_name] + ' ' + u.[suffix]
+                            ELSE u.[first_name] + ' ' + ISNULL(u.[mid_name] + ' ', '') + u.[last_name]
+                        END                    AS TeacherName,
+                        u.[user_ID]            AS TeacherId,
+                        -- Section & grade
+                        sec.[SectionName]      AS SectionName,
+                        gl.[grade_level_name]  AS GradeLevel,
+                        -- Subject (may be null for advisers)
+                        sub.[SubjectName]      AS SubjectName,
+                        sub.[SubjectID]        AS SubjectId,
+                        -- Schedule & room
+                        cs.[DayOfWeek]         AS DayOfWeek,
+                        cs.[StartTime]         AS StartTime,
+                        cs.[EndTime]           AS EndTime,
+                        ISNULL(cls.[RoomName], '') AS Classroom,
+                        cls.[BuildingName]     AS BuildingName,
+                        -- Audit
+                        tsa.[CreatedAt]        AS AssignmentCreatedAt,
+                        tsa.[UpdatedAt]        AS AssignmentUpdatedAt
+                    FROM [dbo].[tbl_TeacherSectionAssignment] tsa
+                    INNER JOIN [dbo].[tbl_Sections] sec
+                        ON tsa.[SectionID] = sec.[SectionID]
+                    INNER JOIN [dbo].[tbl_GradeLevel] gl
+                        ON sec.[GradeLvlID] = gl.[gradelevel_ID]
+                    LEFT JOIN [dbo].[tbl_Subjects] sub
+                        ON tsa.[SubjectID] = sub.[SubjectID]
+                    LEFT JOIN [dbo].[tbl_ClassSchedule] cs
+                        ON cs.[AssignmentID] = tsa.[AssignmentID]
+                    LEFT JOIN [dbo].[tbl_Classrooms] cls
+                        ON cs.[RoomID] = cls.[RoomID]
+                    LEFT JOIN [dbo].[tbl_Users] u
+                        ON tsa.[TeacherID] = u.[user_ID];"
             };
         }
     }

@@ -19,9 +19,9 @@
             <!-- Modal Body -->
             <div class="px-6 py-4 rounded-b-2xl overflow-y-auto flex-1">
                 <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
-                    <!-- Grade Level, Section, and Classroom in one row -->
-                    <div class="mb-6 grid grid-cols-3 gap-4">
-                        <!-- Grade Level Selection -->
+                    <!-- Grade Level, Section, Classroom, Adviser -->
+                    <div class="mb-6 grid grid-cols-4 gap-4">
+                        <!-- Grade Level -->
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Grade Level <span class="text-red-500">*</span>
@@ -37,7 +37,7 @@
                             </select>
                         </div>
 
-                        <!-- Section Selection -->
+                        <!-- Section -->
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Section <span class="text-red-500">*</span>
@@ -54,10 +54,18 @@
                             </select>
                         </div>
 
-                        <!-- Classroom (Read-only) -->
+                        <!-- Classroom (read-only) -->
                         <div>
                             <label class="mb-2 block text-sm font-medium text-gray-700">Classroom</label>
-                            <input type="text" value="@SelectedClassroom" 
+                            <input type="text" value="@SelectedClassroom"
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                                   readonly />
+                        </div>
+
+                        <!-- Adviser (read-only) -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Adviser</label>
+                            <input type="text" value="@AdviserTeacherName"
                                    class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
                                    readonly />
                         </div>
@@ -65,170 +73,169 @@
 
                     @if (!string.IsNullOrEmpty(SelectedSection) && !string.IsNullOrEmpty(SelectedGradeLevel))
                     {
-                        <!-- Assignment Type -->
-                        <div class="mb-6">
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Assignment Type <span class="text-red-500">*</span>
-                            </label>
-                            <div class="flex flex-col gap-2 sm:flex-row sm:gap-4">
-                                <label class="flex items-center">
-                                    <input type="radio" name="role" value="adviser" 
-                                           checked="@(SelectedRole == "adviser" || string.IsNullOrEmpty(SelectedRole))"
-                                           @onchange="@(() => OnRoleChanged("adviser"))"
-                                           class="mr-2" />
-                                    <span class="text-sm text-gray-700">Homeroom Teacher (Adviser)</span>
-                                </label>
-                                <label class="flex items-center">
-                                    <input type="radio" name="role" value="homeroom_all_subjects"
-                                           checked="@(SelectedRole == "homeroom_all_subjects")"
-                                           @onchange="@(() => OnRoleChanged("homeroom_all_subjects"))"
-                                           class="mr-2" />
-                                    <span class="text-sm text-gray-700">Homeroom Teacher (All Subjects)</span>
-                                </label>
-                            </div>
+                        <!-- Add Assignment Button -->
+                        <div class="mb-4 flex justify-end">
+                            <button type="button" @onclick="StartAddingAssignment"
+                                    class="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                                + Add Assignment
+                            </button>
                         </div>
 
-                        <!-- Homeroom Teacher (All Subjects) Form -->
-                        @if (SelectedRole == "homeroom_all_subjects")
+                        <!-- Inline Editor (for Add/Edit) -->
+                        @if (IsAddingRow || IsEditingRow)
                         {
-                            @if (AvailableSubjectsWithSchedules.Any())
-                            {
-                                <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                    <h4 class="mb-4 text-sm font-semibold text-gray-700">Subjects</h4>
-                                    <div class="mb-4 overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                                        <table class="min-w-full text-sm">
-                                            <thead class="bg-gray-50">
-                                                <tr>
-                                                    <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Subject</th>
-                                                    <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Schedule</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody class="divide-y divide-gray-100">
-                                                @foreach (var subjectItem in AvailableSubjectsWithSchedules)
-                                                {
-                                                    <tr class="hover:bg-gray-50 transition-colors">
-                                                        <td class="px-3 py-2.5 font-medium text-gray-800">@subjectItem.SubjectName</td>
-                                                        <td class="px-3 py-2.5">
-                                                            @if (subjectItem.Schedules.Any())
-                                                            {
-                                                                <div class="text-xs text-gray-600 space-y-0.5">
-                                                                    @foreach (var scheduleGroup in FormatSchedulesCompact(subjectItem.Schedules))
-                                                                    {
-                                                                        <div>@scheduleGroup</div>
-                                                                    }
-                                                                </div>
-                                                            }
-                                                            else
-                                                            {
-                                                                <span class="text-red-500 text-xs">No schedule</span>
-                                                            }
-                                                        </td>
-                                                    </tr>
-                                                }
-                                            </tbody>
-                                        </table>
+                            <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                <h4 class="mb-4 text-sm font-semibold text-gray-700">@(IsEditingRow ? "Edit Assignment" : "Add Assignment")</h4>
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-4 lg:grid-cols-6">
+                                    <!-- Subject -->
+                                    <div class="md:col-span-2">
+                                        <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                            Subject <span class="text-red-500">*</span>
+                                        </label>
+                                        <select @bind="WorkingRow.SubjectId"
+                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20">
+                                            <option value="0">Select Subject</option>
+                                            @foreach (var subject in AvailableSubjects)
+                                            {
+                                                <option value="@subject.SubjectId">@subject.SubjectName</option>
+                                            }
+                                        </select>
                                     </div>
-                                    <div>
-                                        <label class="mb-2 block text-sm font-medium text-gray-700">
+
+                                    <!-- Start Time -->
+                                    <div class="relative md:col-span-1">
+                                        <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                            Start Time <span class="text-red-500">*</span>
+                                        </label>
+                                        <TimePicker @bind-TimeValue="WorkingRow.StartTime"
+                                                    OnTimeChanged="OnWorkingRowChanged" />
+                                    </div>
+
+                                    <!-- End Time -->
+                                    <div class="relative md:col-span-1">
+                                        <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                            End Time <span class="text-red-500">*</span>
+                                        </label>
+                                        <TimePicker @bind-TimeValue="WorkingRow.EndTime"
+                                                    OnTimeChanged="OnWorkingRowChanged" />
+                                    </div>
+
+                                    <!-- Days -->
+                                    <div class="md:col-span-2">
+                                        <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                            Days <span class="text-red-500">*</span>
+                                        </label>
+                                        <div class="flex flex-wrap gap-2">
+                                            @foreach (var day in DaysOfWeek)
+                                            {
+                                                <label class="group relative flex cursor-pointer items-center">
+                                                    <input type="checkbox"
+                                                           checked="@WorkingRow.Days.Contains(day)"
+                                                           @onchange="(_ => ToggleDay(day))"
+                                                           class="peer sr-only" />
+                                                    <div class="flex items-center rounded-lg border-2 border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-all duration-200 peer-checked:border-yellow-500 peer-checked:bg-yellow-50 peer-checked:text-yellow-700 hover:border-yellow-300 hover:bg-gray-50">
+                                                        <span>@day</span>
+                                                    </div>
+                                                </label>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <!-- Teacher -->
+                                    <div class="md:col-span-2">
+                                        <label class="mb-1.5 block text-xs font-semibold text-gray-700">
                                             Teacher <span class="text-red-500">*</span>
                                         </label>
-                                        <select @bind="AdviserTeacherName" 
-                                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-400"
-                                                required>
-                                            <option value="">Select Teacher</option>
+                                        <select @bind="WorkingRow.TeacherId"
+                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20">
+                                            <option value="0">Select Teacher</option>
                                             @foreach (var teacher in Teachers)
                                             {
-                                                <option value="@($"{teacher.FirstName} {teacher.LastName}")">@($"{teacher.FirstName} {teacher.LastName}")</option>
+                                                <option value="@teacher.UserId">@($"{teacher.FirstName} {teacher.LastName}")</option>
                                             }
                                         </select>
                                     </div>
                                 </div>
-                            }
-                            else
-                            {
-                                <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-                                    <p class="text-sm text-red-500">No subjects are configured for this grade level. Please add subjects first.</p>
+
+                                @if (!string.IsNullOrEmpty(RowErrorMessage))
+                                {
+                                    <div class="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-xs text-red-600">
+                                        @RowErrorMessage
+                                    </div>
+                                }
+
+                                <div class="mt-4 flex justify-end gap-2">
+                                    <button type="button" @onclick="CancelEditing"
+                                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        Cancel
+                                    </button>
+                                    <button type="button" @onclick="SaveWorkingRow"
+                                            disabled="@(!CanSaveWorkingRow)"
+                                            class="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                                        @(IsEditingRow ? "Update" : "Add to List")
+                                    </button>
                                 </div>
-                            }
+                            </div>
                         }
 
-                        <!-- Homeroom Teacher (Adviser) Form -->
-                        @if (SelectedRole == "adviser")
+                        <!-- Assignments Table -->
+                        @if (AssignmentRows.Any())
                         {
-                            <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                <h4 class="mb-4 text-sm font-semibold text-gray-700">Assign Homeroom Teacher (Adviser)</h4>
-                                <div class="mb-6">
-                                    <label class="mb-2 block text-sm font-medium text-gray-700">
-                                        Adviser <span class="text-red-500">*</span>
-                                    </label>
-                                    <select @bind="AdviserTeacherName" 
-                                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-400"
-                                            required>
-                                        <option value="">Select Adviser</option>
-                                        @foreach (var teacher in Teachers)
-                                        {
-                                            <option value="@($"{teacher.FirstName} {teacher.LastName}")">@($"{teacher.FirstName} {teacher.LastName}")</option>
-                                        }
-                                    </select>
+                            <div class="mb-6">
+                                <h4 class="mb-3 text-sm font-semibold text-gray-700">Assign Teachers to Subjects</h4>
+                                <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                                    <table class="min-w-full text-sm">
+                                        <thead class="bg-gray-50">
+                                            <tr>
+                                                <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Subject</th>
+                                                <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Schedule</th>
+                                                <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Teacher</th>
+                                                <th class="px-3 py-2.5 text-center text-xs font-medium text-gray-600">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            @for (int i = 0; i < AssignmentRows.Count; i++)
+                                            {
+                                                var rowIndex = i;
+                                                var row = AssignmentRows[rowIndex];
+                                                <tr class="hover:bg-gray-50 transition-colors">
+                                                    <td class="px-3 py-2.5 font-medium text-gray-800">@row.SubjectName</td>
+                                                    <td class="px-3 py-2.5">
+                                                        <div class="text-xs text-gray-600">
+                                                            @string.Join(", ", row.Days): @FormatTime(row.StartTimeSpan) - @FormatTime(row.EndTimeSpan)
+                                                        </div>
+                                                    </td>
+                                                    <td class="px-3 py-2.5 text-gray-800">@row.TeacherName</td>
+                                                    <td class="px-3 py-2.5 text-center">
+                                                        <div class="flex items-center justify-center gap-2">
+                                                            <button type="button"
+                                                                    @onclick="@(() => StartEditingAssignment(rowIndex))"
+                                                                    class="inline-flex items-center justify-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100">
+                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button type="button"
+                                                                    @onclick="@(() => RemoveAssignmentRow(rowIndex))"
+                                                                    class="inline-flex items-center justify-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100">
+                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                          d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
                                 </div>
-                                
-                                @if (AvailableSubjectsWithSchedules.Any())
-                                {
-                                    <div>
-                                        <h4 class="mb-3 text-sm font-semibold text-gray-700">Assign Teachers to Subjects</h4>
-                                        <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
-                                            <table class="min-w-full text-sm">
-                                                <thead class="bg-gray-50">
-                                                    <tr>
-                                                        <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Subject</th>
-                                                        <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Schedule</th>
-                                                        <th class="px-3 py-2.5 text-left text-xs font-medium text-gray-600">Teacher</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody class="divide-y divide-gray-100">
-                                                    @foreach (var subjectItem in AvailableSubjectsWithSchedules)
-                                                    {
-                                                        <tr class="hover:bg-gray-50 transition-colors">
-                                                            <td class="px-3 py-2.5 font-medium text-gray-800">@subjectItem.SubjectName</td>
-                                                            <td class="px-3 py-2.5">
-                                                                @if (subjectItem.Schedules.Any())
-                                                                {
-                                                                    <div class="text-xs text-gray-600 space-y-0.5">
-                                                                        @foreach (var scheduleGroup in FormatSchedulesCompact(subjectItem.Schedules))
-                                                                        {
-                                                                            <div>@scheduleGroup</div>
-                                                                        }
-                                                                    </div>
-                                                                }
-                                                                else
-                                                                {
-                                                                    <span class="text-red-500 text-xs">No schedule</span>
-                                                                }
-                                                            </td>
-                                                            <td class="px-3 py-2.5">
-                                                                <select @bind="subjectItem.TeacherName" 
-                                                                        @bind:after="@(() => OnTeacherSelected(subjectItem))"
-                                                                        class="w-full rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-700 outline-none transition-colors focus:border-yellow-500 focus:ring-1 focus:ring-yellow-400 hover:border-gray-400">
-                                                                    <option value="">Select Teacher</option>
-                                                                    @foreach (var teacher in Teachers)
-                                                                    {
-                                                                        <option value="@($"{teacher.FirstName} {teacher.LastName}")">@($"{teacher.FirstName} {teacher.LastName}")</option>
-                                                                    }
-                                                                </select>
-                                                            </td>
-                                                        </tr>
-                                                    }
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
-                                        <p class="text-sm text-red-500">No subjects are configured for this grade level. Please add subjects first.</p>
-                                    </div>
-                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                                <p class="text-sm text-gray-500">No assignments yet. Click "Add Assignment" to add subjects.</p>
                             </div>
                         }
                     }
@@ -268,16 +275,8 @@
                 </button>
             </div>
             <div class="px-6 py-4">
-                @if (SelectedRole == "adviser")
-                {
-                    <p class="text-sm text-gray-700">Are you sure you want to update the class for <strong>@SelectedSection</strong>?</p>
-                    <p class="text-xs text-gray-600 mt-2">This will update <strong>@AdviserTeacherName</strong> as the homeroom teacher (adviser) and update assignments for all @AvailableSubjectsWithSchedules.Count subject(s) with their assigned teachers.</p>
-                }
-                else if (SelectedRole == "homeroom_all_subjects")
-                {
-                    <p class="text-sm text-gray-700">Are you sure you want to update the class for <strong>@SelectedSection</strong>?</p>
-                    <p class="text-xs text-gray-600 mt-2">This will update <strong>@AdviserTeacherName</strong> as homeroom teacher (all subjects) for all @AvailableSubjectsWithSchedules.Count subject(s) in this section.</p>
-                }
+                <p class="text-sm text-gray-700">Are you sure you want to update the class for <strong>@SelectedSection</strong>?</p>
+                <p class="text-xs text-gray-600 mt-2">This will update <strong>@AdviserTeacherName</strong> as the homeroom teacher (adviser) and update assignments for all @AssignmentRows.Count subject(s) with their assigned teachers and schedules.</p>
             </div>
             <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
                 <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
@@ -353,17 +352,24 @@
     private List<DataModels.Section> AvailableSections { get; set; } = new();
     private List<DataModels.Section> FilteredSections { get; set; } = new();
     private List<DataModels.Subject> AvailableSubjects { get; set; } = new();
-    private List<TeacherAssignmentItem> AvailableSubjectsWithSchedules { get; set; } = new();
+    private List<AssignmentRow> AssignmentRows { get; set; } = new();
     
     private string SelectedSection { get; set; } = "";
     private string SelectedGradeLevel { get; set; } = "";
     private string SelectedClassroom { get; set; } = "";
-    private string SelectedRole { get; set; } = "adviser";
     private string AdviserTeacherName { get; set; } = "";
     private int? SelectedSectionId { get; set; }
     private int? SelectedClassroomId { get; set; }
     private int? SelectedGradeLevelId { get; set; }
     private int? AssignmentId { get; set; }
+    
+    // Inline editor state
+    private bool IsAddingRow { get; set; } = false;
+    private bool IsEditingRow { get; set; } = false;
+    private int? EditingRowIndex { get; set; } = null;
+    private AssignmentRow WorkingRow { get; set; } = new();
+    private string RowErrorMessage { get; set; } = "";
+    private readonly List<string> DaysOfWeek = new() { "M", "T", "W", "TH", "F" };
     
     private bool showSubmitConfirmModal = false;
     private bool showCancelConfirmModal = false;
@@ -398,7 +404,7 @@
     {
         try
         {
-            // Parse assignment ID from format "ASG-001"
+            // Parse assignment ID from format "ASG-001" or use AssignmentId
             if (Assignment.Id.StartsWith("ASG-"))
             {
                 var idStr = Assignment.Id.Replace("ASG-", "");
@@ -417,9 +423,6 @@
             // Load the existing assignment from database
             var dbAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(AssignmentId.Value);
             if (dbAssignment == null) return;
-
-            // Set role
-            SelectedRole = dbAssignment.Role ?? "adviser";
 
             // Set grade level and section
             if (dbAssignment.Section != null)
@@ -440,20 +443,29 @@
                 }
             }
 
-            // Set adviser teacher name
-            if (dbAssignment.Teacher != null)
+            // Set adviser teacher name - try to get from adviser assignment
+            var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+            var adviserAssignment = allAssignments
+                .FirstOrDefault(a => a.SectionId == SelectedSectionId && a.Role == "adviser");
+            
+            if (adviserAssignment?.Teacher != null)
+            {
+                AdviserTeacherName = $"{adviserAssignment.Teacher.FirstName} {adviserAssignment.Teacher.LastName}";
+                AssignmentId = adviserAssignment.AssignmentId; // Use adviser assignment ID for updates
+            }
+            else if (dbAssignment.Teacher != null)
             {
                 AdviserTeacherName = $"{dbAssignment.Teacher.FirstName} {dbAssignment.Teacher.LastName}";
             }
 
-            // Load subjects with schedules
-            await LoadSubjectsWithSchedules();
+            // Load subjects for the grade level
+            await LoadSubjects();
 
-            // If role is adviser, load existing subject teacher assignments
-            if (SelectedRole == "adviser")
-            {
-                await LoadExistingSubjectTeachers();
-            }
+            // Load class schedules (do this before LoadAssignmentRows to avoid concurrent DbContext access)
+            var allClassSchedules = await CurriculumService.GetAllClassSchedulesAsync();
+
+            // Load existing assignments and convert to AssignmentRow list (pass already-loaded data)
+            await LoadAssignmentRows(allAssignments, allClassSchedules);
 
             StateHasChanged();
         }
@@ -462,37 +474,89 @@
         }
     }
 
-    private async Task LoadExistingSubjectTeachers()
+    private async Task LoadSubjects()
     {
-        if (!SelectedSectionId.HasValue) return;
+        if (!SelectedGradeLevelId.HasValue)
+        {
+            AvailableSubjects.Clear();
+            return;
+        }
 
         try
         {
-            // Get all assignments for this section
-            var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+            var allSubjects = await CurriculumService.GetAllSubjectsAsync();
+            AvailableSubjects = allSubjects
+                .Where(s => s.GradeLevelId == SelectedGradeLevelId.Value)
+                .OrderBy(s => s.SubjectName)
+                .ToList();
+        }
+        catch (Exception)
+        {
+            AvailableSubjects.Clear();
+        }
+    }
+
+    private Task LoadAssignmentRows(List<DataModels.TeacherSectionAssignment> allAssignments, List<DataModels.ClassSchedule> allClassSchedules)
+    {
+        AssignmentRows = new List<AssignmentRow>();
+
+        if (!SelectedSectionId.HasValue)
+        {
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            // Use already-loaded assignments instead of making another database call
             var sectionAssignments = allAssignments
                 .Where(a => a.SectionId == SelectedSectionId.Value && a.Role == "subject_teacher" && a.SubjectId.HasValue)
                 .ToList();
 
-            // Map existing teachers to subjects
-            foreach (var subjectItem in AvailableSubjectsWithSchedules)
+            // Group schedules by assignment and then by time (same start/end time = same AssignmentRow)
+            foreach (var assignment in sectionAssignments)
             {
-                var existingAssignment = sectionAssignments.FirstOrDefault(a => a.SubjectId == subjectItem.SubjectId);
-                if (existingAssignment?.Teacher != null)
+                var subjectName = assignment.Subject?.SubjectName ?? "Unknown subject";
+                var teacherName = assignment.Teacher != null 
+                    ? $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}" 
+                    : "";
+
+                var schedules = allClassSchedules
+                    .Where(s => s.AssignmentId == assignment.AssignmentId)
+                    .ToList();
+
+                // Group by time range (same start/end time)
+                var timeGroups = schedules
+                    .GroupBy(s => new { s.StartTime, s.EndTime })
+                    .ToList();
+
+                foreach (var timeGroup in timeGroups)
                 {
-                    subjectItem.TeacherName = $"{existingAssignment.Teacher.FirstName} {existingAssignment.Teacher.LastName}";
-                    subjectItem.TeacherId = existingAssignment.Teacher.UserId;
+                    var days = timeGroup.Select(s => s.DayOfWeek).OrderBy(d => GetDayOrder(d)).ToList();
+                    
+                    AssignmentRows.Add(new AssignmentRow
+                    {
+                        SubjectId = assignment.SubjectId!.Value,
+                        SubjectName = subjectName,
+                        TeacherId = assignment.TeacherId,
+                        TeacherName = teacherName,
+                        StartTime = timeGroup.Key.StartTime.ToString(@"hh\:mm"),
+                        EndTime = timeGroup.Key.EndTime.ToString(@"hh\:mm"),
+                        StartTimeSpan = timeGroup.Key.StartTime,
+                        EndTimeSpan = timeGroup.Key.EndTime,
+                        Days = days
+                    });
                 }
             }
-
-            StateHasChanged();
         }
         catch (Exception)
         {
+            AssignmentRows.Clear();
         }
+
+        return Task.CompletedTask;
     }
 
-    private Task OnGradeLevelChanged()
+    private async Task OnGradeLevelChanged()
     {
         if (string.IsNullOrEmpty(SelectedGradeLevel))
         {
@@ -502,9 +566,9 @@
             SelectedSectionId = null;
             SelectedClassroomId = null;
             SelectedGradeLevelId = null;
-            AvailableSubjectsWithSchedules.Clear();
+            AssignmentRows.Clear();
             StateHasChanged();
-            return Task.CompletedTask;
+            return;
         }
 
         var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == SelectedGradeLevel);
@@ -526,10 +590,10 @@
         SelectedClassroom = "";
         SelectedSectionId = null;
         SelectedClassroomId = null;
-        AvailableSubjectsWithSchedules.Clear();
+        AssignmentRows.Clear();
+        await LoadSubjects();
         
         StateHasChanged();
-        return Task.CompletedTask;
     }
 
     private async Task OnSectionChanged()
@@ -539,7 +603,7 @@
             SelectedClassroom = "";
             SelectedSectionId = null;
             SelectedClassroomId = null;
-            AvailableSubjectsWithSchedules.Clear();
+            AssignmentRows.Clear();
             StateHasChanged();
             return;
         }
@@ -551,109 +615,175 @@
             SelectedClassroom = section.Classroom?.RoomName ?? "";
             SelectedClassroomId = section.ClassroomId;
             
-            await LoadSubjectsWithSchedules();
+            await LoadSubjects();
             
-            // Reload existing subject teachers if role is adviser
-            if (SelectedRole == "adviser")
-            {
-                await LoadExistingSubjectTeachers();
-            }
+            // Load data sequentially to avoid concurrent DbContext access
+            var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+            var allClassSchedules = await CurriculumService.GetAllClassSchedulesAsync();
+            await LoadAssignmentRows(allAssignments, allClassSchedules);
         }
         
         StateHasChanged();
     }
 
-    private async Task LoadSubjectsWithSchedules()
+    // Inline editor methods
+    private void StartAddingAssignment()
     {
-        if (!SelectedGradeLevelId.HasValue)
+        WorkingRow = new AssignmentRow();
+        IsAddingRow = true;
+        IsEditingRow = false;
+        EditingRowIndex = null;
+        RowErrorMessage = "";
+        StateHasChanged();
+    }
+
+    private void StartEditingAssignment(int index)
+    {
+        if (index >= 0 && index < AssignmentRows.Count)
         {
-            AvailableSubjectsWithSchedules.Clear();
+            var row = AssignmentRows[index];
+            WorkingRow = new AssignmentRow
+            {
+                SubjectId = row.SubjectId,
+                SubjectName = row.SubjectName,
+                TeacherId = row.TeacherId,
+                TeacherName = row.TeacherName,
+                StartTime = row.StartTime,
+                EndTime = row.EndTime,
+                StartTimeSpan = row.StartTimeSpan,
+                EndTimeSpan = row.EndTimeSpan,
+                Days = new List<string>(row.Days)
+            };
+            IsEditingRow = true;
+            IsAddingRow = false;
+            EditingRowIndex = index;
+            RowErrorMessage = "";
+            StateHasChanged();
+        }
+    }
+
+    private void CancelEditing()
+    {
+        WorkingRow = new AssignmentRow();
+        IsAddingRow = false;
+        IsEditingRow = false;
+        EditingRowIndex = null;
+        RowErrorMessage = "";
+        StateHasChanged();
+    }
+
+    private void OnWorkingRowChanged()
+    {
+        RowErrorMessage = "";
+        StateHasChanged();
+    }
+
+    private void ToggleDay(string day)
+    {
+        if (WorkingRow.Days.Contains(day))
+        {
+            WorkingRow.Days.Remove(day);
+        }
+        else
+        {
+            WorkingRow.Days.Add(day);
+        }
+        StateHasChanged();
+    }
+
+    private bool CanSaveWorkingRow
+    {
+        get
+        {
+            if (WorkingRow.SubjectId <= 0 || WorkingRow.TeacherId <= 0 || !WorkingRow.Days.Any())
+            {
+                return false;
+            }
+
+            if (!TimeSpan.TryParse(WorkingRow.StartTime, out var start))
+            {
+                return false;
+            }
+
+            if (!TimeSpan.TryParse(WorkingRow.EndTime, out var end))
+            {
+                return false;
+            }
+
+            return end > start;
+        }
+    }
+
+    private void SaveWorkingRow()
+    {
+        RowErrorMessage = "";
+
+        if (!CanSaveWorkingRow)
+        {
+            RowErrorMessage = "Please select subject, teacher, valid time range, and at least one day.";
             return;
         }
 
-        try
+        var subject = AvailableSubjects.FirstOrDefault(s => s.SubjectId == WorkingRow.SubjectId);
+        var teacher = Teachers.FirstOrDefault(t => t.UserId == WorkingRow.TeacherId);
+
+        if (subject == null || teacher == null)
         {
-            var allSubjects = await CurriculumService.GetAllSubjectsAsync();
-            var gradeLevelSubjects = allSubjects
-                .Where(s => s.GradeLevelId == SelectedGradeLevelId.Value)
-                .OrderBy(s => s.SubjectName)
-                .ToList();
+            RowErrorMessage = "Invalid subject or teacher selection.";
+            return;
+        }
 
-            AvailableSubjectsWithSchedules = new List<TeacherAssignmentItem>();
-            
-            foreach (var subject in gradeLevelSubjects)
+        // Parse times
+        TimeSpan.TryParse(WorkingRow.StartTime, out var start);
+        TimeSpan.TryParse(WorkingRow.EndTime, out var end);
+
+        if (IsEditingRow && EditingRowIndex.HasValue)
+        {
+            // Update existing row
+            var index = EditingRowIndex.Value;
+            if (index >= 0 && index < AssignmentRows.Count)
             {
-                var schedules = await CurriculumService.GetSubjectSchedulesBySubjectIdAsync(subject.SubjectId);
-                var scheduleDisplays = schedules.Select(s => 
+                AssignmentRows[index] = new AssignmentRow
                 {
-                    var startHour = s.StartTime.Hours > 12 ? s.StartTime.Hours - 12 : (s.StartTime.Hours == 0 ? 12 : s.StartTime.Hours);
-                    var endHour = s.EndTime.Hours > 12 ? s.EndTime.Hours - 12 : (s.EndTime.Hours == 0 ? 12 : s.EndTime.Hours);
-                    var startAmPm = s.StartTime.Hours < 12 ? "am" : "pm";
-                    var endAmPm = s.EndTime.Hours < 12 ? "am" : "pm";
-                    
-                    return new SubjectScheduleDisplay
-                    {
-                        DayOfWeek = s.DayOfWeek,
-                        StartTime = $"{startHour}:{s.StartTime.Minutes:D2}{startAmPm}",
-                        EndTime = $"{endHour}:{s.EndTime.Minutes:D2}{endAmPm}",
-                        StartTimeSpan = s.StartTime,
-                        EndTimeSpan = s.EndTime
-                    };
-                }).ToList();
-
-                AvailableSubjectsWithSchedules.Add(new TeacherAssignmentItem
-                {
-                    SubjectId = subject.SubjectId,
+                    SubjectId = WorkingRow.SubjectId,
                     SubjectName = subject.SubjectName,
-                    TeacherName = "",
-                    TeacherId = 0,
-                    Schedules = scheduleDisplays
-                });
-            }
-        }
-        catch (Exception)
-        {
-            AvailableSubjectsWithSchedules.Clear();
-        }
-    }
-
-    private async Task OnRoleChanged(string role)
-    {
-        SelectedRole = role;
-        AdviserTeacherName = "";
-        
-        // Clear teacher selections in available subjects
-        foreach (var item in AvailableSubjectsWithSchedules)
-        {
-            item.TeacherName = "";
-            item.TeacherId = 0;
-        }
-        
-        // Reload existing subject teachers if switching to adviser
-        if (role == "adviser" && SelectedSectionId.HasValue)
-        {
-            await LoadExistingSubjectTeachers();
-        }
-        
-        StateHasChanged();
-    }
-
-    private void OnTeacherSelected(TeacherAssignmentItem item)
-    {
-        if (!string.IsNullOrWhiteSpace(item.TeacherName))
-        {
-            var teacher = Teachers.FirstOrDefault(t => 
-                $"{t.FirstName} {t.LastName}" == item.TeacherName);
-            if (teacher != null)
-            {
-                item.TeacherId = teacher.UserId;
+                    TeacherId = WorkingRow.TeacherId,
+                    TeacherName = $"{teacher.FirstName} {teacher.LastName}",
+                    StartTime = WorkingRow.StartTime,
+                    EndTime = WorkingRow.EndTime,
+                    StartTimeSpan = start,
+                    EndTimeSpan = end,
+                    Days = new List<string>(WorkingRow.Days)
+                };
             }
         }
         else
         {
-            item.TeacherId = 0;
+            // Add new row
+            AssignmentRows.Add(new AssignmentRow
+            {
+                SubjectId = WorkingRow.SubjectId,
+                SubjectName = subject.SubjectName,
+                TeacherId = WorkingRow.TeacherId,
+                TeacherName = $"{teacher.FirstName} {teacher.LastName}",
+                StartTime = WorkingRow.StartTime,
+                EndTime = WorkingRow.EndTime,
+                StartTimeSpan = start,
+                EndTimeSpan = end,
+                Days = new List<string>(WorkingRow.Days)
+            });
         }
-        StateHasChanged();
+
+        CancelEditing();
+    }
+
+    private void RemoveAssignmentRow(int index)
+    {
+        if (index >= 0 && index < AssignmentRows.Count)
+        {
+            AssignmentRows.RemoveAt(index);
+            StateHasChanged();
+        }
     }
 
     private bool CanSubmit
@@ -666,19 +796,10 @@
             if (string.IsNullOrWhiteSpace(SelectedSection) || !SelectedSectionId.HasValue)
                 return false;
 
-            if (SelectedRole == "adviser")
-            {
-                if (string.IsNullOrWhiteSpace(AdviserTeacherName))
-                    return false;
-                
-                return AvailableSubjectsWithSchedules.All(s => !string.IsNullOrWhiteSpace(s.TeacherName) && s.TeacherId > 0);
-            }
-            else if (SelectedRole == "homeroom_all_subjects")
-            {
-                return !string.IsNullOrWhiteSpace(AdviserTeacherName);
-            }
-            
-            return false;
+            if (string.IsNullOrWhiteSpace(AdviserTeacherName))
+                return false;
+
+            return AssignmentRows.Any();
         }
     }
 
@@ -696,33 +817,14 @@
             validationErrors.Add("Section is required");
         }
         
-        if (string.IsNullOrWhiteSpace(SelectedRole))
+        if (string.IsNullOrWhiteSpace(AdviserTeacherName))
         {
-            validationErrors.Add("Assignment Type is required");
+            validationErrors.Add("Adviser is required");
         }
         
-        if (SelectedRole == "adviser")
+        if (!AssignmentRows.Any())
         {
-            if (string.IsNullOrWhiteSpace(AdviserTeacherName))
-            {
-                validationErrors.Add("Adviser is required");
-            }
-            
-            var subjectsWithoutTeachers = AvailableSubjectsWithSchedules
-                .Where(s => string.IsNullOrWhiteSpace(s.TeacherName) || s.TeacherId == 0)
-                .ToList();
-            
-            if (subjectsWithoutTeachers.Any())
-            {
-                validationErrors.Add($"Please assign teachers to all subjects. Missing teachers for: {string.Join(", ", subjectsWithoutTeachers.Select(s => s.SubjectName))}");
-            }
-        }
-        else if (SelectedRole == "homeroom_all_subjects")
-        {
-            if (string.IsNullOrWhiteSpace(AdviserTeacherName))
-            {
-                validationErrors.Add("Teacher is required for Homeroom Teacher (All Subjects)");
-            }
+            validationErrors.Add("Please add at least one subject assignment.");
         }
         
         return validationErrors.Count == 0;
@@ -786,44 +888,7 @@
         return !string.IsNullOrWhiteSpace(SelectedGradeLevel) ||
                !string.IsNullOrWhiteSpace(SelectedSection) ||
                !string.IsNullOrWhiteSpace(AdviserTeacherName) ||
-               AvailableSubjectsWithSchedules.Any(s => !string.IsNullOrWhiteSpace(s.TeacherName));
-    }
-
-    private List<string> FormatSchedulesCompact(List<SubjectScheduleDisplay> schedules)
-    {
-        if (schedules == null || !schedules.Any())
-            return new List<string>();
-
-        // Group schedules by time (StartTime-EndTime combination)
-        var groupedByTime = schedules
-            .GroupBy(s => new { s.StartTime, s.EndTime })
-            .ToList();
-
-        var result = new List<string>();
-
-        foreach (var group in groupedByTime)
-        {
-            var days = group.Select(s => s.DayOfWeek).OrderBy(d => GetDayOrder(d)).ToList();
-            var timeRange = $"{group.Key.StartTime} - {group.Key.EndTime}";
-            
-            // If multiple days share the same time, group them together
-            if (days.Count > 1)
-            {
-                result.Add($"{string.Join(", ", days)}: {timeRange}");
-            }
-            else
-            {
-                // Single day
-                result.Add($"{days.First()}: {timeRange}");
-            }
-        }
-
-        // Sort results by first day of each group
-        return result.OrderBy(r => 
-        {
-            var firstDay = r.Split(':')[0].Split(',')[0].Trim();
-            return GetDayOrder(firstDay);
-        }).ToList();
+               AssignmentRows.Any();
     }
 
     private int GetDayOrder(string day)
@@ -839,6 +904,16 @@
             "Sun" => 7,
             _ => 99
         };
+    }
+
+    private string FormatTime(TimeSpan time)
+    {
+        var hours = time.Hours;
+        var minutes = time.Minutes;
+        var period = hours < 12 ? "AM" : "PM";
+        var displayHour = hours % 12;
+        if (displayHour == 0) displayHour = 12;
+        return $"{displayHour}:{minutes:D2} {period}";
     }
 
     private async Task HandleBackdropClick()
@@ -866,137 +941,128 @@
 
     private async Task HandleSubmit()
     {
-        try
+        // If anything fails here, we want to see the exception instead of silently swallowing it.
+
+        if (!SelectedSectionId.HasValue || !SelectedClassroomId.HasValue)
         {
-            if (!AssignmentId.HasValue || !SelectedSectionId.HasValue)
-            {
-                return;
-            }
-
-            var section = AvailableSections.FirstOrDefault(s => s.SectionId == SelectedSectionId.Value);
-            if (section == null)
-            {
-                return;
-            }
-
-            if (SelectedRole == "adviser")
-            {
-                var adviserTeacher = Teachers.FirstOrDefault(t => 
-                    $"{t.FirstName} {t.LastName}" == AdviserTeacherName);
-                
-                if (adviserTeacher == null)
-                {
-                    return;
-                }
-
-                // Update adviser assignment
-                var dbAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(AssignmentId.Value);
-                if (dbAssignment != null)
-                {
-                    dbAssignment.TeacherId = adviserTeacher.UserId;
-                    await CurriculumService.UpdateTeacherAssignmentAsync(dbAssignment);
-                }
-
-                // Delete existing subject teacher assignments for this section
-                var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
-                var existingSubjectAssignments = allAssignments
-                    .Where(a => a.SectionId == section.SectionId && a.Role == "subject_teacher")
-                    .ToList();
-
-                foreach (var existingAssignment in existingSubjectAssignments)
-                {
-                    await CurriculumService.DeleteTeacherAssignmentAsync(existingAssignment.AssignmentId);
-                }
-
-                if (!SelectedClassroomId.HasValue)
-                {
-                    return;
-                }
-
-                var subjectAssignments = new List<DataModels.TeacherSectionAssignment>();
-                
-                foreach (var subjectItem in AvailableSubjectsWithSchedules)
-                {
-                    if (string.IsNullOrWhiteSpace(subjectItem.TeacherName) || subjectItem.TeacherId == 0)
-                        continue;
-
-                    var subjectAssignment = new DataModels.TeacherSectionAssignment
-                    {
-                        TeacherId = subjectItem.TeacherId,
-                        SectionId = section.SectionId,
-                        SubjectId = subjectItem.SubjectId,
-                        Role = "subject_teacher"
-                    };
-                    subjectAssignments.Add(subjectAssignment);
-                }
-
-                if (subjectAssignments.Any())
-                {
-                    await CurriculumService.CreateBatchTeacherAssignmentsAsync(
-                        subjectAssignments, 
-                        section.SectionId, 
-                        SelectedClassroomId.Value);
-                }
-            }
-            else if (SelectedRole == "homeroom_all_subjects")
-            {
-                if (string.IsNullOrWhiteSpace(AdviserTeacherName))
-                {
-                    return;
-                }
-
-                var teacher = Teachers.FirstOrDefault(t => 
-                    $"{t.FirstName} {t.LastName}" == AdviserTeacherName);
-                
-                if (teacher == null)
-                {
-                    return;
-                }
-
-                if (!SelectedClassroomId.HasValue)
-                {
-                    return;
-                }
-
-                // Update the assignment
-                var dbAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(AssignmentId.Value);
-                if (dbAssignment != null)
-                {
-                    dbAssignment.TeacherId = teacher.UserId;
-                    await CurriculumService.UpdateTeacherAssignmentAsync(dbAssignment);
-
-                    // Delete existing class schedules
-                    var allSchedules = await CurriculumService.GetAllClassSchedulesAsync();
-                    var existingSchedules = allSchedules.Where(s => s.AssignmentId == AssignmentId.Value).ToList();
-                    foreach (var schedule in existingSchedules)
-                    {
-                        await CurriculumService.DeleteClassScheduleAsync(schedule.ScheduleId);
-                    }
-
-                    // Create new ClassSchedule entries for all subjects
-                    var gradeLevelSchedules = await CurriculumService.GetSubjectSchedulesByGradeLevelAsync(section.GradeLevelId);
-                    
-                    foreach (var subjectSchedule in gradeLevelSchedules)
-                    {
-                        var classSchedule = new DataModels.ClassSchedule
-                        {
-                            AssignmentId = AssignmentId.Value,
-                            DayOfWeek = subjectSchedule.DayOfWeek,
-                            StartTime = subjectSchedule.StartTime,
-                            EndTime = subjectSchedule.EndTime,
-                            RoomId = SelectedClassroomId.Value
-                        };
-                        await CurriculumService.CreateClassScheduleAsync(classSchedule);
-                    }
-                }
-            }
-
-            // Notify parent to refresh and close modal
-            await OnSubmit.InvokeAsync();
-            await OnClose.InvokeAsync();
+            return;
         }
-        catch (Exception)
+
+        var section = AvailableSections.FirstOrDefault(s => s.SectionId == SelectedSectionId.Value);
+        if (section == null)
         {
+            return;
         }
+
+        // Update or create adviser assignment
+        var adviserTeacher = Teachers.FirstOrDefault(t => 
+            $"{t.FirstName} {t.LastName}" == AdviserTeacherName);
+        
+        if (adviserTeacher == null)
+        {
+            // Let the validation layer handle missing adviser
+            return;
+        }
+
+        // Get or create adviser assignment
+        // First check if adviser assignment exists by loading all assignments
+        var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+        var existingAdviserAssignment = allAssignments
+            .FirstOrDefault(a => a.SectionId == SelectedSectionId.Value && a.Role == "adviser");
+
+        if (existingAdviserAssignment != null)
+        {
+            // Reload the assignment fresh from database to avoid tracking conflicts
+            var adviserAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(existingAdviserAssignment.AssignmentId);
+            if (adviserAssignment != null)
+            {
+                // Update existing adviser assignment
+                adviserAssignment.TeacherId = adviserTeacher.UserId;
+                await CurriculumService.UpdateTeacherAssignmentAsync(adviserAssignment);
+            }
+        }
+        else
+        {
+            // Create new adviser assignment
+            var newAdviserAssignment = new DataModels.TeacherSectionAssignment
+            {
+                TeacherId = adviserTeacher.UserId,
+                SectionId = SelectedSectionId.Value,
+                SubjectId = null,
+                Role = "adviser"
+            };
+            await CurriculumService.CreateTeacherAssignmentAsync(newAdviserAssignment);
+        }
+
+        // Delete all existing subject_teacher assignments and their ClassSchedule entries for this section
+        var existingSubjectAssignments = allAssignments
+            .Where(a => a.SectionId == SelectedSectionId.Value && a.Role == "subject_teacher")
+            .ToList();
+
+        var allClassSchedules = await CurriculumService.GetAllClassSchedulesAsync();
+        
+        foreach (var existingAssignment in existingSubjectAssignments)
+        {
+            // Delete all ClassSchedule entries for this assignment
+            var schedules = allClassSchedules
+                .Where(s => s.AssignmentId == existingAssignment.AssignmentId)
+                .ToList();
+            
+            foreach (var schedule in schedules)
+            {
+                await CurriculumService.DeleteClassScheduleAsync(schedule.ScheduleId);
+            }
+
+            // Delete the assignment (soft delete - archives it)
+            await CurriculumService.DeleteTeacherAssignmentAsync(existingAssignment.AssignmentId);
+        }
+
+        // Create new assignments from AssignmentRows (same pattern as AddAssignmentModal)
+        foreach (var row in AssignmentRows)
+        {
+            var assignment = new DataModels.TeacherSectionAssignment
+            {
+                TeacherId = row.TeacherId,
+                SectionId = SelectedSectionId.Value,
+                SubjectId = row.SubjectId,
+                Role = "subject_teacher"
+            };
+
+            assignment = await CurriculumService.CreateTeacherAssignmentAsync(assignment);
+
+            // Create ClassSchedule entries for each day
+            foreach (var day in row.Days)
+            {
+                var classSchedule = new DataModels.ClassSchedule
+                {
+                    AssignmentId = assignment.AssignmentId,
+                    DayOfWeek = day,
+                    StartTime = row.StartTimeSpan,
+                    EndTime = row.EndTimeSpan,
+                    RoomId = SelectedClassroomId.Value
+                };
+                await CurriculumService.CreateClassScheduleAsync(classSchedule);
+            }
+        }
+
+        // Notify parent to refresh and close modal
+        await OnSubmit.InvokeAsync();
+        await OnClose.InvokeAsync();
+    }
+
+    // AssignmentRow model (same as AddAssignmentModal)
+    public class AssignmentRow
+    {
+        public int SubjectId { get; set; }
+        public string SubjectName { get; set; } = "";
+        public int TeacherId { get; set; }
+        public string TeacherName { get; set; } = "";
+        // Time strings used for binding with TimePicker
+        public string StartTime { get; set; } = "";
+        public string EndTime { get; set; } = "";
+        // Parsed TimeSpan values used when creating ClassSchedule
+        public TimeSpan StartTimeSpan { get; set; }
+        public TimeSpan EndTimeSpan { get; set; }
+        public List<string> Days { get; set; } = new();
     }
 }

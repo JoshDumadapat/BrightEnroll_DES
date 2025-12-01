@@ -239,30 +239,38 @@
                     }
                     
                     // Format schedule: group by time range and days
-                    // Group by unique time slots (StartTime, EndTime) and collect days
-                    var scheduleGroups = allRows
-                        .GroupBy(c => new { c.StartTime, c.EndTime })
+                    // Filter out rows with null times before grouping
+                    var validRows = allRows
+                        .Where(c => c.StartTime.HasValue && c.EndTime.HasValue)
+                        .ToList();
+                    
+                    var scheduleGroups = validRows
+                        .GroupBy(c => new { StartTime = c.StartTime!.Value, EndTime = c.EndTime!.Value })
                         .OrderBy(timeGroup => timeGroup.Key.StartTime)
                         .Select(timeGroup =>
                         {
-                            var startHour = timeGroup.Key.StartTime.Hours > 12 
-                                ? timeGroup.Key.StartTime.Hours - 12 
-                                : (timeGroup.Key.StartTime.Hours == 0 ? 12 : timeGroup.Key.StartTime.Hours);
-                            var endHour = timeGroup.Key.EndTime.Hours > 12 
-                                ? timeGroup.Key.EndTime.Hours - 12 
-                                : (timeGroup.Key.EndTime.Hours == 0 ? 12 : timeGroup.Key.EndTime.Hours);
-                            var startAmPm = timeGroup.Key.StartTime.Hours < 12 ? "am" : "pm";
-                            var endAmPm = timeGroup.Key.EndTime.Hours < 12 ? "am" : "pm";
+                            var startTime = timeGroup.Key.StartTime;
+                            var endTime = timeGroup.Key.EndTime;
+                            
+                            var startHour = startTime.Hours > 12 
+                                ? startTime.Hours - 12 
+                                : (startTime.Hours == 0 ? 12 : startTime.Hours);
+                            var endHour = endTime.Hours > 12 
+                                ? endTime.Hours - 12 
+                                : (endTime.Hours == 0 ? 12 : endTime.Hours);
+                            var startAmPm = startTime.Hours < 12 ? "am" : "pm";
+                            var endAmPm = endTime.Hours < 12 ? "am" : "pm";
                             
                             // Get all unique days for this time slot, ordered properly
                             var days = timeGroup
                                 .Select(c => c.DayOfWeek)
+                                .Where(d => !string.IsNullOrWhiteSpace(d))
                                 .Distinct()
                                 .OrderBy(d => GetDayOrder(d))
                                 .ToList();
                             
                             var daysStr = string.Join(", ", days);
-                            return $"{startHour}:{timeGroup.Key.StartTime.Minutes:D2}{startAmPm} - {endHour}:{timeGroup.Key.EndTime.Minutes:D2}{endAmPm} | {daysStr}";
+                            return $"{startHour}:{startTime.Minutes:D2}{startAmPm} - {endHour}:{endTime.Minutes:D2}{endAmPm} | {daysStr}";
                         })
                         .ToList();
                     
@@ -296,8 +304,11 @@
         }
     }
 
-    private int GetDayOrder(string day)
+    private int GetDayOrder(string? day)
     {
+        if (string.IsNullOrWhiteSpace(day))
+            return 99;
+            
         return day switch
         {
             "M" => 1,

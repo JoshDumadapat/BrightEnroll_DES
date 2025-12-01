@@ -278,6 +278,222 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Adds SubjectCode and IsActive columns to tbl_Subjects if they don't exist (for existing databases)
+        public async Task<bool> AddSubjectColumnsIfNotExistAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                bool anyColumnAdded = false;
+
+                // Check and add SubjectCode column
+                string checkSubjectCodeQuery = @"
+                    SELECT COUNT(*)
+                    FROM sys.columns
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Subjects')
+                    AND name = 'SubjectCode'";
+
+                using (var checkSubjectCodeCommand = new SqlCommand(checkSubjectCodeQuery, connection))
+                {
+                    var subjectCodeResult = await checkSubjectCodeCommand.ExecuteScalarAsync();
+                    var subjectCodeExists = subjectCodeResult != null ? (int)subjectCodeResult : 0;
+
+                    if (subjectCodeExists == 0)
+                    {
+                        string addSubjectCodeQuery = @"
+                            ALTER TABLE [dbo].[tbl_Subjects]
+                            ADD [SubjectCode] VARCHAR(50) NULL";
+
+                        using var addSubjectCodeCommand = new SqlCommand(addSubjectCodeQuery, connection);
+                        await addSubjectCodeCommand.ExecuteNonQueryAsync();
+                        anyColumnAdded = true;
+                    }
+                }
+
+                // Check and add IsActive column
+                string checkIsActiveQuery = @"
+                    SELECT COUNT(*)
+                    FROM sys.columns
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Subjects')
+                    AND name = 'IsActive'";
+
+                using (var checkIsActiveCommand = new SqlCommand(checkIsActiveQuery, connection))
+                {
+                    var isActiveResult = await checkIsActiveCommand.ExecuteScalarAsync();
+                    var isActiveExists = isActiveResult != null ? (int)isActiveResult : 0;
+
+                    if (isActiveExists == 0)
+                    {
+                        string addIsActiveQuery = @"
+                            ALTER TABLE [dbo].[tbl_Subjects]
+                            ADD [IsActive] BIT NOT NULL DEFAULT 1";
+
+                        using var addIsActiveCommand = new SqlCommand(addIsActiveQuery, connection);
+                        await addIsActiveCommand.ExecuteNonQueryAsync();
+                        anyColumnAdded = true;
+
+                        // Ensure existing rows are marked active
+                        string updateExistingQuery = @"
+                            UPDATE [dbo].[tbl_Subjects]
+                            SET [IsActive] = 1
+                            WHERE [IsActive] IS NULL";
+
+                        using var updateExistingCommand = new SqlCommand(updateExistingQuery, connection);
+                        await updateExistingCommand.ExecuteNonQueryAsync();
+                    }
+                }
+
+                // Create indexes if needed
+                if (anyColumnAdded)
+                {
+                    string createIndexesQuery = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subjects_SubjectCode' AND object_id = OBJECT_ID('dbo.tbl_Subjects'))
+                            CREATE INDEX IX_tbl_Subjects_SubjectCode ON [dbo].[tbl_Subjects]([SubjectCode]);
+
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Subjects_IsActive' AND object_id = OBJECT_ID('dbo.tbl_Subjects'))
+                            CREATE INDEX IX_tbl_Subjects_IsActive ON [dbo].[tbl_Subjects]([IsActive]);";
+
+                    using var createIndexesCommand = new SqlCommand(createIndexesQuery, connection);
+                    await createIndexesCommand.ExecuteNonQueryAsync();
+                }
+
+                return anyColumnAdded;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Adds AdviserID column to tbl_Sections if it doesn't exist (for existing databases)
+        public async Task<bool> AddSectionAdviserColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if AdviserID column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*)
+                    FROM sys.columns
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Sections')
+                    AND name = 'AdviserID'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    // Add AdviserID column
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Sections]
+                        ADD [AdviserID] INT NULL";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+
+                    // Add foreign key constraint and index if they don't exist
+                    string fkAndIndexQuery = @"
+                        IF NOT EXISTS (SELECT * FROM sys.foreign_keys WHERE name = 'FK_tbl_Sections_tbl_Users_Adviser')
+                        BEGIN
+                            ALTER TABLE [dbo].[tbl_Sections]
+                            ADD CONSTRAINT FK_tbl_Sections_tbl_Users_Adviser FOREIGN KEY ([AdviserID]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL;
+                        END;
+
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Sections_AdviserID' AND object_id = OBJECT_ID('dbo.tbl_Sections'))
+                        BEGIN
+                            CREATE INDEX IX_tbl_Sections_AdviserID ON [dbo].[tbl_Sections]([AdviserID]);
+                        END;";
+
+                    using var fkIndexCommand = new SqlCommand(fkAndIndexQuery, connection);
+                    await fkIndexCommand.ExecuteNonQueryAsync();
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Adds IsArchived column to tbl_TeacherSectionAssignment if it doesn't exist (for existing databases)
+        public async Task<bool> AddTeacherAssignmentArchiveColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if IsArchived column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*)
+                    FROM sys.columns
+                    WHERE object_id = OBJECT_ID('dbo.tbl_TeacherSectionAssignment')
+                    AND name = 'IsArchived'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    // Add IsArchived column with default 0
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_TeacherSectionAssignment]
+                        ADD [IsArchived] BIT NOT NULL DEFAULT 0";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+
+                    // Ensure existing rows are non-archived
+                    string updateExistingQuery = @"
+                        UPDATE [dbo].[tbl_TeacherSectionAssignment]
+                        SET [IsArchived] = 0
+                        WHERE [IsArchived] IS NULL";
+
+                    using var updateCommand = new SqlCommand(updateExistingQuery, connection);
+                    await updateCommand.ExecuteNonQueryAsync();
+
+                    // Create index if it doesn't exist
+                    string createIndexQuery = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TeacherSectionAssignment_IsArchived' AND object_id = OBJECT_ID('dbo.tbl_TeacherSectionAssignment'))
+                        BEGIN
+                            CREATE INDEX IX_tbl_TeacherSectionAssignment_IsArchived ON [dbo].[tbl_TeacherSectionAssignment]([IsArchived]);
+                        END;";
+
+                    using var indexCommand = new SqlCommand(createIndexQuery, connection);
+                    await indexCommand.ExecuteNonQueryAsync();
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Ensures sequence table has initial data
         public async Task<bool> InitializeSequenceTableAsync()
         {
@@ -581,6 +797,9 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 
                 await AddStatusColumnIfNotExistsAsync();
                 await AddStudentColumnsIfNotExistAsync();
+                await AddSubjectColumnsIfNotExistAsync();
+                await AddSectionAdviserColumnIfNotExistsAsync();
+                await AddTeacherAssignmentArchiveColumnIfNotExistsAsync();
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();

@@ -14,15 +14,18 @@ public class Section
 public class Subject
 {
     public string Id { get; set; } = "";
+    public string Code { get; set; } = "";
     public string Name { get; set; } = "";
     public string GradeLevel { get; set; } = "";
     public List<string> LinkedSections { get; set; } = new();
     public string Description { get; set; } = "";
     public List<SubjectScheduleItem> Schedules { get; set; } = new();
+    public bool IsActive { get; set; } = true;
 }
 
 public class SubjectScheduleItem
 {
+    public string SubjectCode { get; set; } = "";
     public string SubjectName { get; set; } = "";
     public List<string> Days { get; set; } = new();
     public string StartTime { get; set; } = "";
@@ -35,16 +38,22 @@ public class TeacherAssignmentModel
 {
     public string Id { get; set; } = "";
     public int AssignmentId { get; set; }
-    public string TeacherName { get; set; } = "";
+    
+    // Section-level summary fields (new)
     public string Grade { get; set; } = "";
-    public string Subject { get; set; } = "";
     public string Section { get; set; } = "";
-    public string Schedule { get; set; } = "";
     public string Classroom { get; set; } = "";
+    public int SubjectsCount { get; set; }
+    public List<string> SubjectsList { get; set; } = new(); // Names of subjects in this section
+
+    // Legacy per-assignment fields kept for backwards compatibility with existing modals
+    // These are still referenced in View/Edit assignment components.
+    public string TeacherName { get; set; } = "";
+    public string Subject { get; set; } = "";
+    public string Schedule { get; set; } = "";
     public string Time { get; set; } = "";
     public List<string> SelectedDays { get; set; } = new();
     public string Role { get; set; } = ""; // "adviser" or "subject_teacher"
-    public List<string> SubjectsList { get; set; } = new(); // List of all subjects for this assignment
 }
 
 public class TeacherAssignmentItem

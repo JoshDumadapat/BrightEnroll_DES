@@ -11,6 +11,10 @@ public class Subject
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int SubjectId { get; set; }
 
+    [MaxLength(50)]
+    [Column("SubjectCode")]
+    public string? SubjectCode { get; set; }
+
     [Required]
     [Column("GradeLvlID")]
     public int GradeLevelId { get; set; }
@@ -23,6 +27,9 @@ public class Subject
     [MaxLength(500)]
     [Column("Description")]
     public string? Description { get; set; }
+
+    [Column("IsActive")]
+    public bool IsActive { get; set; } = true;
 
     [Column("CreatedAt", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

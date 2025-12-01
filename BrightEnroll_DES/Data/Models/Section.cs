@@ -23,6 +23,9 @@ public class Section
     [Column("ClassroomID")]
     public int? ClassroomId { get; set; }
 
+    [Column("AdviserID")]
+    public int? AdviserId { get; set; }
+
     [Required]
     [Column("Capacity")]
     public int Capacity { get; set; }
@@ -43,6 +46,9 @@ public class Section
 
     [ForeignKey("ClassroomId")]
     public virtual Classroom? Classroom { get; set; }
+
+    [ForeignKey("AdviserId")]
+    public virtual UserEntity? Adviser { get; set; }
 
     public virtual ICollection<SubjectSection> SubjectSections { get; set; } = new List<SubjectSection>();
     public virtual ICollection<TeacherSectionAssignment> TeacherAssignments { get; set; } = new List<TeacherSectionAssignment>();

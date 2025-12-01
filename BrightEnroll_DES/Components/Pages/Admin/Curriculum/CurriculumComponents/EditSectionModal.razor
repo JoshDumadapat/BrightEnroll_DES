@@ -72,6 +72,23 @@
                                    disabled readonly />
                         </div>
 
+                        <!-- Adviser -->
+                        <div class="col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Adviser <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Section.HomeroomTeacher"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
+                                    required>
+                                <option value="">Select Adviser</option>
+                                @foreach (var teacher in Teachers)
+                                {
+                                    var fullName = $"{teacher.FirstName} {teacher.LastName}";
+                                    <option value="@fullName">@fullName</option>
+                                }
+                            </select>
+                        </div>
+
                         <!-- Notes -->
                         <div class="col-span-2">
                             <label class="mb-2 block text-sm font-medium text-gray-700">
@@ -185,6 +202,7 @@
 
     private List<DataModels.GradeLevel> GradeLevels { get; set; } = new();
     private List<DataModels.Classroom> DbClassrooms { get; set; } = new();
+    private List<DataModels.UserEntity> Teachers { get; set; } = new();
     private bool showSubmitConfirmModal = false;
     private bool showCancelConfirmModal = false;
     private bool showValidationModal = false;
@@ -218,6 +236,11 @@
         if (string.IsNullOrWhiteSpace(Section.Classroom))
         {
             validationErrors.Add("Classroom is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(Section.HomeroomTeacher))
+        {
+            validationErrors.Add("Adviser is required");
         }
         
         if (Section.Capacity <= 0)
@@ -286,6 +309,7 @@
         {
             GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
             DbClassrooms = await CurriculumService.GetAllClassroomsAsync();
+            Teachers = await CurriculumService.GetTeachersAsync();
         }
         catch (Exception)
         {
@@ -320,6 +344,7 @@
         return !string.IsNullOrWhiteSpace(Section.Name) ||
                !string.IsNullOrWhiteSpace(Section.GradeLevel) ||
                !string.IsNullOrWhiteSpace(Section.Classroom) ||
+               !string.IsNullOrWhiteSpace(Section.HomeroomTeacher) ||
                Section.Capacity > 0 ||
                !string.IsNullOrWhiteSpace(Section.Notes);
     }

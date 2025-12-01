@@ -85,6 +85,7 @@ public class CurriculumService
             .AsNoTracking()
             .Include(s => s.GradeLevel)
             .Include(s => s.Classroom)
+            .Include(s => s.Adviser)
             .OrderBy(s => s.GradeLevelId)
             .ThenBy(s => s.SectionName)
             .ToListAsync();
@@ -95,6 +96,7 @@ public class CurriculumService
         return await _context.Sections
             .Include(s => s.GradeLevel)
             .Include(s => s.Classroom)
+            .Include(s => s.Adviser)
             .FirstOrDefaultAsync(s => s.SectionId == sectionId);
     }
 
@@ -129,6 +131,49 @@ public class CurriculumService
 
     #endregion
 
+    /// <summary>
+    /// Automatically assigns all active subjects for the section's grade level
+    /// to the given section using the SubjectSection linking table.
+    /// </summary>
+    public async Task AssignDefaultSubjectsToSectionAsync(int sectionId)
+    {
+        var section = await _context.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.SectionId == sectionId);
+        if (section == null) return;
+
+        // Get all active subjects for the grade level
+        var gradeLevelSubjects = await _context.Subjects
+            .Where(s => s.GradeLevelId == section.GradeLevelId && s.IsActive)
+            .Select(s => s.SubjectId)
+            .ToListAsync();
+
+        if (!gradeLevelSubjects.Any()) return;
+
+        // Get existing links to avoid duplicates
+        var existingLinks = await _context.SubjectSections
+            .Where(ss => ss.SectionId == sectionId)
+            .Select(ss => ss.SubjectId)
+            .ToListAsync();
+
+        var newSubjectIds = gradeLevelSubjects
+            .Where(id => !existingLinks.Contains(id))
+            .ToList();
+
+        foreach (var subjectId in newSubjectIds)
+        {
+            _context.SubjectSections.Add(new SubjectSection
+            {
+                SubjectId = subjectId,
+                SectionId = sectionId
+            });
+        }
+
+        if (newSubjectIds.Any())
+        {
+            await _context.SaveChangesAsync();
+            _logger?.LogInformation("Assigned {Count} default subjects to section {SectionId}", newSubjectIds.Count, sectionId);
+        }
+    }
+
     #region Subject Operations
 
     public async Task<List<Subject>> GetAllSubjectsAsync()
@@ -137,6 +182,7 @@ public class CurriculumService
         {
             var subjects = await _context.Subjects
                 .AsNoTracking()
+                .Where(s => s.IsActive)
                 .Include(s => s.GradeLevel)
                 .OrderBy(s => s.GradeLevelId)
                 .ThenBy(s => s.SubjectName)
@@ -162,6 +208,10 @@ public class CurriculumService
     public async Task<Subject> CreateSubjectAsync(Subject subject)
     {
         subject.CreatedAt = DateTime.Now;
+        if (subject.IsActive == default)
+        {
+            subject.IsActive = true;
+        }
         _context.Subjects.Add(subject);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Subject created: {SubjectName}", subject.SubjectName);
@@ -182,9 +232,12 @@ public class CurriculumService
         var subject = await _context.Subjects.FindAsync(subjectId);
         if (subject == null) return false;
 
-        _context.Subjects.Remove(subject);
+        // Soft delete: mark subject as inactive instead of removing
+        subject.IsActive = false;
+        subject.UpdatedAt = DateTime.Now;
+        _context.Subjects.Update(subject);
         await _context.SaveChangesAsync();
-        _logger?.LogInformation("Subject deleted: {SubjectName}", subject.SubjectName);
+        _logger?.LogInformation("Subject soft-deleted (set inactive): {SubjectName}", subject.SubjectName);
         return true;
     }
 
@@ -427,6 +480,7 @@ public class CurriculumService
     {
         return await _context.TeacherSectionAssignments
             .AsNoTracking()
+            .Where(a => !a.IsArchived)
             .Include(a => a.Teacher)
             .Include(a => a.Section)
                 .ThenInclude(s => s!.GradeLevel)
@@ -444,6 +498,8 @@ public class CurriculumService
             .Include(a => a.Teacher)
             .Include(a => a.Section)
                 .ThenInclude(s => s!.GradeLevel)
+            .Include(a => a.Section)
+                .ThenInclude(s => s!.Classroom)
             .Include(a => a.Subject)
             .FirstOrDefaultAsync(a => a.AssignmentId == assignmentId);
     }
@@ -471,9 +527,11 @@ public class CurriculumService
         var assignment = await _context.TeacherSectionAssignments.FindAsync(assignmentId);
         if (assignment == null) return false;
 
-        _context.TeacherSectionAssignments.Remove(assignment);
+        assignment.IsArchived = true;
+        assignment.UpdatedAt = DateTime.Now;
+        _context.TeacherSectionAssignments.Update(assignment);
         await _context.SaveChangesAsync();
-        _logger?.LogInformation("Teacher assignment deleted: {AssignmentId}", assignmentId);
+        _logger?.LogInformation("Teacher assignment archived (soft delete): {AssignmentId}", assignmentId);
         return true;
     }
 
@@ -631,6 +689,24 @@ public class CurriculumService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Returns the number of students currently enrolled in the given section for a specific school year.
+    /// Used by the enrollment module to compute available slots per section.
+    /// </summary>
+    public async Task<int> GetSectionEnrollmentCountAsync(int sectionId, string schoolYear)
+    {
+        if (string.IsNullOrWhiteSpace(schoolYear))
+        {
+            return 0;
+        }
+
+        return await _context.StudentSectionEnrollments
+            .Where(e => e.SectionId == sectionId
+                        && e.SchoolYear == schoolYear
+                        && e.Status == "Enrolled")
+            .CountAsync();
+    }
+
     public async Task<List<UserEntity>> GetTeachersAsync()
     {
         return await _context.Users
@@ -648,10 +724,10 @@ public class CurriculumService
         {
             var finalClasses = await _context.FinalClassViews
                 .AsNoTracking()
-                .OrderBy(fc => fc.GradeLevel)
-                .ThenBy(fc => fc.SectionName)
-                .ThenBy(fc => fc.DayOfWeek)
-                .ThenBy(fc => fc.StartTime)
+                .OrderBy(fc => fc.GradeLevel ?? "")
+                .ThenBy(fc => fc.SectionName ?? "")
+                .ThenBy(fc => fc.DayOfWeek ?? "")
+                .ThenBy(fc => fc.StartTime ?? TimeSpan.Zero)
                 .ToListAsync();
             
             _logger?.LogInformation("Loaded {Count} final classes from view", finalClasses.Count);

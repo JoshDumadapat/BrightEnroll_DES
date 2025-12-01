@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Student> Students { get; set; }
     public DbSet<Guardian> Guardians { get; set; }
     public DbSet<StudentRequirement> StudentRequirements { get; set; }
+    public DbSet<StudentSectionEnrollment> StudentSectionEnrollments { get; set; }
     
     // Employee tables
     public DbSet<EmployeeAddress> EmployeeAddresses { get; set; }
@@ -83,6 +84,11 @@ public class AppDbContext : DbContext
                   .WithOne(r => r.Student)
                   .HasForeignKey(r => r.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(s => s.SectionEnrollments)
+                  .WithOne(e => e.Student)
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
             
             // Temporarily ignore ArchiveReason property until database column is added
             // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
@@ -110,6 +116,27 @@ public class AppDbContext : DbContext
             // Temporarily ignore IsVerified property until database column is added
             // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
             entity.Ignore(e => e.IsVerified);
+        });
+
+        modelBuilder.Entity<StudentSectionEnrollment>(entity =>
+        {
+            entity.HasKey(e => e.EnrollmentId);
+            entity.ToTable("tbl_StudentSectionEnrollment");
+
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => new { e.SectionId, e.SchoolYear });
+            entity.HasIndex(e => new { e.StudentId, e.SchoolYear }).IsUnique();
+
+            entity.HasOne(e => e.Student)
+                  .WithMany(s => s.SectionEnrollments)
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Section)
+                  .WithMany()
+                  .HasForeignKey(e => e.SectionId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>
@@ -254,6 +281,25 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.SectionName);
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.ClassroomId);
+            entity.HasIndex(e => e.AdviserId);
+
+            entity.Property(e => e.SectionId)
+                  .HasColumnName("SectionID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.SectionName)
+                  .HasColumnName("SectionName")
+                  .HasMaxLength(100)
+                  .IsRequired();
+
+            entity.Property(e => e.GradeLevelId)
+                  .HasColumnName("GradeLvlID");
+
+            entity.Property(e => e.ClassroomId)
+                  .HasColumnName("ClassroomID");
+
+            entity.Property(e => e.AdviserId)
+                  .HasColumnName("AdviserID");
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -264,6 +310,11 @@ public class AppDbContext : DbContext
                   .WithMany(c => c.Sections)
                   .HasForeignKey(s => s.ClassroomId)
                   .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(s => s.Adviser)
+                  .WithMany()
+                  .HasForeignKey(s => s.AdviserId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Subject>(entity =>
@@ -272,6 +323,41 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Subjects");
             entity.HasIndex(e => e.SubjectName);
             entity.HasIndex(e => e.GradeLevelId);
+            entity.HasIndex(e => e.SubjectCode);
+            entity.HasIndex(e => e.IsActive);
+
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.SubjectCode)
+                  .HasMaxLength(50)
+                  .HasColumnName("SubjectCode");
+
+            entity.Property(e => e.GradeLevelId)
+                  .HasColumnName("GradeLvlID");
+
+            entity.Property(e => e.SubjectName)
+                  .HasMaxLength(100)
+                  .HasColumnName("SubjectName")
+                  .IsRequired();
+
+            entity.Property(e => e.Description)
+                  .HasMaxLength(500)
+                  .HasColumnName("Description");
+
+            entity.Property(e => e.IsActive)
+                  .HasColumnName("IsActive")
+                  .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("CreatedAt")
+                  .HasColumnType("datetime")
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("UpdatedAt")
+                  .HasColumnType("datetime");
 
             entity.HasOne(s => s.GradeLevel)
                   .WithMany()
@@ -374,6 +460,28 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.SectionId);
             entity.HasIndex(e => e.SubjectId);
             entity.HasIndex(e => e.Role);
+            entity.HasIndex(e => e.IsArchived);
+
+            entity.Property(e => e.AssignmentId)
+                  .HasColumnName("AssignmentID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.TeacherId)
+                  .HasColumnName("TeacherID");
+
+            entity.Property(e => e.SectionId)
+                  .HasColumnName("SectionID");
+
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID");
+
+            entity.Property(e => e.Role)
+                  .HasColumnName("Role")
+                  .HasMaxLength(50);
+
+            entity.Property(e => e.IsArchived)
+                  .HasColumnName("IsArchived")
+                  .HasDefaultValue(false);
 
             entity.HasOne(a => a.Teacher)
                   .WithMany()

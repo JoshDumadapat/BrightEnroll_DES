@@ -721,6 +721,7 @@ public class StudentService
             var student = await _context.Students
                 .Include(s => s.Guardian)
                 .Include(s => s.Requirements)
+                .Include(s => s.SectionEnrollments)
                 .FirstOrDefaultAsync(s => s.StudentId == model.StudentId);
 
             if (student == null)
@@ -770,6 +771,50 @@ public class StudentService
                 : null;
             student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
             student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+
+            // Update section enrollment (assignment to a section for a specific school year)
+            if (model.SectionId.HasValue && !string.IsNullOrWhiteSpace(model.SchoolYear))
+            {
+                var targetSection = await _context.Sections.FirstOrDefaultAsync(s => s.SectionId == model.SectionId.Value);
+                if (targetSection != null)
+                {
+                    // Check capacity for the target section in the given school year
+                    var currentEnrolledCount = await _context.StudentSectionEnrollments
+                        .CountAsync(e => e.SectionId == model.SectionId.Value
+                                         && e.SchoolYear == model.SchoolYear
+                                         && e.Status == "Enrolled");
+
+                    if (currentEnrolledCount >= targetSection.Capacity)
+                    {
+                        throw new Exception($"Section '{targetSection.SectionName}' is already full for school year {model.SchoolYear}. " +
+                                            $"Capacity: {targetSection.Capacity}, Enrolled: {currentEnrolledCount}.");
+                    }
+
+                    // Get existing enrollment for this student and school year (if any)
+                    var existingEnrollment = await _context.StudentSectionEnrollments
+                        .FirstOrDefaultAsync(e => e.StudentId == student.StudentId
+                                                  && e.SchoolYear == model.SchoolYear);
+
+                    if (existingEnrollment == null)
+                    {
+                        var newEnrollment = new StudentSectionEnrollment
+                        {
+                            StudentId = student.StudentId,
+                            SectionId = model.SectionId.Value,
+                            SchoolYear = model.SchoolYear,
+                            Status = "Enrolled",
+                            CreatedAt = DateTime.Now
+                        };
+                        _context.StudentSectionEnrollments.Add(newEnrollment);
+                    }
+                    else
+                    {
+                        existingEnrollment.SectionId = model.SectionId.Value;
+                        existingEnrollment.Status = "Enrolled";
+                        existingEnrollment.UpdatedAt = DateTime.Now;
+                    }
+                }
+            }
             
             if (!string.IsNullOrWhiteSpace(model.Status) && model.Status.Length > 20)
             {

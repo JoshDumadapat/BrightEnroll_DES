@@ -54,6 +54,7 @@ public class StudentEditModel
     public string LearnerReferenceNo { get; set; } = "";
     public string SchoolYear { get; set; } = "";
     public string GradeToEnroll { get; set; } = "";
+    public int? SectionId { get; set; } = null;
     public string Status { get; set; } = "";
     public string? RejectionReason { get; set; }
     

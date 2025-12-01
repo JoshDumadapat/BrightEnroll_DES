@@ -27,6 +27,9 @@ public class TeacherSectionAssignment
     [Column("Role")]
     public string Role { get; set; } = string.Empty; // "adviser" or "subject_teacher"
 
+    [Column("IsArchived")]
+    public bool IsArchived { get; set; } = false;
+
     [Column("CreatedAt", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 

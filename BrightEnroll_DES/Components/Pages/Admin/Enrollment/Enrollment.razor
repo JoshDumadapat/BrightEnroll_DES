@@ -282,6 +282,15 @@
                                         student.Requirements.Any() &&
                                         student.Requirements.All(IsRequirementVerified);
 
+                // Normalize LRN to detect placeholder values (e.g., "N/A", "Pending")
+                var rawLrn = student.Lrn?.Trim() ?? string.Empty;
+                var normalizedLrn = rawLrn.ToUpperInvariant();
+                bool hasRealLrn = !string.IsNullOrWhiteSpace(rawLrn) &&
+                                  normalizedLrn != "N/A" &&
+                                  normalizedLrn != "NA" &&
+                                  normalizedLrn != "PENDING" &&
+                                  normalizedLrn != "NULL";
+
                 SelectedStudentDetail = new StudentDetailData
                 {
                     Id = student.StudentId,
@@ -294,7 +303,7 @@
                     Section = "N/A",
                     SchoolYear = student.SchoolYr ?? "N/A",
                     Status = student.Status ?? string.Empty,
-                    LRN = student.Lrn ?? "N/A",
+                    LRN = hasRealLrn ? rawLrn : "N/A",
                     BirthDate = student.Birthdate,
                     PlaceOfBirth = student.PlaceOfBirth ?? "N/A",
                     Sex = student.Sex,
@@ -325,8 +334,8 @@
                     GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
                     StudentType = student.StudentType ?? string.Empty,
-                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
-                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    HasLRN = hasRealLrn ? "Yes" : "No",
+                    LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
                     GradeToEnroll = student.GradeLevel ?? "N/A",
                     HasBirthCertificate = student.Requirements != null && student.Requirements.Any(IsRequirementVerified)
                 };
@@ -346,6 +355,7 @@
                 };
 
                 // Prepare edit model for modal (mirrors registration + status/requirements)
+
                 EditModel = new StudentEditModel
                 {
                     StudentId = student.StudentId,
@@ -387,8 +397,8 @@
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
                     GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
                     StudentType = student.StudentType ?? string.Empty,
-                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
-                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    HasLRN = hasRealLrn ? "Yes" : "No",
+                    LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
                     SchoolYear = student.SchoolYr ?? string.Empty,
                     GradeToEnroll = student.GradeLevel ?? string.Empty,
                     Status = student.Status ?? "Pending",
@@ -457,6 +467,14 @@
             if (student != null)
             {
                 // Prepare edit model for modal (mirrors registration + status/requirements)
+                var rawLrn = student.Lrn?.Trim() ?? string.Empty;
+                var normalizedLrn = rawLrn.ToUpperInvariant();
+                bool hasRealLrn = !string.IsNullOrWhiteSpace(rawLrn) &&
+                                  normalizedLrn != "N/A" &&
+                                  normalizedLrn != "NA" &&
+                                  normalizedLrn != "PENDING" &&
+                                  normalizedLrn != "NULL";
+
                 EditModel = new StudentEditModel
                 {
                     StudentId = student.StudentId,
@@ -498,8 +516,8 @@
                     GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
                     GuardianRelationshipOther = string.Empty, // Not stored in Guardian model
                     StudentType = student.StudentType ?? string.Empty,
-                    HasLRN = string.IsNullOrWhiteSpace(student.Lrn) ? "No" : "Yes",
-                    LearnerReferenceNo = student.Lrn ?? "N/A",
+                    HasLRN = hasRealLrn ? "Yes" : "No",
+                    LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
                     SchoolYear = student.SchoolYr ?? string.Empty,
                     GradeToEnroll = student.GradeLevel ?? string.Empty,
                     Status = student.Status ?? "For Payment",

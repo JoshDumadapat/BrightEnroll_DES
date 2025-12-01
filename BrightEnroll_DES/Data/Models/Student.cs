@@ -167,5 +167,7 @@ public class Student
     public virtual Guardian Guardian { get; set; } = null!;
 
     public virtual ICollection<StudentRequirement> Requirements { get; set; } = new List<StudentRequirement>();
+
+    public virtual ICollection<StudentSectionEnrollment> SectionEnrollments { get; set; } = new List<StudentSectionEnrollment>();
 }
 

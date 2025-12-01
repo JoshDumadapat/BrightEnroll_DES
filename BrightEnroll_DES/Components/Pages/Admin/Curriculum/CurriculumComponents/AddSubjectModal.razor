@@ -39,57 +39,33 @@
                     {
                         <!-- Add Subject Form -->
                         <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                            <h4 class="mb-4 text-sm font-semibold text-gray-700">Add Subject with Schedule</h4>
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                            <h4 class="mb-4 text-sm font-semibold text-gray-700">Add Subject</h4>
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
+                                <!-- Subject Code -->
+                                <div class="md:col-span-1 lg:col-span-2">
+                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                        Subject Code <span class="text-red-500">*</span>
+                                    </label>
+                                    <input type="text" @bind="NewSubjectItem.SubjectCode" 
+                                           @bind:after="OnNewSubjectChanged"
+                                           placeholder="e.g., MATH-2"
+                                           disabled="@isSubmitting"
+                                           class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none placeholder:text-gray-400 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                                </div>
+
                                 <!-- Subject Name -->
-                                <div>
+                                <div class="md:col-span-2 lg:col-span-4">
                                     <label class="mb-1.5 block text-xs font-semibold text-gray-700">
                                         Subject Name <span class="text-red-500">*</span>
                                     </label>
                                     <input type="text" @bind="NewSubjectItem.SubjectName" 
                                            @bind:after="OnNewSubjectChanged"
-                                           placeholder="e.g., Math"
+                                           placeholder="e.g., Mathematics"
                                            disabled="@isSubmitting"
                                            class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none placeholder:text-gray-400 hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed" />
                                 </div>
 
-                                <!-- Start Time -->
-                                <div class="relative">
-                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
-                                        Start Time <span class="text-red-500">*</span>
-                                    </label>
-                                    <TimePicker @key="@($"start-time-{SubjectList.Count}")" @bind-TimeValue="NewSubjectItem.StartTime" OnTimeChanged="OnNewSubjectChanged" IsDisabled="@isSubmitting" />
-                                </div>
-
-                                <!-- End Time -->
-                                <div class="relative">
-                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
-                                        End Time <span class="text-red-500">*</span>
-                                    </label>
-                                    <TimePicker @key="@($"end-time-{SubjectList.Count}")" @bind-TimeValue="NewSubjectItem.EndTime" OnTimeChanged="OnNewSubjectChanged" IsDisabled="@isSubmitting" />
-                                </div>
-
-                                <!-- Days Selection -->
-                                <div>
-                                    <label class="mb-1.5 block text-xs font-semibold text-gray-700">
-                                        Days <span class="text-red-500">*</span>
-                                    </label>
-                                    <div class="flex flex-wrap gap-2">
-                                        @foreach (var day in DaysOfWeek)
-                                        {
-                                            <label class="group relative flex cursor-pointer items-center">
-                                                <input type="checkbox" 
-                                                       checked="@NewSubjectItem.Days.Contains(day)"
-                                                       @onchange="@((e) => ToggleDay(day))"
-                                                       disabled="@isSubmitting"
-                                                       class="peer sr-only" />
-                                                <div class="flex items-center rounded-lg border-2 border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-all duration-200 peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:border-blue-300 hover:bg-gray-50">
-                                                    <span>@day</span>
-                                                </div>
-                                            </label>
-                                        }
-                                    </div>
-                                </div>
+                                <!-- (Schedule fields removed; scheduling is now done per class in Assign Teachers) -->
                             </div>
 
                             <!-- Description -->
@@ -136,9 +112,8 @@
                                     <table class="min-w-full text-sm">
                                         <thead class="bg-gray-100">
                                             <tr>
+                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Subject Code</th>
                                                 <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Subject Name</th>
-                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Days</th>
-                                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Time</th>
                                                 <th class="px-4 py-2 text-left text-xs font-semibold text-gray-600">Description</th>
                                                 <th class="px-4 py-2 text-center text-xs font-semibold text-gray-600">Actions</th>
                                             </tr>
@@ -149,9 +124,8 @@
                                                 var index = i;
                                                 var item = SubjectList[index];
                                                 <tr class="hover:bg-gray-50">
+                                                    <td class="px-4 py-2 font-medium text-gray-800">@(!string.IsNullOrWhiteSpace(item.SubjectCode) ? item.SubjectCode : "-")</td>
                                                     <td class="px-4 py-2 font-medium text-gray-800">@item.SubjectName</td>
-                                                    <td class="px-4 py-2 text-gray-600">@string.Join(", ", item.Days)</td>
-                                                    <td class="px-4 py-2 text-gray-600">@item.StartTime - @item.EndTime</td>
                                                     <td class="px-4 py-2 text-gray-600">@(string.IsNullOrEmpty(item.Description) ? "-" : item.Description)</td>
                                                     <td class="px-4 py-2 text-center">
                                                         <button type="button" @onclick="@(() => RemoveSubject(index))" 
@@ -453,22 +427,7 @@
         duplicateErrorMessage = "";
 
         // Validate time
-        if (!TimeSpan.TryParse(NewSubjectItem.StartTime, out var startTime) || 
-            !TimeSpan.TryParse(NewSubjectItem.EndTime, out var endTime))
-        {
-            duplicateErrorMessage = "Invalid time format.";
-            StateHasChanged();
-            return;
-        }
-
-        if (endTime <= startTime)
-        {
-            duplicateErrorMessage = "End time must be after start time.";
-            StateHasChanged();
-            return;
-        }
-
-        // Check for duplicate subject name in the list (regardless of time/schedule)
+        // Check for duplicate subject name in the list
         if (HasDuplicateSubjectName(NewSubjectItem.SubjectName))
         {
             duplicateErrorMessage = $"The subject name '{NewSubjectItem.SubjectName}' already exists in the list. Each subject name can only be added once per grade level.";
@@ -476,7 +435,7 @@
             return;
         }
 
-        // Check for duplicate subject name in the database (regardless of time/schedule)
+        // Check for duplicate subject name in the database
         var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == SelectedGradeLevel);
         if (gradeLevel != null && HasDuplicateSubjectNameInDatabase(NewSubjectItem.SubjectName))
         {
@@ -485,113 +444,16 @@
             return;
         }
 
-        // Check for time overlap with existing subjects in the list (same days)
-        var newDaysSet = NewSubjectItem.Days.ToHashSet();
-        var hasTimeOverlapInList = SubjectList.Any(s => 
-        {
-            var existingDaysSet = s.Days.ToHashSet();
-            var hasCommonDays = newDaysSet.Intersect(existingDaysSet).Any();
-            
-            if (!hasCommonDays) return false; // No common days, no overlap possible
-            
-            if (TimeSpan.TryParse(s.StartTime, out var existingStart) && 
-                TimeSpan.TryParse(s.EndTime, out var existingEnd))
-            {
-                // Check if time ranges overlap
-                return (startTime < existingEnd && endTime > existingStart);
-            }
-            return false;
-        });
-
-        if (hasTimeOverlapInList)
-        {
-            duplicateErrorMessage = "This schedule overlaps with an existing subject on the same day(s). Subjects can be on the same days but not at the same time.";
-            StateHasChanged();
-            return;
-        }
-
-        // Check for duplicate subject name + time + days combination in the list
-        var newDaysSorted = NewSubjectItem.Days.OrderBy(d => d).ToList();
-        var hasDuplicateInList = SubjectList.Any(s => 
-            s.SubjectName.Equals(NewSubjectItem.SubjectName, StringComparison.OrdinalIgnoreCase) &&
-            s.StartTime == NewSubjectItem.StartTime &&
-            s.EndTime == NewSubjectItem.EndTime &&
-            s.Days.OrderBy(d => d).SequenceEqual(newDaysSorted));
-
-        if (hasDuplicateInList)
-        {
-            duplicateErrorMessage = "This subject with the same schedule (same time and days) already exists in the list.";
-            StateHasChanged();
-            return;
-        }
-
-        // Check for time overlap and duplicate schedule in database
-        if (gradeLevel != null)
-        {
-            // Check for time overlap with existing schedules in database (same days)
-            var hasTimeOverlapInDb = ExistingSchedules.Any(ss =>
-            {
-                var existingDaySet = new HashSet<string> { ss.DayOfWeek };
-                var hasCommonDays = newDaysSet.Intersect(existingDaySet).Any();
-                
-                if (!hasCommonDays) return false; // No common days, no overlap possible
-                
-                // Check if time ranges overlap
-                return (startTime < ss.EndTime && endTime > ss.StartTime);
-            });
-
-            if (hasTimeOverlapInDb)
-            {
-                duplicateErrorMessage = "This schedule overlaps with an existing subject schedule in the database on the same day(s). Subjects can be on the same days but not at the same time.";
-                StateHasChanged();
-                return;
-            }
-
-            // Check if exact schedule (same time and days) already exists for this subject name
-            var existingSubject = ExistingSubjects.FirstOrDefault(s => 
-                s.SubjectName.Equals(NewSubjectItem.SubjectName, StringComparison.OrdinalIgnoreCase));
-
-            if (existingSubject != null)
-            {
-                // Check if schedule with same time exists for this subject
-                var existingSchedulesForSubject = ExistingSchedules
-                    .Where(ss => ss.SubjectId == existingSubject.SubjectId &&
-                               ss.StartTime == startTime &&
-                               ss.EndTime == endTime)
-                    .Select(ss => ss.DayOfWeek)
-                    .ToList();
-
-                // Check if all days in the new schedule already exist
-                var allDaysExist = NewSubjectItem.Days.All(day => existingSchedulesForSubject.Contains(day));
-                var sameDayCount = existingSchedulesForSubject.Count == NewSubjectItem.Days.Count;
-
-                if (allDaysExist && sameDayCount)
-                {
-                    duplicateErrorMessage = $"The subject '{NewSubjectItem.SubjectName}' with the same schedule (same time and days) already exists in the database. Please use a different time or days.";
-                    StateHasChanged();
-                    return;
-                }
-            }
-        }
-
+        // Add to list (no schedules; only subject definition)
         SubjectList.Add(new SubjectScheduleItem
         {
+            SubjectCode = NewSubjectItem.SubjectCode,
             SubjectName = NewSubjectItem.SubjectName,
-            Days = new List<string>(NewSubjectItem.Days),
-            StartTime = NewSubjectItem.StartTime,
-            EndTime = NewSubjectItem.EndTime,
             Description = NewSubjectItem.Description
         });
 
-        // Reset new subject form - clear all fields including times and days
-        NewSubjectItem = new SubjectScheduleItem
-        {
-            SubjectName = "",
-            Days = new List<string>(),
-            StartTime = "",
-            EndTime = "",
-            Description = ""
-        };
+        // Reset new subject form
+        NewSubjectItem = new SubjectScheduleItem();
         duplicateErrorMessage = "";
         
         // Force UI update immediately to refresh button state and TimePicker components
@@ -644,13 +506,8 @@
     {
         get
         {
-            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) &&
-                   !string.IsNullOrWhiteSpace(NewSubjectItem.StartTime) &&
-                   !string.IsNullOrWhiteSpace(NewSubjectItem.EndTime) &&
-                   NewSubjectItem.Days.Any() &&
-                   TimeSpan.TryParse(NewSubjectItem.StartTime, out var start) &&
-                   TimeSpan.TryParse(NewSubjectItem.EndTime, out var end) &&
-                   end > start;
+            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectCode) &&
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName);
         }
     }
 
@@ -679,10 +536,9 @@
     {
         get
         {
-            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) ||
-                   !string.IsNullOrWhiteSpace(NewSubjectItem.StartTime) ||
-                   !string.IsNullOrWhiteSpace(NewSubjectItem.EndTime) ||
-                   NewSubjectItem.Days.Any();
+            return !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectCode) ||
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) ||
+                   !string.IsNullOrWhiteSpace(NewSubjectItem.Description);
         }
     }
 
