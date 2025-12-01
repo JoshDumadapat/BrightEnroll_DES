@@ -5,6 +5,7 @@ using BrightEnroll_DES.Services.HR;
 using BrightEnroll_DES.Services.Finance;
 using BrightEnroll_DES.Services.DBConnections;
 using BrightEnroll_DES.Services.Seeders;
+using BrightEnroll_DES.Services.SuperAdmin;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -85,6 +86,10 @@ namespace BrightEnroll_DES
             
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
+
+            // Super Admin portal services
+            builder.Services.AddScoped<ISuperAdminRepository, SuperAdminRepository>();
+            builder.Services.AddScoped<ISuperAdminService, SuperAdminService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

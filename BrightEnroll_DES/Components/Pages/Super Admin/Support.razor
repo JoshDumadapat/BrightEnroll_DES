@@ -2,7 +2,10 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Support Tickets</PageTitle>
@@ -16,15 +19,15 @@
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
     <div class="rounded-xl border border-red-200 bg-red-50 p-4">
         <p class="text-sm text-red-600">Open Tickets</p>
-        <p class="text-2xl font-bold text-red-800">12</p>
+        <p class="text-2xl font-bold text-red-800">@OpenTickets</p>
     </div>
     <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
         <p class="text-sm text-yellow-600">In Progress</p>
-        <p class="text-2xl font-bold text-yellow-800">8</p>
+        <p class="text-2xl font-bold text-yellow-800">@InProgressTickets</p>
     </div>
     <div class="rounded-xl border border-green-200 bg-green-50 p-4">
         <p class="text-sm text-green-600">Resolved Today</p>
-        <p class="text-2xl font-bold text-green-800">15</p>
+        <p class="text-2xl font-bold text-green-800">@ResolvedToday</p>
     </div>
     <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <p class="text-sm text-blue-600">Avg Response Time</p>
@@ -52,43 +55,54 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
-                @for (int i = 1; i <= 10; i++)
-                {
-                    var priority = i <= 3 ? "High" : i <= 7 ? "Medium" : "Low";
-                    var status = i <= 5 ? "Open" : i <= 8 ? "In Progress" : "Resolved";
-                    
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 text-sm font-medium text-blue-600">TKT-@i.ToString("D4")</td>
-                        <td class="px-6 py-4 text-sm text-gray-800">School @i</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">Unable to access finance module</td>
-                        <td class="px-6 py-4">
-                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPriorityClass(priority)">@priority</span>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600">Support Agent @((i % 3) + 1)</td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(status)">@status</span>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <button class="text-blue-600 hover:text-blue-800">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                            </button>
-                        </td>
-                    </tr>
-                }
+            @foreach (var ticket in Tickets)
+            {
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 text-sm font-medium text-blue-600">TKT-@ticket.TicketId.ToString("D4")</td>
+                    <td class="px-6 py-4 text-sm text-gray-800">@ticket.SchoolName</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">@ticket.Issue</td>
+                    <td class="px-6 py-4">
+                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPriorityClass(ticket.Priority)">@ticket.Priority</span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">@ticket.AssignedTo</td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(ticket.Status)">@ticket.Status</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <button class="text-blue-600 hover:text-blue-800">
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            }
             </tbody>
         </table>
     </div>
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private int OpenTickets { get; set; }
+    private int InProgressTickets { get; set; }
+    private int ResolvedToday { get; set; }
+    private List<SupportTicket> Tickets { get; set; } = new();
+
+    protected override async void OnInitialized()
     {
         if (AuthService.CurrentUser?.user_role != "Super Admin")
         {
             Navigation.NavigateTo("/dashboard");
+            return;
         }
+
+        Tickets = await SuperAdminService.GetSupportTicketsAsync();
+
+        OpenTickets = Tickets.Count(t => t.Status == "Open");
+        InProgressTickets = Tickets.Count(t => t.Status == "In Progress");
+        var today = DateTime.Today;
+        ResolvedToday = Tickets.Count(t =>
+            t.Status == "Resolved" && t.CreatedAt.Date == today);
     }
 
     private string GetPriorityClass(string priority) => priority switch

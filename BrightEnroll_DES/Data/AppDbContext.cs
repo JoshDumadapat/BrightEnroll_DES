@@ -13,6 +13,14 @@ public class AppDbContext : DbContext
     public DbSet<Student> Students { get; set; }
     public DbSet<Guardian> Guardians { get; set; }
     public DbSet<StudentRequirement> StudentRequirements { get; set; }
+
+    // Super Admin portal tables
+    public DbSet<SchoolCustomerEntity> SchoolCustomers { get; set; }
+    public DbSet<SalesLeadEntity> SalesLeads { get; set; }
+    public DbSet<SupportTicketEntity> SupportTickets { get; set; }
+    public DbSet<ContractEntity> Contracts { get; set; }
+    public DbSet<SystemVersionEntity> SystemVersions { get; set; }
+    public DbSet<FeatureToggleEntity> FeatureToggles { get; set; }
     
     // Employee tables
     public DbSet<EmployeeAddress> EmployeeAddresses { get; set; }
@@ -166,6 +174,43 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ChangedBy)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Super Admin portal entities
+        modelBuilder.Entity<SchoolCustomerEntity>(entity =>
+        {
+            entity.HasKey(e => e.CustomerId);
+            entity.ToTable("tbl_SchoolCustomers");
+        });
+
+        modelBuilder.Entity<SalesLeadEntity>(entity =>
+        {
+            entity.HasKey(e => e.LeadId);
+            entity.ToTable("tbl_SalesLeads");
+        });
+
+        modelBuilder.Entity<SupportTicketEntity>(entity =>
+        {
+            entity.HasKey(e => e.TicketId);
+            entity.ToTable("tbl_SupportTickets");
+        });
+
+        modelBuilder.Entity<ContractEntity>(entity =>
+        {
+            entity.HasKey(e => e.ContractId);
+            entity.ToTable("tbl_Contracts");
+        });
+
+        modelBuilder.Entity<SystemVersionEntity>(entity =>
+        {
+            entity.HasKey(e => e.VersionId);
+            entity.ToTable("tbl_SystemVersions");
+        });
+
+        modelBuilder.Entity<FeatureToggleEntity>(entity =>
+        {
+            entity.HasKey(e => e.FeatureId);
+            entity.ToTable("tbl_FeatureToggles");
         });
     }
 }

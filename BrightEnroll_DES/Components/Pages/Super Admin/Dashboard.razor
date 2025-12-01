@@ -2,8 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Super Admin Dashboard</PageTitle>
@@ -211,10 +214,10 @@
 </div>
 
 @code {
-    private int TotalCustomers { get; set; } = 48;
-    private int ActiveSubscriptions { get; set; } = 45;
-    private decimal MonthlyRevenue { get; set; } = 2450000;
-    private int OpenTickets { get; set; } = 12;
+    private int TotalCustomers { get; set; }
+    private int ActiveSubscriptions { get; set; }
+    private decimal MonthlyRevenue { get; set; }
+    private int OpenTickets { get; set; }
 
     private List<RecentSale> RecentSales { get; set; } = new();
     private List<ExpiringSubscription> ExpiringSoon { get; set; } = new();
@@ -242,23 +245,26 @@
 
     private async Task LoadDashboardData()
     {
-        await Task.Delay(500);
+        var stats = await SuperAdminService.GetDashboardStatsAsync();
 
-        // Mock recent sales
-        RecentSales = new List<RecentSale>
-        {
-            new RecentSale { SchoolName = "St. Mary's Academy", Plan = "Premium Plan", Amount = 85000, Date = DateTime.Now.AddDays(-2) },
-            new RecentSale { SchoolName = "Hope Christian School", Plan = "Standard Plan", Amount = 55000, Date = DateTime.Now.AddDays(-5) },
-            new RecentSale { SchoolName = "Bright Future High School", Plan = "Basic Plan", Amount = 35000, Date = DateTime.Now.AddDays(-7) }
-        };
+        TotalCustomers = stats.TotalCustomers;
+        ActiveSubscriptions = stats.ActiveSubscriptions;
+        MonthlyRevenue = stats.MonthlyRevenue;
+        OpenTickets = stats.OpenTickets;
 
-        // Mock expiring subscriptions
-        ExpiringSoon = new List<ExpiringSubscription>
+        RecentSales = stats.RecentSales.Select(s => new RecentSale
         {
-            new ExpiringSubscription { SchoolName = "Golden Gate Academy", ExpiryDate = DateTime.Now.AddDays(15) },
-            new ExpiringSubscription { SchoolName = "Sacred Heart School", ExpiryDate = DateTime.Now.AddDays(22) },
-            new ExpiringSubscription { SchoolName = "New Dawn Institute", ExpiryDate = DateTime.Now.AddDays(28) }
-        };
+            SchoolName = s.SchoolName,
+            Plan = $"{s.Plan} Plan",
+            Amount = s.Amount,
+            Date = s.Date
+        }).ToList();
+
+        ExpiringSoon = stats.ExpiringSubscriptions.Select(s => new ExpiringSubscription
+        {
+            SchoolName = s.SchoolName,
+            ExpiryDate = s.ExpiryDate
+        }).ToList();
     }
 
     private string GetAdminName()

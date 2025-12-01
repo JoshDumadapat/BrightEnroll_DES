@@ -2,8 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Customer Management</PageTitle>
@@ -173,8 +176,8 @@
     private string SortBy { get; set; } = "name";
     private string SearchTerm { get; set; } = string.Empty;
 
-    private List<SchoolCustomer> CustomerList { get; set; } = new();
-    private List<SchoolCustomer> FilteredCustomers { get; set; } = new();
+    private List<SuperAdminCustomer> CustomerList { get; set; } = new();
+    private List<SuperAdminCustomer> FilteredCustomers { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -198,17 +201,7 @@
 
     private async Task LoadCustomers()
     {
-        await Task.Delay(500);
-
-        CustomerList = new List<SchoolCustomer>
-        {
-            new SchoolCustomer { CustomerId = "CUST-001", SchoolName = "St. Mary's Academy", ContactPerson = "Dr. Maria Santos", ContactEmail = "maria@stmarys.edu.ph", Address = "Manila", Plan = "Premium", MonthlyFee = 85000, ContractEndDate = DateTime.Now.AddMonths(8), Status = "Active" },
-            new SchoolCustomer { CustomerId = "CUST-002", SchoolName = "Hope Christian School", ContactPerson = "Rev. John Cruz", ContactEmail = "john@hope.edu.ph", Address = "Quezon City", Plan = "Standard", MonthlyFee = 55000, ContractEndDate = DateTime.Now.AddMonths(3), Status = "Active" },
-            new SchoolCustomer { CustomerId = "CUST-003", SchoolName = "Bright Future High School", ContactPerson = "Mrs. Ana Reyes", ContactEmail = "ana@brightfuture.edu.ph", Address = "Pasig City", Plan = "Basic", MonthlyFee = 35000, ContractEndDate = DateTime.Now.AddDays(20), Status = "Active" },
-            new SchoolCustomer { CustomerId = "CUST-004", SchoolName = "Golden Gate Academy", ContactPerson = "Mr. Carlos Mendoza", ContactEmail = "carlos@goldengate.edu.ph", Address = "Makati", Plan = "Premium", MonthlyFee = 85000, ContractEndDate = DateTime.Now.AddDays(-5), Status = "Expired" },
-            new SchoolCustomer { CustomerId = "CUST-005", SchoolName = "Sacred Heart School", ContactPerson = "Sister Teresa", ContactEmail = "teresa@sacredheart.edu.ph", Address = "Cebu", Plan = "Standard", MonthlyFee = 55000, ContractEndDate = DateTime.Now.AddMonths(10), Status = "Active" }
-        };
-
+        CustomerList = await SuperAdminService.GetCustomersAsync();
         FilteredCustomers = CustomerList;
     }
 
@@ -257,29 +250,16 @@
         Navigation.NavigateTo("/system-admin/customers/add");
     }
 
-    private void ViewCustomer(string customerId)
+    private void ViewCustomer(int customerId)
     {
         Navigation.NavigateTo($"/system-admin/customers/view/{customerId}");
     }
 
-    private void EditCustomer(string customerId)
+    private void EditCustomer(int customerId)
     {
         // TODO: Navigate to edit customer page when implemented
         Navigation.NavigateTo($"/system-admin/customers/edit/{customerId}");
     }
 
     private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
-
-    public class SchoolCustomer
-    {
-        public string CustomerId { get; set; } = string.Empty;
-        public string SchoolName { get; set; } = string.Empty;
-        public string ContactPerson { get; set; } = string.Empty;
-        public string ContactEmail { get; set; } = string.Empty;
-        public string Address { get; set; } = string.Empty;
-        public string Plan { get; set; } = string.Empty;
-        public decimal MonthlyFee { get; set; }
-        public DateTime ContractEndDate { get; set; }
-        public string Status { get; set; } = string.Empty;
-    }
 }

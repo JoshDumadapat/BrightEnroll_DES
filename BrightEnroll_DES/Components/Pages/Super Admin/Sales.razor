@@ -2,8 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Sales Management</PageTitle>
@@ -138,10 +141,10 @@
 </div>
 
 @code {
-    private int ActiveLeads { get; set; } = 31;
-    private int ConvertedSales { get; set; } = 12;
-    private decimal MonthlyRevenue { get; set; } = 2450000;
-    private int FollowUpsDue { get; set; } = 8;
+    private int ActiveLeads { get; set; }
+    private int ConvertedSales { get; set; }
+    private decimal MonthlyRevenue { get; set; }
+    private int FollowUpsDue { get; set; }
 
     private List<SaleConversion> RecentConversions { get; set; } = new();
 
@@ -167,14 +170,44 @@
 
     private async Task LoadSalesData()
     {
-        await Task.Delay(500);
+        var leads = await SuperAdminService.GetLeadsAsync();
 
-        RecentConversions = new List<SaleConversion>
-        {
-            new SaleConversion { SchoolName = "St. Mary's Academy", SalesAgent = "Juan Dela Cruz", Plan = "Premium", Amount = 85000, ConversionDate = DateTime.Now.AddDays(-2) },
-            new SaleConversion { SchoolName = "Hope Christian School", SalesAgent = "Maria Santos", Plan = "Standard", Amount = 55000, ConversionDate = DateTime.Now.AddDays(-5) },
-            new SaleConversion { SchoolName = "Bright Future High School", SalesAgent = "Pedro Reyes", Plan = "Basic", Amount = 35000, ConversionDate = DateTime.Now.AddDays(-7) }
-        };
+        ActiveLeads = leads.Count(l => l.Status == "New" || l.Status == "In Progress");
+        ConvertedSales = leads.Count(l => l.Status == "Converted");
+        MonthlyRevenue = leads
+            .Where(l => l.Status == "Converted" && l.InterestedPlan == "Premium")
+            .Sum(l => 85000)
+            +
+            leads
+            .Where(l => l.Status == "Converted" && l.InterestedPlan == "Standard")
+            .Sum(l => 55000)
+            +
+            leads
+            .Where(l => l.Status == "Converted" && l.InterestedPlan == "Basic")
+            .Sum(l => 35000);
+
+        FollowUpsDue = leads.Count(l =>
+            l.Status == "New" || l.Status == "In Progress");
+
+        RecentConversions = leads
+            .Where(l => l.Status == "Converted")
+            .OrderByDescending(l => l.ExpectedCloseDate ?? l.CreatedAt)
+            .Take(10)
+            .Select(l => new SaleConversion
+            {
+                SchoolName = l.SchoolName,
+                SalesAgent = string.IsNullOrWhiteSpace(l.AssignedAgent) ? "Unassigned" : l.AssignedAgent,
+                Plan = string.IsNullOrWhiteSpace(l.InterestedPlan) ? "Not specified" : l.InterestedPlan,
+                Amount = l.InterestedPlan switch
+                {
+                    "Premium" => 85000,
+                    "Standard" => 55000,
+                    "Basic" => 35000,
+                    _ => 0
+                },
+                ConversionDate = l.ExpectedCloseDate ?? l.CreatedAt
+            })
+            .ToList();
     }
 
     private void ShowAddLeadModal()

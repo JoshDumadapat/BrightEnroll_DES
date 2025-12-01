@@ -2,7 +2,10 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Contracts & Licensing</PageTitle>
@@ -50,55 +53,69 @@
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
-                @for (int i = 1; i <= 8; i++)
-                {
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 font-medium text-gray-800">School @i</td>
-                        <td class="px-6 py-4 text-sm text-gray-600">
-                            <div>
-                                <p>Start: Jan 15, 2024</p>
-                                <p>End: Jan 14, 2025</p>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-600">@((i * 5) + 10) users</td>
-                        <td class="px-6 py-4">
-                            <div class="flex flex-wrap gap-1">
-                                <span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">Admission</span>
-                                <span class="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Finance</span>
-                                <span class="inline-flex rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">HR</span>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">Active</span>
-                        </td>
-                        <td class="px-6 py-4 text-center">
-                            <div class="flex items-center justify-center gap-2">
-                                <button class="text-blue-600 hover:text-blue-800" title="View Contract">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                    </svg>
-                                </button>
-                                <button class="text-green-600 hover:text-green-800" title="Manage Modules">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                }
+            @foreach (var contract in ContractList)
+            {
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-800">@contract.SchoolName</td>
+                    <td class="px-6 py-4 text-sm text-gray-600">
+                        <div>
+                            <p>Start: @contract.StartDate.ToString("MMM dd, yyyy")</p>
+                            <p>End: @contract.EndDate.ToString("MMM dd, yyyy")</p>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">@contract.MaxUsers users</td>
+                    <td class="px-6 py-4">
+                        <div class="flex flex-wrap gap-1">
+                            @foreach (var module in contract.EnabledModules.Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                var trimmed = module.Trim();
+                                var css = trimmed switch
+                                {
+                                    "Admission" => "bg-blue-100 text-blue-800",
+                                    "Finance" => "bg-green-100 text-green-800",
+                                    "HR" => "bg-purple-100 text-purple-800",
+                                    _ => "bg-gray-100 text-gray-800"
+                                };
+                                <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @css">@trimmed</span>
+                            }
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="inline-flex rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-800">@contract.Status</span>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <button class="text-blue-600 hover:text-blue-800" title="View Contract">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </button>
+                            <button class="text-green-600 hover:text-green-800" title="Manage Modules">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            }
             </tbody>
         </table>
     </div>
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private List<ContractSummary> ContractList { get; set; } = new();
+
+    protected override async void OnInitialized()
     {
         if (AuthService.CurrentUser?.user_role != "Super Admin")
         {
             Navigation.NavigateTo("/dashboard");
+            return;
         }
+
+        ContractList = await SuperAdminService.GetContractsAsync();
     }
 }

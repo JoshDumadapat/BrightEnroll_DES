@@ -2,8 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Add New Lead</PageTitle>
@@ -269,7 +272,7 @@
     private string BudgetRange { get; set; } = string.Empty;
     private string Notes { get; set; } = string.Empty;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (AuthService.CurrentUser?.user_role != "Super Admin")
         {
@@ -278,12 +281,31 @@
         }
     }
 
-    private void HandleSubmit()
+    private async Task HandleSubmit()
     {
-        // TODO: Implement backend integration
-        Console.WriteLine($"Adding lead: {SchoolName}");
-        
-        // Navigate back with success message
+        var lead = new SalesLead
+        {
+            SchoolName = SchoolName,
+            Location = Location,
+            SchoolType = SchoolType,
+            EstimatedStudents = EstimatedStudents,
+            Website = Website,
+            ContactName = ContactName,
+            ContactPosition = ContactPosition,
+            Email = Email,
+            Phone = Phone,
+            AlternativePhone = AlternativePhone,
+            LeadSource = LeadSource,
+            InterestLevel = InterestLevel,
+            InterestedPlan = InterestedPlan,
+            ExpectedCloseDate = ExpectedCloseDate,
+            AssignedAgent = AssignedAgent,
+            BudgetRange = BudgetRange,
+            Notes = Notes,
+            Status = "New"
+        };
+
+        await SuperAdminService.AddLeadAsync(lead);
         Navigation.NavigateTo("/system-admin/sales?toast=lead_added");
     }
 

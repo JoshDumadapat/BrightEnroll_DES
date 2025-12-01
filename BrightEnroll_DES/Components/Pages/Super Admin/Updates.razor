@@ -2,7 +2,10 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Version Management</PageTitle>
@@ -16,8 +19,8 @@
 <div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-2xl font-bold text-blue-800">Current Version: 2.5.0</h2>
-            <p class="text-sm text-blue-600">Released: January 15, 2024</p>
+            <h2 class="text-2xl font-bold text-blue-800">Current Version: @CurrentVersion</h2>
+            <p class="text-sm text-blue-600">Released: @CurrentReleaseDate.ToString("MMMM dd, yyyy")</p>
         </div>
         <button class="rounded-full bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700">Release New Version</button>
     </div>
@@ -27,19 +30,19 @@
 <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
     <div class="rounded-xl border border-green-200 bg-green-50 p-4">
         <p class="text-sm text-green-600">Schools on Latest</p>
-        <p class="text-2xl font-bold text-green-800">38 / 45</p>
+        <p class="text-2xl font-bold text-green-800">@SchoolsOnLatest</p>
     </div>
     <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
         <p class="text-sm text-yellow-600">Pending Updates</p>
-        <p class="text-2xl font-bold text-yellow-800">7</p>
+        <p class="text-2xl font-bold text-yellow-800">@PendingUpdates</p>
     </div>
     <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
         <p class="text-sm text-purple-600">Beta Features</p>
-        <p class="text-2xl font-bold text-purple-800">5</p>
+        <p class="text-2xl font-bold text-purple-800">@BetaFeatures</p>
     </div>
     <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <p class="text-sm text-blue-600">Scheduled Maintenance</p>
-        <p class="text-2xl font-bold text-blue-800">1</p>
+        <p class="text-2xl font-bold text-blue-800">@ScheduledMaintenance</p>
     </div>
 </div>
 
@@ -47,19 +50,15 @@
 <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
     <h2 class="mb-4 text-lg font-bold text-gray-800">Version History</h2>
     <div class="space-y-4">
-        @for (int i = 0; i < 5; i++)
+        @foreach (var item in VersionHistory)
         {
-            var version = $"2.{5 - i}.0";
             <div class="rounded-lg border border-gray-200 p-4">
                 <div class="mb-2 flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-gray-800">Version @version</h3>
-                    <span class="text-sm text-gray-500">Released @((i * 30)) days ago</span>
+                    <h3 class="text-lg font-semibold text-gray-800">Version @item.VersionName</h3>
+                    <span class="text-sm text-gray-500">Released @item.ReleaseDate.ToString("MMM dd, yyyy")</span>
                 </div>
                 <ul class="space-y-1 text-sm text-gray-600">
-                    <li>• Added new reporting dashboard</li>
-                    <li>• Improved performance for large schools</li>
-                    <li>• Fixed critical security vulnerabilities</li>
-                    <li>• Enhanced user interface</li>
+                    <li>@item.Notes</li>
                 </ul>
             </div>
         }
@@ -70,15 +69,15 @@
 <div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
     <h2 class="mb-4 text-lg font-bold text-gray-800">Feature Toggles</h2>
     <div class="space-y-3">
-        @foreach (var feature in new[] { "Advanced Analytics", "AI-Powered Insights", "Mobile App Access", "API Integration", "Custom Reports" })
+        @foreach (var feature in FeatureToggles)
         {
             <div class="flex items-center justify-between rounded-lg border border-gray-200 p-4">
                 <div>
-                    <p class="font-medium text-gray-800">@feature</p>
-                    <p class="text-sm text-gray-500">Available for Premium plans</p>
+                    <p class="font-medium text-gray-800">@feature.FeatureName</p>
+                    <p class="text-sm text-gray-500">Available for @feature.Plan plans</p>
                 </div>
                 <label class="relative inline-flex cursor-pointer items-center">
-                    <input type="checkbox" checked class="peer sr-only" />
+                    <input type="checkbox" checked="@feature.IsEnabled" class="peer sr-only" disabled />
                     <div class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></div>
                 </label>
             </div>
@@ -87,11 +86,31 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    private string CurrentVersion { get; set; } = "N/A";
+    private DateTime CurrentReleaseDate { get; set; } = DateTime.Today;
+    private int SchoolsOnLatest { get; set; } = 0;
+    private int PendingUpdates { get; set; } = 0;
+    private int BetaFeatures { get; set; } = 0;
+    private int ScheduledMaintenance { get; set; } = 0;
+
+    private List<VersionHistoryItem> VersionHistory { get; set; } = new();
+    private List<FeatureToggle> FeatureToggles { get; set; } = new();
+
+    protected override async void OnInitialized()
     {
         if (AuthService.CurrentUser?.user_role != "Super Admin")
         {
             Navigation.NavigateTo("/dashboard");
+            return;
         }
+
+        var overview = await SuperAdminService.GetVersionOverviewAsync();
+        CurrentVersion = overview.CurrentVersion;
+        CurrentReleaseDate = overview.CurrentReleaseDate == default ? DateTime.Today : overview.CurrentReleaseDate;
+        VersionHistory = overview.History;
+        FeatureToggles = overview.FeatureToggles;
+
+        // Simple derived stats; can be extended later
+        BetaFeatures = FeatureToggles.Count(f => f.IsEnabled);
     }
 }

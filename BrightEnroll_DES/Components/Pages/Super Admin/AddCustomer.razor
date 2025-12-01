@@ -2,8 +2,11 @@
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.AuthFunction
+@using BrightEnroll_DES.Services.SuperAdmin
+@using BrightEnroll_DES.Models
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
+@inject ISuperAdminService SuperAdminService
 @inject NavigationManager Navigation
 
 <PageTitle>Add New Customer</PageTitle>
@@ -259,7 +262,7 @@
     private string Status { get; set; } = "Active";
     private string Notes { get; set; } = string.Empty;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         if (AuthService.CurrentUser?.user_role != "Super Admin")
         {
@@ -279,12 +282,29 @@
         };
     }
 
-    private void HandleSubmit()
+    private async Task HandleSubmit()
     {
-        // TODO: Implement backend integration
-        Console.WriteLine($"Adding customer: {SchoolName}");
-        
-        // Navigate back with success message
+        var customer = new SuperAdminCustomer
+        {
+            SchoolName = SchoolName,
+            SchoolType = SchoolType,
+            Address = Address,
+            City = City,
+            Province = Province,
+            ContactPerson = ContactPerson,
+            ContactPosition = ContactPosition,
+            ContactEmail = ContactEmail,
+            ContactPhone = ContactPhone,
+            Plan = Plan,
+            MonthlyFee = MonthlyFee,
+            ContractStartDate = ContractStartDate,
+            ContractEndDate = CalculateContractEndDate(),
+            StudentCount = StudentCount,
+            Status = Status,
+            Notes = Notes
+        };
+
+        await SuperAdminService.AddCustomerAsync(customer);
         Navigation.NavigateTo("/system-admin/customers?toast=customer_added");
     }
 
@@ -296,5 +316,15 @@
     private void GoBack()
     {
         Navigation.NavigateTo("/system-admin/customers");
+    }
+
+    private DateTime CalculateContractEndDate()
+    {
+        if (!int.TryParse(ContractDuration, out var months) || months <= 0)
+        {
+            return ContractStartDate;
+        }
+
+        return ContractStartDate.AddMonths(months);
     }
 }
