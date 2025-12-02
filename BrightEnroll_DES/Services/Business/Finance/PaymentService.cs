@@ -110,7 +110,7 @@ public class PaymentService
     /// <summary>
     /// Process a payment for a student
     /// </summary>
-    public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string? processedBy = null)
+    public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string orNumber, string? processedBy = null)
     {
         try
         {
@@ -125,6 +125,20 @@ public class PaymentService
             if (paymentAmount <= 0)
             {
                 throw new Exception("Payment amount must be greater than zero.");
+            }
+
+            if (string.IsNullOrWhiteSpace(orNumber))
+            {
+                throw new Exception("OR number is required.");
+            }
+
+            // Validate OR number uniqueness
+            var existingPayment = await _context.StudentPayments
+                .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
+
+            if (existingPayment != null)
+            {
+                throw new Exception($"OR number {orNumber} already exists. Please use a different OR number.");
             }
 
             // Minimum payment validation
@@ -147,6 +161,19 @@ public class PaymentService
                 throw new Exception($"Payment amount (Php {paymentAmount:N2}) exceeds balance (Php {currentInfo.Balance:N2}).");
             }
 
+            // Create payment record
+            var payment = new StudentPayment
+            {
+                StudentId = studentId,
+                Amount = paymentAmount,
+                PaymentMethod = paymentMethod,
+                OrNumber = orNumber,
+                ProcessedBy = processedBy,
+                CreatedAt = DateTime.Now
+            };
+
+            _context.StudentPayments.Add(payment);
+
             // Update student payment information
             student.AmountPaid += paymentAmount;
             
@@ -165,8 +192,8 @@ public class PaymentService
 
             await _context.SaveChangesAsync();
 
-            _logger?.LogInformation("Payment processed for student {StudentId}: Amount {Amount}, Method {Method}", 
-                studentId, paymentAmount, paymentMethod);
+            _logger?.LogInformation("Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}", 
+                studentId, paymentAmount, paymentMethod, orNumber);
 
             // Return updated payment info
             return await GetStudentPaymentInfoAsync(studentId) ?? currentInfo;
@@ -221,6 +248,62 @@ public class PaymentService
             "Unpaid" => "For Payment",
             _ => "For Payment"
         };
+    }
+
+    /// <summary>
+    /// Get all payments for a specific student
+    /// </summary>
+    public async Task<List<StudentPayment>> GetPaymentsByStudentIdAsync(string studentId)
+    {
+        try
+        {
+            return await _context.StudentPayments
+                .Where(p => p.StudentId == studentId)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting payments for student {StudentId}: {Message}", studentId, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Get the latest payment for a specific student
+    /// </summary>
+    public async Task<StudentPayment?> GetLatestPaymentAsync(string studentId)
+    {
+        try
+        {
+            return await _context.StudentPayments
+                .Where(p => p.StudentId == studentId)
+                .OrderByDescending(p => p.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting latest payment for student {StudentId}: {Message}", studentId, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Get payment by OR number (for receipt lookup)
+    /// </summary>
+    public async Task<StudentPayment?> GetPaymentByOrNumberAsync(string orNumber)
+    {
+        try
+        {
+            return await _context.StudentPayments
+                .Include(p => p.Student)
+                .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting payment by OR number {OrNumber}: {Message}", orNumber, ex.Message);
+            throw;
+        }
     }
 }
 

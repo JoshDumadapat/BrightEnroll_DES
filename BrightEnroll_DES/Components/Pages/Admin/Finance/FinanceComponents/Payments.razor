@@ -535,11 +535,15 @@
             decimal previousPaid = PaymentData.AmountPaid;
             decimal paymentAmount = PaymentData.NewPaymentAmount;
 
-            // Process payment through service
+            // Generate OR number before processing payment
+            string orNumber = GenerateOrNumber();
+
+            // Process payment through service (now includes OR number)
             var updatedInfo = await PaymentService.ProcessPaymentAsync(
                 PaymentData.StudentId,
                 PaymentData.NewPaymentAmount,
-                PaymentData.PaymentMethod
+                PaymentData.PaymentMethod,
+                orNumber
             );
 
             // Update payment data with latest info
@@ -547,9 +551,6 @@
             PaymentData.Balance = updatedInfo.Balance;
             PaymentData.PaymentStatus = updatedInfo.PaymentStatus;
             enrollmentStatus = updatedInfo.EnrollmentStatus;
-
-            // Generate OR number
-            string orNumber = GenerateOrNumber();
 
             // Prepare receipt data
             ReceiptData = new ReceiptDataModel

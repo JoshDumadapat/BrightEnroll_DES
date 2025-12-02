@@ -270,6 +270,116 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                     }
                 }
 
+                // Check and add archive_reason column
+                string checkArchiveReasonQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Students') 
+                    AND name = 'archive_reason'";
+
+                using var checkArchiveCommand = new SqlCommand(checkArchiveReasonQuery, connection);
+                var archiveResult = await checkArchiveCommand.ExecuteScalarAsync();
+                var archiveColumnExists = archiveResult != null ? (int)archiveResult : 0;
+
+                if (archiveColumnExists == 0)
+                {
+                    string addArchiveColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Students]
+                        ADD [archive_reason] NVARCHAR(MAX) NULL";
+
+                    using var addArchiveCommand = new SqlCommand(addArchiveColumnQuery, connection);
+                    await addArchiveCommand.ExecuteNonQueryAsync();
+                    anyColumnAdded = true;
+                }
+
+                // Check and add amount_paid column
+                string checkAmountPaidQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Students') 
+                    AND name = 'amount_paid'";
+
+                using var checkAmountCommand = new SqlCommand(checkAmountPaidQuery, connection);
+                var amountResult = await checkAmountCommand.ExecuteScalarAsync();
+                var amountColumnExists = amountResult != null ? (int)amountResult : 0;
+
+                if (amountColumnExists == 0)
+                {
+                    string addAmountColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Students]
+                        ADD [amount_paid] DECIMAL(18,2) NOT NULL DEFAULT 0";
+
+                    using var addAmountCommand = new SqlCommand(addAmountColumnQuery, connection);
+                    await addAmountCommand.ExecuteNonQueryAsync();
+                    anyColumnAdded = true;
+                }
+
+                // Check and add payment_status column
+                string checkPaymentStatusQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Students') 
+                    AND name = 'payment_status'";
+
+                using var checkPaymentCommand = new SqlCommand(checkPaymentStatusQuery, connection);
+                var paymentResult = await checkPaymentCommand.ExecuteScalarAsync();
+                var paymentColumnExists = paymentResult != null ? (int)paymentResult : 0;
+
+                if (paymentColumnExists == 0)
+                {
+                    string addPaymentColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Students]
+                        ADD [payment_status] VARCHAR(20) NULL DEFAULT 'Unpaid'";
+
+                    using var addPaymentCommand = new SqlCommand(addPaymentColumnQuery, connection);
+                    await addPaymentCommand.ExecuteNonQueryAsync();
+                    anyColumnAdded = true;
+                }
+
+                return anyColumnAdded;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Adds is_verified column to tbl_StudentRequirements if it doesn't exist (for existing databases)
+        public async Task<bool> AddStudentRequirementsColumnsIfNotExistAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                bool anyColumnAdded = false;
+
+                // Check and add is_verified column
+                string checkIsVerifiedQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_StudentRequirements') 
+                    AND name = 'is_verified'";
+
+                using var checkIsVerifiedCommand = new SqlCommand(checkIsVerifiedQuery, connection);
+                var isVerifiedResult = await checkIsVerifiedCommand.ExecuteScalarAsync();
+                var isVerifiedColumnExists = isVerifiedResult != null ? (int)isVerifiedResult : 0;
+
+                if (isVerifiedColumnExists == 0)
+                {
+                    string addIsVerifiedColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_StudentRequirements]
+                        ADD [is_verified] BIT NOT NULL DEFAULT 0";
+
+                    using var addIsVerifiedCommand = new SqlCommand(addIsVerifiedColumnQuery, connection);
+                    await addIsVerifiedCommand.ExecuteNonQueryAsync();
+                    anyColumnAdded = true;
+                }
+
                 return anyColumnAdded;
             }
             catch (Exception)
@@ -797,6 +907,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 
                 await AddStatusColumnIfNotExistsAsync();
                 await AddStudentColumnsIfNotExistAsync();
+                await AddStudentRequirementsColumnsIfNotExistAsync();
                 await AddSubjectColumnsIfNotExistAsync();
                 await AddSectionAdviserColumnIfNotExistsAsync();
                 await AddTeacherAssignmentArchiveColumnIfNotExistsAsync();

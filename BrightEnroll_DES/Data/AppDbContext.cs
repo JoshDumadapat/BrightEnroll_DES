@@ -30,9 +30,13 @@ public class AppDbContext : DbContext
     public DbSet<FeeBreakdown> FeeBreakdowns { get; set; }
     public DbSet<Expense> Expenses { get; set; }
     public DbSet<ExpenseAttachment> ExpenseAttachments { get; set; }
+    public DbSet<StudentPayment> StudentPayments { get; set; }
 
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
+    
+    // Student status logging
+    public DbSet<StudentStatusLog> StudentStatusLogs { get; set; }
 
     // Curriculum tables
     public DbSet<Classroom> Classrooms { get; set; }
@@ -90,14 +94,18 @@ public class AppDbContext : DbContext
                   .HasForeignKey(e => e.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
             
-            // Temporarily ignore ArchiveReason property until database column is added
-            // Run Database_Scripts/Add_Archive_Reason_Column.sql to add the column, then remove this line
-            entity.Ignore(e => e.ArchiveReason);
+            // Configure payment-related properties
+            entity.Property(e => e.AmountPaid)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0m);
             
-            // Temporarily ignore payment properties until database columns are added
-            // Run Database_Scripts/Add_Payment_Columns.sql to add the columns, then remove these lines
-            entity.Ignore(e => e.AmountPaid);
-            entity.Ignore(e => e.PaymentStatus);
+            entity.Property(e => e.PaymentStatus)
+                  .HasMaxLength(20)
+                  .HasDefaultValue("Unpaid");
+            
+            // Configure archive reason
+            entity.Property(e => e.ArchiveReason)
+                  .HasColumnType("nvarchar(max)");
         });
 
         modelBuilder.Entity<Guardian>(entity =>
@@ -113,9 +121,8 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
             
-            // Temporarily ignore IsVerified property until database column is added
-            // Run Database_Scripts/Add_is_verified_Column.sql to add the column, then remove this line
-            entity.Ignore(e => e.IsVerified);
+            entity.Property(e => e.IsVerified)
+                  .HasDefaultValue(false);
         });
 
         modelBuilder.Entity<StudentSectionEnrollment>(entity =>
@@ -245,6 +252,25 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<StudentPayment>(entity =>
+        {
+            entity.HasKey(e => e.PaymentId);
+            entity.ToTable("tbl_StudentPayments");
+            
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.OrNumber).IsUnique();
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.CreatedAt)
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.HasOne(p => p.Student)
+                  .WithMany()
+                  .HasForeignKey(p => p.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // Configure UserStatusLog entity
         modelBuilder.Entity<UserStatusLog>(entity =>
         {
@@ -263,6 +289,20 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.ChangedBy)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure StudentStatusLog entity
+        modelBuilder.Entity<StudentStatusLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+            entity.ToTable("tbl_student_status_logs");
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.ChangedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.ChangedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
 
         // Configure Curriculum entities

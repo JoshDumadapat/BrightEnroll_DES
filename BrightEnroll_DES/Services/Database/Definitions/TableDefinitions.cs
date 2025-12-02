@@ -40,6 +40,14 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Finance - expenses
                 GetExpensesTableDefinition(),
                 GetExpenseAttachmentsTableDefinition(),
+                // Finance - student payments (must be after tbl_Students)
+                GetStudentPaymentsTableDefinition(),
+                // Inventory & Asset Management tables
+                GetAssetsTableDefinition(),
+                GetInventoryItemsTableDefinition(),
+                GetAssetAssignmentsTableDefinition(),
+                // Student status logging table (must be after tbl_Students)
+                GetStudentStatusLogsTableDefinition(),
             };
         }
 
@@ -172,6 +180,9 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [guardian_id] INT NOT NULL,
                         [date_registered] DATETIME NOT NULL DEFAULT GETDATE(),
                         [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                        [archive_reason] NVARCHAR(MAX) NULL,
+                        [amount_paid] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [payment_status] VARCHAR(20) NULL DEFAULT 'Unpaid',
                         CONSTRAINT FK_tbl_Students_tbl_Guardians FOREIGN KEY ([guardian_id]) REFERENCES [dbo].[tbl_Guardians]([guardian_id])
                     )",
                 CreateIndexesScripts = new List<string>
@@ -212,6 +223,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [requirement_name] VARCHAR(100) NOT NULL,
                         [status] VARCHAR(20) DEFAULT 'not submitted',
                         [requirement_type] VARCHAR(20) NOT NULL,
+                        [is_verified] BIT NOT NULL DEFAULT 0,
                         CONSTRAINT FK_tbl_StudentRequirements_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id])
                     )",
                 CreateIndexesScripts = new List<string>
@@ -874,6 +886,194 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ExpenseAttachments_ExpenseId' AND object_id = OBJECT_ID('dbo.tbl_ExpenseAttachments'))
                         CREATE INDEX IX_tbl_ExpenseAttachments_ExpenseId ON [dbo].[tbl_ExpenseAttachments]([expense_ID])"
+                }
+            };
+        }
+
+        // Creates tbl_StudentPayments table - logs all student payments with OR numbers
+        public static TableDefinition GetStudentPaymentsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_StudentPayments",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_StudentPayments](
+                        [payment_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [amount] DECIMAL(18,2) NOT NULL,
+                        [payment_method] VARCHAR(50) NOT NULL,
+                        [or_number] VARCHAR(50) NOT NULL,
+                        [processed_by] VARCHAR(50) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_StudentPayments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_ID]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_StudentId' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+                        CREATE INDEX IX_tbl_StudentPayments_StudentId ON [dbo].[tbl_StudentPayments]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_OrNumber' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+                        CREATE UNIQUE INDEX IX_tbl_StudentPayments_OrNumber ON [dbo].[tbl_StudentPayments]([or_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+                        CREATE INDEX IX_tbl_StudentPayments_CreatedAt ON [dbo].[tbl_StudentPayments]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_Assets table - asset master data
+        public static TableDefinition GetAssetsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Assets",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Assets](
+                        [asset_id] VARCHAR(50) NOT NULL PRIMARY KEY,
+                        [asset_name] VARCHAR(200) NOT NULL,
+                        [category] VARCHAR(100) NULL,
+                        [brand] VARCHAR(100) NULL,
+                        [model] VARCHAR(100) NULL,
+                        [serial_number] VARCHAR(100) NULL,
+                        [location] VARCHAR(100) NOT NULL,
+                        [status] VARCHAR(50) NOT NULL DEFAULT 'Available',
+                        [purchase_date] DATE NULL,
+                        [purchase_cost] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [current_value] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [description] VARCHAR(500) NULL,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Assets_AssetId' AND object_id = OBJECT_ID('dbo.tbl_Assets'))
+                        CREATE UNIQUE INDEX IX_tbl_Assets_AssetId ON [dbo].[tbl_Assets]([asset_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Assets_Category' AND object_id = OBJECT_ID('dbo.tbl_Assets'))
+                        CREATE INDEX IX_tbl_Assets_Category ON [dbo].[tbl_Assets]([category])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Assets_Status' AND object_id = OBJECT_ID('dbo.tbl_Assets'))
+                        CREATE INDEX IX_tbl_Assets_Status ON [dbo].[tbl_Assets]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Assets_Location' AND object_id = OBJECT_ID('dbo.tbl_Assets'))
+                        CREATE INDEX IX_tbl_Assets_Location ON [dbo].[tbl_Assets]([location])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Assets_IsActive' AND object_id = OBJECT_ID('dbo.tbl_Assets'))
+                        CREATE INDEX IX_tbl_Assets_IsActive ON [dbo].[tbl_Assets]([is_active])"
+                }
+            };
+        }
+
+        // Creates tbl_InventoryItems table - inventory item master data
+        public static TableDefinition GetInventoryItemsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_InventoryItems",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_InventoryItems](
+                        [item_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [item_code] VARCHAR(50) NOT NULL UNIQUE,
+                        [item_name] VARCHAR(200) NOT NULL,
+                        [category] VARCHAR(100) NULL,
+                        [unit] VARCHAR(50) NOT NULL DEFAULT 'Piece',
+                        [quantity] INT NOT NULL DEFAULT 0,
+                        [reorder_level] INT NOT NULL DEFAULT 10,
+                        [max_stock] INT NOT NULL DEFAULT 1000,
+                        [unit_price] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [supplier] VARCHAR(200) NULL,
+                        [description] VARCHAR(500) NULL,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_InventoryItems_ItemCode' AND object_id = OBJECT_ID('dbo.tbl_InventoryItems'))
+                        CREATE UNIQUE INDEX IX_tbl_InventoryItems_ItemCode ON [dbo].[tbl_InventoryItems]([item_code])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_InventoryItems_Category' AND object_id = OBJECT_ID('dbo.tbl_InventoryItems'))
+                        CREATE INDEX IX_tbl_InventoryItems_Category ON [dbo].[tbl_InventoryItems]([category])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_InventoryItems_IsActive' AND object_id = OBJECT_ID('dbo.tbl_InventoryItems'))
+                        CREATE INDEX IX_tbl_InventoryItems_IsActive ON [dbo].[tbl_InventoryItems]([is_active])"
+                }
+            };
+        }
+
+        // Creates tbl_AssetAssignments table - asset assignment tracking
+        public static TableDefinition GetAssetAssignmentsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_AssetAssignments",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_AssetAssignments](
+                        [assignment_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [asset_id] VARCHAR(50) NOT NULL,
+                        [assigned_to_type] VARCHAR(50) NOT NULL,
+                        [assigned_to_id] VARCHAR(50) NULL,
+                        [assigned_to_name] VARCHAR(200) NULL,
+                        [assigned_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [return_date] DATETIME NULL,
+                        [notes] VARCHAR(500) NULL,
+                        [status] VARCHAR(50) NOT NULL DEFAULT 'Active',
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_AssetAssignments_tbl_Assets FOREIGN KEY ([asset_id]) REFERENCES [dbo].[tbl_Assets]([asset_id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AssetAssignments_AssetId' AND object_id = OBJECT_ID('dbo.tbl_AssetAssignments'))
+                        CREATE INDEX IX_tbl_AssetAssignments_AssetId ON [dbo].[tbl_AssetAssignments]([asset_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AssetAssignments_AssignedToId' AND object_id = OBJECT_ID('dbo.tbl_AssetAssignments'))
+                        CREATE INDEX IX_tbl_AssetAssignments_AssignedToId ON [dbo].[tbl_AssetAssignments]([assigned_to_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AssetAssignments_Status' AND object_id = OBJECT_ID('dbo.tbl_AssetAssignments'))
+                        CREATE INDEX IX_tbl_AssetAssignments_Status ON [dbo].[tbl_AssetAssignments]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AssetAssignments_AssignedDate' AND object_id = OBJECT_ID('dbo.tbl_AssetAssignments'))
+                        CREATE INDEX IX_tbl_AssetAssignments_AssignedDate ON [dbo].[tbl_AssetAssignments]([assigned_date])"
+                }
+            };
+        }
+
+        // Creates tbl_student_status_logs table - student status change audit trail
+        public static TableDefinition GetStudentStatusLogsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_student_status_logs",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_student_status_logs](
+                        [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [old_status] VARCHAR(20) NOT NULL,
+                        [new_status] VARCHAR(20) NOT NULL,
+                        [changed_by] INT NULL,
+                        [changed_by_name] VARCHAR(100) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_student_status_logs_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_student_status_logs_tbl_Users FOREIGN KEY ([changed_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_student_status_logs_StudentId' AND object_id = OBJECT_ID('dbo.tbl_student_status_logs'))
+                        CREATE INDEX IX_tbl_student_status_logs_StudentId ON [dbo].[tbl_student_status_logs]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_student_status_logs_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_student_status_logs'))
+                        CREATE INDEX IX_tbl_student_status_logs_CreatedAt ON [dbo].[tbl_student_status_logs]([created_at])"
                 }
             };
         }
