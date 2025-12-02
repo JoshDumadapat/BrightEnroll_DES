@@ -81,7 +81,7 @@
         }
         else if (SelectedTab == TabType.EnrolledStudent)
         {
-            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" OnViewStudent="HandleEnrolledStudentView" />
         }
     </div>
 
@@ -92,6 +92,17 @@
                                Model="EditModel"
                                IsForEnrollmentContext="IsForEnrollmentContext"
                                OnCancel="CloseEditModal"
+                               OnSave="SaveEditedApplicantAsync" />
+    }
+
+    <!-- Enrolled Student View / Re-enroll Modal -->
+    @if (ShowEnrolledViewModal && EnrolledViewModel != null)
+    {
+        <NewApplicantEditModal Show="ShowEnrolledViewModal"
+                               Model="EnrolledViewModel"
+                               IsForEnrollmentContext="true"
+                               IsReEnrollContext="true"
+                               OnCancel="CloseEnrolledViewModal"
                                OnSave="SaveEditedApplicantAsync" />
     }
 </div>
@@ -175,6 +186,10 @@
     private StudentDetailData? SelectedStudentDetail { get; set; }
     private List<AcademicRecordData> SelectedAcademicRecords { get; set; } = new();
     private List<EnrollmentStatusData> SelectedEnrollmentRecords { get; set; } = new();
+
+    // Enrolled student view modal state
+    private bool ShowEnrolledViewModal { get; set; } = false;
+    private StudentEditModel? EnrolledViewModel { get; set; }
 
     // Toast notification state
     private bool showToast = false;
@@ -266,6 +281,122 @@
         }
     }
 
+    private async Task HandleEnrolledStudentView(string studentId)
+    {
+        isLoading = true;
+        IsForEnrollmentContext = true;
+
+        try
+        {
+            var student = await StudentService.GetStudentByIdAsync(studentId);
+            if (student == null)
+            {
+                ShowToast($"Student {studentId} not found.", ToastType.Error);
+                return;
+            }
+
+            // Normalize LRN similar to other handlers
+            var rawLrn = student.Lrn?.Trim() ?? string.Empty;
+            var normalizedLrn = rawLrn.ToUpperInvariant();
+            bool hasRealLrn = !string.IsNullOrWhiteSpace(rawLrn) &&
+                              normalizedLrn != "N/A" &&
+                              normalizedLrn != "NA" &&
+                              normalizedLrn != "PENDING" &&
+                              normalizedLrn != "NULL";
+
+            // Determine current logical status for display: prefer section enrollment status if available
+            var currentStatus = student.SectionEnrollments
+                ?.OrderByDescending(e => e.CreatedAt)
+                .FirstOrDefault()
+                ?.Status;
+
+            if (string.IsNullOrWhiteSpace(currentStatus))
+            {
+                currentStatus = string.IsNullOrWhiteSpace(student.Status)
+                    ? "Enrolled"
+                    : student.Status;
+            }
+
+            EnrolledViewModel = new StudentEditModel
+            {
+                StudentId = student.StudentId,
+                FirstName = student.FirstName,
+                MiddleName = student.MiddleName ?? string.Empty,
+                LastName = student.LastName,
+                Suffix = student.Suffix ?? string.Empty,
+                BirthDate = student.Birthdate,
+                Age = student.Age,
+                PlaceOfBirth = student.PlaceOfBirth ?? string.Empty,
+                Sex = student.Sex,
+                MotherTongue = student.MotherTongue ?? string.Empty,
+                IsIPCommunity = student.IpComm ? "Yes" : "No",
+                IPCommunitySpecify = student.IpSpecify ?? string.Empty,
+                Is4PsBeneficiary = student.FourPs ? "Yes" : "No",
+                FourPsHouseholdId = student.FourPsHseId ?? string.Empty,
+
+                CurrentHouseNo = student.HseNo ?? string.Empty,
+                CurrentStreetName = student.Street ?? string.Empty,
+                CurrentBarangay = student.Brngy ?? string.Empty,
+                CurrentCity = student.City ?? string.Empty,
+                CurrentProvince = student.Province ?? string.Empty,
+                CurrentCountry = student.Country ?? string.Empty,
+                CurrentZipCode = student.ZipCode ?? string.Empty,
+
+                SameAsCurrentAddress = false,
+                PermanentHouseNo = student.PhseNo ?? string.Empty,
+                PermanentStreetName = student.Pstreet ?? string.Empty,
+                PermanentBarangay = student.Pbrngy ?? string.Empty,
+                PermanentCity = student.Pcity ?? string.Empty,
+                PermanentProvince = student.Pprovince ?? string.Empty,
+                PermanentCountry = student.Pcountry ?? string.Empty,
+                PermanentZipCode = student.PzipCode ?? string.Empty,
+
+                GuardianFirstName = student.Guardian?.FirstName ?? string.Empty,
+                GuardianMiddleName = student.Guardian?.MiddleName ?? string.Empty,
+                GuardianLastName = student.Guardian?.LastName ?? string.Empty,
+                GuardianSuffix = student.Guardian?.Suffix ?? string.Empty,
+                GuardianContactNumber = student.Guardian?.ContactNum ?? string.Empty,
+                GuardianRelationship = student.Guardian?.Relationship ?? string.Empty,
+
+                StudentType = student.StudentType ?? string.Empty,
+                HasLRN = hasRealLrn ? "Yes" : "No",
+                LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
+                SchoolYear = student.SchoolYr ?? string.Empty,
+                GradeToEnroll = student.GradeLevel ?? string.Empty,
+                Status = currentStatus,
+
+                // Requirements (view + possible re-enroll)
+                HasPSABirthCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "PSA Birth Certificate")),
+                HasBaptismalCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Baptismal Certificate")),
+                HasReportCard = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Report Card")),
+                HasForm138 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 138 (Report Card)")),
+                HasForm137 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 137 (Permanent Record)")),
+                HasGoodMoralCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Good Moral Certificate")),
+                HasTransferCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Transfer Certificate")),
+                HasUpdatedEnrollmentForm = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Updated Enrollment Form")),
+                HasClearance = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Clearance"))
+            };
+
+            ShowEnrolledViewModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading enrolled student view for {StudentId}: {Message}", studentId, ex.Message);
+            ShowToast($"Error loading student: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void CloseEnrolledViewModal()
+    {
+        ShowEnrolledViewModal = false;
+        EnrolledViewModel = null;
+    }
+
     private async Task HandleNewApplicantEdit(string studentId)
     {
         isLoading = true;
@@ -337,7 +468,18 @@
                     HasLRN = hasRealLrn ? "Yes" : "No",
                     LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
                     GradeToEnroll = student.GradeLevel ?? "N/A",
-                    HasBirthCertificate = student.Requirements != null && student.Requirements.Any(IsRequirementVerified)
+                    HasBirthCertificate = student.Requirements != null && student.Requirements.Any(IsRequirementVerified),
+
+                    // Detailed requirement checklist - mirror registration logic
+                    HasPSABirthCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "PSA Birth Certificate")),
+                    HasBaptismalCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Baptismal Certificate")),
+                    HasReportCard = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Report Card")),
+                    HasForm138 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 138 (Report Card)")),
+                    HasForm137 = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Form 137 (Permanent Record)")),
+                    HasGoodMoralCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Good Moral Certificate")),
+                    HasTransferCert = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Transfer Certificate")),
+                    HasUpdatedEnrollmentForm = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Updated Enrollment Form")),
+                    HasClearance = IsRequirementChecked(student.Requirements?.FirstOrDefault(r => r.RequirementName == "Clearance"))
                 };
 
                 SelectedAcademicRecords = new List<AcademicRecordData>();
@@ -805,22 +947,39 @@
             // Get students with status: For Payment, Partially Paid, or Fully Paid
             // These are all students eligible for enrollment (payment status determines eligibility)
             var students = await EnrollmentStatusService.GetStudentsByStatusesAsync(
-                "For Payment", 
-                "Partially Paid", 
+                "For Payment",
+                "Partially Paid",
                 "Fully Paid"
             );
-            
-            ForEnrollmentStudents = students.Select(s => new ForEnrollment.ForEnrollmentStudent
+
+            ForEnrollmentStudents = students.Select(s =>
             {
-                Id = s.StudentId,
-                Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
-                LRN = s.Lrn ?? "N/A",
-                Date = FormatDate(s.DateRegistered),
-                Type = s.StudentType,
-                GradeLevel = s.GradeLevel ?? "N/A",
-                Status = s.Status ?? "For Payment",
-                PaymentStatus = s.PaymentStatus ?? "Unpaid",
-                DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType)
+                // Derive a consistent payment status even if the database value is missing or outdated
+                var status = s.Status ?? "For Payment";
+                var paymentStatus = s.PaymentStatus;
+
+                if (string.IsNullOrWhiteSpace(paymentStatus))
+                {
+                    paymentStatus = status switch
+                    {
+                        "Fully Paid" => "Fully Paid",
+                        "Partially Paid" => "Partially Paid",
+                        _ => "Unpaid"
+                    };
+                }
+
+                return new ForEnrollment.ForEnrollmentStudent
+                {
+                    Id = s.StudentId,
+                    Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                    LRN = s.Lrn ?? "N/A",
+                    Date = FormatDate(s.DateRegistered),
+                    Type = s.StudentType,
+                    GradeLevel = s.GradeLevel ?? "N/A",
+                    Status = status,
+                    PaymentStatus = paymentStatus,
+                    DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType)
+                };
             }).ToList();
         }
         catch (Exception ex)

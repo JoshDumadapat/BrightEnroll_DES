@@ -58,5 +58,24 @@ public class StudentDetailData
     public string LearnerReferenceNo { get; set; } = string.Empty;
     public string GradeToEnroll { get; set; } = string.Empty;
     public bool HasBirthCertificate { get; set; } = false;
+
+    // Detailed Requirements (mirrors registration/edit models so we can show full checklist)
+    // New Student
+    public bool HasPSABirthCert { get; set; } = false;
+    public bool HasBaptismalCert { get; set; } = false;
+    public bool HasReportCard { get; set; } = false;
+
+    // Transferee
+    public bool HasForm138 { get; set; } = false;
+    public bool HasForm137 { get; set; } = false;
+    public bool HasGoodMoralCert { get; set; } = false;
+    public bool HasTransferCert { get; set; } = false;
+
+    // Returnee
+    public bool HasUpdatedEnrollmentForm { get; set; } = false;
+    public bool HasClearance { get; set; } = false;
+
+    // Payment
+    public string PaymentStatus { get; set; } = string.Empty;
 }
 

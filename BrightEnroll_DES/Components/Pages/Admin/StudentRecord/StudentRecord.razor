@@ -279,11 +279,21 @@
         var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty;
         var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
 
+        // Helper to check a requirement by name using Status field (\"verified\" => checked)
+        bool IsRequirementChecked(string requirementName)
+        {
+            var requirement = entity.Requirements?.FirstOrDefault(r => r.RequirementName == requirementName);
+            if (requirement == null)
+            {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(requirement.Status) &&
+                   requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+        }
+
         // Determine if PSA Birth Certificate is verified
-        bool hasBirthCert = entity.Requirements?.Any(r =>
-            r.RequirementName == "PSA Birth Certificate" &&
-            !string.IsNullOrWhiteSpace(r.Status) &&
-            r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase)) == true;
+        bool hasBirthCert = IsRequirementChecked("PSA Birth Certificate");
 
         SelectedStudentData = new StudentDetailData
         {
@@ -336,7 +346,20 @@
             HasLRN = hasRealLrn ? "Yes" : "No",
             LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
             GradeToEnroll = gradeLevelName,
-            HasBirthCertificate = hasBirthCert
+            HasBirthCertificate = hasBirthCert,
+
+            // Detailed requirement checklist
+            HasPSABirthCert = IsRequirementChecked("PSA Birth Certificate"),
+            HasBaptismalCert = IsRequirementChecked("Baptismal Certificate"),
+            HasReportCard = IsRequirementChecked("Report Card"),
+            HasForm138 = IsRequirementChecked("Form 138 (Report Card)"),
+            HasForm137 = IsRequirementChecked("Form 137 (Permanent Record)"),
+            HasGoodMoralCert = IsRequirementChecked("Good Moral Certificate"),
+            HasTransferCert = IsRequirementChecked("Transfer Certificate"),
+            HasUpdatedEnrollmentForm = IsRequirementChecked("Updated Enrollment Form"),
+            HasClearance = IsRequirementChecked("Clearance"),
+
+            PaymentStatus = entity.PaymentStatus ?? "N/A"
         };
 
         // For now, academic records are not yet stored - keep list empty

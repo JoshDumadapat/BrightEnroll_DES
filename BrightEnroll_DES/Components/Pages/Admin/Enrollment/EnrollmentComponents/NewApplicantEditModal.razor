@@ -15,14 +15,14 @@
          @onclick:stopPropagation="true">
 
         <!-- Header -->
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-yellow-400">
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-blue-700">
             <div>
-                <h2 class="text-lg font-semibold text-blue-600">@(IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant")</h2>
-                <p class="text-xs text-gray-500">@(IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements.")</p>
+                <h2 class="text-lg font-semibold text-white">@(IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant")</h2>
+                <p class="text-xs text-blue-100">@(IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements.")</p>
             </div>
             <button @onclick="OnCancelClicked"
-                    class="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
-                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    class="rounded-full p-1 text-blue-100 hover:bg-blue-600 hover:text-white">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M6 18L18 6M6 6l12 12" />
                 </svg>
@@ -671,13 +671,22 @@
                                             class="@GetStatusSelectClass()">
                         @if (IsForEnrollmentContext)
                         {
-                            <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
-                            @if (Model.Status != "For Payment")
+                            @if (IsReEnrollContext)
                             {
-                                <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                                <!-- Show current status (e.g., Enrolled) and allow switching to Re-enroll (Eligible) -->
+                                <option value="@Model.Status" disabled>@Model.Status</option>
+                                <option value="Eligible" style="background-color: #e0f2fe; color: #075985;">Re-enroll (Eligible)</option>
                             }
-                            <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
-                            <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                            else
+                            {
+                                <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
+                                @if (Model.Status != "For Payment")
+                                {
+                                    <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                                }
+                                <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                                <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                            }
                         }
                         else
                         {
@@ -997,6 +1006,8 @@
     [Parameter] public bool Show { get; set; }
     [Parameter] public StudentEditModel? Model { get; set; }
     [Parameter] public bool IsForEnrollmentContext { get; set; } = false;
+    // When true, modal is opened from Enrolled tab for re-enrollment; limit status options.
+    [Parameter] public bool IsReEnrollContext { get; set; } = false;
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public EventCallback<StudentEditModel> OnSave { get; set; }
 
