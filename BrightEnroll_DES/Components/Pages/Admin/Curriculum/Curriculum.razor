@@ -76,6 +76,8 @@
         else if (ActiveTab == "classes")
         {
             <ClassesOverview FinalClasses="FinalClasses" 
+                           Sections="DbSections"
+                           Assignments="DbAssignments"
                            OnViewClass="@((int id) => OpenViewClassModal(id))" />
         }
     </div>
@@ -507,11 +509,29 @@
 
     private string GetHomeroomTeacher(int sectionId)
     {
+        // First try to get from adviser assignment
         var assignment = DbAssignments
-            .FirstOrDefault(a => a.SectionId == sectionId && a.Role.ToLower() == "adviser");
-        return assignment?.Teacher != null 
-            ? $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}" 
-            : "";
+            .FirstOrDefault(a => a.SectionId == sectionId && 
+                                 !a.IsArchived &&
+                                 string.Equals(a.Role, "adviser", StringComparison.OrdinalIgnoreCase));
+        
+        if (assignment?.Teacher != null)
+        {
+            return $"{assignment.Teacher.FirstName} {assignment.Teacher.LastName}";
+        }
+        
+        // Fallback: check Section's AdviserId if assignment doesn't exist yet
+        var section = DbSections.FirstOrDefault(s => s.SectionId == sectionId);
+        if (section?.AdviserId.HasValue == true)
+        {
+            var adviser = Teachers.FirstOrDefault(t => t.UserId == section.AdviserId.Value);
+            if (adviser != null)
+            {
+                return $"{adviser.FirstName} {adviser.LastName}";
+            }
+        }
+        
+        return "";
     }
 
     private List<TeacherAssignmentModel> BuildSectionAssignmentsFromDb()

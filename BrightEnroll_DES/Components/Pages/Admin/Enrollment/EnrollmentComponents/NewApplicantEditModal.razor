@@ -11,11 +11,11 @@
 @if (Show)
 {
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
-    <div class="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl modal-scroll"
+    <div class="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-xl modal-scroll"
          @onclick:stopPropagation="true">
 
-        <!-- Header -->
-        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-blue-700">
+        <!-- Header - Fixed, not scrollable -->
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-blue-700 rounded-t-2xl flex-shrink-0">
             <div>
                 <h2 class="text-lg font-semibold text-white">@(IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant")</h2>
                 <p class="text-xs text-blue-100">@(IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements.")</p>
@@ -29,8 +29,8 @@
             </button>
         </div>
 
-        <!-- Body -->
-        <div class="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6">
+        <!-- Body - Scrollable -->
+        <div class="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 overflow-y-auto flex-1">
             @if (EditContext == null || Model == null)
             {
                 <div class="flex items-center justify-center py-12 text-gray-500">
@@ -654,13 +654,12 @@
                                 @* Partially Paid and Fully Paid are automated by payment system - display only, not selectable *@
                                 @if (IsForEnrollmentContext && (Model.Status == "Partially Paid" || Model.Status == "Fully Paid"))
                                 {
-                                    <div class="flex items-center gap-2">
+                                    <div>
                                         <input type="text" 
-                                               value="@Model.Status (Auto)" 
+                                               value="@Model.Status" 
                                                disabled
                                                class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium focus:outline-none sm:px-4 sm:py-2.5 sm:text-base @(Model.Status == "Partially Paid" ? "text-orange-600" : "text-green-600")" 
                                                style="@(Model.Status == "Partially Paid" ? "background-color: #fed7aa; color: #9a3412;" : "background-color: #dcfce7; color: #166534;")" />
-                                        <span class="text-xs text-gray-500">(Auto)</span>
                                     </div>
                                     <p class="mt-1 text-xs text-gray-500">This status is automatically set by the payment system and cannot be changed manually.</p>
                                 }
@@ -770,9 +769,9 @@
 @if (ShowEnrollModal && Model != null)
 {
     <div class="fixed inset-0 z-[55] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEnrollModal">
-        <div class="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <!-- Header -->
-            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-green-600 rounded-t-2xl">
+        <div class="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Header - Fixed, not scrollable -->
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-green-600 rounded-t-2xl flex-shrink-0">
                 <div>
                     <h2 class="text-lg font-semibold text-white">Enroll Student to Section</h2>
                     <p class="text-xs text-green-100">Assign the student to a section and review the adviser, schedule, and available slots.</p>
@@ -786,8 +785,8 @@
                 </button>
             </div>
 
-            <!-- Body -->
-            <div class="px-6 py-4 space-y-4">
+            <!-- Body - Scrollable -->
+            <div class="px-6 py-4 space-y-4 overflow-y-auto flex-1">
                 <!-- Student & Grade Info -->
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
                     <p class="text-sm font-semibold text-gray-800">
@@ -833,17 +832,19 @@
                             </p>
                         }
                     </div>
-                    <div>
+                    <div class="flex flex-col">
                         <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                             Adviser
                         </label>
-                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 sm:px-4 sm:py-2.5 sm:text-base flex flex-col gap-0.5">
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-800 sm:px-4 sm:py-2.5 sm:text-base flex items-center">
                             <span>@(!string.IsNullOrWhiteSpace(SelectedSectionAdviser) ? SelectedSectionAdviser : "N/A")</span>
-                            @if (!string.IsNullOrWhiteSpace(SelectedSectionRoom))
-                            {
-                                <span class="text-xs text-gray-600">Room: <span class="font-semibold">@SelectedSectionRoom</span></span>
-                            }
                         </div>
+                        @if (!string.IsNullOrWhiteSpace(SelectedSectionRoom))
+                        {
+                            <p class="mt-1 text-xs text-gray-600">
+                                Room: <span class="font-semibold">@SelectedSectionRoom</span>
+                            </p>
+                        }
                     </div>
                 </div>
 
@@ -893,8 +894,8 @@
                 </div>
             </div>
 
-            <!-- Footer -->
-            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-3 rounded-b-2xl">
+            <!-- Footer - Fixed, not scrollable -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-3 rounded-b-2xl flex-shrink-0">
                 <button type="button"
                         @onclick="CloseEnrollModal"
                         class="min-w-[100px] rounded-lg bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300">
@@ -1163,10 +1164,24 @@
                 AvailableSlots = Math.Max(0, section.Capacity - SelectedSectionEnrolledCount);
             }
 
-            // Load adviser directly from section (matches curriculum pages)
-            SelectedSectionAdviser = section.Adviser != null
-                ? $"{section.Adviser.FirstName} {section.Adviser.LastName}"
-                : string.Empty;
+            // Load adviser - first try from section navigation, then from assignments
+            if (section.Adviser != null)
+            {
+                SelectedSectionAdviser = $"{section.Adviser.FirstName} {section.Adviser.LastName}";
+            }
+            else
+            {
+                // Fallback: fetch from TeacherSectionAssignment with role "adviser"
+                var allAssignments = await CurriculumService.GetAllTeacherAssignmentsAsync();
+                var adviserAssignment = allAssignments
+                    .FirstOrDefault(a => a.SectionId == section.SectionId && 
+                                         !a.IsArchived &&
+                                         string.Equals(a.Role, "adviser", StringComparison.OrdinalIgnoreCase));
+                
+                SelectedSectionAdviser = adviserAssignment?.Teacher != null
+                    ? $"{adviserAssignment.Teacher.FirstName} {adviserAssignment.Teacher.LastName}"
+                    : string.Empty;
+            }
 
             // Room: use section classroom as primary source
             SelectedSectionRoom = section.Classroom?.RoomName ?? string.Empty;
@@ -1232,7 +1247,7 @@
         }
 
         await LoadSectionsForEnrollmentAsync();
-        ShowEnrollModal = AvailableSections.Any();
+        ShowEnrollModal = true;
         StateHasChanged();
     }
 

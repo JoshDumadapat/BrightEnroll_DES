@@ -1061,6 +1061,43 @@
                 return;
             }
 
+            // Create or update adviser assignment if adviser is selected
+            if (SelectedAdviserId.HasValue)
+            {
+                var adviserTeacher = Teachers.FirstOrDefault(t => t.UserId == SelectedAdviserId.Value);
+                if (adviserTeacher != null)
+                {
+                    // Check if adviser assignment already exists
+                    var existingAdviserAssignment = allAssignments
+                        .FirstOrDefault(a => a.SectionId == section.SectionId && 
+                                             string.Equals(a.Role, "adviser", StringComparison.OrdinalIgnoreCase) &&
+                                             !a.IsArchived);
+
+                    if (existingAdviserAssignment != null)
+                    {
+                        // Update existing adviser assignment
+                        var adviserAssignment = await CurriculumService.GetTeacherAssignmentByIdAsync(existingAdviserAssignment.AssignmentId);
+                        if (adviserAssignment != null)
+                        {
+                            adviserAssignment.TeacherId = adviserTeacher.UserId;
+                            await CurriculumService.UpdateTeacherAssignmentAsync(adviserAssignment);
+                        }
+                    }
+                    else
+                    {
+                        // Create new adviser assignment
+                        var newAdviserAssignment = new DataModels.TeacherSectionAssignment
+                        {
+                            TeacherId = adviserTeacher.UserId,
+                            SectionId = section.SectionId,
+                            SubjectId = null,
+                            Role = "adviser"
+                        };
+                        await CurriculumService.CreateTeacherAssignmentAsync(newAdviserAssignment);
+                    }
+                }
+            }
+
             foreach (var row in PendingAssignments)
             {
                 var assignment = new DataModels.TeacherSectionAssignment

@@ -2,6 +2,7 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Services.Business.Finance
 @using Microsoft.Extensions.Logging
+@using System.Linq
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
 @inject ILogger<Payments> Logger
@@ -113,23 +114,6 @@
             <h2 class="mb-4 text-lg font-bold text-gray-800">Payment Details</h2>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Amount</label>
-                    <input type="text"
-                           @bind="NewPaymentAmountString"
-                           @bind:after="UpdateNewPaymentAmount"
-                           placeholder="Php 0.00"
-                           disabled="@(PaymentData.Balance <= 0)"
-                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
-                    @if (PaymentData.Balance <= 0)
-                    {
-                        <p class="mt-1 text-xs text-gray-500">Student has fully paid.</p>
-                    }
-                    else
-                    {
-                        <p class="mt-1 text-xs text-gray-500">Minimum payment: Php 1,700.00. Balance: ₱@PaymentData.Balance.ToString("N2").</p>
-                    }
-                </div>
-                <div>
                     <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method</label>
                     <select @bind="PaymentData.PaymentMethod"
                             disabled="@(PaymentData.Balance <= 0)"
@@ -139,6 +123,32 @@
                         <option value="Bank Transfer">Bank Transfer</option>
                         <option value="Credit Card">Credit Card</option>
                     </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Amount</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                        <input type="text"
+                               value="@GetPaymentAmountDisplayValue()"
+                               @oninput="HandlePaymentAmountInput"
+                               @onfocus="HandlePaymentAmountFocus"
+                               @onblur="HandlePaymentAmountBlur"
+                               onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                               @onpaste="HandlePaymentAmountPaste"
+                               pattern="[0-9.]*"
+                               inputmode="decimal"
+                               placeholder="0.00"
+                               disabled="@(PaymentData.Balance <= 0)"
+                               class="w-full rounded-lg border border-gray-300 bg-white pl-7 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    </div>
+                    @if (PaymentData.Balance <= 0)
+                    {
+                        <p class="mt-1 text-xs text-gray-500">Student has fully paid.</p>
+                    }
+                    else
+                    {
+                        <p class="mt-1 text-xs text-gray-500">Minimum payment: Php 1,700.00. Balance: ₱@PaymentData.Balance.ToString("N2").</p>
+                    }
                 </div>
             </div>
 
@@ -372,6 +382,8 @@
     private bool ShowReceiptModal { get; set; } = false;
     private ReceiptDataModel ReceiptData { get; set; } = new();
     private string NewPaymentAmountString { get; set; } = "";
+    private string paymentAmountRawInput { get; set; } = "";
+    private bool isEditingPaymentAmount { get; set; } = false;
     private string searchStudentId { get; set; } = "";
     private bool isSearching { get; set; } = false;
     private bool hasSearched { get; set; } = false;
@@ -421,6 +433,8 @@
                     PaymentMethod = "Cash"
                 };
                 enrollmentStatus = paymentInfo.EnrollmentStatus;
+                paymentAmountRawInput = "";
+                isEditingPaymentAmount = false;
             }
         }
         catch (Exception ex)
@@ -445,38 +459,237 @@
         }
     }
 
-    private void UpdateNewPaymentAmount()
+    // Get display value for payment amount field (formatted with commas)
+    private string GetPaymentAmountDisplayValue()
     {
-        PaymentData.NewPaymentAmount = ParseCurrency(NewPaymentAmountString);
-        
-        // Validate payment amount doesn't exceed balance
-        if (PaymentData.NewPaymentAmount > PaymentData.Balance)
+        if (isEditingPaymentAmount && !string.IsNullOrWhiteSpace(paymentAmountRawInput))
         {
-            PaymentData.NewPaymentAmount = PaymentData.Balance;
-            NewPaymentAmountString = PaymentData.Balance.ToString("N2");
+            return FormatNumberWithCommas(paymentAmountRawInput);
+        }
+        
+        // Return formatted value when not editing
+        if (PaymentData.NewPaymentAmount > 0)
+        {
+            return PaymentData.NewPaymentAmount.ToString("N2");
+        }
+        return "";
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+
+    // Handle payment amount input with auto-formatting
+    private void HandlePaymentAmountInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // IMMEDIATELY filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // If starting with "0" and next char is a digit (not "."), remove the leading "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input (without commas for parsing)
+        paymentAmountRawInput = cleaned;
+        
+        // Parse and update the payment amount
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            
+            // Validate payment amount doesn't exceed balance
+            if (parsedValue > PaymentData.Balance)
+            {
+                parsedValue = PaymentData.Balance;
+                paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
+                    ? ((int)PaymentData.Balance).ToString() 
+                    : PaymentData.Balance.ToString("0.##");
+            }
+            
+            PaymentData.NewPaymentAmount = parsedValue;
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            PaymentData.NewPaymentAmount = 0;
         }
         
         StateHasChanged();
     }
 
-    private decimal ParseCurrency(string value)
+    // Handle focus - start editing
+    private void HandlePaymentAmountFocus(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            return 0;
+        isEditingPaymentAmount = true;
+        if (string.IsNullOrWhiteSpace(paymentAmountRawInput))
+        {
+            if (PaymentData.NewPaymentAmount > 0)
+            {
+                paymentAmountRawInput = PaymentData.NewPaymentAmount == Math.Floor(PaymentData.NewPaymentAmount) 
+                    ? ((int)PaymentData.NewPaymentAmount).ToString() 
+                    : PaymentData.NewPaymentAmount.ToString("0.##");
+            }
+            else
+            {
+                paymentAmountRawInput = "";
+            }
+        }
+        StateHasChanged();
+    }
 
-        // Remove "Php", spaces, and commas
-        var cleaned = value.Replace("Php", "", StringComparison.OrdinalIgnoreCase)
-                           .Replace(" ", "")
-                           .Replace(",", "")
-                           .Trim();
-        if (decimal.TryParse(cleaned, out var result))
-            return result;
-        return 0;
+    // Handle blur - finish editing
+    private void HandlePaymentAmountBlur(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingPaymentAmount = false;
+        
+        // Ensure the value is properly formatted
+        if (!string.IsNullOrWhiteSpace(paymentAmountRawInput))
+        {
+            string rawValue = paymentAmountRawInput;
+            if (rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                
+                // Validate payment amount doesn't exceed balance
+                if (parsedValue > PaymentData.Balance)
+                {
+                    parsedValue = PaymentData.Balance;
+                }
+                
+                PaymentData.NewPaymentAmount = parsedValue;
+            }
+            else
+            {
+                PaymentData.NewPaymentAmount = 0;
+            }
+        }
+        else
+        {
+            PaymentData.NewPaymentAmount = 0;
+        }
+        
+        paymentAmountRawInput = "";
+        StateHasChanged();
+    }
+
+    // Handle paste to filter invalid characters
+    private async Task HandlePaymentAmountPaste(ClipboardEventArgs e)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
+        }
+        catch { }
+        
+        // Get clipboard text
+        var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+        
+        if (!string.IsNullOrWhiteSpace(clipboardText))
+        {
+            // Filter to only allow digits and period
+            var validChars = clipboardText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var cleaned = new string(validChars);
+            
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+            
+            // Update the payment amount
+            if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                
+                // Validate payment amount doesn't exceed balance
+                if (parsedValue > PaymentData.Balance)
+                {
+                    parsedValue = PaymentData.Balance;
+                }
+                
+                PaymentData.NewPaymentAmount = parsedValue;
+                paymentAmountRawInput = cleaned;
+                StateHasChanged();
+            }
+        }
     }
 
     private void ClearPaymentForm()
     {
         NewPaymentAmountString = "";
+        paymentAmountRawInput = "";
+        isEditingPaymentAmount = false;
         PaymentData.NewPaymentAmount = 0;
         PaymentData.PaymentMethod = "Cash";
         StateHasChanged();
@@ -574,6 +787,8 @@
 
             ClosePaymentConfirmationModal();
             NewPaymentAmountString = "";
+            paymentAmountRawInput = "";
+            isEditingPaymentAmount = false;
             PaymentData.NewPaymentAmount = 0;
             searchErrorMessage = "";
 

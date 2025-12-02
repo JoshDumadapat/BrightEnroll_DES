@@ -129,6 +129,8 @@
 
 @code {
     [Parameter] public List<DataModels.FinalClassView> FinalClasses { get; set; } = new();
+    [Parameter] public List<DataModels.Section> Sections { get; set; } = new();
+    [Parameter] public List<DataModels.TeacherSectionAssignment> Assignments { get; set; } = new();
     [Parameter] public EventCallback<int> OnViewClass { get; set; }
 
 
@@ -185,10 +187,52 @@
                     var allRows = g.ToList();
                     
                     // Find adviser - prioritize "adviser" role, then "homeroom_all_subjects"
-                    var adviser = allRows.FirstOrDefault(c => c.Role == "adviser") 
-                               ?? allRows.FirstOrDefault(c => c.Role == "homeroom_all_subjects");
-                    var adviserName = adviser != null ? adviser.TeacherName : "-";
-                    var adviserAssignmentId = adviser?.AssignmentId ?? 0;
+                    var adviser = allRows.FirstOrDefault(c => string.Equals(c.Role, "adviser", StringComparison.OrdinalIgnoreCase)) 
+                               ?? allRows.FirstOrDefault(c => string.Equals(c.Role, "homeroom_all_subjects", StringComparison.OrdinalIgnoreCase));
+                    
+                    // If adviser not found in FinalClassView, try to get from database assignments
+                    string adviserName = "-";
+                    int adviserAssignmentId = 0;
+                    
+                    if (adviser != null)
+                    {
+                        adviserName = adviser.TeacherName ?? "-";
+                        adviserAssignmentId = adviser.AssignmentId;
+                    }
+                    else
+                    {
+                        // Try to find adviser from database assignments
+                        var sectionName = first.SectionName;
+                        var section = Sections?.FirstOrDefault(s => s.SectionName == sectionName);
+                        if (section != null)
+                        {
+                            var adviserAssignment = Assignments?
+                                .FirstOrDefault(a => a.SectionId == section.SectionId && 
+                                                     !a.IsArchived &&
+                                                     string.Equals(a.Role, "adviser", StringComparison.OrdinalIgnoreCase));
+                            
+                            if (adviserAssignment?.Teacher != null)
+                            {
+                                adviserName = $"{adviserAssignment.Teacher.FirstName} {adviserAssignment.Teacher.LastName}";
+                                adviserAssignmentId = adviserAssignment.AssignmentId;
+                            }
+                            else if (section.AdviserId.HasValue)
+                            {
+                                // Fallback: check Section's AdviserId if assignment doesn't exist yet
+                                // This handles the case where adviser was just assigned but assignment hasn't been created yet
+                                var adviserFromSection = Assignments?
+                                    .FirstOrDefault(a => a.TeacherId == section.AdviserId.Value && 
+                                                         a.SectionId == section.SectionId &&
+                                                         !a.IsArchived);
+                                
+                                if (adviserFromSection?.Teacher != null)
+                                {
+                                    adviserName = $"{adviserFromSection.Teacher.FirstName} {adviserFromSection.Teacher.LastName}";
+                                    adviserAssignmentId = adviserFromSection.AssignmentId;
+                                }
+                            }
+                        }
+                    }
                     
                     // Get all unique subjects from all assignments in this section
                     // For "homeroom_all_subjects", SubjectName might be NULL, so we need to get subjects differently

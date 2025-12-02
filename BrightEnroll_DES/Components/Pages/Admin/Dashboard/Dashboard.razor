@@ -419,6 +419,8 @@
         public decimal TotalFee { get; set; }
     }
 
+    private bool _hasInitialized = false;
+
     protected override async Task OnInitializedAsync()
     {
         // Hide loading immediately - dashboard loads data inline (no full-screen loading)
@@ -429,10 +431,32 @@
         {
             // Load dashboard data inline (no loading screen)
             await LoadDashboardStatistics();
+            _hasInitialized = true;
         }
         catch (Exception)
         {
             // Error handled inline - no loading screen needed
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload data when navigating back to dashboard from another page
+        // This ensures data is fresh when returning to the dashboard
+        // Only reload if we've already initialized (to avoid double-loading on first render)
+        if (_hasInitialized)
+        {
+            try
+            {
+                await LoadDashboardStatistics();
+                // Reload charts after a short delay to ensure DOM is ready
+                await Task.Delay(150);
+                await LoadChartData();
+            }
+            catch (Exception)
+            {
+                // Error handled inline - no loading screen needed
+            }
         }
     }
 
