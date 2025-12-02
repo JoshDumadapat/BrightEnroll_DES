@@ -14,6 +14,7 @@ public interface IDatabaseSyncService
     Task<SyncResult> SyncToCloudAsync();
     Task<SyncResult> SyncFromCloudAsync();
     Task<SyncResult> FullSyncAsync();
+    Task<SyncResult> IncrementalSyncAsync(DateTime? since = null);
     Task<bool> TestCloudConnectionAsync();
 }
 
@@ -185,6 +186,64 @@ public class DatabaseSyncService : IDatabaseSyncService
         return result;
     }
 
+    public async Task<SyncResult> IncrementalSyncAsync(DateTime? since = null)
+    {
+        var result = new SyncResult { Success = true };
+        since ??= DateTime.Now.AddDays(-7); // Default: last 7 days
+        
+        try
+        {
+            if (!await TestCloudConnectionAsync())
+            {
+                result.Success = false;
+                result.Message = "Cannot connect to cloud database.";
+                result.Errors.Add("Cloud connection failed");
+                return result;
+            }
+
+            using var cloudConnection = new SqlConnection(_cloudConnectionString);
+            await cloudConnection.OpenAsync();
+
+            // Incremental sync - only sync changed records
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id", since.Value);
+
+            // Pull changes from cloud
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id", since.Value);
+
+            result.Message = $"Incremental sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
+            _logger?.LogInformation("Incremental sync completed: {Pushed} pushed, {Pulled} pulled", result.RecordsPushed, result.RecordsPulled);
+        }
+        catch (Exception ex)
+        {
+            result.Success = false;
+            result.Message = $"Error during incremental sync: {ex.Message}";
+            result.Errors.Add(ex.Message);
+            _logger?.LogError(ex, "Error during incremental sync");
+        }
+
+        return result;
+    }
+
     private async Task<int> SyncTableToCloudAsync<T>(SqlConnection cloudConnection, string tableName, string primaryKeyColumn) where T : class
     {
         int recordsSynced = 0;
@@ -239,27 +298,64 @@ public class DatabaseSyncService : IDatabaseSyncService
                     else
                     {
                         // Insert new record
-                        // Exclude properties that are database-generated (identity, computed, etc.)
-                        var insertProps = properties.Where(p => 
-                            p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd &&
-                            p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate);
+                        // Check if primary key is identity column
+                        var isIdentity = pkProperty.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd;
                         
-                        var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
-                        var insertValues = string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
-                        var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
-                        
-                        using var insertCmd = new SqlCommand(insertQuery, cloudConnection);
-                        
-                        foreach (var prop in insertProps)
+                        if (isIdentity)
                         {
-                            var value = prop.PropertyInfo?.GetValue(record);
-                            if (value == null && prop.IsNullable)
-                                insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", DBNull.Value);
-                            else
-                                insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value ?? DBNull.Value);
+                            // For identity columns, use SET IDENTITY_INSERT ON
+                            await cloudConnection.ExecuteNonQueryAsync($"SET IDENTITY_INSERT [{tableName}] ON");
+                            
+                            try
+                            {
+                                var insertProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                                var insertColumns = $"[{primaryKeyColumn}], " + string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
+                                var insertValues = $"@pk, " + string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
+                                var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
+                                
+                                using var insertCmd = new SqlCommand(insertQuery, cloudConnection);
+                                insertCmd.Parameters.AddWithValue("@pk", pkValue);
+                                
+                                foreach (var prop in insertProps)
+                                {
+                                    var value = prop.PropertyInfo?.GetValue(record);
+                                    if (value == null && prop.IsNullable)
+                                        insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", DBNull.Value);
+                                    else
+                                        insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value ?? DBNull.Value);
+                                }
+                                
+                                await insertCmd.ExecuteNonQueryAsync();
+                            }
+                            finally
+                            {
+                                await cloudConnection.ExecuteNonQueryAsync($"SET IDENTITY_INSERT [{tableName}] OFF");
+                            }
                         }
-                        
-                        await insertCmd.ExecuteNonQueryAsync();
+                        else
+                        {
+                            // Non-identity primary key - normal insert
+                            var insertProps = properties.Where(p => 
+                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd &&
+                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate);
+                            
+                            var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
+                            var insertValues = string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
+                            var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
+                            
+                            using var insertCmd = new SqlCommand(insertQuery, cloudConnection);
+                            
+                            foreach (var prop in insertProps)
+                            {
+                                var value = prop.PropertyInfo?.GetValue(record);
+                                if (value == null && prop.IsNullable)
+                                    insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", DBNull.Value);
+                                else
+                                    insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value ?? DBNull.Value);
+                            }
+                            
+                            await insertCmd.ExecuteNonQueryAsync();
+                        }
                     }
                     
                     recordsSynced++;
@@ -309,46 +405,155 @@ public class DatabaseSyncService : IDatabaseSyncService
                     
                     if (existing == null)
                     {
-                        // Create new entity from cloud data
-                        var entity = Activator.CreateInstance<T>();
+                        // Check if primary key is identity column
+                        var isIdentity = pkProperty.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd;
                         
-                        foreach (var prop in properties)
+                        if (isIdentity)
                         {
-                            var columnName = prop.GetColumnName();
-                            if (reader.HasColumn(columnName))
+                            // For identity columns, use raw SQL with IDENTITY_INSERT ON
+                            // This is necessary because EF Core's Add() doesn't handle explicit identity values
+                            // We need to use the local database connection directly
+                            var localConnection = _localContext.Database.GetDbConnection();
+                            var wasOpen = localConnection.State == System.Data.ConnectionState.Open;
+                            if (!wasOpen)
                             {
-                                var value = reader[columnName];
-                                if (value != DBNull.Value && prop.PropertyInfo != null)
+                                await localConnection.OpenAsync();
+                            }
+                            
+                            try
+                            {
+                                // Turn IDENTITY_INSERT ON
+                                using (var cmdOn = localConnection.CreateCommand())
                                 {
-                                    // Convert value to property type if needed
-                                    var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
-                                    prop.PropertyInfo.SetValue(entity, convertedValue);
+                                    cmdOn.CommandText = $"SET IDENTITY_INSERT [{tableName}] ON";
+                                    await cmdOn.ExecuteNonQueryAsync();
+                                }
+                                
+                                try
+                                {
+                                    // Build INSERT statement with all columns
+                                    var insertProps = properties.Where(p => 
+                                        p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate);
+                                    
+                                    var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
+                                    var insertValues = string.Join(", ", insertProps.Select((p, idx) => $"@p{idx}"));
+                                    var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
+                                    
+                                    using var insertCmd = localConnection.CreateCommand();
+                                    insertCmd.CommandText = insertQuery;
+                                    
+                                    // Build parameters from reader data
+                                    int paramIndex = 0;
+                                    foreach (var prop in insertProps)
+                                    {
+                                        var columnName = prop.GetColumnName();
+                                        var param = insertCmd.CreateParameter();
+                                        param.ParameterName = $"@p{paramIndex}";
+                                        
+                                        if (reader.HasColumn(columnName))
+                                        {
+                                            var value = reader[columnName];
+                                            param.Value = value == DBNull.Value ? DBNull.Value : value;
+                                        }
+                                        else
+                                        {
+                                            param.Value = DBNull.Value;
+                                        }
+                                        
+                                        insertCmd.Parameters.Add(param);
+                                        paramIndex++;
+                                    }
+                                    
+                                    await insertCmd.ExecuteNonQueryAsync();
+                                    recordsSynced++;
+                                }
+                                finally
+                                {
+                                    // Turn IDENTITY_INSERT OFF
+                                    using (var cmdOff = localConnection.CreateCommand())
+                                    {
+                                        cmdOff.CommandText = $"SET IDENTITY_INSERT [{tableName}] OFF";
+                                        await cmdOff.ExecuteNonQueryAsync();
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                if (!wasOpen)
+                                {
+                                    await localConnection.CloseAsync();
                                 }
                             }
                         }
-                        
-                        localSet.Add(entity);
-                        recordsSynced++;
+                        else
+                        {
+                            // Non-identity primary key - use EF Core Add()
+                            var entity = Activator.CreateInstance<T>();
+                            
+                            foreach (var prop in properties)
+                            {
+                                var columnName = prop.GetColumnName();
+                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null)
+                                {
+                                    var value = reader[columnName];
+                                    if (value != DBNull.Value)
+                                    {
+                                        // Convert value to property type if needed
+                                        var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
+                                        prop.PropertyInfo.SetValue(entity, convertedValue);
+                                    }
+                                }
+                            }
+                            
+                            localSet.Add(entity);
+                            recordsSynced++;
+                        }
                     }
                     else
                     {
-                        // Update existing entity (cloud wins for now - can be made configurable)
-                        foreach (var prop in properties)
+                        // Conflict resolution: Cloud wins (check LastModified if available)
+                        var lastModifiedProp = properties.FirstOrDefault(p => 
+                            p.GetColumnName().ToLower().Contains("lastmodified") || 
+                            p.GetColumnName().ToLower().Contains("updated") ||
+                            p.GetColumnName().ToLower().Contains("modified"));
+                        
+                        bool shouldUpdate = true;
+                        if (lastModifiedProp != null && lastModifiedProp.PropertyInfo != null)
                         {
-                            var columnName = prop.GetColumnName();
-                            if (reader.HasColumn(columnName) && prop.PropertyInfo != null)
+                            var cloudLastModified = reader[lastModifiedProp.GetColumnName()];
+                            var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
+                            
+                            if (cloudLastModified != DBNull.Value && localLastModified != null)
                             {
-                                var value = reader[columnName];
-                                if (value != DBNull.Value)
+                                // Only update if cloud version is newer (cloud wins)
+                                if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
                                 {
-                                    var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
-                                    prop.PropertyInfo.SetValue(existing, convertedValue);
+                                    shouldUpdate = cloudDate >= localDate;
                                 }
                             }
                         }
                         
-                        localSet.Update(existing);
-                        recordsSynced++;
+                        if (shouldUpdate)
+                        {
+                            // Update existing entity (cloud wins)
+                            foreach (var prop in properties)
+                            {
+                                var columnName = prop.GetColumnName();
+                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null && 
+                                    prop.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
+                                {
+                                    var value = reader[columnName];
+                                    if (value != DBNull.Value)
+                                    {
+                                        var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
+                                        prop.PropertyInfo.SetValue(existing, convertedValue);
+                                    }
+                                }
+                            }
+                            
+                            localSet.Update(existing);
+                            recordsSynced++;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -390,6 +595,287 @@ public class DatabaseSyncService : IDatabaseSyncService
             return Enum.ToObject(underlyingType, value);
 
         return Convert.ChangeType(value, underlyingType);
+    }
+
+    // Incremental sync methods - only sync records modified since a given date
+    private async Task<int> IncrementalSyncTableToCloudAsync<T>(SqlConnection cloudConnection, string tableName, string primaryKeyColumn, DateTime since) where T : class
+    {
+        int recordsSynced = 0;
+        
+        try
+        {
+            // Get records modified since 'since' date
+            // Check for LastModified, UpdatedAt, UpdatedDate, or CreatedAt columns
+            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            if (entityType == null) return 0;
+
+            var properties = entityType.GetProperties();
+            var dateProp = properties.FirstOrDefault(p => 
+                p.GetColumnName().ToLower().Contains("lastmodified") || 
+                p.GetColumnName().ToLower().Contains("updated") ||
+                p.GetColumnName().ToLower().Contains("created"));
+
+            IQueryable<T> query = _localContext.Set<T>();
+            
+            if (dateProp != null && dateProp.PropertyInfo != null)
+            {
+                // Filter by date if column exists
+                var parameter = System.Linq.Expressions.Expression.Parameter(typeof(T), "e");
+                var property = System.Linq.Expressions.Expression.Property(parameter, dateProp.PropertyInfo);
+                var constant = System.Linq.Expressions.Expression.Constant(since);
+                var comparison = System.Linq.Expressions.Expression.GreaterThanOrEqual(property, constant);
+                var lambda = System.Linq.Expressions.Expression.Lambda<Func<T, bool>>(comparison, parameter);
+                query = query.Where(lambda);
+            }
+
+            var localRecords = await query.ToListAsync();
+            
+            if (!localRecords.Any())
+                return 0;
+
+            var pkProperty = properties.FirstOrDefault(p => p.GetColumnName() == primaryKeyColumn || p.Name == primaryKeyColumn.Replace("_", ""));
+            if (pkProperty == null) return 0;
+
+            // Use existing sync logic but only for filtered records
+            foreach (var record in localRecords)
+            {
+                try
+                {
+                    var pkValue = pkProperty.PropertyInfo?.GetValue(record);
+                    if (pkValue == null) continue;
+
+                    var existsQuery = $"SELECT COUNT(*) FROM [{tableName}] WHERE [{primaryKeyColumn}] = @pk";
+                    using var checkCmd = new SqlCommand(existsQuery, cloudConnection);
+                    checkCmd.Parameters.AddWithValue("@pk", pkValue);
+                    var exists = (int)await checkCmd.ExecuteScalarAsync() > 0;
+
+                    if (exists)
+                    {
+                        // Update - use same logic as SyncTableToCloudAsync
+                        var updateProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                        var updateSet = string.Join(", ", updateProps.Select(p => $"[{p.GetColumnName()}] = @{p.GetColumnName()}"));
+                        var updateQuery = $"UPDATE [{tableName}] SET {updateSet} WHERE [{primaryKeyColumn}] = @pk";
+                        
+                        using var updateCmd = new SqlCommand(updateQuery, cloudConnection);
+                        updateCmd.Parameters.AddWithValue("@pk", pkValue);
+                        
+                        foreach (var prop in updateProps)
+                        {
+                            var value = prop.PropertyInfo?.GetValue(record) ?? DBNull.Value;
+                            updateCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value);
+                        }
+                        
+                        await updateCmd.ExecuteNonQueryAsync();
+                    }
+                    else
+                    {
+                        // Insert - use same logic as SyncTableToCloudAsync with identity handling
+                        var isIdentity = pkProperty.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd;
+                        
+                        if (isIdentity)
+                        {
+                            await cloudConnection.ExecuteNonQueryAsync($"SET IDENTITY_INSERT [{tableName}] ON");
+                            try
+                            {
+                                var insertProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                                var insertColumns = $"[{primaryKeyColumn}], " + string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
+                                var insertValues = $"@pk, " + string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
+                                var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
+                                
+                                using var insertCmd = new SqlCommand(insertQuery, cloudConnection);
+                                insertCmd.Parameters.AddWithValue("@pk", pkValue);
+                                
+                                foreach (var prop in insertProps)
+                                {
+                                    var value = prop.PropertyInfo?.GetValue(record);
+                                    insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value ?? DBNull.Value);
+                                }
+                                
+                                await insertCmd.ExecuteNonQueryAsync();
+                            }
+                            finally
+                            {
+                                await cloudConnection.ExecuteNonQueryAsync($"SET IDENTITY_INSERT [{tableName}] OFF");
+                            }
+                        }
+                        else
+                        {
+                            var insertProps = properties.Where(p => 
+                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd);
+                            var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
+                            var insertValues = string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
+                            var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
+                            
+                            using var insertCmd = new SqlCommand(insertQuery, cloudConnection);
+                            foreach (var prop in insertProps)
+                            {
+                                var value = prop.PropertyInfo?.GetValue(record);
+                                insertCmd.Parameters.AddWithValue($"@{prop.GetColumnName()}", value ?? DBNull.Value);
+                            }
+                            await insertCmd.ExecuteNonQueryAsync();
+                        }
+                    }
+                    
+                    recordsSynced++;
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to sync record from table {Table}", tableName);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error in incremental sync to cloud for table {Table}", tableName);
+        }
+
+        return recordsSynced;
+    }
+
+    private async Task<int> IncrementalSyncTableFromCloudAsync<T>(SqlConnection cloudConnection, string tableName, string primaryKeyColumn, DateTime since) where T : class
+    {
+        int recordsSynced = 0;
+        
+        try
+        {
+            // Query cloud for records modified since 'since'
+            var dateColumn = "LastModified"; // Try common column names
+            var dateColumns = new[] { "LastModified", "UpdatedAt", "UpdatedDate", "CreatedAt", "created_at", "updated_at" };
+            
+            string query = $"SELECT * FROM [{tableName}]";
+            bool hasDateColumn = false;
+            
+            foreach (var col in dateColumns)
+            {
+                try
+                {
+                    var testQuery = $"SELECT TOP 1 [{col}] FROM [{tableName}]";
+                    using var testCmd = new SqlCommand(testQuery, cloudConnection);
+                    await testCmd.ExecuteScalarAsync();
+                    hasDateColumn = true;
+                    query = $"SELECT * FROM [{tableName}] WHERE [{col}] >= @since";
+                    break;
+                }
+                catch
+                {
+                    // Column doesn't exist, try next
+                }
+            }
+
+            using var cmd = new SqlCommand(query, cloudConnection);
+            if (hasDateColumn)
+            {
+                cmd.Parameters.AddWithValue("@since", since);
+            }
+            
+            using var reader = await cmd.ExecuteReaderAsync();
+            
+            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            if (entityType == null) return 0;
+
+            var properties = entityType.GetProperties();
+            var localSet = _localContext.Set<T>();
+            
+            while (await reader.ReadAsync())
+            {
+                try
+                {
+                    var pkValue = reader[primaryKeyColumn];
+                    var pkProperty = properties.FirstOrDefault(p => p.GetColumnName() == primaryKeyColumn || p.Name == primaryKeyColumn.Replace("_", ""));
+                    if (pkProperty == null) continue;
+
+                    var existing = await localSet.FindAsync(pkValue);
+                    
+                    if (existing == null)
+                    {
+                        // Create new entity
+                        var entity = Activator.CreateInstance<T>();
+                        
+                        foreach (var prop in properties)
+                        {
+                            var columnName = prop.GetColumnName();
+                            if (reader.HasColumn(columnName))
+                            {
+                                var value = reader[columnName];
+                                if (value != DBNull.Value && prop.PropertyInfo != null)
+                                {
+                                    var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
+                                    prop.PropertyInfo.SetValue(entity, convertedValue);
+                                }
+                            }
+                        }
+                        
+                        localSet.Add(entity);
+                        recordsSynced++;
+                    }
+                    else
+                    {
+                        // Update existing (cloud wins) - use same logic as SyncTableFromCloudAsync
+                        var lastModifiedProp = properties.FirstOrDefault(p => 
+                            p.GetColumnName().ToLower().Contains("lastmodified") || 
+                            p.GetColumnName().ToLower().Contains("updated"));
+                        
+                        bool shouldUpdate = true;
+                        if (lastModifiedProp != null && lastModifiedProp.PropertyInfo != null)
+                        {
+                            var cloudLastModified = reader[lastModifiedProp.GetColumnName()];
+                            var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
+                            
+                            if (cloudLastModified != DBNull.Value && localLastModified != null)
+                            {
+                                if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
+                                {
+                                    shouldUpdate = cloudDate >= localDate;
+                                }
+                            }
+                        }
+                        
+                        if (shouldUpdate)
+                        {
+                            foreach (var prop in properties)
+                            {
+                                var columnName = prop.GetColumnName();
+                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null && 
+                                    prop.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
+                                {
+                                    var value = reader[columnName];
+                                    if (value != DBNull.Value)
+                                    {
+                                        var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
+                                        prop.PropertyInfo.SetValue(existing, convertedValue);
+                                    }
+                                }
+                            }
+                            
+                            localSet.Update(existing);
+                            recordsSynced++;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to sync record from cloud table {Table}", tableName);
+                }
+            }
+            
+            await _localContext.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error in incremental sync from cloud for table {Table}", tableName);
+        }
+
+        return recordsSynced;
+    }
+}
+
+// Extension method for executing SQL commands
+public static class SqlConnectionExtensions
+{
+    public static async Task<int> ExecuteNonQueryAsync(this SqlConnection connection, string sql)
+    {
+        using var cmd = new SqlCommand(sql, connection);
+        return await cmd.ExecuteNonQueryAsync();
     }
 }
 

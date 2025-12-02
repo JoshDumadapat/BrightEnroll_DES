@@ -4,6 +4,8 @@
 @inject NavigationManager Navigation
 @inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
 @inject BrightEnroll_DES.Services.Infrastructure.IConnectivityService ConnectivityService
+@inject BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService DatabaseSyncService
+@inject BrightEnroll_DES.Services.Database.Sync.ISyncStatusService SyncStatusService
 @inject IJSRuntime JSRuntime
 
 <!-- Loading Screen -->
@@ -11,6 +13,9 @@
 
 <!-- Connectivity Toast -->
 <ConnectivityToast Show="@showConnectivityToast" IsOnline="@isOnline" Message="@connectivityMessage" />
+
+<!-- Sync Status Component -->
+<SyncStatus />
 
 <div class="page paddin-0">
     <!-- Mobile Overlay -->
@@ -179,6 +184,14 @@
         
         // Set JS Runtime and ensure connectivity monitoring is started
         ConnectivityService.SetJSRuntime(JSRuntime);
+        
+        // Connect ConnectivityService with SyncStatusService
+        var connectivityService = ConnectivityService as BrightEnroll_DES.Services.Infrastructure.ConnectivityService;
+        if (connectivityService != null)
+        {
+            connectivityService.SetSyncServices(SyncStatusService, DatabaseSyncService);
+        }
+        
         ConnectivityService.StartMonitoring();
     }
 

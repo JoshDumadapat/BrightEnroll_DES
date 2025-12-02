@@ -5,20 +5,22 @@
 @inject ExportService ExportService
 @inject ILoadingService LoadingService
 @inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
 <div class="p-6">
     <!-- Filters -->
     <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <h2 class="mb-4 text-lg font-bold text-gray-800">Enrollment Reports</h2>
-        <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-5">
             <div>
-                <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
-                <select @bind="selectedSchoolYear" 
-                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                    <option value="">All Years</option>
-                    <option value="2024-2025">2024-2025</option>
-                    <option value="2023-2024">2023-2024</option>
-                </select>
+                <label class="mb-2 block text-sm font-medium text-gray-700">From Date:</label>
+                <input type="date" @bind="fromDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">To Date:</label>
+                <input type="date" @bind="toDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
             </div>
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">Grade Level:</label>
@@ -35,12 +37,12 @@
                 </select>
             </div>
             <div>
-                <label class="mb-2 block text-sm font-medium text-gray-700">Status:</label>
-                <select @bind="selectedStatus" 
+                <label class="mb-2 block text-sm font-medium text-gray-700">Period:</label>
+                <select @bind="selectedPeriod" 
                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                    <option value="">All Status</option>
-                    <option value="Enrolled">Enrolled</option>
-                    <option value="Pending">Pending</option>
+                    <option value="daily">Daily</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
                 </select>
             </div>
             <div class="flex items-end">
@@ -82,6 +84,41 @@
             </div>
         </div>
 
+        <!-- Charts Section -->
+        <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <!-- Enrollment Trends Line Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Enrollment Trends</h3>
+                <div class="relative h-64">
+                    <canvas id="enrollmentTrendsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Enrollment by Grade Bar Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Enrollment by Grade Level</h3>
+                <div class="relative h-64">
+                    <canvas id="enrollmentByGradeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Student Type Distribution Pie Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Student Type Distribution</h3>
+                <div class="relative h-64">
+                    <canvas id="studentTypeChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Enrollment Status Distribution Pie Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Enrollment Status</h3>
+                <div class="relative h-64">
+                    <canvas id="enrollmentStatusChart"></canvas>
+                </div>
+            </div>
+        </div>
+
         <!-- Export Button -->
         <div class="mb-4 flex justify-end">
             <button @onclick="ExportToExcel" 
@@ -99,11 +136,23 @@
 </div>
 
 @code {
-    private string selectedSchoolYear = "";
+    private DateTime? fromDate = DateTime.Now.AddMonths(-6);
+    private DateTime? toDate = DateTime.Now;
     private string selectedGradeLevel = "";
-    private string selectedStatus = "";
+    private string selectedPeriod = "monthly";
     private bool isLoading = false;
     private EnrollmentSummary? summary = null;
+    private List<EnrollmentTimeSeries>? timeSeriesData = null;
+    private List<EnrollmentByGrade>? enrollmentByGrade = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && summary != null)
+        {
+            await Task.Delay(100);
+            await RenderCharts();
+        }
+    }
 
     private async Task GenerateReport()
     {
@@ -111,8 +160,14 @@
         try
         {
             summary = await EnrollmentReportService.GetEnrollmentSummaryAsync(
+                fromDate: fromDate,
+                toDate: toDate,
                 gradeLevel: string.IsNullOrWhiteSpace(selectedGradeLevel) ? null : selectedGradeLevel
             );
+            timeSeriesData = await EnrollmentReportService.GetEnrollmentTimeSeriesAsync(fromDate, toDate, selectedPeriod);
+            enrollmentByGrade = await EnrollmentReportService.GetEnrollmentByGradeAsync();
+            
+            await RenderCharts();
         }
         catch (Exception ex)
         {
@@ -125,13 +180,85 @@
         }
     }
 
+    private async Task RenderCharts()
+    {
+        if (timeSeriesData == null || enrollmentByGrade == null || summary == null)
+            return;
+
+        try
+        {
+            // Wait for DOM to be ready
+            await Task.Delay(100);
+            StateHasChanged();
+            await Task.Delay(100);
+
+            // Enrollment Trends Line Chart
+            var trendsLabels = timeSeriesData.Select(d => d.Period).ToArray();
+            var trendsDatasets = new object[]
+            {
+                new { label = "Enrollments", data = timeSeriesData.Select(d => (double)d.Count).ToArray(), borderColor = "#3b82f6", backgroundColor = "rgba(59, 130, 246, 0.1)", tension = 0.4, fill = true }
+            };
+
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart",
+                "enrollmentTrendsChart",
+                trendsLabels,
+                trendsDatasets,
+                new { showLegend = true, isCurrency = false });
+
+            // Enrollment by Grade Bar Chart
+            var gradeLabels = enrollmentByGrade.Select(e => e.GradeLevel).ToArray();
+            var gradeDatasets = new object[]
+            {
+                new { label = "Students", data = enrollmentByGrade.Select(e => (double)e.Count).ToArray(), backgroundColor = "#3b82f6", borderColor = "#2563eb", borderWidth = 1 }
+            };
+
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderBarChart",
+                "enrollmentByGradeChart",
+                gradeLabels,
+                gradeDatasets,
+                new { showLegend = false, isCurrency = false });
+
+            // Student Type Distribution Pie Chart
+            var studentTypeLabels = new[] { "New Students", "Re-enrolled", "Pending" };
+            var studentTypeValues = new[] { (double)summary.NewStudents, (double)summary.ReEnrolled, (double)summary.Pending };
+            var studentTypeColors = new[] { "#22c55e", "#f59e0b", "#ef4444" };
+
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderPieChart",
+                "studentTypeChart",
+                studentTypeLabels,
+                studentTypeValues,
+                studentTypeColors,
+                false, // isDoughnut
+                new { showLegend = true, legendPosition = "bottom" });
+
+            // Enrollment Status Distribution Pie Chart
+            var enrollmentStatusLabels = new[] { "Enrolled", "Pending" };
+            var enrollmentStatusValues = new[] { (double)summary.TotalEnrolled, (double)summary.Pending };
+            var enrollmentStatusColors = new[] { "#22c55e", "#ef4444" };
+
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderPieChart",
+                "enrollmentStatusChart",
+                enrollmentStatusLabels,
+                enrollmentStatusValues,
+                enrollmentStatusColors,
+                false, // isDoughnut
+                new { showLegend = true, legendPosition = "bottom" });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rendering charts: {ex.Message}");
+        }
+    }
+
     private async Task ExportToExcel()
     {
         try
         {
             var details = await EnrollmentReportService.GetEnrollmentDetailsAsync(
+                fromDate: fromDate,
+                toDate: toDate,
                 gradeLevel: string.IsNullOrWhiteSpace(selectedGradeLevel) ? null : selectedGradeLevel,
-                status: string.IsNullOrWhiteSpace(selectedStatus) ? null : selectedStatus
+                status: null
             );
 
             var columnMappings = new Dictionary<string, Func<EnrollmentDetail, object?>>
@@ -153,6 +280,21 @@
         catch (Exception ex)
         {
             Console.WriteLine($"Error exporting report: {ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "enrollmentTrendsChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "enrollmentByGradeChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "studentTypeChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "enrollmentStatusChart");
+        }
+        catch
+        {
+            // Ignore errors during disposal
         }
     }
 }

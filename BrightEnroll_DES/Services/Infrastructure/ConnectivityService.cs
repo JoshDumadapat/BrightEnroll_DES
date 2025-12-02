@@ -1,5 +1,6 @@
 using Microsoft.JSInterop;
 using System.Runtime.InteropServices;
+using BrightEnroll_DES.Services.Database.Sync;
 
 namespace BrightEnroll_DES.Services.Infrastructure;
 
@@ -9,6 +10,7 @@ public interface IConnectivityService
     bool HasShownInitialToast { get; set; }
     event EventHandler<bool> ConnectivityChanged;
     Task<bool> CheckConnectivityAsync();
+    Task<bool> CheckCloudConnectivityAsync();
     void SetJSRuntime(Microsoft.JSInterop.IJSRuntime jsRuntime);
     void StartMonitoring();
     void StopMonitoring();
@@ -21,6 +23,8 @@ public class ConnectivityService : IConnectivityService, IDisposable
     private IJSRuntime? _jsRuntime;
     private DotNetObjectReference<ConnectivityService>? _dotNetRef;
     private readonly object _lockObject = new object();
+    private ISyncStatusService? _syncStatusService;
+    private IDatabaseSyncService? _syncService;
 
     public bool IsConnected
     {
@@ -48,6 +52,13 @@ public class ConnectivityService : IConnectivityService, IDisposable
         _isConnected = true;
     }
 
+    // Set sync services for integration
+    public void SetSyncServices(ISyncStatusService? syncStatusService, IDatabaseSyncService? syncService)
+    {
+        _syncStatusService = syncStatusService;
+        _syncService = syncService;
+    }
+
     // Set JS Runtime (called from components that have access to it)
     public void SetJSRuntime(IJSRuntime jsRuntime)
     {
@@ -60,6 +71,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
         {
             // Fallback: assume connected if JS runtime is not available
             IsConnected = true;
+            _syncStatusService?.SetOnline(true);
             return true;
         }
 
@@ -67,14 +79,36 @@ public class ConnectivityService : IConnectivityService, IDisposable
         {
             // Check navigator.onLine via JavaScript
             var isOnline = await _jsRuntime.InvokeAsync<bool>("window.connectivityMonitor.checkConnectivity");
-            IsConnected = isOnline;
-            return isOnline;
+            
+            // Also verify with actual cloud connection test
+            var cloudOnline = await CheckCloudConnectivityAsync();
+            var finalStatus = isOnline && cloudOnline;
+            
+            IsConnected = finalStatus;
+            _syncStatusService?.SetOnline(finalStatus);
+            return finalStatus;
         }
         catch (Exception)
         {
             // If JavaScript interop fails, assume online to avoid blocking the app
             IsConnected = true;
+            _syncStatusService?.SetOnline(true);
             return true;
+        }
+    }
+
+    public async Task<bool> CheckCloudConnectivityAsync()
+    {
+        if (_syncService == null)
+            return true; // Assume online if sync service not available
+
+        try
+        {
+            return await _syncService.TestCloudConnectionAsync();
+        }
+        catch
+        {
+            return false;
         }
     }
 
@@ -146,10 +180,33 @@ public class ConnectivityService : IConnectivityService, IDisposable
     }
 
     [JSInvokable]
-    public void OnConnectivityChanged(bool isOnline)
+    public async void OnConnectivityChanged(bool isOnline)
     {
         // This method is called from JavaScript when connectivity changes
-        IsConnected = isOnline;
+        // Verify with actual cloud connection
+        var cloudOnline = await CheckCloudConnectivityAsync();
+        var finalStatus = isOnline && cloudOnline;
+        
+        IsConnected = finalStatus;
+        _syncStatusService?.SetOnline(finalStatus);
+
+        // If we just came back online, trigger a sync
+        if (finalStatus && _syncService != null)
+        {
+            try
+            {
+                // Trigger sync in background (don't await)
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(2000); // Wait 2 seconds for connection to stabilize
+                    await _syncService.FullSyncAsync();
+                });
+            }
+            catch
+            {
+                // Ignore errors in background sync
+            }
+        }
     }
 
     public void Dispose()

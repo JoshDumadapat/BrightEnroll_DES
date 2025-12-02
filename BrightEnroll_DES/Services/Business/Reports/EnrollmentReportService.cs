@@ -110,6 +110,87 @@ public class EnrollmentReportService
 
         return students;
     }
+
+    /// <summary>
+    /// Get enrollment data grouped by time period for line charts
+    /// </summary>
+    public async Task<List<EnrollmentTimeSeries>> GetEnrollmentTimeSeriesAsync(DateTime? fromDate = null, DateTime? toDate = null, string period = "monthly")
+    {
+        var defaultFromDate = fromDate ?? DateTime.Now.AddMonths(-6);
+        var defaultToDate = toDate ?? DateTime.Now;
+
+        var query = _context.Students
+            .Where(s => s.DateRegistered >= defaultFromDate && s.DateRegistered <= defaultToDate)
+            .AsQueryable();
+
+        List<EnrollmentTimeSeries> result = new List<EnrollmentTimeSeries>();
+
+        if (period == "daily")
+        {
+            var enrollments = await query
+                .GroupBy(s => s.DateRegistered.Date)
+                .Select(g => new { Date = g.Key, Count = g.Count() })
+                .OrderBy(x => x.Date)
+                .ToListAsync();
+
+            foreach (var enrollment in enrollments)
+            {
+                result.Add(new EnrollmentTimeSeries
+                {
+                    Period = enrollment.Date.ToString("MMM dd"),
+                    PeriodKey = enrollment.Date,
+                    Count = enrollment.Count
+                });
+            }
+        }
+        else if (period == "monthly")
+        {
+            var enrollments = await query
+                .GroupBy(s => new { Year = s.DateRegistered.Year, Month = s.DateRegistered.Month })
+                .Select(g => new { Year = g.Key.Year, Month = g.Key.Month, Count = g.Count() })
+                .OrderBy(x => x.Year).ThenBy(x => x.Month)
+                .ToListAsync();
+
+            foreach (var enrollment in enrollments)
+            {
+                var periodDate = new DateTime(enrollment.Year, enrollment.Month, 1);
+                result.Add(new EnrollmentTimeSeries
+                {
+                    Period = periodDate.ToString("MMM yyyy"),
+                    PeriodKey = periodDate,
+                    Count = enrollment.Count
+                });
+            }
+        }
+        else if (period == "yearly")
+        {
+            var enrollments = await query
+                .GroupBy(s => s.DateRegistered.Year)
+                .Select(g => new { Year = g.Key, Count = g.Count() })
+                .OrderBy(x => x.Year)
+                .ToListAsync();
+
+            foreach (var enrollment in enrollments)
+            {
+                var periodDate = new DateTime(enrollment.Year, 1, 1);
+                result.Add(new EnrollmentTimeSeries
+                {
+                    Period = enrollment.Year.ToString(),
+                    PeriodKey = periodDate,
+                    Count = enrollment.Count
+                });
+            }
+        }
+
+        return result;
+    }
+}
+
+public class EnrollmentTimeSeries
+{
+    public string Period { get; set; } = string.Empty;
+    public DateTime PeriodKey { get; set; }
+    public int Count { get; set; }
 }
 
 public class EnrollmentSummary
