@@ -105,7 +105,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetAssignmentService>();
             
             // Database Sync Service
-            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService, BrightEnroll_DES.Services.Database.Sync.DatabaseSyncService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService, BrightEnroll_DES.Services.Database.Sync.DatabaseSyncServiceRefactor>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
