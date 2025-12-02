@@ -51,13 +51,17 @@ namespace BrightEnroll_DES
             builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();
             builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();
 
+            // --- CONFIGURATION SETUP ---
+            // Build and add configuration to service collection
+            var configurationBuilder = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            
+            var configuration = configurationBuilder.Build();
+            builder.Services.AddSingleton<IConfiguration>(configuration);
+
             // --- LOCAL DATABASE SETUP ---
             // Get connection strings
-            var configuration = new ConfigurationBuilder()
-                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .Build();
-
             var localConnectionString = configuration.GetConnectionString("DefaultConnection");
             
             if (string.IsNullOrWhiteSpace(localConnectionString))
@@ -99,6 +103,9 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.InventoryService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetAssignmentService>();
+            
+            // Database Sync Service
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService, BrightEnroll_DES.Services.Database.Sync.DatabaseSyncService>();
 
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();

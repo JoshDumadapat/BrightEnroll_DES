@@ -2,8 +2,10 @@
 @layout Components.Layout.MainLayout
 @inject IConnectivityService ConnectivityService
 @inject ILoadingService LoadingService
+@inject IDatabaseSyncService SyncService
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Database.Sync
 @implements IDisposable
 
 <PageTitle>Cloud Management</PageTitle>
@@ -58,8 +60,8 @@
                         <p class="text-xs text-gray-500">Syncs all data bidirectionally between local and cloud databases</p>
                     </div>
                     <button @onclick="SyncNow" 
-                            disabled="true"
-                            class="w-full rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
                         @if (isSyncing)
                         {
                             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -85,8 +87,8 @@
                         <p class="text-xs text-gray-500">Uploads all local changes to the cloud database</p>
                     </div>
                     <button @onclick="SyncToCloud" 
-                            disabled="true"
-                            class="w-full rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
                         @if (isSyncing && syncType == "toCloud")
                         {
                             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -112,8 +114,8 @@
                         <p class="text-xs text-gray-500">Downloads all cloud data to the local database</p>
                     </div>
                     <button @onclick="SyncFromCloud" 
-                            disabled="true"
-                            class="w-full rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
                         @if (isSyncing && syncType == "fromCloud")
                         {
                             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -139,8 +141,8 @@
                         <p class="text-xs text-gray-500">Syncs reference data (grade levels, fees, etc.) from cloud to local</p>
                     </div>
                     <button @onclick="SyncReferenceData" 
-                            disabled="true"
-                            class="w-full rounded-lg bg-gray-400 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
                         @if (isSyncing && syncType == "reference")
                         {
                             <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -209,52 +211,197 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private Task SyncNow()
+    private async Task SyncNow()
     {
-        // Cloud sync functionality has been removed
-        syncStatusMessage = "Cloud synchronization is not available. This feature has been disabled.";
-        syncStatusType = "error";
-        toastMessage = "Cloud sync is not available.";
-        toastType = ToastType.Error;
-        showToast = true;
-        StateHasChanged();
-        return Task.CompletedTask;
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "full";
+        syncStatusMessage = "";
+        LoadingService.ShowLoading("Synchronizing with cloud...");
+        
+        try
+        {
+            var result = await SyncService.FullSyncAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Sync failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+            
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Sync error: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            LoadingService.HideLoading();
+            StateHasChanged();
+        }
     }
 
-    private Task SyncToCloud()
+    private async Task SyncToCloud()
     {
-        // Cloud sync functionality has been removed
-        syncStatusMessage = "Cloud synchronization is not available. This feature has been disabled.";
-        syncStatusType = "error";
-        toastMessage = "Cloud sync is not available.";
-        toastType = ToastType.Error;
-        showToast = true;
-        StateHasChanged();
-        return Task.CompletedTask;
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "toCloud";
+        syncStatusMessage = "";
+        LoadingService.ShowLoading("Uploading to cloud...");
+        
+        try
+        {
+            var result = await SyncService.SyncToCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Uploaded {result.RecordsPushed} records to cloud.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Upload failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+            
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Upload error: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            LoadingService.HideLoading();
+            StateHasChanged();
+        }
     }
 
-    private Task SyncFromCloud()
+    private async Task SyncFromCloud()
     {
-        // Cloud sync functionality has been removed
-        syncStatusMessage = "Cloud synchronization is not available. This feature has been disabled.";
-        syncStatusType = "error";
-        toastMessage = "Cloud sync is not available.";
-        toastType = ToastType.Error;
-        showToast = true;
-        StateHasChanged();
-        return Task.CompletedTask;
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "fromCloud";
+        syncStatusMessage = "";
+        LoadingService.ShowLoading("Downloading from cloud...");
+        
+        try
+        {
+            var result = await SyncService.SyncFromCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Downloaded {result.RecordsPulled} records from cloud.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Download failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+            
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Download error: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            LoadingService.HideLoading();
+            StateHasChanged();
+        }
     }
 
-    private Task SyncReferenceData()
+    private async Task SyncReferenceData()
     {
-        // Cloud sync functionality has been removed
-        syncStatusMessage = "Cloud synchronization is not available. This feature has been disabled.";
-        syncStatusType = "error";
-        toastMessage = "Cloud sync is not available.";
-        toastType = ToastType.Error;
-        showToast = true;
-        StateHasChanged();
-        return Task.CompletedTask;
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "reference";
+        syncStatusMessage = "";
+        LoadingService.ShowLoading("Syncing reference data...");
+        
+        try
+        {
+            // Sync only reference tables (GradeLevel, Fees, etc.)
+            var result = await SyncService.SyncFromCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = $"Reference data synced: {result.RecordsPulled} records updated.";
+                syncStatusType = "success";
+                toastMessage = "Reference data synced successfully.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Sync failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+            
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Sync error: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            LoadingService.HideLoading();
+            StateHasChanged();
+        }
     }
 
     private void CloseToast()
