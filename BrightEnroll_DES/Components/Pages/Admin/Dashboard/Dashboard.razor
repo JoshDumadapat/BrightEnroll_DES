@@ -480,9 +480,16 @@
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
 
-            // Set other cards to 0 (not connected yet)
-            TotalEnrolled = 0;
-            TotalTuitionCollected = 0;
+            // Calculate TotalEnrolled - students with status "Enrolled"
+            TotalEnrolled = allStudents.Count(s => 
+                s.Status != null && 
+                (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
+                 s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
+                 s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
+
+            // Calculate TotalTuitionCollected - sum of all student payments
+            TotalTuitionCollected = await Context.StudentPayments
+                .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
             // Load tuition fees
             await LoadTuitionFees();
@@ -712,6 +719,24 @@
             NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
+
+            // Calculate TotalEnrolled - students with status "Enrolled"
+            TotalEnrolled = allStudents.Count(s => 
+                s.Status != null && 
+                (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
+                 s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
+                 s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
+
+            // Calculate TotalTuitionCollected - sum of all student payments (with date filter if provided)
+            var paymentsQuery = Context.StudentPayments.AsQueryable();
+            if (fromDate.HasValue && toDate.HasValue)
+            {
+                paymentsQuery = paymentsQuery.Where(p => 
+                    p.CreatedAt.Date >= fromDate.Value.Date && 
+                    p.CreatedAt.Date <= toDate.Value.Date);
+            }
+            TotalTuitionCollected = await paymentsQuery
+                .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
             StateHasChanged();
         }
