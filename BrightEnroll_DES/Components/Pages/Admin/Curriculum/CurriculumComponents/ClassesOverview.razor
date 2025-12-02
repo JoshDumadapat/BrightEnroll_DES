@@ -34,13 +34,6 @@
                     <option value="@sec">@sec</option>
                 }
             </select>
-            <select @bind="SubjectFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                <option value="">Subject</option>
-                @foreach (var subject in AvailableSubjects)
-                {
-                    <option value="@subject">@subject</option>
-                }
-            </select>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
             <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
@@ -142,7 +135,6 @@
     private string SearchText { get; set; } = "";
     private string GradeFilter { get; set; } = "";
     private string SectionFilter { get; set; } = "";
-    private string SubjectFilter { get; set; } = "";
 
     // Pagination state
     private int CurrentPage { get; set; } = 1;
@@ -151,7 +143,6 @@
     // Available filter options
     private List<string> AvailableGrades => FinalClasses?.Select(fc => fc.GradeLevel).Distinct().OrderBy(g => g).ToList() ?? new List<string>();
     private List<string> AvailableSections => FinalClasses?.Select(fc => fc.SectionName).Distinct().OrderBy(s => s).ToList() ?? new List<string>();
-    private List<string> AvailableSubjects => FinalClasses?.Where(fc => !string.IsNullOrEmpty(fc.SubjectName)).Select(fc => fc.SubjectName!).Distinct().OrderBy(s => s).ToList() ?? new List<string>();
 
     // Group classes by Section (one class = one section per grade)
     private List<ClassGroup> GroupedClasses
@@ -182,11 +173,6 @@
             if (!string.IsNullOrWhiteSpace(SectionFilter))
             {
                 filtered = filtered.Where(c => c.SectionName == SectionFilter);
-            }
-
-            if (!string.IsNullOrWhiteSpace(SubjectFilter))
-            {
-                filtered = filtered.Where(c => c.SubjectName == SubjectFilter);
             }
 
             // Group by Section (one class = one section)
@@ -353,7 +339,6 @@
         SearchText = "";
         GradeFilter = "";
         SectionFilter = "";
-        SubjectFilter = "";
         CurrentPage = 1;
         StateHasChanged();
     }

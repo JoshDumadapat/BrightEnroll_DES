@@ -16,11 +16,11 @@ public class EmployeeFormData
     [Required(ErrorMessage = "Sex is required")]
     public string Sex { get; set; } = string.Empty;
     [Required(ErrorMessage = "Age is required")]
-    [Range(1, 100, ErrorMessage = "Age must be between 1 and 100")]
+    [Range(18, 65, ErrorMessage = "Age must be between 18 and 65 years old")]
     public int? Age { get; set; }
     [Required(ErrorMessage = "Contact number is required")]
-    [RegularExpression(@"^\d{1,11}$", ErrorMessage = "Contact number must contain only numbers and be maximum 11 digits")]
-    [MaxLength(11, ErrorMessage = "Contact number must be maximum 11 digits")]
+    [RegularExpression(@"^09\d{9}$", ErrorMessage = "Contact number must start with 09 and be 11 digits")]
+    [MaxLength(11, ErrorMessage = "Contact number must be 11 digits")]
     public string ContactNumber { get; set; } = string.Empty;
     [Required(ErrorMessage = "Email is required")]
     [EmailAddress(ErrorMessage = "Invalid email address format")]
@@ -52,8 +52,8 @@ public class EmployeeFormData
     public string EmergencyContactRelationship { get; set; } = string.Empty;
     public string EmergencyContactRelationshipOther { get; set; } = string.Empty;
     [Required(ErrorMessage = "Emergency contact number is required")]
-    [RegularExpression(@"^\d{1,11}$", ErrorMessage = "Emergency contact number must contain only numbers and be maximum 11 digits")]
-    [MaxLength(11, ErrorMessage = "Emergency contact number must be maximum 11 digits")]
+    [RegularExpression(@"^09\d{9}$", ErrorMessage = "Emergency contact number must start with 09 and be 11 digits")]
+    [MaxLength(11, ErrorMessage = "Emergency contact number must be 11 digits")]
     public string EmergencyContactNumber { get; set; } = string.Empty;
     public string EmergencyContactAddress { get; set; } = string.Empty;
     

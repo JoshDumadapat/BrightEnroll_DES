@@ -21,7 +21,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Room Name <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" @bind="Classroom.RoomName" 
+                            <input type="text" @bind="Classroom.RoomName" @bind:after="MarkEdited"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
                                    required />
                         </div>
@@ -31,7 +31,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Room Type <span class="text-red-500">*</span>
                             </label>
-                            <select @bind="Classroom.RoomType" 
+                            <select @bind="Classroom.RoomType" @bind:after="MarkEdited"
                                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
                                     required>
                                 <option value="">Select Room Type</option>
@@ -50,7 +50,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Capacity <span class="text-red-500">*</span>
                             </label>
-                            <input type="number" @bind="Classroom.Capacity" 
+                            <input type="number" @bind="Classroom.Capacity" @bind:after="MarkEdited"
                                    min="1"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
                                    required />
@@ -61,7 +61,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Building <span class="text-red-500">*</span>
                             </label>
-                            <input type="text" @bind="Classroom.BuildingName" 
+                            <input type="text" @bind="Classroom.BuildingName" @bind:after="MarkEdited"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
                                    required />
                         </div>
@@ -71,7 +71,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Floor Number <span class="text-red-500">*</span>
                             </label>
-                            <input type="number" @bind="Classroom.FloorNumber" 
+                            <input type="number" @bind="Classroom.FloorNumber" @bind:after="MarkEdited"
                                    min="0"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"
                                    required />
@@ -93,7 +93,7 @@
                             <label class="mb-2 block text-sm font-medium text-gray-700">
                                 Notes
                             </label>
-                            <textarea @bind="Classroom.Notes" 
+                            <textarea @bind="Classroom.Notes" @bind:after="MarkEdited"
                                      rows="3"
                                      placeholder="Enter additional remarks..."
                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-yellow-400"></textarea>
@@ -165,7 +165,7 @@
             <div class="px-6 py-4">
                 <p class="mb-4 text-sm text-gray-700">Are you sure you want to cancel? All changes will be discarded.</p>
                 <div class="flex justify-end">
-                    <button @onclick="ConfirmCancel" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #f87171;">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
                         Confirm
                     </button>
                 </div>
@@ -267,10 +267,10 @@
 <!-- Validation Error Modal -->
 @if (showValidationModal)
 {
-    <div class="z-[60] fixed inset-0 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
         <div id="edit-classroom-validation-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
-                <h3 class="text-base font-semibold text-white">Validation Error</h3>
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Validation Error</h3>
             </div>
             <div class="px-6 py-4">
                 <p class="mb-3 text-sm font-medium text-gray-800">Please fill in the following required fields:</p>
@@ -282,7 +282,7 @@
                 </ul>
             </div>
             <div class="flex justify-end border-t border-gray-200 px-6 py-3">
-                <button @onclick="CloseValidationModal" class="rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:opacity-90">
+                <button @onclick="CloseValidationModal" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
                     OK
                 </button>
             </div>
@@ -308,6 +308,7 @@
     private string availableNote = "";
     private string originalNotes = "";
     private bool showUnavailableReasonError = false;
+    private bool hasEdited = false;
 
     protected override void OnParametersSet()
     {
@@ -318,6 +319,7 @@
             unavailableReason = "";
             availableNote = "";
             showUnavailableReasonError = false;
+            hasEdited = false;
         }
     }
 
@@ -326,6 +328,7 @@
         // Check if status actually changed
         if (Classroom.IsActive != originalIsActive)
         {
+            hasEdited = true;
             // If setting to unavailable, show reason modal
             if (!Classroom.IsActive)
             {
@@ -351,6 +354,11 @@
             return;
         }
         showSubmitConfirmModal = true;
+    }
+
+    private void MarkEdited()
+    {
+        hasEdited = true;
     }
 
     private bool ValidateForm()
@@ -381,7 +389,17 @@
         {
             validationErrors.Add("Floor Number must be 0 or greater");
         }
-        
+        if (Classroom.FloorNumber == 0)
+        {
+            validationErrors.Add("Floor Number is required");
+        }
+
+        // Room name should be unique (case-insensitive) when provided from parent via ValidationError
+        if (!string.IsNullOrWhiteSpace(ValidationError) && ValidationError.Contains("Room name already exists"))
+        {
+            validationErrors.Add("Room name already exists. Please choose a different name.");
+        }
+
         return validationErrors.Count == 0;
     }
 
@@ -403,14 +421,13 @@
 
     private void ShowCancelConfirm()
     {
-        if (HasData())
-        {
-            showCancelConfirmModal = true;
-        }
-        else
+        if (!hasEdited)
         {
             OnClose.InvokeAsync();
+            return;
         }
+
+        showCancelConfirmModal = true;
     }
 
     private void CloseCancelConfirmModal()
@@ -441,15 +458,15 @@
         {
             return;
         }
-        
-        // If no data entered, allow closing
-        if (!HasData())
+
+        // If nothing was edited, allow closing
+        if (!hasEdited)
         {
             await OnClose.InvokeAsync();
         }
         else
         {
-            // If data exists, play sound and shake modal
+            // If data was edited, play sound and shake modal (prevent close)
             try
             {
                 await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "edit-classroom-modal");

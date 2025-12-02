@@ -72,7 +72,7 @@
                                    placeholder="Email or System ID"
                                    class="@EmailOrSystemIdInputClass" />
                         </div>
-                        @if (emailOrSystemIdError && string.IsNullOrWhiteSpace(_emailOrSystemId))
+                        @if (emailOrSystemIdError && !loginError && string.IsNullOrWhiteSpace(_emailOrSystemId))
                         {
                             <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Email or System ID is required</p>
                         }
@@ -115,9 +115,9 @@
                                 }
                             </button>
                         </div>
-                    @if (passwordError && string.IsNullOrWhiteSpace(_password))
+                    @if (passwordError && !loginError && string.IsNullOrWhiteSpace(_password))
                     {
-                            <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Password is required</p>
+                        <p class="mt-0.5 text-sm text-red-600 sm:mt-1 sm:text-sm">Password is required</p>
                     }
                 </div>
 
@@ -148,8 +148,22 @@
 
                     <!-- Submit Button - Capsule Shape -->
                     <button type="submit"
-                            class="mx-auto block w-3/4 rounded-full bg-blue-600 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:bg-blue-800 sm:py-2.5 sm:text-sm md:py-3 md:text-base">
-                        LOG IN
+                            disabled="@isLoggingIn"
+                            class="mx-auto block w-3/4 rounded-full bg-blue-600 py-2 text-sm font-semibold uppercase tracking-wide text-white shadow-md transition-all hover:bg-blue-700 hover:shadow-lg active:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-70 sm:py-2.5 sm:text-sm md:py-3 md:text-base">
+                        @if (isLoggingIn)
+                        {
+                            <span class="flex items-center justify-center gap-2">
+                                <svg class="h-4 w-4 animate-spin text-white sm:h-5 sm:w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>LOGGING IN...</span>
+                            </span>
+                        }
+                        else
+                        {
+                            <span>LOG IN</span>
+                        }
                     </button>
 
 
@@ -176,6 +190,7 @@
     private bool emailOrSystemIdError = false;
     private bool passwordError = false;
     private bool loginError = false;
+    private bool isLoggingIn = false;
     private RememberMeHandler? _rememberMeHandler;
 
     // Email or System ID property with setter to clear error on input
@@ -352,16 +367,14 @@
 
     private async Task HandleLogin()
     {
-        // Show loading screen IMMEDIATELY on button click, before any validation
-        LoadingService.ShowLoading("Logging in...");
-        StateHasChanged(); // Force immediate UI update
-        
-        // Reset errors
+        // Reset errors first
         emailOrSystemIdError = false;
         passwordError = false;
         loginError = false;
+        isLoggingIn = false;
+        StateHasChanged();
 
-        // Validate fields
+        // Validate fields BEFORE showing any loading state
         bool isValid = true;
 
         if (string.IsNullOrWhiteSpace(_emailOrSystemId))
@@ -376,15 +389,16 @@
             isValid = false;
         }
 
-        // If validation fails, hide loading and show errors
+        // If validation fails, show errors immediately and return (no loading)
         if (!isValid)
         {
-            LoadingService.HideLoading();
             StateHasChanged();
             return;
         }
         
-        var startTime = DateTime.Now;
+        // Only show loading state on button if validation passes
+        isLoggingIn = true;
+        StateHasChanged();
 
         try
         {
@@ -399,6 +413,11 @@
                     await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
                 }
 
+                // Hide button loading and show full screen loading for redirect
+                isLoggingIn = false;
+                LoadingService.ShowLoading("Logging in...");
+                StateHasChanged();
+
                 // Login successful - redirect based on user role
                 try
                 {
@@ -410,19 +429,14 @@
                     // Small delay to ensure state is updated before navigation
                     await Task.Delay(100);
                     
-                    // Hide loading screen before navigation to prevent it from getting stuck
-                    LoadingService.HideLoading();
-                    
-                    // Small delay to ensure loading screen is hidden
-                    await Task.Delay(50);
-                    
                     // Navigate to the appropriate page
                     Navigation.NavigateTo(redirectPath, forceLoad: true);
                 }
                 catch (Exception ex)
                 {
-                    // If role detection fails, just go to dashboard and hide loading
-                    LoadingService.HideLoading();
+                    // Log the exception for diagnostics, but fall back to dashboard
+                    Console.WriteLine($"Error determining redirect path after login: {ex}");
+
                     await Task.Delay(50);
                     Navigation.NavigateTo("/dashboard", forceLoad: true);
                 }
@@ -430,7 +444,7 @@
             else
             {
                 // Login failed - show error message and red outlines on both fields
-                LoadingService.HideLoading();
+                isLoggingIn = false;
                 loginError = true;
                 emailOrSystemIdError = true;
                 passwordError = true;  
@@ -439,17 +453,15 @@
         }
         catch (Exception ex)
         {
-            // Ensure loading screen shows for at least 1 second even on error
-            var elapsed = DateTime.Now - startTime;
-            var minDuration = TimeSpan.FromSeconds(1);
-            if (elapsed < minDuration)
-            {
-                await Task.Delay(minDuration - elapsed);
-            }
-            LoadingService.HideLoading();
+            // On error, hide loading and show error
+            isLoggingIn = false;
             loginError = true;
             emailOrSystemIdError = true;
             passwordError = true;
+
+            // Log the exception so it is not silently swallowed
+            Console.WriteLine($"Unexpected error during login: {ex}");
+
             StateHasChanged();
         }
     }

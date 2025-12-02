@@ -21,9 +21,10 @@
             </div>
             <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                 <option value="">Grade</option>
-            </select>
-            <select @bind="SubjectFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                <option value="">Subject</option>
+                @foreach (var grade in AvailableGrades)
+                {
+                    <option value="@grade">@grade</option>
+                }
             </select>
         </div>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -47,6 +48,7 @@
             <th class="px-4 py-3 text-left">Grade</th>
             <th class="px-4 py-3 text-left">Section</th>
             <th class="px-4 py-3 text-left">Classroom</th>
+            <th class="px-4 py-3 text-left">Adviser</th>
             <th class="px-4 py-3 text-left">Subjects</th>
             <th class="px-4 py-3 text-left">Subject Names</th>
             <th class="px-4 py-3 text-center">Actions</th>
@@ -61,6 +63,11 @@
                     <td class="px-4 py-3">@assignment.Grade</td>
                     <td class="px-4 py-3">@assignment.Section</td>
                     <td class="px-4 py-3">@assignment.Classroom</td>
+                    <td class="px-4 py-3">
+                        @(!string.IsNullOrWhiteSpace(assignment.AdviserName) 
+                            ? assignment.AdviserName 
+                            : "-")
+                    </td>
                     <td class="px-4 py-3">
                         @(assignment.SubjectsCount > 0 ? assignment.SubjectsCount.ToString() : "-")
                     </td>
@@ -91,7 +98,7 @@
         else
         {
             <tr>
-                <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                <td colspan="7" class="px-4 py-12 text-center text-gray-500">
                     <div class="flex flex-col items-center justify-center">
                         <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -121,7 +128,14 @@
 
     private string SearchText { get; set; } = "";
     private string GradeFilter { get; set; } = "";
-    private string SubjectFilter { get; set; } = "";
+
+    private List<string> AvailableGrades =>
+        Assignments?
+            .Select(a => a.Grade)
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Distinct()
+            .OrderBy(g => g)
+            .ToList() ?? new List<string>();
 
     // Pagination state
     private int CurrentPage { get; set; } = 1;
@@ -142,17 +156,13 @@
                 filtered = filtered.Where(a => 
                     a.Grade.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
                     a.Section.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    a.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+                    a.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(a.AdviserName) && a.AdviserName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (!string.IsNullOrWhiteSpace(GradeFilter))
             {
                 filtered = filtered.Where(a => a.Grade == GradeFilter);
-            }
-
-            if (!string.IsNullOrWhiteSpace(SubjectFilter))
-            {
-                filtered = filtered.Where(a => a.SubjectsList.Contains(SubjectFilter));
             }
 
             return filtered.ToList();
@@ -187,7 +197,6 @@
     {
         SearchText = "";
         GradeFilter = "";
-        SubjectFilter = "";
         CurrentPage = 1;
         StateHasChanged();
     }

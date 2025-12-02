@@ -744,41 +744,32 @@
         <div id="add-employee-validation-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
             <!-- Modal Header -->
             <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
-                <h3 class="text-base font-semibold text-red-500">Missing Required Fields</h3>
-                <button @onclick="CloseValidationModal" class="text-gray-400 hover:text-gray-600">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <h3 class="text-base font-semibold text-red-500">Validation Error</h3>
             </div>
  
             <!-- Modal Body -->
             <div class="px-6 py-4">
-                <p class="mb-3 text-sm text-gray-700">
-                    Please fill in the following required fields before submitting:
+                <p class="mb-3 text-sm font-medium text-gray-800">
+                    Please fill in the following required fields:
                 </p>
                 
                 @if (missingFields.Any())
                 {
-                    <div class="mb-4 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-3">
-                        <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
-                            @foreach (var field in missingFields)
-                            {
-                                <li>@field</li>
-                            }
-                        </ul>
-                    </div>
+                    <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                        @foreach (var field in missingFields)
+                        {
+                            <li>@field</li>
+                        }
+                    </ul>
                 }
                 else
                 {
-                    <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
-                        <p class="text-sm text-gray-700">Please complete all required fields marked with <span class="text-red-500">*</span></p>
-                    </div>
+                    <p class="text-sm text-gray-700">Please complete all required fields marked with <span class="text-red-500">*</span></p>
                 }
             </div>
 
             <div class="flex justify-end border-t border-gray-200 px-6 py-3">
-                <button type="button" @onclick="CloseValidationModal" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90 bg-red-500">
+                <button type="button" @onclick="CloseValidationModal" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
                     OK
                 </button>
             </div>
@@ -1171,11 +1162,26 @@
             if (EmployeeData.BirthDate.Value.Date > today.AddYears(-age))
                 age--;
             EmployeeData.Age = age;
+            
+            // The Range attribute on Age property will automatically validate
+            // that age is between 18-65 and show the error message
+            
+            // Notify EditContext that Age and BirthDate fields have changed
+            if (editContext != null)
+            {
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Age)));
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.BirthDate)));
+            }
         }
         else
         {
             EmployeeData.Age = null;
+            if (editContext != null)
+            {
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(EmployeeData.Age)));
+            }
         }
+        StateHasChanged();
     }
 
     // Address handler methods

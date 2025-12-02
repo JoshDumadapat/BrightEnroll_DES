@@ -31,9 +31,10 @@
             </select>
             <select @bind="BuildingFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                 <option value="">Building</option>
-                <option value="Main Building">Main Building</option>
-                <option value="Science Building">Science Building</option>
-                <option value="Annex Building">Annex Building</option>
+                @foreach (var building in AvailableBuildings)
+                {
+                    <option value="@building">@building</option>
+                }
             </select>
             <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                 <option value="">Status</option>
@@ -145,6 +146,14 @@
     private string TypeFilter { get; set; } = "";
     private string BuildingFilter { get; set; } = "";
     private string StatusFilter { get; set; } = "";
+
+    private List<string> AvailableBuildings =>
+        ClassroomsList?
+            .Select(c => c.BuildingName)
+            .Where(b => !string.IsNullOrWhiteSpace(b))
+            .Distinct()
+            .OrderBy(b => b)
+            .ToList() ?? new List<string>();
 
     // Pagination state
     private int CurrentPage { get; set; } = 1;

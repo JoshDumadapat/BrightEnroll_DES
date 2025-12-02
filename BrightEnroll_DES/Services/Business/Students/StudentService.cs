@@ -608,6 +608,9 @@ public class StudentService
         return await _context.Students
             .Include(s => s.Guardian)
             .Include(s => s.Requirements)
+            .Include(s => s.SectionEnrollments)
+                .ThenInclude(e => e.Section)
+                    .ThenInclude(sec => sec.GradeLevel)
             .FirstOrDefaultAsync(s => s.StudentId == studentId);
     }
 
@@ -636,43 +639,45 @@ public class StudentService
         {
             var enrolledStatus = "Enrolled";
             
-            var enrolledStudents = await _context.StudentDataViews
-                .FromSqlRaw(@"
-                    SELECT 
-                        StudentId,
-                        FirstName,
-                        MiddleName,
-                        LastName,
-                        Suffix,
-                        FullName,
-                        BirthDate,
-                        Age,
-                        LRN,
-                        GradeLevel,
-                        SchoolYear,
-                        DateRegistered,
-                        Status,
-                        StudentType
-                    FROM [dbo].[vw_StudentData] 
-                    WHERE Status = {0}", enrolledStatus)
-                .Where(s => s.Status == enrolledStatus)
-                .OrderByDescending(s => s.DateRegistered)
-                .Select(s => new EnrolledStudentDto
-                {
-                    Id = s.StudentId ?? "N/A",
-                    Name = s.FullName ?? "N/A",
-                    LRN = s.LRN ?? "N/A",
-                    Date = s.DateRegistered.HasValue 
-                        ? s.DateRegistered.Value.ToString("dd MMM yyyy") 
-                        : "N/A",
-                    GradeLevel = s.GradeLevel ?? "N/A",
-                    Section = "N/A", // Section not in database yet
-                    Documents = "Verified", // Default value
-                    Status = s.Status ?? "Pending"
-                })
+            // Base query from section enrollments so we can get section + grade information
+            var query = _context.StudentSectionEnrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.Requirements)
+                .Include(e => e.Section)
+                    .ThenInclude(sec => sec.GradeLevel)
+                .Where(e => e.Status == enrolledStatus);
+
+            var enrollments = await query
+                .OrderByDescending(e => e.Student.DateRegistered)
                 .ToListAsync();
 
-            return enrolledStudents;
+            var result = new List<EnrolledStudentDto>();
+
+            foreach (var enrollment in enrollments)
+            {
+                var s = enrollment.Student;
+
+                var fullName = $"{s.FirstName} {s.MiddleName} {s.LastName}"
+                    .Replace("  ", " ")
+                    .Trim();
+
+                var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
+                    s.Requirements, s.StudentType);
+
+                result.Add(new EnrolledStudentDto
+                {
+                    Id = s.StudentId,
+                    Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
+                    LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
+                    Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                    GradeLevel = s.GradeLevel ?? enrollment.Section.GradeLevel?.GradeLevelName ?? "N/A",
+                    Section = enrollment.Section.SectionName ?? "N/A",
+                    Documents = docsVerified ? "Verified" : "Pending",
+                    Status = enrollment.Status ?? s.Status ?? enrolledStatus
+                });
+            }
+
+            return result;
         }
         catch (Exception ex)
         {

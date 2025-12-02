@@ -51,6 +51,88 @@ public class ArchiveService
         }
     }
 
+    // Gets all employees whose latest status is Inactive, with their latest inactive reason
+    public async Task<List<Components.Pages.Admin.Archive.ArchivedEmployee>> GetArchivedEmployeesAsync()
+    {
+        try
+        {
+            const string inactiveStatus = "Inactive";
+
+            // 1. Get the latest status-change log per user (any status)
+            var latestStatusLogsByUserId = await _context.UserStatusLogs
+                .GroupBy(l => l.UserId)
+                .Select(g => g.OrderByDescending(l => l.CreatedAt).First())
+                .ToListAsync();
+
+            // 2. From those logs, keep only users whose *current* (latest) status is Inactive
+            var inactiveUserIds = latestStatusLogsByUserId
+                .Where(l => !string.IsNullOrWhiteSpace(l.NewStatus) &&
+                            l.NewStatus.Trim().Equals(inactiveStatus, StringComparison.OrdinalIgnoreCase))
+                .Select(l => l.UserId)
+                .Distinct()
+                .ToList();
+
+            if (!inactiveUserIds.Any())
+            {
+                return new List<Components.Pages.Admin.Archive.ArchivedEmployee>();
+            }
+
+            // 3. Get employee view data only for those inactive users
+            var inactiveEmployees = await _context.EmployeeDataViews
+                .Where(e => inactiveUserIds.Contains(e.UserId))
+                .ToListAsync();
+
+            // 4. For archive reason / date, we still care about the latest *inactive* log
+            var latestInactiveLogsByUserId = await _context.UserStatusLogs
+                .Where(l => inactiveUserIds.Contains(l.UserId) &&
+                            !string.IsNullOrWhiteSpace(l.NewStatus) &&
+                            l.NewStatus.Trim().Equals(inactiveStatus, StringComparison.OrdinalIgnoreCase))
+                .GroupBy(l => l.UserId)
+                .Select(g => g.OrderByDescending(l => l.CreatedAt).First())
+                .ToDictionaryAsync(l => l.UserId, l => l);
+
+            // 5. Build the result list
+            var result = inactiveEmployees
+                .Select(emp =>
+                {
+                    latestInactiveLogsByUserId.TryGetValue(emp.UserId, out var latestInactiveLog);
+                    var archivedDate = latestInactiveLog?.CreatedAt ?? (emp.DateHired ?? DateTime.Now);
+
+                    return new Components.Pages.Admin.Archive.ArchivedEmployee
+                    {
+                        Id = emp.SystemId ?? emp.UserId.ToString(),
+                        Name = emp.FullName
+                               ?? ($"{emp.FirstName} {emp.MiddleName ?? ""} {emp.LastName}"
+                                   .Replace("  ", " ")
+                                   .Trim()),
+                        Address = emp.FormattedAddress
+                                  ?? $"{emp.HouseNo ?? ""} {emp.StreetName ?? ""}, {emp.Barangay ?? ""}, {emp.City ?? ""}, {emp.Province ?? ""}"
+                                     .Replace("  ", " ")
+                                     .Trim()
+                                     .Trim(',', ' '),
+                        Contact = emp.ContactNumber ?? string.Empty,
+                        Email = emp.Email ?? string.Empty,
+                        Role = emp.Role ?? string.Empty,
+                        Status = emp.Status ?? inactiveStatus,
+                        ArchivedDate = archivedDate.ToString("dd MMM yyyy"),
+                        ArchivedReason = latestInactiveLog?.Reason ?? string.Empty
+                    };
+                })
+                .OrderByDescending(e => DateTime.ParseExact(
+                    e.ArchivedDate,
+                    "dd MMM yyyy",
+                    System.Globalization.CultureInfo.InvariantCulture))
+                .ToList();
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching archived employees: {Message}", ex.Message);
+            return new List<Components.Pages.Admin.Archive.ArchivedEmployee>();
+        }
+    }
+
     // Gets archived student by ID
     public async Task<Components.Pages.Admin.Archive.ArchivedStudent?> GetArchivedStudentAsync(string studentId)
     {

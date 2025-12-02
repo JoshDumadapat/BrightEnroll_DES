@@ -541,10 +541,14 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             if (registrationModel.BirthDate.Value.Date > today.AddYears(-age)) age--;
             registrationModel.Age = age;
             
-            // Notify EditContext that Age field has changed so validation errors are cleared
+            // The Range attribute on Age property will automatically validate
+            // that age is >= 3 and show the error message
+            
+            // Notify EditContext that Age field has changed so validation runs
             if (editContext != null)
             {
                 editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.Age)));
+                editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.BirthDate)));
             }
         }
         else

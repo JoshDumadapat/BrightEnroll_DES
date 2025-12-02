@@ -129,6 +129,7 @@
 
 <ViewAssignmentModal Show="ShowViewAssignmentModal" 
                     Assignment="ViewingAssignment" 
+                    ClassRows="ViewingClassRows"
                     OnClose="CloseViewAssignmentModal" />
 
 <!-- Error Modal -->
@@ -165,8 +166,8 @@
 {
     <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowDeleteSectionModal = false">
         <div id="delete-section-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
-                <h3 class="text-base font-semibold text-white">Remove Section</h3>
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Remove Section</h3>
             </div>
             <div class="px-6 py-4">
                 <p class="text-sm text-gray-700 mb-2">Are you sure you want to remove this section?</p>
@@ -177,7 +178,7 @@
                 <button @onclick="() => ShowDeleteSectionModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button @onclick="HandleDeleteSection" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                <button @onclick="HandleDeleteSection" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
                     Remove
                 </button>
             </div>
@@ -190,8 +191,8 @@
 {
     <div class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowDeleteSubjectModal = false">
         <div id="delete-subject-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <div class="flex items-center rounded-t-2xl bg-red-500 px-6 py-2">
-                <h3 class="text-base font-semibold text-white">Remove Subject</h3>
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Remove Subject</h3>
             </div>
             <div class="px-6 py-4">
                 <p class="text-sm text-gray-700 mb-2">Are you sure you want to remove this subject?</p>
@@ -202,7 +203,7 @@
                 <button @onclick="() => ShowDeleteSubjectModal = false" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
                     Cancel
                 </button>
-                <button @onclick="HandleDeleteSubject" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600">
+                <button @onclick="HandleDeleteSubject" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
                     Remove
                 </button>
             </div>
@@ -388,7 +389,12 @@
     private List<Classroom> Classrooms = new();
     private List<Section> Sections = new();
     private List<Subject> Subjects = new();
+    // Summary list used for Teacher Assignment table
     private List<TeacherAssignmentModel> Assignments = new();
+    // Detailed list (with teacher, role, schedules, building, etc.) used for view modals
+    private List<TeacherAssignmentModel> DetailedAssignments = new();
+    // When viewing from Classes Overview, this holds all FinalClassView rows for the selected class
+    private List<DataModels.FinalClassView>? ViewingClassRows = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -436,6 +442,21 @@
                 }
             }
 
+            // Normalize classroom/building info for FinalClasses using section data so that
+            // Classroom always shows the room name and BuildingName is accurate.
+            if (FinalClasses.Any())
+            {
+                foreach (var fc in FinalClasses)
+                {
+                    var sectionEntity = DbSections.FirstOrDefault(s => s.SectionName == fc.SectionName);
+                    if (sectionEntity?.Classroom != null)
+                    {
+                        fc.Classroom = sectionEntity.Classroom.RoomName ?? fc.Classroom;
+                        fc.BuildingName = sectionEntity.Classroom.BuildingName ?? fc.BuildingName;
+                    }
+                }
+            }
+
             Logger.LogInformation("Loaded {ClassroomCount} classrooms, {SectionCount} sections, {SubjectCount} subjects, {AssignmentCount} assignments, {FinalClassCount} final classes", 
                 DbClassrooms.Count, DbSections.Count, DbSubjects.Count, DbAssignments.Count, FinalClasses.Count);
 
@@ -459,16 +480,17 @@
                 GradeLevel = s.GradeLevel?.GradeLevelName ?? "",
                 Classroom = s.Classroom?.RoomName ?? "",
                 Capacity = s.Capacity,
-            HomeroomTeacher = s.Adviser != null
-                ? $"{s.Adviser.FirstName} {s.Adviser.LastName}"
-                : GetHomeroomTeacher(s.SectionId),
                 Notes = s.Notes ?? ""
             }).ToList();
 
             Subjects = await MapSubjectsToUIAsync();
             Logger.LogInformation("Mapped {SubjectCount} subjects to UI", Subjects.Count);
 
+            // Section-level summary list for Teacher Assignment tab
             Assignments = BuildSectionAssignmentsFromDb();
+
+            // Detailed assignments (per teacher/subject/schedule) for view/edit modals
+            DetailedAssignments = await MapAssignmentsToUIAsync();
             
             StateHasChanged();
         }
@@ -511,21 +533,21 @@
         {
             var gradeName = section.GradeLevel?.GradeLevelName ?? "";
             var classroomName = section.Classroom?.RoomName ?? "";
+            var adviserName = GetHomeroomTeacher(section.SectionId);
 
-            // Subject list for this section
+            // Only include sections that actually have non-archived subject_teacher assignments
             subjectTeacherBySection.TryGetValue(section.SectionId, out var sectionSubjectAssignments);
-            var subjectNames = sectionSubjectAssignments?
+            if (sectionSubjectAssignments == null || !sectionSubjectAssignments.Any())
+            {
+                continue;
+            }
+
+            var subjectNames = sectionSubjectAssignments
                 .Where(a => a.Subject != null)
                 .Select(a => a.Subject!.SubjectName)
                 .Distinct()
                 .OrderBy(n => n)
-                .ToList() ?? new List<string>();
-
-            if (!subjectNames.Any())
-            {
-                // Still show the section row with zero subjects
-                subjectNames = new List<string>();
-            }
+                .ToList();
 
             // Prefer the adviser assignment ID for editing, fall back to any subject_teacher assignment
             var adviserAssignment = DbAssignments
@@ -542,6 +564,7 @@
                 Grade = gradeName,
                 Section = section.SectionName,
                 Classroom = classroomName,
+                AdviserName = adviserName,
                 SubjectsCount = subjectNames.Count,
                 SubjectsList = subjectNames
             };
@@ -726,13 +749,14 @@
                 subjectsList.Add(dbAssignment.Subject.SubjectName);
             }
             
-            // Get building name from first schedule if available
+            // Get classroom and building name from first schedule if available
             var firstSchedule = assignmentSchedules.FirstOrDefault();
             var buildingName = firstSchedule?.Room?.BuildingName ?? "";
-            var classroomDisplay = firstSchedule?.Room != null 
-                ? (string.IsNullOrEmpty(buildingName) 
-                    ? firstSchedule.Room.RoomName 
-                    : $"{firstSchedule.Room.RoomName} ({buildingName})")
+            var classroomName = firstSchedule?.Room?.RoomName ?? "";
+            var classroomDisplay = !string.IsNullOrEmpty(classroomName)
+                ? (string.IsNullOrEmpty(buildingName)
+                    ? classroomName
+                    : $"{classroomName} ({buildingName})")
                 : "";
             
             uiAssignments.Add(new TeacherAssignmentModel
@@ -747,6 +771,7 @@
                 Section = dbAssignment.Section?.SectionName ?? "",
                 Schedule = scheduleText,
                 Classroom = classroomDisplay,
+                BuildingName = buildingName,
                 Time = scheduleText,
                 SelectedDays = assignmentSchedules.Select(s => s.DayOfWeek).ToList(),
                 Role = dbAssignment.Role ?? "",
@@ -830,7 +855,6 @@
             GradeLevel = section.GradeLevel,
             Classroom = section.Classroom,
             Capacity = section.Capacity,
-            HomeroomTeacher = section.HomeroomTeacher,
             Notes = section.Notes
         };
         ShowEditSectionModal = true;
@@ -856,21 +880,13 @@
                 return;
             }
 
-            // Map adviser (homeroom teacher) from selected name to user ID
-            int? adviserId = null;
-            if (!string.IsNullOrWhiteSpace(NewSection.HomeroomTeacher))
-            {
-                var adviser = Teachers.FirstOrDefault(t =>
-                    $"{t.FirstName} {t.LastName}".Equals(NewSection.HomeroomTeacher, StringComparison.OrdinalIgnoreCase));
-                adviserId = adviser?.UserId;
-            }
-
+            // Adviser is not set during section creation - it will be assigned later via Teacher Assignment
             var dbSection = new DataModels.Section
             {
                 SectionName = NewSection.Name,
                 GradeLevelId = gradeLevel.GradeLevelId,
                 ClassroomId = classroom?.RoomId,
-                AdviserId = adviserId,
+                AdviserId = null, // Adviser is not set during section creation
                 Capacity = NewSection.Capacity,
                 Notes = NewSection.Notes
             };
@@ -909,19 +925,9 @@
                 var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == EditingSection.GradeLevel);
                 var classroom = DbClassrooms.FirstOrDefault(c => c.RoomName == EditingSection.Classroom);
 
-                // Map adviser (homeroom teacher) from selected name to user ID
-                int? adviserId = null;
-                if (!string.IsNullOrWhiteSpace(EditingSection.HomeroomTeacher))
-                {
-                    var adviser = Teachers.FirstOrDefault(t =>
-                        $"{t.FirstName} {t.LastName}".Equals(EditingSection.HomeroomTeacher, StringComparison.OrdinalIgnoreCase));
-                    adviserId = adviser?.UserId;
-                }
-
                 dbSection.SectionName = EditingSection.Name;
                 dbSection.GradeLevelId = gradeLevel?.GradeLevelId ?? dbSection.GradeLevelId;
-                dbSection.ClassroomId = classroom?.RoomId;
-                dbSection.AdviserId = adviserId;
+                dbSection.ClassroomId = classroom?.RoomId ?? dbSection.ClassroomId;
                 dbSection.Capacity = EditingSection.Capacity;
                 dbSection.Notes = EditingSection.Notes;
 
@@ -1213,19 +1219,82 @@
     
     private void OpenViewAssignmentModal(TeacherAssignmentModel assignment)
     {
-        ViewingAssignment = assignment;
+        // Clear any class-level rows (this is coming from Teacher Assignment tab)
+        ViewingClassRows = null;
+
+        // Prefer the detailed version (with teacher, role, schedules, building info)
+        var detailed = DetailedAssignments.FirstOrDefault(a => a.AssignmentId == assignment.AssignmentId);
+        ViewingAssignment = detailed ?? assignment;
         ShowViewAssignmentModal = true;
     }
     
     private Task OpenViewClassModal(int assignmentId)
     {
-        // Find the assignment from the Assignments list
-        var assignment = Assignments.FirstOrDefault(a => a.AssignmentId == assignmentId);
-        if (assignment != null)
+        // Find a representative row for this class from FinalClasses
+        var primaryRow = FinalClasses.FirstOrDefault(fc => fc.AssignmentId == assignmentId);
+        if (primaryRow == null)
         {
-            ViewingAssignment = assignment;
-            ShowViewAssignmentModal = true;
+            return Task.CompletedTask;
         }
+
+        // All rows for this class (same grade level + section)
+        ViewingClassRows = FinalClasses
+            .Where(fc => fc.GradeLevel == primaryRow.GradeLevel && fc.SectionName == primaryRow.SectionName)
+            .ToList();
+
+        // Determine adviser (adviser or homeroom_all_subjects)
+        var adviserRow = ViewingClassRows
+            .FirstOrDefault(c => c.Role == "adviser") 
+            ?? ViewingClassRows.FirstOrDefault(c => c.Role == "homeroom_all_subjects")
+            ?? primaryRow;
+
+        // Build classroom with building name.
+        // Prefer values from FinalClasses view, but fall back to section's classroom if missing.
+        var classroomName = primaryRow.Classroom ?? string.Empty;
+        var buildingName = primaryRow.BuildingName ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(classroomName) || string.IsNullOrWhiteSpace(buildingName))
+        {
+            var sectionEntity = DbSections
+                .FirstOrDefault(s => s.SectionName == primaryRow.SectionName);
+
+            if (sectionEntity?.Classroom != null)
+            {
+                if (string.IsNullOrWhiteSpace(classroomName))
+                {
+                    classroomName = sectionEntity.Classroom.RoomName ?? string.Empty;
+                }
+
+                if (string.IsNullOrWhiteSpace(buildingName))
+                {
+                    buildingName = sectionEntity.Classroom.BuildingName ?? string.Empty;
+                }
+            }
+        }
+
+        // Collect all unique subjects for this class
+        var subjects = ViewingClassRows
+            .Where(c => !string.IsNullOrEmpty(c.SubjectName))
+            .Select(c => c.SubjectName!)
+            .Distinct()
+            .OrderBy(s => s)
+            .ToList();
+
+        // Build a synthetic TeacherAssignmentModel representing the whole class
+        ViewingAssignment = new TeacherAssignmentModel
+        {
+            Id = $"CLASS-{primaryRow.AssignmentId:D3}",
+            AssignmentId = primaryRow.AssignmentId,
+            TeacherName = adviserRow.TeacherName ?? string.Empty,
+            Grade = primaryRow.GradeLevel ?? string.Empty,
+            Section = primaryRow.SectionName ?? string.Empty,
+            Classroom = classroomName,
+            BuildingName = buildingName,
+            Role = adviserRow.Role ?? string.Empty,
+            SubjectsList = subjects
+        };
+
+        ShowViewAssignmentModal = true;
         return Task.CompletedTask;
     }
     
@@ -1233,6 +1302,7 @@
     {
         ShowViewAssignmentModal = false;
         ViewingAssignment = null;
+        ViewingClassRows = null;
     }
 
     private Task CloseAddAssignmentModal()

@@ -43,6 +43,9 @@ public class TeacherAssignmentModel
     public string Grade { get; set; } = "";
     public string Section { get; set; } = "";
     public string Classroom { get; set; } = "";
+    public string BuildingName { get; set; } = "";
+    // Adviser assigned to this section (homeroom teacher)
+    public string AdviserName { get; set; } = "";
     public int SubjectsCount { get; set; }
     public List<string> SubjectsList { get; set; } = new(); // Names of subjects in this section
 
