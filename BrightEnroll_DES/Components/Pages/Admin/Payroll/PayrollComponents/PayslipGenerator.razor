@@ -2,10 +2,12 @@
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
 @using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
+@using BrightEnroll_DES.Services.QuestPDF
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @inject AppDbContext DbContext
 @inject IJSRuntime JSRuntime
+@inject PayslipPdfGenerator PdfGenerator
 
 <div class="space-y-6">
     <!-- Selection Form -->
@@ -43,9 +45,9 @@
                                class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-600 cursor-not-allowed" />
                     </div>
                     
-                    <!-- Base Salary (Display) -->
+                    <!-- Monthly Salary (Display) -->
                     <div>
-                        <label class="mb-2 block text-sm font-medium text-gray-700">Base Salary</label>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Monthly Salary</label>
                         <input type="text" 
                                value="@(selectedBaseSalary > 0 ? Salary.FormatPeso(selectedBaseSalary) : "--")" 
                                readonly
@@ -199,11 +201,9 @@
     {
         <div class="overflow-hidden rounded-xl bg-white shadow">
             <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-800">Payslip Preview</h2>
-                        <p class="mt-1 text-sm text-gray-600">Pay Period: @payPeriodStart.ToString("MMM dd, yyyy") - @payPeriodEnd.ToString("MMM dd, yyyy")</p>
-                    </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">Payslip Preview</h2>
+                    <p class="mt-1 text-sm text-gray-600">Pay Period: @payPeriodStart.ToString("MMM dd, yyyy") - @payPeriodEnd.ToString("MMM dd, yyyy")</p>
                 </div>
             </div>
 
@@ -266,7 +266,7 @@
                         <h3 class="mb-3 text-sm font-semibold text-green-800">EARNINGS</h3>
                         <div class="flex-1 space-y-2">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Base Salary:</span>
+                                <span class="text-gray-600">Monthly Salary:</span>
                                 <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.BaseSalary)</span>
                             </div>
                             <div class="flex justify-between text-sm">
@@ -355,7 +355,7 @@
                         <thead>
                             <tr class="border-b border-gray-200 bg-gray-50">
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Pay Period</th>
-                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Base Salary</th>
+                                <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Monthly Salary</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Allowance</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Gross Pay</th>
                                 <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">Deductions</th>
@@ -403,15 +403,9 @@
     {
         <div class="overflow-hidden rounded-xl bg-white shadow">
             <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h2 class="text-lg font-semibold text-gray-800">Payslip - @selectedHistoryRecord.PayPeriod</h2>
-                        <p class="mt-1 text-sm text-gray-600">Historical payslip record</p>
-                    </div>
-                    <button @onclick="PrintPayslip" 
-                            class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
-                        Print / Save PDF
-                    </button>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">Payslip - @selectedHistoryRecord.PayPeriod</h2>
+                    <p class="mt-1 text-sm text-gray-600">Historical payslip record</p>
                 </div>
             </div>
 
@@ -474,7 +468,7 @@
                         <h3 class="mb-3 text-sm font-semibold text-green-800">EARNINGS</h3>
                         <div class="flex-1 space-y-2">
                             <div class="flex justify-between text-sm">
-                                <span class="text-gray-600">Base Salary:</span>
+                                <span class="text-gray-600">Monthly Salary:</span>
                                 <span class="font-medium text-gray-800">@Salary.FormatPeso(payslipData.BaseSalary)</span>
                             </div>
                             <div class="flex justify-between text-sm">
@@ -868,12 +862,12 @@
             await LoadEmployeeSalary();
             if (payslipData != null)
             {
-                // Print/Save the payslip
-                await PrintPayslip();
+                // Download the payslip PDF
+                await DownloadPayslipPdf();
                 
                 // In a real implementation, save to database here
                 // For now, we'll just show a success message
-                await JSRuntime.InvokeVoidAsync("alert", "Payslip generated, printed, and saved to records successfully!");
+                await JSRuntime.InvokeVoidAsync("alert", "Payslip generated and downloaded successfully!");
             }
         }
         catch (Exception ex)
@@ -1021,6 +1015,71 @@
     private async Task PrintPayslip()
     {
         await JSRuntime.InvokeVoidAsync("window.print");
+    }
+
+    private async Task DownloadPayslipPdf()
+    {
+        if (payslipData == null)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "No payslip data available to download.");
+            return;
+        }
+
+        try
+        {
+            // Convert PayslipData to PayslipPdfGenerator.PayslipData
+            var pdfPayslipData = new PayslipPdfGenerator.PayslipData
+            {
+                EmployeeId = payslipData.EmployeeId,
+                EmployeeName = payslipData.EmployeeName,
+                Position = payslipData.Position,
+                BaseSalary = payslipData.BaseSalary,
+                Allowance = payslipData.Allowance,
+                GrossPay = payslipData.GrossPay,
+                SSS = payslipData.SSS,
+                PhilHealth = payslipData.PhilHealth,
+                PagIbig = payslipData.PagIbig,
+                WithholdingTax = payslipData.WithholdingTax,
+                TotalDeductions = payslipData.TotalDeductions,
+                NetPay = payslipData.NetPay,
+                PayslipNumber = payslipData.PayslipNumber,
+                Status = payslipData.Status
+            };
+
+            // Determine pay period dates
+            DateTime periodStart = payPeriodStart;
+            DateTime periodEnd = payPeriodEnd;
+            
+            if (showEmployeeHistory && selectedHistoryRecord != null)
+            {
+                // Parse pay period from history record if available
+                var periodParts = selectedHistoryRecord.PayPeriod.Split(" - ");
+                if (periodParts.Length == 2)
+                {
+                    if (DateTime.TryParse(periodParts[0], out var start) && DateTime.TryParse(periodParts[1], out var end))
+                    {
+                        periodStart = start;
+                        periodEnd = end;
+                    }
+                }
+            }
+
+            // Generate PDF
+            var pdfBytes = PdfGenerator.GeneratePayslip(pdfPayslipData, periodStart, periodEnd);
+            
+            // Create filename with payslip number and date
+            var fileName = $"Payslip_{payslipData.PayslipNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            // Convert to base64 for download
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            // Download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating payslip PDF: {ex.Message}");
+        }
     }
 
     private void ClearSelection()

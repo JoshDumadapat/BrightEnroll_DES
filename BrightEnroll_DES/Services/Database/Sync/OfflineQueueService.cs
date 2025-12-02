@@ -136,11 +136,11 @@ public class OfflineQueueService : IOfflineQueueService
         }
     }
 
-    public async Task<List<QueuedOperation>> GetPendingOperationsAsync()
+    public Task<List<QueuedOperation>> GetPendingOperationsAsync()
     {
         // For now, use a simple in-memory list. In production, use a database table.
         // This is a simplified version - you should create a proper table for this.
-        return new List<QueuedOperation>();
+        return Task.FromResult(new List<QueuedOperation>());
     }
 
     public async Task<int> ProcessPendingOperationsAsync()

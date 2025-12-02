@@ -1,6 +1,10 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
 @using BrightEnroll_DES.Components.Pages.Admin
+@using BrightEnroll_DES.Services.QuestPDF
+@using Microsoft.JSInterop
+@inject EnrollmentPdfGenerator PdfGenerator
+@inject IJSRuntime JSRuntime
 @* Enrolled Student Component with Filters *@
 
 <!-- Filters -->
@@ -57,11 +61,22 @@
                 <span class="tooltip-delay">Clear all filters</span>
             </div>
             <div class="group relative">
-                <button @onclick="ExportPDF" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export
+                <button @onclick="ExportPDF" disabled="@isExporting" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto" style="font-size: 13px;">
+                    @if (isExporting)
+                    {
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Exporting...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Export</span>
+                    }
                 </button>
                 <span class="tooltip-delay">Export enrolled students to file</span>
             </div>
@@ -287,9 +302,31 @@
         StateHasChanged();
     }
 
-    private void ExportPDF()
+    private bool isExporting = false;
+
+    private async Task ExportPDF()
     {
-        // Export PDF logic will be implemented here
+        if (isExporting) return;
+        
+        isExporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("Enrolled");
+            var fileName = $"Enrolled_Students_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
     }
 
     private string FormatDate(string dateString)

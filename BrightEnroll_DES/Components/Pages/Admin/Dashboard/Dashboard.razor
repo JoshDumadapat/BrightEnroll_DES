@@ -257,11 +257,15 @@
     <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
         <div class="mb-4 md:mb-6">
             <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="mb-3 text-lg font-bold text-gray-800 md:mb-4 md:text-xl">Total income</h3>
+            <h3 class="mb-1 text-lg font-bold text-gray-800 md:mb-2 md:text-xl">Total income</h3>
+            @if (!string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                <p class="mb-3 text-xs text-gray-500 md:mb-4 md:text-sm">School Year: @CurrentSchoolYear</p>
+            }
             <div class="flex flex-wrap gap-4 md:gap-6">
                 <div class="flex items-center gap-2">
                     <div class="h-2.5 w-2.5 rounded-full bg-green-500 md:h-3 md:w-3"></div>
-                    <span class="text-xs text-gray-600 md:text-sm">Profit</span>
+                    <span class="text-xs text-gray-600 md:text-sm">Collections</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <div class="h-2.5 w-2.5 rounded-full bg-orange-500 md:h-3 md:w-3"></div>
@@ -307,37 +311,6 @@
             </div>
         </div>
         <span class="tooltip-delay">Breakdown of students by type: New, Transferee, and Returnee</span>
-    </div>
-
-    <!-- Enrollment by Grade Level (Bar Chart) -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Enrollment by Grade</h3>
-        </div>
-
-        <!-- Dynamic Chart.js Bar Chart -->
-        <div class="relative h-48 md:h-64">
-            <canvas id="enrollmentByGradeChart"></canvas>
-        </div>
-        <span class="tooltip-delay">Number of enrolled students by grade level</span>
-    </div>
-</div>
-
-<!-- Additional Charts Row -->
-<div class="mt-4 grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
-    <!-- Payment Status Distribution (Pie Chart) -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Payment Status</h3>
-        </div>
-
-        <!-- Dynamic Chart.js Pie Chart -->
-        <div class="relative h-48 md:h-64">
-            <canvas id="paymentStatusChart"></canvas>
-        </div>
-        <span class="tooltip-delay">Distribution of students by payment status</span>
     </div>
 
     <!-- Tuition Fees List -->
@@ -386,6 +359,37 @@
     </div>
 </div>
 
+<!-- Additional Charts Row -->
+<div class="mt-4 grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
+    <!-- Payment Status Distribution (Pie Chart) -->
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
+            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Payment Status</h3>
+        </div>
+
+        <!-- Dynamic Chart.js Pie Chart -->
+        <div class="relative h-48 md:h-64">
+            <canvas id="paymentStatusChart"></canvas>
+        </div>
+        <span class="tooltip-delay">Distribution of students by payment status</span>
+    </div>
+
+    <!-- Enrollment by Grade Level (Bar Chart) -->
+    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
+        <div class="mb-4 md:mb-6">
+            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
+            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Enrollment by Grade</h3>
+        </div>
+
+        <!-- Dynamic Chart.js Bar Chart -->
+        <div class="relative h-48 md:h-64">
+            <canvas id="enrollmentByGradeChart"></canvas>
+        </div>
+        <span class="tooltip-delay">Number of enrolled students by grade level</span>
+    </div>
+</div>
+
 @code {
     // Filter properties
     private DateTime? FromDate { get; set; }
@@ -412,6 +416,9 @@
 
     // Tuition fees list
     private List<TuitionFeeItem>? TuitionFeesList { get; set; }
+
+    // Current school year
+    private string CurrentSchoolYear { get; set; } = string.Empty;
 
     private class TuitionFeeItem
     {
@@ -510,6 +517,9 @@
             // Load tuition fees
             await LoadTuitionFees();
 
+            // Load current school year
+            await LoadCurrentSchoolYear();
+
             StateHasChanged();
         }
         catch (Exception ex)
@@ -566,15 +576,15 @@
             StateHasChanged();
             await Task.Delay(100);
 
-            // Prepare income line chart data
+            // Prepare income line chart data - periods are already formatted as month abbreviations (Jan, Feb, Mar, etc.)
             var incomeLabels = financialData.Select(d => d.Period).ToArray();
             var incomeCollections = financialData.Select(d => (double)d.Collections).ToArray();
             var incomeExpenses = financialData.Select(d => (double)d.Expenses).ToArray();
 
             var incomeDatasets = new object[]
             {
-                new { label = "Collections", data = incomeCollections, borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false },
-                new { label = "Expenses", data = incomeExpenses, borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false }
+                new { label = "Collections", data = incomeCollections, borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 },
+                new { label = "Expenses", data = incomeExpenses, borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 }
             };
 
             await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart", 
@@ -791,6 +801,7 @@
 
             // Apply filters to data loading - updates immediately without loading screen
             await LoadFilteredStatistics(filterFromDate, filterToDate);
+            await LoadCurrentSchoolYear(); // Reload school year in case it changed
             await LoadChartData();
         }
         finally
@@ -1043,6 +1054,27 @@
     {
         // Use a single consistent color so all tuition amounts look uniform
         return "text-green-600";
+    }
+
+    // Load current school year from database
+    private async Task LoadCurrentSchoolYear()
+    {
+        try
+        {
+            // Get the most common school year from StudentSectionEnrollment
+            var mostCommonSchoolYear = await Context.StudentSectionEnrollments
+                .Where(e => !string.IsNullOrEmpty(e.SchoolYear))
+                .GroupBy(e => e.SchoolYear)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .FirstOrDefaultAsync();
+
+            CurrentSchoolYear = mostCommonSchoolYear ?? string.Empty;
+        }
+        catch (Exception)
+        {
+            CurrentSchoolYear = string.Empty;
+        }
     }
 
     public async ValueTask DisposeAsync()

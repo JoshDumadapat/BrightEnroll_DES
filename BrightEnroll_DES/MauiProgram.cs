@@ -98,7 +98,15 @@ namespace BrightEnroll_DES
             // Report services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.EnrollmentReportService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.FinancialReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.AccountingReportService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.ExportService>();
+            
+            // QuestPDF services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.EnrollmentStatisticsService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.EnrollmentPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.Form1PdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PaymentReceiptPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PayslipPdfGenerator>();
             
             // Inventory services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();

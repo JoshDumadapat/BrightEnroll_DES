@@ -15,6 +15,8 @@
 @inject ILoadingService LoadingService
 @inject ILogger<Enrollment> Logger
 @inject IAuthorizationService AuthorizationService
+@inject BrightEnroll_DES.Services.QuestPDF.Form1PdfGenerator Form1PdfGenerator
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Enrollment</PageTitle>
 
@@ -844,6 +846,23 @@
 
             // Update student information
             await StudentService.UpdateStudentAsync(model);
+            
+            // Generate and download Form 1 PDF if student is being enrolled
+            if (statusChanged && model.Status == "Enrolled" && !string.IsNullOrWhiteSpace(model.SchoolYear))
+            {
+                try
+                {
+                    var pdfBytes = await Form1PdfGenerator.GenerateForm1Async(model.StudentId, model.SchoolYear);
+                    var fileName = $"Form1_Enrollment_{model.StudentId}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var base64Content = Convert.ToBase64String(pdfBytes);
+                    await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+                }
+                catch (Exception pdfEx)
+                {
+                    Logger?.LogError(pdfEx, "Error generating Form 1 PDF for student {StudentId}: {Message}", model.StudentId, pdfEx.Message);
+                    // Don't fail the enrollment if PDF generation fails
+                }
+            }
             
             // If student is rejected or withdrawn, archive them
             // Note: Status is already updated by UpdateStudentAsync above, so we just need to mark as archived

@@ -1,10 +1,12 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Services.QuestPDF
 @using Microsoft.Extensions.Logging
 @using System.Linq
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
+@inject PaymentReceiptPdfGenerator PdfGenerator
 @inject ILogger<Payments> Logger
 
 <div class="text-gray-800 p-4 sm:p-6">
@@ -23,7 +25,7 @@
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">Student ID</label>
                 <div class="relative">
-                    <span class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
                         <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
@@ -33,7 +35,7 @@
                            @bind:event="oninput"
                            @onkeypress="HandleSearchKeyPress"
                            placeholder="Enter Student ID and press Enter or click Search"
-                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-11 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                           class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
                 </div>
             </div>
             <div class="flex items-end">
@@ -240,21 +242,8 @@
     <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleReceiptBackdropClick">
         <div id="payment-receipt-modal" class="w-full max-w-2xl mx-4 bg-white rounded-lg shadow-2xl overflow-hidden" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between bg-blue-600 px-6 py-4">
+            <div class="flex items-center justify-center bg-blue-600 px-6 py-4">
                 <h3 class="text-lg font-semibold text-white">Payment Receipt</h3>
-                <div class="flex items-center gap-2">
-                    <button @onclick="PrintReceipt" class="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                        </svg>
-                        Print
-                    </button>
-                    <button @onclick="CloseReceiptModal" class="text-white hover:text-gray-200 transition-colors">
-                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
             </div>
 
             <!-- Receipt Content (Printable) -->
@@ -834,12 +823,41 @@
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("window.print");
+            // Convert ReceiptDataModel to PaymentReceiptPdfGenerator.ReceiptData
+            var receiptData = new PaymentReceiptPdfGenerator.ReceiptData
+            {
+                OrNumber = ReceiptData.OrNumber,
+                PaymentDate = ReceiptData.PaymentDate,
+                StudentId = ReceiptData.StudentId,
+                StudentName = ReceiptData.StudentName,
+                GradeLevel = ReceiptData.GradeLevel,
+                PaymentAmount = ReceiptData.PaymentAmount,
+                PaymentMethod = ReceiptData.PaymentMethod,
+                TotalFee = ReceiptData.TotalFee,
+                PreviousPaid = ReceiptData.PreviousPaid,
+                TotalPaid = ReceiptData.TotalPaid,
+                Balance = ReceiptData.Balance,
+                ProcessedBy = ReceiptData.ProcessedBy
+            };
+
+            // Generate PDF
+            var pdfBytes = PdfGenerator.GeneratePaymentReceipt(receiptData);
+            
+            // Create filename with OR number and date
+            var fileName = $"Payment_Receipt_{ReceiptData.OrNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            // Convert to base64 for download
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            // Download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+            
+            Logger?.LogInformation("Payment receipt PDF generated and downloaded: {FileName}", fileName);
         }
         catch (Exception ex)
         {
-            Logger?.LogError(ex, "Error printing receipt: {Message}", ex.Message);
-            searchErrorMessage = "Error printing receipt. Please try again.";
+            Logger?.LogError(ex, "Error generating receipt PDF: {Message}", ex.Message);
+            searchErrorMessage = "Error generating receipt PDF. Please try again.";
             StateHasChanged();
         }
     }

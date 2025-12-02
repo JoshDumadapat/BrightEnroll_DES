@@ -53,6 +53,7 @@ public class FinancialReportService
         foreach (var student in students)
         {
             // Find matching fee for student's grade level
+            if (string.IsNullOrWhiteSpace(student.GradeLevel)) continue;
             var studentGradeLevel = student.GradeLevel.Trim();
             var fee = fees.FirstOrDefault(f =>
             {
@@ -224,7 +225,7 @@ public class FinancialReportService
                 var periodDate = new DateTime(periodItem.Year, periodItem.Month, 1);
                 result.Add(new FinancialTimeSeries
                 {
-                    Period = periodDate.ToString("MMM yyyy"),
+                    Period = periodDate.ToString("MMM"), // Just month abbreviation (Jan, Feb, Mar, etc.)
                     PeriodKey = periodDate,
                     Collections = payment?.Amount ?? 0,
                     Expenses = expense?.Amount ?? 0,

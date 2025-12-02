@@ -458,7 +458,7 @@
         }
 
         // Check for duplicate subject name in the list
-        if (HasDuplicateSubjectName(NewSubjectItem.SubjectName))
+        if (!string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) && HasDuplicateSubjectName(NewSubjectItem.SubjectName))
         {
             duplicateErrorMessage = $"The subject name '{NewSubjectItem.SubjectName}' already exists in the list. Each subject name can only be added once per grade level.";
             StateHasChanged();
@@ -466,7 +466,7 @@
         }
 
         // Check for duplicate subject name in the database
-        if (gradeLevel != null && HasDuplicateSubjectNameInDatabase(NewSubjectItem.SubjectName))
+        if (gradeLevel != null && !string.IsNullOrWhiteSpace(NewSubjectItem.SubjectName) && HasDuplicateSubjectNameInDatabase(NewSubjectItem.SubjectName))
         {
             duplicateErrorMessage = $"The subject name '{NewSubjectItem.SubjectName}' already exists in the database for this grade level. Please use a different subject name or edit the existing subject.";
             StateHasChanged();
@@ -476,9 +476,9 @@
         // Add to list (no schedules; only subject definition)
         SubjectList.Add(new SubjectScheduleItem
         {
-            SubjectCode = NewSubjectItem.SubjectCode,
-            SubjectName = NewSubjectItem.SubjectName,
-            Description = NewSubjectItem.Description
+            SubjectCode = NewSubjectItem.SubjectCode ?? string.Empty,
+            SubjectName = NewSubjectItem.SubjectName ?? string.Empty,
+            Description = NewSubjectItem.Description ?? string.Empty
         });
 
         // Reset new subject form

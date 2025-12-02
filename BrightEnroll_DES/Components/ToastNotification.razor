@@ -79,6 +79,33 @@
                 </button>
             </div>
         }
+        else if (Type == ToastType.Loading)
+        {
+            <!-- Loading Toast with Progress Bar -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md">
+                <div class="flex items-center gap-3 mb-2">
+                    <!-- Loading Icon -->
+                    <div class="flex-shrink-0">
+                        <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-800">@Message</p>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                    <div class="bg-blue-600 h-2 rounded-full progress-bar-animate" style="width: 100%;"></div>
+                </div>
+            </div>
+        }
         else
         {
             <!-- Success Toast -->
@@ -122,7 +149,8 @@
 
     protected override void OnParametersSet()
     {
-        if (Show && Duration > 0)
+        // Loading toasts should not auto-close (Duration <= 0 means no auto-close)
+        if (Show && Duration > 0 && Type != ToastType.Loading)
         {
             isClosing = false;
             _timer?.Dispose();

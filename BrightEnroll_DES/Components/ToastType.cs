@@ -5,6 +5,7 @@ public enum ToastType
     Success,
     Error,
     Edit,
-    Remove
+    Remove,
+    Loading
 }
 

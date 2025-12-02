@@ -1,0 +1,84 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents.Reports
+@using BrightEnroll_DES.Services.Business.Reports
+@using Microsoft.JSInterop
+@inject AccountingReportService AccountingReportService
+@inject IJSRuntime JSRuntime
+
+<div class="p-6">
+    <!-- Report Tabs -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveReport("AccountsReceivable")' 
+                    class="@GetTabClasses("AccountsReceivable")">
+                Accounts Receivable
+            </button>
+            <button @onclick='() => SetActiveReport("IncomeStatement")' 
+                    class="@GetTabClasses("IncomeStatement")">
+                Income Statement
+            </button>
+            <button @onclick='() => SetActiveReport("PaymentHistory")' 
+                    class="@GetTabClasses("PaymentHistory")">
+                Payment History
+            </button>
+            <button @onclick='() => SetActiveReport("ExpenseAnalysis")' 
+                    class="@GetTabClasses("ExpenseAnalysis")">
+                Expense Analysis
+            </button>
+            <button @onclick='() => SetActiveReport("CashFlow")' 
+                    class="@GetTabClasses("CashFlow")">
+                Cash Flow
+            </button>
+        </div>
+    </div>
+
+    <!-- Report Content -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (activeReport == "AccountsReceivable")
+        {
+            <AccountsReceivableReport />
+        }
+        else if (activeReport == "IncomeStatement")
+        {
+            <IncomeStatementReport />
+        }
+        else if (activeReport == "PaymentHistory")
+        {
+            <PaymentHistoryReport />
+        }
+        else if (activeReport == "ExpenseAnalysis")
+        {
+            <ExpenseAnalysisReportView />
+        }
+        else if (activeReport == "CashFlow")
+        {
+            <CashFlowReportView />
+        }
+        else
+        {
+            <div class="p-12 text-center">
+                <p class="text-gray-500">Select a report above to view.</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string activeReport = "AccountsReceivable";
+
+    private void SetActiveReport(string report)
+    {
+        activeReport = report;
+        StateHasChanged();
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = activeReport == tab;
+        
+        return isSelected
+            ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+            : "px-3 py-2 text-sm font-semibold text-gray-600 transition-colors duration-200 hover:text-blue-600";
+    }
+}
+

@@ -41,11 +41,18 @@ window.dashboardCharts = {
                                 }
                                 return value.toLocaleString();
                             }
+                        },
+                        grid: {
+                            color: 'rgba(0, 0, 0, 0.05)'
                         }
                     },
                     x: {
                         grid: {
                             display: false
+                        },
+                        ticks: {
+                            maxRotation: 0,
+                            minRotation: 0
                         }
                     }
                 },
@@ -53,6 +60,18 @@ window.dashboardCharts = {
                     mode: 'nearest',
                     axis: 'x',
                     intersect: false
+                },
+                elements: {
+                    line: {
+                        tension: 0.4, // Smooth curves
+                        borderWidth: 2,
+                        fill: false
+                    },
+                    point: {
+                        radius: 4,
+                        hoverRadius: 6,
+                        borderWidth: 2
+                    }
                 }
             };
 

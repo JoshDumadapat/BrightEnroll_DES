@@ -11,7 +11,7 @@
 <PageTitle>Cloud Management</PageTitle>
 
 <!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="@(toastType == ToastType.Loading ? 0 : 4000)" />
 
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Cloud Management</h1>
@@ -218,7 +218,12 @@
         isSyncing = true;
         syncType = "full";
         syncStatusMessage = "";
-        LoadingService.ShowLoading("Synchronizing with cloud...");
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Synchronizing data with cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
         
         try
         {
@@ -239,8 +244,6 @@
                 toastMessage = $"Sync failed: {result.Message}";
                 toastType = ToastType.Error;
             }
-            
-            showToast = true;
         }
         catch (Exception ex)
         {
@@ -248,13 +251,11 @@
             syncStatusType = "error";
             toastMessage = $"Sync error: {ex.Message}";
             toastType = ToastType.Error;
-            showToast = true;
         }
         finally
         {
             isSyncing = false;
             syncType = "";
-            LoadingService.HideLoading();
             StateHasChanged();
         }
     }
@@ -266,7 +267,12 @@
         isSyncing = true;
         syncType = "toCloud";
         syncStatusMessage = "";
-        LoadingService.ShowLoading("Uploading to cloud...");
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Uploading data to cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
         
         try
         {
@@ -276,7 +282,7 @@
             {
                 syncStatusMessage = result.Message;
                 syncStatusType = "success";
-                toastMessage = $"Uploaded {result.RecordsPushed} records to cloud.";
+                toastMessage = $"Successfully uploaded {result.RecordsPushed} records to cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
             }
@@ -287,8 +293,6 @@
                 toastMessage = $"Upload failed: {result.Message}";
                 toastType = ToastType.Error;
             }
-            
-            showToast = true;
         }
         catch (Exception ex)
         {
@@ -296,13 +300,11 @@
             syncStatusType = "error";
             toastMessage = $"Upload error: {ex.Message}";
             toastType = ToastType.Error;
-            showToast = true;
         }
         finally
         {
             isSyncing = false;
             syncType = "";
-            LoadingService.HideLoading();
             StateHasChanged();
         }
     }
@@ -314,7 +316,12 @@
         isSyncing = true;
         syncType = "fromCloud";
         syncStatusMessage = "";
-        LoadingService.ShowLoading("Downloading from cloud...");
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Downloading data from cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
         
         try
         {
@@ -324,7 +331,7 @@
             {
                 syncStatusMessage = result.Message;
                 syncStatusType = "success";
-                toastMessage = $"Downloaded {result.RecordsPulled} records from cloud.";
+                toastMessage = $"Successfully downloaded {result.RecordsPulled} records from cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
             }
@@ -335,8 +342,6 @@
                 toastMessage = $"Download failed: {result.Message}";
                 toastType = ToastType.Error;
             }
-            
-            showToast = true;
         }
         catch (Exception ex)
         {
@@ -344,13 +349,11 @@
             syncStatusType = "error";
             toastMessage = $"Download error: {ex.Message}";
             toastType = ToastType.Error;
-            showToast = true;
         }
         finally
         {
             isSyncing = false;
             syncType = "";
-            LoadingService.HideLoading();
             StateHasChanged();
         }
     }
@@ -362,7 +365,12 @@
         isSyncing = true;
         syncType = "reference";
         syncStatusMessage = "";
-        LoadingService.ShowLoading("Syncing reference data...");
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Syncing reference data from cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
         
         try
         {
@@ -373,7 +381,7 @@
             {
                 syncStatusMessage = $"Reference data synced: {result.RecordsPulled} records updated.";
                 syncStatusType = "success";
-                toastMessage = "Reference data synced successfully.";
+                toastMessage = $"Reference data synced successfully. {result.RecordsPulled} records updated.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
             }
@@ -384,8 +392,6 @@
                 toastMessage = $"Sync failed: {result.Message}";
                 toastType = ToastType.Error;
             }
-            
-            showToast = true;
         }
         catch (Exception ex)
         {
@@ -393,13 +399,11 @@
             syncStatusType = "error";
             toastMessage = $"Sync error: {ex.Message}";
             toastType = ToastType.Error;
-            showToast = true;
         }
         finally
         {
             isSyncing = false;
             syncType = "";
-            LoadingService.HideLoading();
             StateHasChanged();
         }
     }

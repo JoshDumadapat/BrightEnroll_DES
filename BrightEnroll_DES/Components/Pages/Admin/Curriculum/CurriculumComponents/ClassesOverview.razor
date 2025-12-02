@@ -143,8 +143,8 @@
     private int RowsPerPage { get; set; } = 10;
 
     // Available filter options
-    private List<string> AvailableGrades => FinalClasses?.Select(fc => fc.GradeLevel).Distinct().OrderBy(g => g).ToList() ?? new List<string>();
-    private List<string> AvailableSections => FinalClasses?.Select(fc => fc.SectionName).Distinct().OrderBy(s => s).ToList() ?? new List<string>();
+    private List<string> AvailableGrades => FinalClasses?.Where(fc => !string.IsNullOrEmpty(fc.GradeLevel)).Select(fc => fc.GradeLevel!).Distinct().OrderBy(g => g).ToList() ?? new List<string>();
+    private List<string> AvailableSections => FinalClasses?.Where(fc => !string.IsNullOrEmpty(fc.SectionName)).Select(fc => fc.SectionName!).Distinct().OrderBy(s => s).ToList() ?? new List<string>();
 
     // Group classes by Section (one class = one section per grade)
     private List<ClassGroup> GroupedClasses
@@ -161,10 +161,10 @@
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
                 filtered = filtered.Where(c => 
-                    c.TeacherName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    c.SectionName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (c.TeacherName != null && c.TeacherName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.SectionName != null && c.SectionName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
                     (c.SubjectName != null && c.SubjectName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
-                    c.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+                    (c.Classroom != null && c.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (!string.IsNullOrWhiteSpace(GradeFilter))
@@ -305,9 +305,9 @@
                         .ToList();
                     
                     // Get classroom - should be consistent across all rows for same section
-                    var classroom = first.Classroom;
+                    var classroom = first.Classroom ?? "";
                     var buildingName = allRows.FirstOrDefault(r => !string.IsNullOrEmpty(r.BuildingName))?.BuildingName;
-                    if (!string.IsNullOrEmpty(buildingName) && !classroom.Contains(buildingName))
+                    if (!string.IsNullOrEmpty(buildingName) && !string.IsNullOrEmpty(classroom) && !classroom.Contains(buildingName))
                     {
                         classroom = $"{classroom} ({buildingName})";
                     }
@@ -318,11 +318,11 @@
                     return new ClassGroup
                     {
                         AssignmentId = viewAssignmentId,
-                        GradeLevel = first.GradeLevel,
-                        Adviser = adviserName,
+                        GradeLevel = first.GradeLevel ?? "",
+                        Adviser = adviserName ?? "",
                         Subjects = subjects.Any() ? string.Join(", ", subjects) : "-",
                         Schedule = scheduleGroups.Any() ? string.Join("; ", scheduleGroups) : "No schedule",
-                        Section = first.SectionName,
+                        Section = first.SectionName ?? "",
                         Classroom = classroom
                     };
                 })

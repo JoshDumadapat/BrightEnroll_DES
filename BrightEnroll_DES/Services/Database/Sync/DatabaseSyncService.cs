@@ -88,8 +88,10 @@ public class DatabaseSyncService : IDatabaseSyncService
             result.RecordsPushed += await SyncTableToCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
             result.RecordsPushed += await SyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
             result.RecordsPushed += await SyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
             result.RecordsPushed += await SyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
             result.RecordsPushed += await SyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
 
             result.Message = $"Successfully synced {result.RecordsPushed} records to cloud.";
             _logger?.LogInformation("Sync to cloud completed: {Count} records", result.RecordsPushed);
@@ -132,8 +134,10 @@ public class DatabaseSyncService : IDatabaseSyncService
             result.RecordsPulled += await SyncTableFromCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
             result.RecordsPulled += await SyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
             result.RecordsPulled += await SyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
 
             result.Message = $"Successfully synced {result.RecordsPulled} records from cloud.";
             _logger?.LogInformation("Sync from cloud completed: {Count} records", result.RecordsPulled);
@@ -214,8 +218,10 @@ public class DatabaseSyncService : IDatabaseSyncService
             result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID", since.Value);
             result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id", since.Value);
             result.RecordsPushed += await IncrementalSyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID", since.Value);
             result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id", since.Value);
             result.RecordsPushed += await IncrementalSyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id", since.Value);
+            result.RecordsPushed += await IncrementalSyncTableToCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id", since.Value);
 
             // Pull changes from cloud
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID", since.Value);
@@ -227,8 +233,10 @@ public class DatabaseSyncService : IDatabaseSyncService
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID", since.Value);
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id", since.Value);
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID", since.Value);
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id", since.Value);
             result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id", since.Value);
+            result.RecordsPulled += await IncrementalSyncTableFromCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id", since.Value);
 
             result.Message = $"Incremental sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
             _logger?.LogInformation("Incremental sync completed: {Pushed} pushed, {Pulled} pulled", result.RecordsPushed, result.RecordsPulled);
@@ -242,6 +250,27 @@ public class DatabaseSyncService : IDatabaseSyncService
         }
 
         return result;
+    }
+
+    // Helper method to check if a property is a computed column
+    private static bool IsComputedColumn(Microsoft.EntityFrameworkCore.Metadata.IProperty property)
+    {
+        // Check if property has computed column SQL (EF Core way)
+        var computedColumnSql = property.GetComputedColumnSql();
+        if (!string.IsNullOrEmpty(computedColumnSql))
+            return true;
+        
+        // Check if property has DatabaseGeneratedOption.Computed attribute via reflection
+        var propertyInfo = property.PropertyInfo;
+        if (propertyInfo != null)
+        {
+            var dbGeneratedAttr = propertyInfo.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.Schema.DatabaseGeneratedAttribute), false)
+                .FirstOrDefault() as System.ComponentModel.DataAnnotations.Schema.DatabaseGeneratedAttribute;
+            if (dbGeneratedAttr != null && dbGeneratedAttr.DatabaseGeneratedOption == System.ComponentModel.DataAnnotations.Schema.DatabaseGeneratedOption.Computed)
+                return true;
+        }
+        
+        return false;
     }
 
     private async Task<int> SyncTableToCloudAsync<T>(SqlConnection cloudConnection, string tableName, string primaryKeyColumn) where T : class
@@ -271,16 +300,61 @@ public class DatabaseSyncService : IDatabaseSyncService
                     var pkValue = pkProperty.PropertyInfo?.GetValue(record);
                     if (pkValue == null) continue;
 
+                    // Special validation for StudentSectionEnrollment: Check if foreign keys exist in cloud
+                    if (typeof(T) == typeof(StudentSectionEnrollment))
+                    {
+                        var studentIdProp = properties.FirstOrDefault(p => p.GetColumnName() == "student_id" || p.Name == "StudentId");
+                        var sectionIdProp = properties.FirstOrDefault(p => p.GetColumnName() == "SectionID" || p.Name == "SectionId");
+                        
+                        if (studentIdProp?.PropertyInfo != null && sectionIdProp?.PropertyInfo != null)
+                        {
+                            var studentId = studentIdProp.PropertyInfo.GetValue(record)?.ToString();
+                            var sectionId = sectionIdProp.PropertyInfo.GetValue(record);
+                            
+                            // Check if Student exists in cloud
+                            if (!string.IsNullOrEmpty(studentId))
+                            {
+                                var studentExistsQuery = "SELECT COUNT(*) FROM [tbl_Students] WHERE [student_id] = @studentId";
+                                using var studentCheckCmd = new SqlCommand(studentExistsQuery, cloudConnection);
+                                studentCheckCmd.Parameters.AddWithValue("@studentId", studentId);
+                                var studentExists = await studentCheckCmd.ExecuteScalarAsync();
+                                if (studentExists == null || (int)studentExists == 0)
+                                {
+                                    _logger?.LogWarning("Skipping StudentSectionEnrollment record: StudentID {StudentId} does not exist in cloud", studentId);
+                                    continue;
+                                }
+                            }
+                            
+                            // Check if Section exists in cloud
+                            if (sectionId != null)
+                            {
+                                var sectionExistsQuery = "SELECT COUNT(*) FROM [tbl_Sections] WHERE [SectionID] = @sectionId";
+                                using var sectionCheckCmd = new SqlCommand(sectionExistsQuery, cloudConnection);
+                                sectionCheckCmd.Parameters.AddWithValue("@sectionId", sectionId);
+                                var sectionExists = await sectionCheckCmd.ExecuteScalarAsync();
+                                if (sectionExists == null || (int)sectionExists == 0)
+                                {
+                                    _logger?.LogWarning("Skipping StudentSectionEnrollment record: SectionID {SectionId} does not exist in cloud", sectionId);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
                     // Check if record exists in cloud
                     var existsQuery = $"SELECT COUNT(*) FROM [{tableName}] WHERE [{primaryKeyColumn}] = @pk";
                     using var checkCmd = new SqlCommand(existsQuery, cloudConnection);
                     checkCmd.Parameters.AddWithValue("@pk", pkValue);
-                    var exists = (int)await checkCmd.ExecuteScalarAsync() > 0;
+                    var result = await checkCmd.ExecuteScalarAsync();
+                    var exists = result != null && (int)result > 0;
 
                     if (exists)
                     {
-                        // Update existing record
-                        var updateProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                        // Update existing record - exclude computed columns
+                        var updateProps = properties.Where(p => 
+                            p.GetColumnName() != primaryKeyColumn && 
+                            p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate &&
+                            !IsComputedColumn(p));
                         var updateSet = string.Join(", ", updateProps.Select(p => $"[{p.GetColumnName()}] = @{p.GetColumnName()}"));
                         var updateQuery = $"UPDATE [{tableName}] SET {updateSet} WHERE [{primaryKeyColumn}] = @pk";
                         
@@ -308,7 +382,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                             
                             try
                             {
-                                var insertProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                                // Exclude computed columns from insert
+                                var insertProps = properties.Where(p => 
+                                    p.GetColumnName() != primaryKeyColumn && 
+                                    !IsComputedColumn(p));
                                 var insertColumns = $"[{primaryKeyColumn}], " + string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
                                 var insertValues = $"@pk, " + string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
                                 var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
@@ -334,10 +411,11 @@ public class DatabaseSyncService : IDatabaseSyncService
                         }
                         else
                         {
-                            // Non-identity primary key - normal insert
+                            // Non-identity primary key - normal insert - exclude computed columns
                             var insertProps = properties.Where(p => 
                                 p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd &&
-                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate);
+                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate &&
+                                !IsComputedColumn(p));
                             
                             var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
                             var insertValues = string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
@@ -644,15 +722,60 @@ public class DatabaseSyncService : IDatabaseSyncService
                     var pkValue = pkProperty.PropertyInfo?.GetValue(record);
                     if (pkValue == null) continue;
 
+                    // Special validation for StudentSectionEnrollment: Check if foreign keys exist in cloud
+                    if (typeof(T) == typeof(StudentSectionEnrollment))
+                    {
+                        var studentIdProp = properties.FirstOrDefault(p => p.GetColumnName() == "student_id" || p.Name == "StudentId");
+                        var sectionIdProp = properties.FirstOrDefault(p => p.GetColumnName() == "SectionID" || p.Name == "SectionId");
+                        
+                        if (studentIdProp?.PropertyInfo != null && sectionIdProp?.PropertyInfo != null)
+                        {
+                            var studentId = studentIdProp.PropertyInfo.GetValue(record)?.ToString();
+                            var sectionId = sectionIdProp.PropertyInfo.GetValue(record);
+                            
+                            // Check if Student exists in cloud
+                            if (!string.IsNullOrEmpty(studentId))
+                            {
+                                var studentExistsQuery = "SELECT COUNT(*) FROM [tbl_Students] WHERE [student_id] = @studentId";
+                                using var studentCheckCmd = new SqlCommand(studentExistsQuery, cloudConnection);
+                                studentCheckCmd.Parameters.AddWithValue("@studentId", studentId);
+                                var studentExists = await studentCheckCmd.ExecuteScalarAsync();
+                                if (studentExists == null || (int)studentExists == 0)
+                                {
+                                    _logger?.LogWarning("Skipping StudentSectionEnrollment record: StudentID {StudentId} does not exist in cloud", studentId);
+                                    continue;
+                                }
+                            }
+                            
+                            // Check if Section exists in cloud
+                            if (sectionId != null)
+                            {
+                                var sectionExistsQuery = "SELECT COUNT(*) FROM [tbl_Sections] WHERE [SectionID] = @sectionId";
+                                using var sectionCheckCmd = new SqlCommand(sectionExistsQuery, cloudConnection);
+                                sectionCheckCmd.Parameters.AddWithValue("@sectionId", sectionId);
+                                var sectionExists = await sectionCheckCmd.ExecuteScalarAsync();
+                                if (sectionExists == null || (int)sectionExists == 0)
+                                {
+                                    _logger?.LogWarning("Skipping StudentSectionEnrollment record: SectionID {SectionId} does not exist in cloud", sectionId);
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+
                     var existsQuery = $"SELECT COUNT(*) FROM [{tableName}] WHERE [{primaryKeyColumn}] = @pk";
                     using var checkCmd = new SqlCommand(existsQuery, cloudConnection);
                     checkCmd.Parameters.AddWithValue("@pk", pkValue);
-                    var exists = (int)await checkCmd.ExecuteScalarAsync() > 0;
+                    var result = await checkCmd.ExecuteScalarAsync();
+                    var exists = result != null && (int)result > 0;
 
                     if (exists)
                     {
-                        // Update - use same logic as SyncTableToCloudAsync
-                        var updateProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                        // Update - exclude computed columns
+                        var updateProps = properties.Where(p => 
+                            p.GetColumnName() != primaryKeyColumn && 
+                            p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate &&
+                            !IsComputedColumn(p));
                         var updateSet = string.Join(", ", updateProps.Select(p => $"[{p.GetColumnName()}] = @{p.GetColumnName()}"));
                         var updateQuery = $"UPDATE [{tableName}] SET {updateSet} WHERE [{primaryKeyColumn}] = @pk";
                         
@@ -677,7 +800,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                             await cloudConnection.ExecuteNonQueryAsync($"SET IDENTITY_INSERT [{tableName}] ON");
                             try
                             {
-                                var insertProps = properties.Where(p => p.GetColumnName() != primaryKeyColumn);
+                                // Exclude computed columns from insert
+                                var insertProps = properties.Where(p => 
+                                    p.GetColumnName() != primaryKeyColumn && 
+                                    !IsComputedColumn(p));
                                 var insertColumns = $"[{primaryKeyColumn}], " + string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
                                 var insertValues = $"@pk, " + string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
                                 var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
@@ -700,8 +826,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                         }
                         else
                         {
+                            // Exclude computed columns from insert
                             var insertProps = properties.Where(p => 
-                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd);
+                                p.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd &&
+                                !IsComputedColumn(p));
                             var insertColumns = string.Join(", ", insertProps.Select(p => $"[{p.GetColumnName()}]"));
                             var insertValues = string.Join(", ", insertProps.Select(p => $"@{p.GetColumnName()}"));
                             var insertQuery = $"INSERT INTO [{tableName}] ({insertColumns}) VALUES ({insertValues})";
@@ -739,7 +867,6 @@ public class DatabaseSyncService : IDatabaseSyncService
         try
         {
             // Query cloud for records modified since 'since'
-            var dateColumn = "LastModified"; // Try common column names
             var dateColumns = new[] { "LastModified", "UpdatedAt", "UpdatedDate", "CreatedAt", "created_at", "updated_at" };
             
             string query = $"SELECT * FROM [{tableName}]";

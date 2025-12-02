@@ -2,6 +2,7 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Components.Pages.Admin
 @using System.Linq
+@inject IJSRuntime JSRuntime
 
 <div class="p-6 space-y-6">
     <!-- Header / Filters / Add Button -->
@@ -134,8 +135,8 @@
     <!-- Expense Details Modal -->
     @if (ShowDetailsPanel)
     {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
-            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+        <div class="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 overflow-y-auto" @onclick="HandleBackdropClick">
+            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl mt-0" @onclick:stopPropagation="true">
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3">
                     <div>
@@ -189,10 +190,21 @@
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Amount:</label>
-            <input type="text" @bind="ExpenseForm.Amount"
-                   placeholder="Php 0.00"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
-                   readonly="@IsViewMode" />
+            <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                <input type="text" 
+                       value="@GetExpenseAmountDisplayValue()"
+                       @oninput="HandleExpenseAmountInput"
+                       @onfocus="HandleExpenseAmountFocus"
+                       @onblur="HandleExpenseAmountBlur"
+                       @onpaste="HandleExpenseAmountPaste"
+                       onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                       pattern="[0-9.]*"
+                       inputmode="decimal"
+                       placeholder="0.00"
+                       class="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                       readonly="@IsViewMode" />
+            </div>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Expense Date:</label>
@@ -364,6 +376,10 @@
     private bool ShowArchiveConfirmModal { get; set; } = false;
     private string? ExpenseIdPendingArchive { get; set; }
 
+    // Amount formatting state
+    private string expenseAmountRawInput { get; set; } = "";
+    private bool isEditingExpenseAmount { get; set; } = false;
+
     protected override void OnInitialized()
     {
         if (string.IsNullOrWhiteSpace(ExpenseForm.ExpenseId))
@@ -455,6 +471,8 @@
             PaymentMethod = "Cash",
             Status = "Pending"
         };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
         ShowDetailsPanel = true;
         IsViewMode = false;
     }
@@ -475,6 +493,8 @@
             Status = record.Status,
             RecordedBy = record.RecordedBy
         };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
         ShowDetailsPanel = true;
         IsViewMode = true;
     }
@@ -483,6 +503,8 @@
     {
         ShowDetailsPanel = false;
         IsViewMode = false;
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
     }
 
     private void HandleBackdropClick()
@@ -501,6 +523,229 @@
             PaymentMethod = "Cash",
             Status = "Pending"
         };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+
+    // Get display value for expense amount field (formatted with commas)
+    private string GetExpenseAmountDisplayValue()
+    {
+        if (isEditingExpenseAmount && !string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            return FormatNumberWithCommas(expenseAmountRawInput);
+        }
+        
+        // Return formatted value when not editing
+        if (!string.IsNullOrWhiteSpace(ExpenseForm.Amount))
+        {
+            // Parse the amount string and format it
+            var cleaned = ExpenseForm.Amount.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            if (decimal.TryParse(cleaned, out decimal amount))
+            {
+                return amount.ToString("N2");
+            }
+        }
+        return "";
+    }
+
+    // Handle expense amount input with auto-formatting and strict validation
+    private void HandleExpenseAmountInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // IMMEDIATELY filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // If starting with "0" and next char is a digit (not "."), remove the leading "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input (without commas for parsing)
+        expenseAmountRawInput = cleaned;
+        
+        // Parse and update the ExpenseForm.Amount
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            ExpenseForm.Amount = parsedValue.ToString("N2");
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            ExpenseForm.Amount = "";
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle focus - start editing
+    private void HandleExpenseAmountFocus(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingExpenseAmount = true;
+        if (string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            if (!string.IsNullOrWhiteSpace(ExpenseForm.Amount))
+            {
+                var cleaned = ExpenseForm.Amount.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+                if (decimal.TryParse(cleaned, out decimal amount))
+                {
+                    expenseAmountRawInput = amount == Math.Floor(amount) 
+                        ? ((int)amount).ToString() 
+                        : amount.ToString("0.##");
+                }
+                else
+                {
+                    expenseAmountRawInput = "";
+                }
+            }
+            else
+            {
+                expenseAmountRawInput = "";
+            }
+        }
+    }
+
+    // Handle blur - finish editing
+    private void HandleExpenseAmountBlur(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingExpenseAmount = false;
+        
+        // Finalize the amount value
+        if (!string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            string rawValue = expenseAmountRawInput;
+            
+            // Clean and parse
+            var cleaned = rawValue.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            if (decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                ExpenseForm.Amount = parsedValue.ToString("N2");
+            }
+            else
+            {
+                ExpenseForm.Amount = "";
+            }
+        }
+        else
+        {
+            ExpenseForm.Amount = "";
+        }
+        
+        expenseAmountRawInput = "";
+        StateHasChanged();
+    }
+
+    // Handle paste to filter invalid characters
+    private async Task HandleExpenseAmountPaste(ClipboardEventArgs e)
+    {
+        // Prevent default paste
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
+        }
+        catch { }
+        
+        // Get clipboard text
+        var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+        
+        if (!string.IsNullOrWhiteSpace(clipboardText))
+        {
+            // Filter to only allow digits and period
+            var validChars = clipboardText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var cleaned = new string(validChars);
+            
+            // Remove peso sign, commas, spaces
+            cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+            
+            // Update the amount
+            if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                ExpenseForm.Amount = parsedValue.ToString("N2");
+                expenseAmountRawInput = cleaned;
+                StateHasChanged();
+            }
+        }
     }
 
     private void OpenAddConfirmation()
