@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using BrightEnroll_DES.Data.Models;
-using Microsoft.Extensions.Configuration;
 
 namespace BrightEnroll_DES.Data;
 
@@ -22,6 +21,8 @@ public class AppDbContext : DbContext
     public DbSet<SystemVersionEntity> SystemVersions { get; set; }
     public DbSet<FeatureToggleEntity> FeatureToggles { get; set; }
     
+    public DbSet<StudentSectionEnrollment> StudentSectionEnrollments { get; set; }
+    
     // Employee tables
     public DbSet<EmployeeAddress> EmployeeAddresses { get; set; }
     public DbSet<EmployeeEmergencyContact> EmployeeEmergencyContacts { get; set; }
@@ -30,14 +31,40 @@ public class AppDbContext : DbContext
     // View entities (keyless, read-only)
     public DbSet<EmployeeDataView> EmployeeDataViews { get; set; }
     public DbSet<StudentDataView> StudentDataViews { get; set; }
+    public DbSet<FinalClassView> FinalClassViews { get; set; }
 
     // Finance tables
     public DbSet<GradeLevel> GradeLevels { get; set; }
     public DbSet<Fee> Fees { get; set; }
     public DbSet<FeeBreakdown> FeeBreakdowns { get; set; }
+    public DbSet<Expense> Expenses { get; set; }
+    public DbSet<ExpenseAttachment> ExpenseAttachments { get; set; }
+    public DbSet<StudentPayment> StudentPayments { get; set; }
 
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
+    
+    // Student status logging
+    public DbSet<StudentStatusLog> StudentStatusLogs { get; set; }
+
+    // Curriculum tables
+    public DbSet<Classroom> Classrooms { get; set; }
+    public DbSet<Section> Sections { get; set; }
+    public DbSet<Subject> Subjects { get; set; }
+    public DbSet<SubjectSection> SubjectSections { get; set; }
+    public DbSet<SubjectSchedule> SubjectSchedules { get; set; }
+    public DbSet<TeacherSectionAssignment> TeacherSectionAssignments { get; set; }
+    public DbSet<ClassSchedule> ClassSchedules { get; set; }
+    public DbSet<Building> Buildings { get; set; }
+
+    // Payroll tables (standalone)
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<Deduction> Deductions { get; set; }
+
+    // Inventory & Asset Management tables
+    public DbSet<Asset> Assets { get; set; }
+    public DbSet<InventoryItem> InventoryItems { get; set; }
+    public DbSet<AssetAssignment> AssetAssignments { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -70,6 +97,24 @@ public class AppDbContext : DbContext
                   .WithOne(r => r.Student)
                   .HasForeignKey(r => r.StudentId)
                   .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(s => s.SectionEnrollments)
+                  .WithOne(e => e.Student)
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            
+            // Configure payment-related properties
+            entity.Property(e => e.AmountPaid)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0m);
+            
+            entity.Property(e => e.PaymentStatus)
+                  .HasMaxLength(20)
+                  .HasDefaultValue("Unpaid");
+            
+            // Configure archive reason
+            entity.Property(e => e.ArchiveReason)
+                  .HasColumnType("nvarchar(max)");
         });
 
         modelBuilder.Entity<Guardian>(entity =>
@@ -84,6 +129,30 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_StudentRequirements");
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.RequirementType);
+            
+            entity.Property(e => e.IsVerified)
+                  .HasDefaultValue(false);
+        });
+
+        modelBuilder.Entity<StudentSectionEnrollment>(entity =>
+        {
+            entity.HasKey(e => e.EnrollmentId);
+            entity.ToTable("tbl_StudentSectionEnrollment");
+
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => new { e.SectionId, e.SchoolYear });
+            entity.HasIndex(e => new { e.StudentId, e.SchoolYear }).IsUnique();
+
+            entity.HasOne(e => e.Student)
+                  .WithMany(s => s.SectionEnrollments)
+                  .HasForeignKey(e => e.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Section)
+                  .WithMany()
+                  .HasForeignKey(e => e.SectionId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EmployeeAddress>(entity =>
@@ -113,12 +182,23 @@ public class AppDbContext : DbContext
         {
             entity.HasNoKey();
             entity.ToView("vw_EmployeeData");
+            
+            // Configure decimal precision for view columns
+            entity.Property(e => e.BaseSalary).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.Allowance).HasColumnType("decimal(12,2)");
+            entity.Property(e => e.TotalSalary).HasColumnType("decimal(12,2)");
         });
 
         modelBuilder.Entity<StudentDataView>(entity =>
         {
             entity.HasNoKey();
             entity.ToView("vw_StudentData");
+        });
+
+        modelBuilder.Entity<FinalClassView>(entity =>
+        {
+            entity.HasNoKey();
+            entity.ToView("tbl_FinalClasses");
         });
 
         // Configure Finance entities
@@ -154,6 +234,50 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_FeeBreakdown");
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
+        });
+
+        modelBuilder.Entity<Expense>(entity =>
+        {
+            entity.HasKey(e => e.ExpenseId);
+            entity.ToTable("tbl_Expenses");
+
+            entity.HasIndex(e => e.ExpenseCode).IsUnique();
+            entity.HasIndex(e => e.ExpenseDate);
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+        });
+
+        modelBuilder.Entity<ExpenseAttachment>(entity =>
+        {
+            entity.HasKey(e => e.AttachmentId);
+            entity.ToTable("tbl_ExpenseAttachments");
+            entity.HasIndex(e => e.ExpenseId);
+
+            entity.HasOne(a => a.Expense)
+                  .WithMany(e => e.Attachments)
+                  .HasForeignKey(a => a.ExpenseId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StudentPayment>(entity =>
+        {
+            entity.HasKey(e => e.PaymentId);
+            entity.ToTable("tbl_StudentPayments");
+            
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.OrNumber).IsUnique();
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.CreatedAt)
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.HasOne(p => p.Student)
+                  .WithMany()
+                  .HasForeignKey(p => p.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // Configure UserStatusLog entity
@@ -211,6 +335,334 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.FeatureId);
             entity.ToTable("tbl_FeatureToggles");
+        });
+
+        // Configure StudentStatusLog entity
+        modelBuilder.Entity<StudentStatusLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+            entity.ToTable("tbl_student_status_logs");
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.ChangedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.ChangedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure Curriculum entities
+        modelBuilder.Entity<Classroom>(entity =>
+        {
+            entity.HasKey(e => e.RoomId);
+            entity.ToTable("tbl_Classrooms");
+            entity.HasIndex(e => e.RoomName);
+            entity.HasIndex(e => e.Status);
+        });
+
+        modelBuilder.Entity<Section>(entity =>
+        {
+            entity.HasKey(e => e.SectionId);
+            entity.ToTable("tbl_Sections");
+            entity.HasIndex(e => e.SectionName);
+            entity.HasIndex(e => e.GradeLevelId);
+            entity.HasIndex(e => e.ClassroomId);
+            entity.HasIndex(e => e.AdviserId);
+
+            entity.Property(e => e.SectionId)
+                  .HasColumnName("SectionID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.SectionName)
+                  .HasColumnName("SectionName")
+                  .HasMaxLength(100)
+                  .IsRequired();
+
+            entity.Property(e => e.GradeLevelId)
+                  .HasColumnName("GradeLvlID");
+
+            entity.Property(e => e.ClassroomId)
+                  .HasColumnName("ClassroomID");
+
+            entity.Property(e => e.AdviserId)
+                  .HasColumnName("AdviserID");
+
+            entity.HasOne(s => s.GradeLevel)
+                  .WithMany()
+                  .HasForeignKey(s => s.GradeLevelId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(s => s.Classroom)
+                  .WithMany(c => c.Sections)
+                  .HasForeignKey(s => s.ClassroomId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(s => s.Adviser)
+                  .WithMany()
+                  .HasForeignKey(s => s.AdviserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Subject>(entity =>
+        {
+            entity.HasKey(e => e.SubjectId);
+            entity.ToTable("tbl_Subjects");
+            entity.HasIndex(e => e.SubjectName);
+            entity.HasIndex(e => e.GradeLevelId);
+            entity.HasIndex(e => e.SubjectCode);
+            entity.HasIndex(e => e.IsActive);
+
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.SubjectCode)
+                  .HasMaxLength(50)
+                  .HasColumnName("SubjectCode");
+
+            entity.Property(e => e.GradeLevelId)
+                  .HasColumnName("GradeLvlID");
+
+            entity.Property(e => e.SubjectName)
+                  .HasMaxLength(100)
+                  .HasColumnName("SubjectName")
+                  .IsRequired();
+
+            entity.Property(e => e.Description)
+                  .HasMaxLength(500)
+                  .HasColumnName("Description");
+
+            entity.Property(e => e.IsActive)
+                  .HasColumnName("IsActive")
+                  .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("CreatedAt")
+                  .HasColumnType("datetime")
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("UpdatedAt")
+                  .HasColumnType("datetime");
+
+            entity.HasOne(s => s.GradeLevel)
+                  .WithMany()
+                  .HasForeignKey(s => s.GradeLevelId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SubjectSection>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_SubjectSection");
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.SubjectId);
+
+            entity.HasOne(ss => ss.Section)
+                  .WithMany(s => s.SubjectSections)
+                  .HasForeignKey(ss => ss.SectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ss => ss.Subject)
+                  .WithMany(s => s.SubjectSections)
+                  .HasForeignKey(ss => ss.SubjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SubjectSchedule>(entity =>
+        {
+            entity.HasKey(e => e.ScheduleId);
+            entity.ToTable("tbl_SubjectSchedule");
+            
+            // Explicitly map all column names FIRST before configuring relationships
+            entity.Property(e => e.ScheduleId)
+                  .HasColumnName("ScheduleID")
+                  .ValueGeneratedOnAdd();
+            
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID")
+                  .IsRequired();
+            
+            entity.Property(e => e.GradeLevelId)
+                  .HasColumnName("GradeLvlID")
+                  .IsRequired();
+            
+            entity.Property(e => e.DayOfWeek)
+                  .HasColumnName("DayOfWeek")
+                  .HasMaxLength(10)
+                  .IsRequired();
+            
+            entity.Property(e => e.StartTime)
+                  .HasColumnName("StartTime")
+                  .HasColumnType("time")
+                  .IsRequired();
+            
+            entity.Property(e => e.EndTime)
+                  .HasColumnName("EndTime")
+                  .HasColumnType("time")
+                  .IsRequired();
+            
+            entity.Property(e => e.IsDefault)
+                  .HasColumnName("IsDefault")
+                  .IsRequired()
+                  .HasDefaultValue(true);
+            
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("CreatedAt")
+                  .HasColumnType("datetime")
+                  .IsRequired()
+                  .HasDefaultValueSql("GETDATE()");
+            
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("UpdatedAt")
+                  .HasColumnType("datetime");
+            
+            // Configure indexes
+            entity.HasIndex(e => e.SubjectId).HasDatabaseName("IX_tbl_SubjectSchedule_SubjectID");
+            entity.HasIndex(e => e.GradeLevelId).HasDatabaseName("IX_tbl_SubjectSchedule_GradeLvlID");
+            entity.HasIndex(e => new { e.SubjectId, e.GradeLevelId, e.DayOfWeek })
+                  .HasDatabaseName("IX_tbl_SubjectSchedule_Subject_Grade_Day");
+            entity.HasIndex(e => e.IsDefault).HasDatabaseName("IX_tbl_SubjectSchedule_IsDefault");
+
+            // Configure relationships with explicit foreign key column names
+            entity.HasOne(ss => ss.Subject)
+                  .WithMany(s => s.SubjectSchedules)
+                  .HasForeignKey(ss => ss.SubjectId)
+                  .HasConstraintName("FK_tbl_SubjectSchedule_tbl_Subjects")
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(ss => ss.GradeLevel)
+                  .WithMany()
+                  .HasForeignKey(ss => ss.GradeLevelId)
+                  .HasConstraintName("FK_tbl_SubjectSchedule_tbl_GradeLevel")
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TeacherSectionAssignment>(entity =>
+        {
+            entity.HasKey(e => e.AssignmentId);
+            entity.ToTable("tbl_TeacherSectionAssignment");
+            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.SubjectId);
+            entity.HasIndex(e => e.Role);
+            entity.HasIndex(e => e.IsArchived);
+
+            entity.Property(e => e.AssignmentId)
+                  .HasColumnName("AssignmentID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.TeacherId)
+                  .HasColumnName("TeacherID");
+
+            entity.Property(e => e.SectionId)
+                  .HasColumnName("SectionID");
+
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID");
+
+            entity.Property(e => e.Role)
+                  .HasColumnName("Role")
+                  .HasMaxLength(50);
+
+            entity.Property(e => e.IsArchived)
+                  .HasColumnName("IsArchived")
+                  .HasDefaultValue(false);
+
+            entity.HasOne(a => a.Teacher)
+                  .WithMany()
+                  .HasForeignKey(a => a.TeacherId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Section)
+                  .WithMany(s => s.TeacherAssignments)
+                  .HasForeignKey(a => a.SectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(a => a.Subject)
+                  .WithMany(s => s.TeacherAssignments)
+                  .HasForeignKey(a => a.SubjectId)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ClassSchedule>(entity =>
+        {
+            entity.HasKey(e => e.ScheduleId);
+            entity.ToTable("tbl_ClassSchedule");
+            entity.HasIndex(e => e.AssignmentId);
+            entity.HasIndex(e => e.RoomId);
+            entity.HasIndex(e => e.DayOfWeek);
+            entity.HasIndex(e => new { e.AssignmentId, e.DayOfWeek, e.StartTime, e.EndTime });
+
+            entity.HasOne(s => s.Assignment)
+                  .WithMany(a => a.ClassSchedules)
+                  .HasForeignKey(s => s.AssignmentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(s => s.Room)
+                  .WithMany(r => r.ClassSchedules)
+                  .HasForeignKey(s => s.RoomId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Building>(entity =>
+        {
+            entity.HasKey(e => e.BuildingId);
+            entity.ToTable("tbl_Buildings");
+            entity.HasIndex(e => e.BuildingName);
+        });
+
+        // Configure Payroll entities
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasKey(e => e.RoleId);
+            entity.ToTable("tbl_roles");
+            entity.HasIndex(e => e.RoleName).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<Deduction>(entity =>
+        {
+            entity.HasKey(e => e.DeductionId);
+            entity.ToTable("tbl_deductions");
+            entity.HasIndex(e => e.DeductionType).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        // Configure Inventory & Asset entities
+        modelBuilder.Entity<Asset>(entity =>
+        {
+            entity.HasKey(e => e.AssetId);
+            entity.ToTable("tbl_Assets");
+            entity.HasIndex(e => e.AssetId).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Location);
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<InventoryItem>(entity =>
+        {
+            entity.HasKey(e => e.ItemId);
+            entity.ToTable("tbl_InventoryItems");
+            entity.HasIndex(e => e.ItemCode).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        modelBuilder.Entity<AssetAssignment>(entity =>
+        {
+            entity.HasKey(e => e.AssignmentId);
+            entity.ToTable("tbl_AssetAssignments");
+            entity.HasIndex(e => e.AssetId);
+            entity.HasIndex(e => e.AssignedToId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.AssignedDate);
+
+            entity.HasOne(a => a.Asset)
+                  .WithMany()
+                  .HasForeignKey(a => a.AssetId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

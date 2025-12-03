@@ -1,0 +1,226 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Components.Pages.Admin
+@using System.Linq
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto">
+                <span class="absolute left-3 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+            </div>
+            <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Grade</option>
+                @foreach (var grade in GradeLevels)
+                {
+                    <option value="@grade">@grade</option>
+                }
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+            </button>
+            <button @onclick="OnAddSubject" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                + Add Subject
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<table class="min-w-full text-sm">
+    <thead class="bg-gray-100 font-semibold text-gray-600">
+        <tr>
+            <th class="px-4 py-3 text-left">Subject I.D.</th>
+            <th class="px-4 py-3 text-left">Code</th>
+            <th class="px-4 py-3 text-left">Subject Name</th>
+            <th class="px-4 py-3 text-left">Grade Level</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-center">Actions</th>
+        </tr>
+    </thead>
+    <tbody class="divide-y">
+        @if (PaginatedSubjects != null && PaginatedSubjects.Any())
+        {
+            @foreach (var subject in PaginatedSubjects)
+            {
+                <tr class="transition hover:bg-gray-50">
+                    <td class="px-4 py-3">@(subject.Id)</td>
+                    <td class="px-4 py-3">@(string.IsNullOrWhiteSpace(subject.Code) ? "-" : subject.Code)</td>
+                    <td class="px-4 py-3">@(subject.Name)</td>
+                    <td class="px-4 py-3">@(subject.GradeLevel)</td>
+                    <td class="px-4 py-3">
+                        @if (subject.IsActive)
+                        {
+                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-medium text-green-700">Active</span>
+                        }
+                        else
+                        {
+                            <span class="inline-flex rounded-full bg-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-600">Inactive</span>
+                        }
+                    </td>
+                    <td class="flex items-center justify-center gap-2 px-4 py-3">
+                        <button @onclick="() => OnEditSubject.InvokeAsync(subject)" class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                            <span class="hidden sm:inline">Edit</span>
+                        </button>
+                        <button @onclick="() => OnDeleteSubject.InvokeAsync(subject)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span class="hidden sm:inline">Remove</span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                        <p class="text-sm text-gray-500 mt-1">There are no subjects to display at this time.</p>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@FilteredSubjects.Count" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="subjects"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter] public List<Subject> SubjectsList { get; set; } = new();
+    [Parameter] public List<string> GradeLevels { get; set; } = new();
+    [Parameter] public EventCallback OnAddSubject { get; set; }
+    [Parameter] public EventCallback<Subject> OnEditSubject { get; set; }
+    [Parameter] public EventCallback<Subject> OnDeleteSubject { get; set; }
+
+    private string SearchText { get; set; } = "";
+    private string GradeFilter { get; set; } = "";
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 5;
+
+    // Computed property for filtered subjects
+    private List<Subject> FilteredSubjects
+    {
+        get
+        {
+            if (SubjectsList == null || !SubjectsList.Any())
+                return new List<Subject>();
+
+            var filtered = SubjectsList.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(s => 
+                    s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (!string.IsNullOrWhiteSpace(GradeFilter))
+            {
+                filtered = filtered.Where(s => s.GradeLevel == GradeFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated subjects
+    private List<Subject> PaginatedSubjects
+    {
+        get
+        {
+            var filtered = FilteredSubjects;
+            if (filtered == null || !filtered.Any())
+                return new List<Subject>();
+
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return filtered.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnClearFilters()
+    {
+        SearchText = "";
+        GradeFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private List<string> GetOrderedDays(List<string> days)
+    {
+        if (days == null || !days.Any())
+            return new List<string>();
+
+        var dayOrder = new Dictionary<string, int>
+        {
+            { "M", 1 },
+            { "T", 2 },
+            { "W", 3 },
+            { "TH", 4 },
+            { "F", 5 },
+            { "SAT", 6 },
+            { "SUN", 7 }
+        };
+
+        return days
+            .Select(d => d.Trim().ToUpper())
+            .Where(d => dayOrder.ContainsKey(d))
+            .OrderBy(d => dayOrder[d])
+            .ToList();
+    }
+}
+

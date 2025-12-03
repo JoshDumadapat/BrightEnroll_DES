@@ -1,0 +1,69 @@
+@page "/attendance"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.Attendance.AttendanceComponents
+@using BrightEnroll_DES.Services.RoleBase
+@inject IAuthorizationService AuthorizationService
+
+<PageTitle>Attendance</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewAttendance">
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Attendance Monitoring</h1>
+    
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("daily")' 
+                    class="@GetTabClasses("daily")">
+                Daily Attendance
+            </button>
+            <button @onclick='() => SetActiveTab("records")' 
+                    class="@GetTabClasses("records")">
+                Attendance Records
+            </button>
+            <button @onclick='() => SetActiveTab("reports")' 
+                    class="@GetTabClasses("reports")">
+                Reports
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (activeTab == "daily")
+        {
+            <DailyAttendance />
+        }
+        else if (activeTab == "records")
+        {
+            <AttendanceRecords />
+        }
+        else if (activeTab == "reports")
+        {
+            <AttendanceReports />
+        }
+    </div>
+</div>
+
+@code {
+    private string activeTab = "daily";
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        var baseClasses = "px-4 py-2 text-sm font-semibold transition-colors duration-200 border-b-2";
+        if (activeTab == tab)
+        {
+            return $"{baseClasses} border-blue-600 text-blue-600";
+        }
+        return $"{baseClasses} border-transparent text-gray-600 hover:text-gray-800";
+    }
+}
+
+</RoleAuthorizeView>
+

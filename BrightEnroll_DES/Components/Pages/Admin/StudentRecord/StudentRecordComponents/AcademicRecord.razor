@@ -1,0 +1,161 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@* Academic Record Tab Content *@
+
+<!-- Filters Card -->
+<div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+    <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+        <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                    <span class="absolute left-4 flex items-center justify-center">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text" placeholder="Search here..." @bind="SearchText"
+                           class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <select @bind="SchoolYearFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">School Year</option>
+                    <option value="2024-2025">2024-2025</option>
+                    <option value="2025-2026">2025-2026</option>
+                    <option value="2026-2027">2026-2027</option>
+                </select>
+                <select @bind="SubjectFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">Subject</option>
+                    <option value="Math">Math</option>
+                    <option value="GMRC">GMRC</option>
+                    <option value="Language">Language</option>
+                    <option value="Reading and Literacy">Reading and Literacy</option>
+                    <option value="Makabansa">Makabansa</option>
+                </select>
+                <select @bind="GradeLevelFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">Grade Level</option>
+                    <option value="Kinder">Kinder</option>
+                    <option value="G1">G1</option>
+                    <option value="G2">G2</option>
+                    <option value="G3">G3</option>
+                    <option value="G4">G4</option>
+                    <option value="G5">G5</option>
+                    <option value="G6">G6</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="group relative">
+                    <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Clear
+                    </button>
+                    <span class="tooltip-delay">Clear all filters</span>
+                </div>
+                <div class="group relative">
+                    <button @onclick="ExportPDF" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export
+                    </button>
+                    <span class="tooltip-delay">Export academic records to file</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Academic Record Table -->
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-100 font-semibold text-gray-600">
+            <tr>
+                <th class="px-4 py-3 text-left">S.Y.</th>
+                <th class="px-4 py-3 text-left">Grade</th>
+                <th class="px-4 py-3 text-left">Subject</th>
+                <th class="px-4 py-3 text-left">Q1</th>
+                <th class="px-4 py-3 text-left">Q2</th>
+                <th class="px-4 py-3 text-left">Q3</th>
+                <th class="px-4 py-3 text-left">Q4</th>
+                <th class="px-4 py-3 text-left">Final Grade</th>
+                <th class="px-4 py-3 text-left">Remarks</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            @if (AcademicRecords != null && AcademicRecords.Any())
+            {
+                @foreach (var record in AcademicRecords)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">@record.SchoolYear</td>
+                        <td class="px-4 py-3">@record.Grade</td>
+                        <td class="px-4 py-3">@record.Subject</td>
+                        <td class="px-4 py-3">@record.Q1</td>
+                        <td class="px-4 py-3">@record.Q2</td>
+                        <td class="px-4 py-3">@record.Q3</td>
+                        <td class="px-4 py-3">@record.Q4</td>
+                        <td class="px-4 py-3 font-semibold">@record.FinalGrade</td>
+                        <td class="px-4 py-3">
+                            <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@record.Remarks</span>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="9" class="px-4 py-8 text-center text-gray-500">No academic records found</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <!-- Footer with Pagination -->
+    <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+        <span>@($"{AcademicRecords?.Count ?? 0} of {(AcademicRecords?.Count ?? 0)} academic records")</span>
+        <div class="flex items-center gap-2">
+            <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
+            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
+            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
+            <span>...</span>
+            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
+        </div>
+        <div class="flex items-center gap-2">
+            <span>Show</span>
+            <select @bind="RowsPerPage" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="5">5 rows</option>
+                <option value="10">10 rows</option>
+                <option value="20">20 rows</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public List<AcademicRecordData>? AcademicRecords { get; set; }
+
+    [Parameter]
+    public int RowsPerPage { get; set; } = 5;
+
+    // Filter properties
+    private string SearchText { get; set; } = "";
+    private string SchoolYearFilter { get; set; } = "";
+    private string SubjectFilter { get; set; } = "";
+    private string GradeLevelFilter { get; set; } = "";
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        SchoolYearFilter = "";
+        SubjectFilter = "";
+        GradeLevelFilter = "";
+    }
+
+    private void ExportPDF()
+    {
+        // Export PDF logic will be implemented here
+    }
+}
+

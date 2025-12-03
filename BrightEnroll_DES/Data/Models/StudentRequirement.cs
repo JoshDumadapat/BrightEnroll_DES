@@ -26,6 +26,9 @@ public class StudentRequirement
     [Column("status")]
     public string Status { get; set; } = "not submitted";
 
+    [Column("is_verified")]
+    public bool IsVerified { get; set; } = false;
+
     [Required]
     [MaxLength(20)]
     [Column("requirement_type")]

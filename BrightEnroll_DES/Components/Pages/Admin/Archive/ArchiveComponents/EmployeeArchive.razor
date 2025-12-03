@@ -1,0 +1,234 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.ArchiveComponents
+@using BrightEnroll_DES.Components.Pages.Admin
+
+@* Employee Archive Component with Filters *@
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                <span class="absolute left-4 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <select @bind="RoleFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Role</option>
+                <option value="Teacher">Teacher</option>
+                <option value="Registrar">Registrar</option>
+                <option value="Cashier">Cashier</option>
+                <option value="Admin">Admin</option>
+            </select>
+            <select @bind="StatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Status</option>
+                <option value="Inactive">Inactive</option>
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="group relative">
+                <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <span class="tooltip-delay">Clear all filters</span>
+            </div>
+            <div class="group relative">
+                <button @onclick="ExportPDF" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export
+                </button>
+                <span class="tooltip-delay">Export archived employees to file</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-100 font-semibold text-gray-600">
+            <tr>
+                <th class="px-4 py-3 text-left">ID</th>
+                <th class="px-4 py-3 text-left">Name</th>
+                <th class="px-4 py-3 text-left">Address</th>
+                <th class="px-4 py-3 text-left">Email</th>
+                <th class="px-4 py-3 text-left">Role</th>
+                <th class="px-4 py-3 text-left">Reason</th>
+                <th class="px-4 py-3 text-left">Status</th>
+                <th class="px-4 py-3 text-left">Archived Date</th>
+                <th class="px-4 py-3 text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            @if (Employees != null && Employees.Any())
+            {
+                @foreach (var emp in PaginatedEmployees)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">@emp.Id</td>
+                        <td class="px-4 py-3">@emp.Name</td>
+                        <td class="px-4 py-3">@emp.Address</td>
+                        <td class="px-4 py-3">@emp.Email</td>
+                        <td class="px-4 py-3">@emp.Role</td>
+                        <td class="px-4 py-3">
+                            @if (!string.IsNullOrWhiteSpace(emp.ArchivedReason))
+                            {
+                                <span class="text-xs text-gray-700" title="@emp.ArchivedReason">
+                                    @(emp.ArchivedReason.Length > 80 ? emp.ArchivedReason.Substring(0, 80) + "..." : emp.ArchivedReason)
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="text-xs text-gray-400">-</span>
+                            }
+                        </td>
+                        <td class="px-4 py-3">
+                            <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">
+                                @emp.Status
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-600">@emp.ArchivedDate</td>
+                        <td class="flex items-center justify-center px-4 py-3">
+                            <!-- View Button -->
+                            <button @onclick="() => ViewEmployee(emp)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span class="hidden sm:inline">View</span>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                        <div class="flex flex-col items-center justify-center">
+                            <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                            <p class="text-sm text-gray-500 mt-1">There are no archived employees to display at this time.</p>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@FilteredEmployees.Count" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="archived employees"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter]
+    public List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedEmployee>? Employees { get; set; }
+
+    [Parameter]
+    public int RowsPerPage { get; set; } = 5;
+
+    // Filter properties
+    private string SearchText { get; set; } = "";
+    private string RoleFilter { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+
+    // Computed property for filtered employees
+    private List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedEmployee> FilteredEmployees
+    {
+        get
+        {
+            if (Employees == null || !Employees.Any())
+                return new List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedEmployee>();
+
+            var filtered = Employees.AsEnumerable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(e => 
+                    e.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    e.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    e.Email.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Role filter
+            if (!string.IsNullOrWhiteSpace(RoleFilter))
+            {
+                filtered = filtered.Where(e => e.Role == RoleFilter);
+            }
+
+            // Status filter
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                filtered = filtered.Where(e => e.Status == StatusFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated employees
+    private List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedEmployee> PaginatedEmployees
+    {
+        get
+        {
+            var filtered = FilteredEmployees;
+            return filtered
+                .Skip((CurrentPage - 1) * RowsPerPage)
+                .Take(RowsPerPage)
+                .ToList();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        RoleFilter = "";
+        StatusFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ExportPDF()
+    {
+        // Export PDF logic will be implemented here
+    }
+
+    private void ViewEmployee(BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedEmployee employee)
+    {
+        // View employee details logic will be implemented here
+    }
+}
+

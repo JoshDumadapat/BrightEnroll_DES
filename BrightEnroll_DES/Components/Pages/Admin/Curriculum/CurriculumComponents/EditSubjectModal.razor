@@ -1,0 +1,766 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Services
+@using DataModels = BrightEnroll_DES.Data.Models
+@using System.Linq
+@inject CurriculumService CurriculumService
+@inject IJSRuntime JSRuntime
+
+@if (Show)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="edit-subject-modal" class="w-full max-w-5xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-center rounded-t-2xl bg-yellow-500 px-6 py-3 flex-shrink-0">
+                <h3 class="text-lg font-semibold text-white">Edit Subject</h3>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-4 rounded-b-2xl overflow-y-auto flex-1">
+                <form @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+                    <!-- Subject Code, Name and Grade Level -->
+                    <div class="grid grid-cols-1 gap-4 mb-6 md:grid-cols-3">
+                        <!-- Subject Code -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Subject Code <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Subject.Code"
+                                   @bind:after="OnSubjectChanged"
+                                   disabled="@isSubmitting"
+                                   class="w-full rounded-lg border-2 @(string.IsNullOrWhiteSpace(Subject.Code) && hasValidationErrors ? "border-red-300" : "border-gray-200") bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                   required />
+                            @if (string.IsNullOrWhiteSpace(Subject.Code) && hasValidationErrors)
+                            {
+                                <p class="mt-1 text-xs text-red-600">Subject Code is required</p>
+                            }
+                        </div>
+
+                        <!-- Subject Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Subject Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="Subject.Name" 
+                                   @bind:after="OnSubjectChanged"
+                                   disabled="@isSubmitting"
+                                   class="w-full rounded-lg border-2 @(string.IsNullOrWhiteSpace(Subject.Name) && hasValidationErrors ? "border-red-300" : "border-gray-200") bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                   required />
+                            @if (string.IsNullOrWhiteSpace(Subject.Name) && hasValidationErrors)
+                            {
+                                <p class="mt-1 text-xs text-red-600">Subject Name is required</p>
+                            }
+                        </div>
+
+                        <!-- Grade Level -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Grade Level <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="Subject.GradeLevel" @bind:after="OnGradeLevelChanged"
+                                    disabled="@isSubmitting"
+                                    class="w-full rounded-lg border-2 @(string.IsNullOrWhiteSpace(Subject.GradeLevel) && hasValidationErrors ? "border-red-300" : "border-gray-200") bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                                    required>
+                                <option value="">Select Grade</option>
+                                @foreach (var gradeLevel in GradeLevels)
+                                {
+                                    <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                }
+                            </select>
+                            @if (string.IsNullOrWhiteSpace(Subject.GradeLevel) && hasValidationErrors)
+                            {
+                                <p class="mt-1 text-xs text-red-600">Grade Level is required</p>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Description & Active Flag -->
+                    <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div class="md:col-span-2">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">
+                                Description <span class="text-gray-400 font-normal">(Optional)</span>
+                            </label>
+                            <input type="text" @bind="Subject.Description" 
+                                   @bind:after="OnSubjectChanged"
+                                   placeholder="Subject description..."
+                                   disabled="@isSubmitting"
+                                   class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none placeholder:text-gray-400 hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        </div>
+                        <div class="flex items-end">
+                            <label class="inline-flex items-center space-x-2">
+                                <input type="checkbox" @bind="Subject.IsActive"
+                                       @bind:after="OnSubjectChanged"
+                                       disabled="@isSubmitting"
+                                       class="h-4 w-4 rounded border-gray-300 text-yellow-500 focus:ring-yellow-400" />
+                                <span class="text-sm font-medium text-gray-700">Active</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Existing Schedules -->
+                    @if (Subject.Schedules != null && Subject.Schedules.Any())
+                    {
+                        <div class="mb-6">
+                            <h4 class="mb-4 text-sm font-semibold text-gray-700">
+                                Edit Schedule <span class="text-red-500">*</span>
+                            </h4>
+                            
+                            @foreach (var schedule in Subject.Schedules)
+                            {
+                                <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                        <!-- Start Time -->
+                                        <div class="relative">
+                                            <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                                Start Time <span class="text-red-500">*</span>
+                                            </label>
+                                            <TimePicker @key="@($"edit-start-time-{schedule.GetHashCode()}")" 
+                                                       @bind-TimeValue="schedule.StartTime" 
+                                                       OnTimeChanged="OnScheduleChanged" 
+                                                       IsDisabled="@isSubmitting" />
+                                        </div>
+
+                                        <!-- End Time -->
+                                        <div class="relative">
+                                            <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                                End Time <span class="text-red-500">*</span>
+                                            </label>
+                                            <TimePicker @key="@($"edit-end-time-{schedule.GetHashCode()}")" 
+                                                       @bind-TimeValue="schedule.EndTime" 
+                                                       OnTimeChanged="OnScheduleChanged" 
+                                                       IsDisabled="@isSubmitting" />
+                                        </div>
+
+                                        <!-- Days Selection -->
+                                        <div class="lg:col-span-2">
+                                            <label class="mb-1.5 block text-xs font-semibold text-gray-700">
+                                                Days <span class="text-red-500">*</span>
+                                            </label>
+                                            <div class="flex flex-wrap gap-2">
+                                                @foreach (var day in DaysOfWeek)
+                                                {
+                                                    <label class="group relative flex cursor-pointer items-center">
+                                                        <input type="checkbox" 
+                                                               checked="@schedule.Days.Any(d => d.Trim().ToUpper() == day.Trim().ToUpper())"
+                                                               @onchange="@((e) => ToggleDay(schedule, day))"
+                                                               disabled="@isSubmitting"
+                                                               class="peer sr-only" />
+                                                        <div class="flex items-center rounded-lg border-2 border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-all duration-200 peer-checked:border-yellow-500 peer-checked:bg-yellow-50 peer-checked:text-yellow-700 hover:border-yellow-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                            <span>@day</span>
+                                                        </div>
+                                                    </label>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Error Message for this schedule -->
+                                    @if (!string.IsNullOrEmpty(schedule.ErrorMessage))
+                                    {
+                                        <div class="mt-2 rounded-lg bg-red-50 border border-red-200 px-4 py-2">
+                                            <p class="text-xs text-red-600">@schedule.ErrorMessage</p>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-6 rounded-lg border-2 border-gray-200 bg-gray-50 p-8 text-center">
+                            <p class="text-sm text-gray-500">
+                                <span>No schedules found for this subject. You can add schedules later if needed.</span>
+                            </p>
+                        </div>
+                    }
+
+                    <!-- Error Message -->
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-2">
+                            <p class="text-xs text-red-600">@errorMessage</p>
+                        </div>
+                    }
+
+                    <div class="mt-6 flex justify-end gap-3 flex-shrink-0">
+                        <button type="button" @onclick="ShowCancelConfirm" disabled="@isSubmitting"
+                                class="rounded-lg border border-gray-300 bg-transparent px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Cancel
+                        </button>
+                        <button type="button" @onclick="ShowSubmitConfirm" disabled="@(!CanSubmit || isSubmitting)"
+                                class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                            @if (isSubmitting)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Changes</span>
+                            }
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Submit -->
+@if (showSubmitConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseSubmitConfirmModal">
+        <div id="edit-subject-submit-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">Confirm Update</h3>
+                <button @onclick="CloseSubmitConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to update this subject: <strong>@Subject.Name</strong>?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseSubmitConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSubmit" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    Confirm
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Confirmation Modal for Cancel -->
+@if (showCancelConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelConfirmModal">
+        <div id="edit-subject-cancel-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Cancel Edit Subject</h3>
+                <button @onclick="CloseCancelConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">Are you sure you want to cancel? All changes will be discarded.</p>
+                <div class="flex justify-end">
+                    <button @onclick="ConfirmCancel" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Validation Error Modal -->
+@if (showValidationModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseValidationModal">
+        <div id="edit-subject-validation-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Validation Error</h3>
+            </div>
+            <div class="px-6 py-4">
+                <p class="mb-3 text-sm font-medium text-gray-800">Please fill in the following required fields:</p>
+                <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
+                    @foreach (var error in validationErrors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+            <div class="flex justify-end border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseValidationModal" class="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90" style="background-color: #ef4444;">
+                    OK
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public Subject Subject { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSubmit { get; set; }
+
+    private List<DataModels.GradeLevel> GradeLevels { get; set; } = new();
+    private bool showSubmitConfirmModal = false;
+    private bool showCancelConfirmModal = false;
+    private bool showValidationModal = false;
+    private List<string> validationErrors = new();
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+    private int? SubjectId { get; set; }
+    private bool isLoading = false;
+    private bool isInitialized = false;
+    private SemaphoreSlim loadSemaphore = new SemaphoreSlim(1, 1);
+    private bool hasValidationErrors = false;
+    private bool hasEdited = false;
+    private List<DataModels.Subject> ExistingSubjects { get; set; } = new();
+    
+    private readonly List<string> DaysOfWeek = new() { "M", "T", "W", "TH", "F", "Sat", "Sun" };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only load data when modal first opens, not on every parameter change
+        if (Show && !isLoading && !isInitialized && !isSubmitting)
+        {
+            isInitialized = true;
+            await LoadDataAsync();
+            // Extract subject ID from the Subject.Id (format: "SUB-001")
+            if (!string.IsNullOrEmpty(Subject.Id) && Subject.Id.StartsWith("SUB-"))
+            {
+                var idPart = Subject.Id.Replace("SUB-", "");
+                if (int.TryParse(idPart, out var id))
+                {
+                    SubjectId = id;
+                    await LoadExistingSchedules();
+                }
+            }
+        }
+        else if (!Show)
+        {
+            // Reset when modal closes
+            isInitialized = false;
+            isLoading = false;
+            errorMessage = "";
+            hasEdited = false;
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        if (isLoading) return;
+        
+        await loadSemaphore.WaitAsync();
+        try
+        {
+            isLoading = true;
+            GradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+            ExistingSubjects = await CurriculumService.GetAllSubjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            loadSemaphore.Release();
+        }
+    }
+
+    private async Task LoadExistingSchedules()
+    {
+        if (!SubjectId.HasValue || isLoading || isSubmitting) return;
+
+        await loadSemaphore.WaitAsync();
+        try
+        {
+            isLoading = true;
+            errorMessage = ""; // Clear any previous errors
+            
+            // Add a small delay to ensure any previous operations complete
+            await Task.Delay(100);
+            
+            var schedules = await CurriculumService.GetSubjectSchedulesBySubjectIdAsync(SubjectId.Value);
+            
+            // Group schedules by time slot and convert to SubjectScheduleItem format
+            // Use Distinct() to avoid duplicate days and ensure proper ordering
+            var scheduleItems = schedules
+                .GroupBy(s => new { s.StartTime, s.EndTime })
+                .Select(g => new SubjectScheduleItem
+                {
+                    SubjectName = Subject.Name,
+                    StartTime = g.Key.StartTime.ToString(@"hh\:mm"),
+                    EndTime = g.Key.EndTime.ToString(@"hh\:mm"),
+                    Days = g.Select(s => s.DayOfWeek.Trim().ToUpper())
+                            .Distinct()
+                            .OrderBy(d => GetDayOrder(d))
+                            .ToList(),
+                    Description = Subject.Description ?? ""
+                })
+                .ToList();
+            
+            Subject.Schedules = scheduleItems;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading schedules: {ex.Message}";
+            StateHasChanged();
+        }
+        finally
+        {
+            isLoading = false;
+            loadSemaphore.Release();
+        }
+    }
+
+    private void OnSubjectChanged()
+    {
+        errorMessage = "";
+        hasValidationErrors = false;
+        hasEdited = true;
+        StateHasChanged();
+    }
+
+    private void OnScheduleChanged()
+    {
+        errorMessage = "";
+        hasEdited = true;
+        // Validate schedules and remove duplicates
+        if (Subject.Schedules != null)
+        {
+            // First, clean up each schedule's days list (remove duplicates, normalize, sort)
+            foreach (var schedule in Subject.Schedules)
+            {
+                schedule.Days = schedule.Days
+                    .Select(d => d.Trim().ToUpper())
+                    .Distinct()
+                    .OrderBy(d => GetDayOrder(d))
+                    .ToList();
+            }
+            
+            // Regroup schedules by time slot to handle time changes (only if times are valid)
+            var validSchedules = Subject.Schedules
+                .Where(s => !string.IsNullOrWhiteSpace(s.StartTime) && !string.IsNullOrWhiteSpace(s.EndTime))
+                .ToList();
+            
+            if (validSchedules.Any())
+            {
+                var regroupedSchedules = validSchedules
+                    .GroupBy(s => new { s.StartTime, s.EndTime })
+                    .Select(g => new SubjectScheduleItem
+                    {
+                        SubjectName = g.First().SubjectName,
+                        StartTime = g.Key.StartTime,
+                        EndTime = g.Key.EndTime,
+                        Days = g.SelectMany(s => s.Days)
+                                .Select(d => d.Trim().ToUpper())
+                                .Distinct()
+                                .OrderBy(d => GetDayOrder(d))
+                                .ToList(),
+                        Description = g.First().Description ?? ""
+                    })
+                    .ToList();
+                
+                Subject.Schedules = regroupedSchedules;
+            }
+            
+            // Validate each schedule
+            foreach (var schedule in Subject.Schedules)
+            {
+                schedule.ErrorMessage = "";
+                
+                if (!TimeSpan.TryParse(schedule.StartTime, out var startTime) || 
+                    !TimeSpan.TryParse(schedule.EndTime, out var endTime))
+                {
+                    schedule.ErrorMessage = "Invalid time format.";
+                    continue;
+                }
+
+                if (endTime <= startTime)
+                {
+                    schedule.ErrorMessage = "End time must be after start time.";
+                    continue;
+                }
+
+                if (!schedule.Days.Any())
+                {
+                    schedule.ErrorMessage = "At least one day must be selected.";
+                    continue;
+                }
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void OnGradeLevelChanged()
+    {
+        errorMessage = "";
+        hasValidationErrors = false;
+        hasEdited = true;
+        StateHasChanged();
+    }
+
+    private void ToggleDay(SubjectScheduleItem schedule, string day)
+    {
+        // Normalize the day for comparison
+        var normalizedDay = day.Trim().ToUpper();
+        
+        // Check if the day is currently in the list (case-insensitive)
+        var dayExists = schedule.Days.Any(d => d.Trim().ToUpper() == normalizedDay);
+        
+        if (dayExists)
+        {
+            // Remove the day (uncheck)
+            schedule.Days.RemoveAll(d => d.Trim().ToUpper() == normalizedDay);
+        }
+        else
+        {
+            // Add the day (check)
+            schedule.Days.Add(day);
+        }
+        
+        // Remove duplicates and sort
+        schedule.Days = schedule.Days
+            .Select(d => d.Trim().ToUpper())
+            .Distinct()
+            .OrderBy(d => GetDayOrder(d))
+            .ToList();
+        
+        OnScheduleChanged();
+    }
+
+    private int GetDayOrder(string day)
+    {
+        var normalizedDay = day.Trim().ToUpper();
+        return normalizedDay switch
+        {
+            "M" => 1,
+            "T" => 2,
+            "W" => 3,
+            "TH" => 4,
+            "F" => 5,
+            "SAT" => 6,
+            "SUN" => 7,
+            _ => 99
+        };
+    }
+
+    private bool CanSubmit
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(Subject.Name))
+                return false;
+
+            if (string.IsNullOrWhiteSpace(Subject.Code))
+                return false;
+            
+            if (string.IsNullOrWhiteSpace(Subject.GradeLevel))
+                return false;
+            
+            // If schedules exist, ensure they are valid; if none, allow submit.
+            if (Subject.Schedules != null && Subject.Schedules.Any())
+            {
+                foreach (var schedule in Subject.Schedules)
+                {
+                    if (!TimeSpan.TryParse(schedule.StartTime, out var startTime) || 
+                        !TimeSpan.TryParse(schedule.EndTime, out var endTime))
+                        return false;
+                    
+                    if (endTime <= startTime)
+                        return false;
+                    
+                    if (!schedule.Days.Any())
+                        return false;
+                }
+            }
+            
+            return true;
+        }
+    }
+
+    private bool HasData()
+    {
+        return !string.IsNullOrWhiteSpace(Subject.Name) ||
+               !string.IsNullOrWhiteSpace(Subject.GradeLevel) ||
+               (Subject.Schedules != null && Subject.Schedules.Any());
+    }
+
+    private void ShowSubmitConfirm()
+    {
+        if (!ValidateForm())
+        {
+            hasValidationErrors = true;
+            showValidationModal = true;
+            StateHasChanged();
+            return;
+        }
+        hasValidationErrors = false;
+        showSubmitConfirmModal = true;
+    }
+
+    private bool ValidateForm()
+    {
+        validationErrors.Clear();
+        
+        var trimmedCode = Subject.Code?.Trim() ?? string.Empty;
+        var trimmedName = Subject.Name?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(Subject.Name))
+        {
+            validationErrors.Add("Subject Name is required");
+        }
+
+        if (string.IsNullOrWhiteSpace(Subject.Code))
+        {
+            validationErrors.Add("Subject Code is required");
+        }
+
+        // Subject code and name must not be the same
+        if (!string.IsNullOrEmpty(trimmedCode) &&
+            !string.IsNullOrEmpty(trimmedName) &&
+            trimmedCode.Equals(trimmedName, StringComparison.OrdinalIgnoreCase))
+        {
+            validationErrors.Add("Subject Code and Subject Name must not be the same.");
+        }
+
+        // Prevent duplicate subject name and code within the same grade level (excluding this subject)
+        if (!string.IsNullOrWhiteSpace(Subject.GradeLevel) && ExistingSubjects.Any() && GradeLevels.Any())
+        {
+            var gradeLevel = GradeLevels.FirstOrDefault(g => g.GradeLevelName == Subject.GradeLevel);
+            if (gradeLevel != null)
+            {
+                var subjectsInGrade = ExistingSubjects
+                    .Where(s => s.GradeLevelId == gradeLevel.GradeLevelId);
+
+                if (SubjectId.HasValue)
+                {
+                    subjectsInGrade = subjectsInGrade.Where(s => s.SubjectId != SubjectId.Value);
+                }
+
+                if (!string.IsNullOrEmpty(trimmedName) &&
+                    subjectsInGrade.Any(s => s.SubjectName.Equals(trimmedName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    validationErrors.Add($"The subject name \"{trimmedName}\" already exists for grade \"{Subject.GradeLevel}\".");
+                }
+
+                if (!string.IsNullOrEmpty(trimmedCode) &&
+                    subjectsInGrade.Any(s => !string.IsNullOrWhiteSpace(s.SubjectCode) &&
+                                              s.SubjectCode!.Equals(trimmedCode, StringComparison.OrdinalIgnoreCase)))
+                {
+                    validationErrors.Add($"The subject code \"{trimmedCode}\" already exists for grade \"{Subject.GradeLevel}\".");
+                }
+            }
+        }
+        
+        if (string.IsNullOrWhiteSpace(Subject.GradeLevel))
+        {
+            validationErrors.Add("Grade Level is required");
+        }
+        
+        // Schedules are optional, but if provided they must be valid
+        if (Subject.Schedules != null && Subject.Schedules.Any())
+        {
+            foreach (var schedule in Subject.Schedules)
+            {
+                if (!TimeSpan.TryParse(schedule.StartTime, out var startTime) || 
+                    !TimeSpan.TryParse(schedule.EndTime, out var endTime))
+                {
+                    validationErrors.Add($"Invalid time format for schedule: {schedule.StartTime} - {schedule.EndTime}");
+                }
+                else if (endTime <= startTime)
+                {
+                    validationErrors.Add($"End time must be after start time for schedule: {schedule.StartTime} - {schedule.EndTime}");
+                }
+                
+                if (!schedule.Days.Any())
+                {
+                    validationErrors.Add("At least one day must be selected for each schedule");
+                }
+            }
+        }
+        
+        return validationErrors.Count == 0;
+    }
+
+    private void CloseValidationModal()
+    {
+        showValidationModal = false;
+    }
+
+    private void CloseSubmitConfirmModal()
+    {
+        showSubmitConfirmModal = false;
+    }
+
+    private async Task ConfirmSubmit()
+    {
+        showSubmitConfirmModal = false;
+        await HandleSubmit();
+    }
+
+    private void ShowCancelConfirm()
+    {
+        if (!hasEdited)
+        {
+            OnClose.InvokeAsync();
+            return;
+        }
+
+        showCancelConfirmModal = true;
+    }
+
+    private void CloseCancelConfirmModal()
+    {
+        showCancelConfirmModal = false;
+    }
+
+    private async Task ConfirmCancel()
+    {
+        showCancelConfirmModal = false;
+        await OnClose.InvokeAsync();
+    }
+
+    private async Task HandleBackdropClick()
+    {
+        if (showSubmitConfirmModal || showCancelConfirmModal || showValidationModal)
+        {
+            return;
+        }
+
+        if (!hasEdited)
+        {
+            await OnClose.InvokeAsync();
+        }
+        else
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("handleModalBackdropClick", "edit-subject-modal");
+            }
+            catch (Exception)
+            {
+            }
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        // Wait for any ongoing loading operations to complete
+        if (isLoading)
+        {
+            await loadSemaphore.WaitAsync();
+            try
+            {
+                // Wait for loading to finish
+            }
+            finally
+            {
+                loadSemaphore.Release();
+            }
+        }
+        
+        isSubmitting = true;
+        try
+        {
+            await OnSubmit.InvokeAsync();
+        }
+        finally
+        {
+            isSubmitting = false;
+            StateHasChanged();
+        }
+    }
+}

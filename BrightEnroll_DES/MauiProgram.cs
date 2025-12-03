@@ -1,14 +1,21 @@
 ﻿using Microsoft.Extensions.Logging;
-using BrightEnroll_DES.Services.AuthFunction;
-using BrightEnroll_DES.Services;
-using BrightEnroll_DES.Services.HR;
-using BrightEnroll_DES.Services.Finance;
-using BrightEnroll_DES.Services.DBConnections;
+using BrightEnroll_DES.Services.Authentication;
+using BrightEnroll_DES.Services.Business.Students;
+using BrightEnroll_DES.Services.Business.Academic;
+using BrightEnroll_DES.Services.Business.HR;
+using BrightEnroll_DES.Services.Business.Finance;
+using BrightEnroll_DES.Services.Database.Connections;
+using BrightEnroll_DES.Services.Database.Initialization;
+using BrightEnroll_DES.Services.Infrastructure;
 using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Services.SuperAdmin;
+using BrightEnroll_DES.Services.RoleBase;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
+using Microsoft.JSInterop;
+using QuestPDF.Infrastructure;
 
 namespace BrightEnroll_DES
 {
@@ -16,6 +23,9 @@ namespace BrightEnroll_DES
     {
         public static MauiApp CreateMauiApp()
         {
+
+            QuestPDF.Settings.License = LicenseType.Community;
+
             var builder = MauiApp.CreateBuilder();
             builder
                 .UseMauiApp<App>()
@@ -26,63 +36,83 @@ namespace BrightEnroll_DES
 
             builder.Services.AddMauiBlazorWebView();
 
-            // Register DBConnection with dynamic connection string resolution
-            // Connection string is resolved from:
-            // 1. Environment variable "ConnectionStrings__DefaultConnection"
-            // 2. appsettings.json file
-            // 3. Default LocalDB connection string
-            builder.Services.AddSingleton<DBConnection>(sp =>
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.Database.Connections.DBConnection>(sp =>
             {
-                // DBConnection constructor will automatically resolve connection string
-                return new DBConnection();
+                return new BrightEnroll_DES.Services.Database.Connections.DBConnection();
             });
 
-            // Register Repositories (EF Core ORM with SQL injection protection)
-            builder.Services.AddScoped<BrightEnroll_DES.Services.Repositories.IUserRepository, BrightEnroll_DES.Services.Repositories.UserRepository>();
-
-            // Register LoginService
+            builder.Services.AddScoped<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository, BrightEnroll_DES.Services.DataAccess.Repositories.UserRepository>();
             builder.Services.AddSingleton<ILoginService, LoginService>();
-
-            // Register AuthService
             builder.Services.AddSingleton<IAuthService, AuthService>();
-            
-            // Register Database Seeder (scoped for EF Core DbContext)
             builder.Services.AddScoped<DatabaseSeeder>();
-            
-            // Register Loading Service
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
-            
-            // Register Address Service
             builder.Services.AddSingleton<AddressService>();
-            
-            // Register School Year Service
             builder.Services.AddSingleton<SchoolYearService>();
 
-            // Register EF Core DbContext
-            builder.Services.AddDbContext<AppDbContext>(options =>
+            // Role-based access control services
+            builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();
+            builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();
+
+            // --- CONFIGURATION SETUP ---
+            // Build and add configuration to service collection
+            var configurationBuilder = new ConfigurationBuilder()
+                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
+                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            
+            var configuration = configurationBuilder.Build();
+            builder.Services.AddSingleton<IConfiguration>(configuration);
+
+            // --- LOCAL DATABASE SETUP ---
+            // Get connection strings
+            var localConnectionString = configuration.GetConnectionString("DefaultConnection");
+            
+            if (string.IsNullOrWhiteSpace(localConnectionString))
             {
-                // Get connection string from configuration
-                var configuration = new ConfigurationBuilder()
-                    .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                    .Build();
+                localConnectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
+            }
 
-                var connectionString = configuration.GetConnectionString("DefaultConnection");
+            builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(localConnectionString);
                 
-                // Fallback to default LocalDB connection if not found
-                if (string.IsNullOrWhiteSpace(connectionString))
-                {
-                    connectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
-                }
-
-                options.UseSqlServer(connectionString);
+#if DEBUG
+                options.EnableSensitiveDataLogging();
+                options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SQL: {message}"), 
+                    Microsoft.Extensions.Logging.LogLevel.Information);
+#endif
             });
 
-            // Register StudentService (scoped for EF Core DbContext)
+            builder.Services.AddSingleton<IConnectivityService>(sp =>
+            {
+                var jsRuntime = sp.GetService<IJSRuntime>();
+                return new ConnectivityService(jsRuntime);
+            });
             builder.Services.AddScoped<StudentService>();
-            
-            // Register EmployeeService (scoped for EF Core DbContext)
+            builder.Services.AddScoped<ArchiveService>();
+            builder.Services.AddScoped<EnrollmentStatusService>();
             builder.Services.AddScoped<EmployeeService>();
+            builder.Services.AddScoped<FeeService>();
+            builder.Services.AddScoped<ExpenseService>();
+            builder.Services.AddScoped<PaymentService>();
+            builder.Services.AddScoped<CurriculumService>();
+            
+            // Report services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.EnrollmentReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.FinancialReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.AccountingReportService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.ExportService>();
+            
+            // QuestPDF services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.EnrollmentStatisticsService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.EnrollmentPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.Form1PdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PaymentReceiptPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PayslipPdfGenerator>();
+            
+            // Inventory services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.InventoryService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetAssignmentService>();
             
             // Register FeeService (scoped for EF Core DbContext)
             builder.Services.AddScoped<FeeService>();
@@ -91,6 +121,14 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<ISuperAdminRepository, SuperAdminRepository>();
             builder.Services.AddScoped<ISuperAdminService, SuperAdminService>();
 
+            // Database Sync Services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService, BrightEnroll_DES.Services.Database.Sync.DatabaseSyncService>();
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.Database.Sync.ISyncStatusService, BrightEnroll_DES.Services.Database.Sync.SyncStatusService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IOfflineQueueService, BrightEnroll_DES.Services.Database.Sync.OfflineQueueService>();
+            
+            // Auto Sync Scheduler (Background Service)
+            builder.Services.AddHostedService<BrightEnroll_DES.Services.Database.Sync.AutoSyncScheduler>();
+
 #if DEBUG
     		builder.Services.AddBlazorWebViewDeveloperTools();
     		builder.Logging.AddDebug();
@@ -98,30 +136,95 @@ namespace BrightEnroll_DES
 
             var app = builder.Build();
 
-            // Initialize database and seed initial admin user on startup
-            try
+            _ = Task.Run(async () =>
             {
-                var dbConnection = app.Services.GetRequiredService<DBConnection>();
-                
-                // Get connection string for initializer
-                var connectionString = dbConnection.GetConnection().ConnectionString;
-                var initializer = new DatabaseInitializer(connectionString);
-                
-                // Automatically create database and tables if they don't exist
-                Task.Run(async () => await initializer.InitializeDatabaseAsync()).Wait();
-                
-                // Seed initial admin user - create a scope for DbContext
-                using (var scope = app.Services.CreateScope())
+                try
                 {
-                    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
-                    Task.Run(async () => await seeder.SeedInitialAdminAsync()).Wait();
+                    var dbConnection = app.Services.GetRequiredService<BrightEnroll_DES.Services.Database.Connections.DBConnection>();
+                    var connection = dbConnection.GetConnection();
+                    if (connection == null || string.IsNullOrWhiteSpace(connection.ConnectionString))
+                    {
+                        throw new Exception("Database connection string is null or empty.");
+                    }
+                    var connectionString = connection.ConnectionString;
+                    
+                    var initializer = new BrightEnroll_DES.Services.Database.Initialization.DatabaseInitializer(connectionString);
+                    await initializer.InitializeDatabaseAsync();
+                    
+                    await Task.Delay(1500);
+                    
+                    using (var scope = app.Services.CreateScope())
+                    {
+                        var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+                        int maxRetries = 3;
+                        bool seedingSuccess = false;
+                        Exception? lastException = null;
+                        
+                        // First, seed all roles
+                        try
+                        {
+                            await seeder.SeedAllRolesAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            var loggerFactory = app.Services.GetService<ILoggerFactory>();
+                            var logger = loggerFactory?.CreateLogger("MauiProgram");
+                            logger?.LogWarning(ex, "Role seeding failed: {Message}", ex.Message);
+                        }
+                        
+                        // Then seed admin user
+                        for (int attempt = 1; attempt <= maxRetries; attempt++)
+                        {
+                            try
+                            {
+                                await seeder.SeedInitialAdminAsync();
+                                seedingSuccess = true;
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                lastException = ex;
+                                if (attempt < maxRetries)
+                                {
+                                    int delayMs = 1000 * attempt;
+                                    await Task.Delay(delayMs);
+                                }
+                            }
+                        }
+                        
+                        if (!seedingSuccess)
+                        {
+                            var errorMsg = $"Failed to seed admin user after {maxRetries} attempts";
+                            throw new Exception(errorMsg, lastException);
+                        }
+                        
+                        try
+                        {
+                            await seeder.SeedDeductionsAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            var loggerFactory = app.Services.GetService<ILoggerFactory>();
+                            var logger = loggerFactory?.CreateLogger("MauiProgram");
+                            logger?.LogWarning(ex, "Deductions seeding failed: {Message}", ex.Message);
+                        }
+                        
+                        var userRepo = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository>();
+                        var adminUser = await userRepo.GetBySystemIdAsync("BDES-0001");
+                        if (adminUser == null)
+                        {
+                            var errorMsg = "CRITICAL: Admin user not found after seeding verification!";
+                            throw new Exception(errorMsg);
+                        }
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                // Log error but don't crash the app
-                System.Diagnostics.Debug.WriteLine($"Error initializing database: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    var loggerFactory = app.Services.GetService<ILoggerFactory>();
+                    var logger = loggerFactory?.CreateLogger("MauiProgram");
+                    logger?.LogError(ex, "Error initializing database: {Message}", ex.Message);
+                }
+            });
 
             return app;
         }

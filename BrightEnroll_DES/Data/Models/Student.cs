@@ -17,10 +17,9 @@ public class Student
     [Column("first_name")]
     public string FirstName { get; set; } = string.Empty;
 
-    [Required]
     [MaxLength(50)]
     [Column("middle_name")]
-    public string MiddleName { get; set; } = string.Empty;
+    public string? MiddleName { get; set; }
 
     [Required]
     [MaxLength(50)]
@@ -52,15 +51,17 @@ public class Student
     [Column("mother_tongue")]
     public string? MotherTongue { get; set; }
 
+    [Required]
     [Column("ip_comm")]
-    public bool? IpComm { get; set; } = false;
+    public bool IpComm { get; set; } = false;
 
     [MaxLength(50)]
     [Column("ip_specify")]
     public string? IpSpecify { get; set; }
 
+    [Required]
     [Column("four_ps")]
-    public bool? FourPs { get; set; } = false;
+    public bool FourPs { get; set; } = false;
 
     [MaxLength(50)]
     [Column("four_ps_hseID")]
@@ -152,9 +153,21 @@ public class Student
     [Column("status")]
     public string Status { get; set; } = "Pending";
 
+    [Column("archive_reason", TypeName = "text")]
+    public string? ArchiveReason { get; set; }
+
+    [Column("amount_paid", TypeName = "decimal(18,2)")]
+    public decimal AmountPaid { get; set; } = 0;
+
+    [MaxLength(20)]
+    [Column("payment_status")]
+    public string? PaymentStatus { get; set; }
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 
     public virtual ICollection<StudentRequirement> Requirements { get; set; } = new List<StudentRequirement>();
+
+    public virtual ICollection<StudentSectionEnrollment> SectionEnrollments { get; set; } = new List<StudentSectionEnrollment>();
 }
 

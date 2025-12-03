@@ -1,0 +1,699 @@
+﻿@page "/finance"
+@layout Components.Layout.MainLayout
+@inject IJSRuntime JSRuntime
+@inject BrightEnroll_DES.Services.Business.Finance.FeeService FeeService
+@inject BrightEnroll_DES.Services.Business.Finance.ExpenseService ExpenseService
+@inject BrightEnroll_DES.Services.Business.Finance.PaymentService PaymentService
+@inject ILoadingService LoadingService
+@inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
+
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.RoleBase
+@using Microsoft.Extensions.Logging
+@inject IAuthorizationService AuthorizationService
+
+<PageTitle>Finance</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewFinance">
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Finance</h1>
+    
+    <!-- Tabs Card -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            @if (AuthorizationService.HasPermission(Permissions.CreateFee) || AuthorizationService.HasPermission(Permissions.EditFee))
+            {
+                <button @onclick='() => SetActiveTab("FeeSetup")' 
+                        class="@GetTabClasses("FeeSetup")"
+                        style="@GetFeeSetupStyle()">
+                    Fee Setup
+                </button>
+            }
+            @if (AuthorizationService.HasPermission(Permissions.ManageExpenses))
+            {
+                <button @onclick='() => SetActiveTab("Expenses")' 
+                        class="@GetTabClasses("Expenses")">
+                    Expenses
+                </button>
+            }
+            <button @onclick='() => SetActiveTab("Payments")' 
+                    class="@GetTabClasses("Payments")">
+                Payments
+            </button>
+            <button @onclick='() => SetActiveTab("Records")' 
+                    class="@GetTabClasses("Records")">
+                Records
+            </button>
+            <button @onclick='() => SetActiveTab("Reports")' 
+                    class="@GetTabClasses("Reports")">
+                Reports
+            </button>
+        </div>
+    </div>
+
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        @if (activeTab == "FeeSetup")
+        {
+            <FeeSetup FeeList="FeeList" 
+                      IsLoading="isLoadingFees"
+                      OnFeeAdded="HandleFeeAdded" 
+                      OnFeeUpdated="HandleFeeUpdated" />
+        }
+        else if (activeTab == "Expenses")
+        {
+            <Expenses ExpenseForm="ExpenseForm"
+                      ExpenseList="ExpenseRecords"
+                      OnExpenseSaved="HandleExpenseSaved"
+                      OnArchiveExpense="HandleArchiveExpense" />
+        }
+        else if (activeTab == "Payments")
+        {
+            <Payments PaymentData="PaymentData" 
+                      OnPaymentProcessed="HandlePaymentProcessed" />
+        }
+        else if (activeTab == "Records")
+        {
+            <Records PaymentRecords="PaymentRecords" 
+                     OnViewPaymentDetails="HandleViewPaymentDetails" 
+                     OnEditPaymentRecord="HandleEditPaymentRecord" 
+                     OnExportPDF="HandleExportPDF" />
+        }
+        else if (activeTab == "Reports")
+        {
+            <FinanceReports />
+        }
+    </div>
+</div>
+
+@code {
+    private string activeTab = "";
+
+    // Fee Setup Data
+    private List<FeeModel> FeeList = new();
+    private bool isLoadingFees = true; // Inline loading state
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // Prevent concurrent submissions
+    private bool _isProcessingFee = false;
+
+    // Payments Data
+    private PaymentDataModel PaymentData = new()
+    {
+        StudentId = "",
+        StudentName = "",
+        GradeLevel = "",
+        TotalFee = 0,
+        AmountPaid = 0,
+        Balance = 0,
+        PaymentStatus = "",
+        NewPaymentAmount = 0,
+        PaymentMethod = "Cash"
+    };
+
+    // Expenses Data
+    private ExpenseFormModel ExpenseForm = new()
+    {
+        ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+        RecordedBy = "Admin User",
+        ExpenseDate = DateTime.Now,
+        PaymentMethod = "Cash",
+        Status = "Pending"
+    };
+    private List<ExpenseRecord> ExpenseRecords = new();
+
+    // Records Data
+    private List<PaymentRecord> PaymentRecords = new();
+
+    private void SetActiveTab(string tab)
+    {
+        // Prevent Cashier from accessing restricted tabs
+        if (tab == "FeeSetup" && !AuthorizationService.HasPermission(Permissions.CreateFee) && !AuthorizationService.HasPermission(Permissions.EditFee))
+        {
+            return;
+        }
+        if (tab == "Expenses" && !AuthorizationService.HasPermission(Permissions.ManageExpenses))
+        {
+            return;
+        }
+        activeTab = tab;
+    }
+
+    private string GetFeeSetupStyle()
+    {
+        bool isSelected = activeTab == "FeeSetup";
+        if (isSelected)
+        {
+            return "color: #0E335D; border-bottom: 2px solid #0E335D;";
+        }
+        else
+        {
+            return "color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = activeTab == tab;
+        
+        return tab switch
+        {
+            "FeeSetup" => isSelected
+                ? "px-3 py-2 text-sm font-semibold"
+                : "px-3 py-2 text-sm font-semibold transition-colors duration-200",
+            "Payments" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            "Expenses" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-orange-600 border-b-2 border-orange-600"
+                : "px-3 py-2 text-sm font-semibold text-orange-600 transition-colors duration-200 hover:text-orange-700",
+            "Records" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            "Reports" => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600"
+                : "px-3 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Set default tab based on permissions
+        // Cashier should only see Payments and Records
+        if (AuthorizationService.HasPermission(Permissions.CreateFee) || AuthorizationService.HasPermission(Permissions.EditFee))
+        {
+            activeTab = "FeeSetup";
+        }
+        else
+        {
+            activeTab = "Payments";
+        }
+
+        // Hide loading screen immediately when page loads
+        LoadingService.HideLoading();
+        
+        // Load fees inline (no full-screen loading - uses inline loading indicator)
+        isLoadingFees = true;
+        try
+        {
+            await LoadFeesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading fees: {Message}", ex.Message);
+            FeeList = new List<FeeModel>();
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load fees: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isLoadingFees = false;
+            StateHasChanged();
+        }
+
+        // Load expenses list
+        try
+        {
+            await LoadExpensesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load expenses: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+
+        // Load payment records
+        try
+        {
+            await LoadPaymentRecordsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
+            // Don't show error toast for payment records as it's not critical on initial load
+        }
+    }
+
+    private async Task LoadFeesAsync()
+    {
+        // Add timeout to prevent infinite loading
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            try
+            {
+                var fees = await FeeService.GetAllFeesAsync();
+                
+                // Map Fee entities to FeeModel for UI
+                FeeList = fees.Select(f => new FeeModel
+                {
+                    GradeLevel = f.GradeLevel?.GradeLevelName ?? "N/A",
+                    TuitionFee = f.TuitionFee,
+                    MiscFee = f.MiscFee,
+                    OtherFee = f.OtherFee,
+                    TuitionBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Tuition")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList(),
+                    MiscBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Misc")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList(),
+                    OtherBreakdown = f.Breakdowns
+                        .Where(b => b.BreakdownType == "Other")
+                        .OrderBy(b => b.DisplayOrder)
+                        .Select(b => new FeeBreakdownItem
+                        {
+                            Name = b.ItemName,
+                            AmountString = b.Amount.ToString("N2")
+                        }).ToList()
+                }).ToList();
+            }
+            catch (OperationCanceledException)
+            {
+                Logger?.LogError("Timeout loading fees: Operation took too long (10 seconds)");
+                throw new TimeoutException("Loading fees timed out. The service may not be properly connected.");
+            }
+        }
+    }
+
+    private async Task LoadExpensesAsync()
+    {
+        // Add timeout to prevent infinite loading
+        using (var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+        {
+            try
+            {
+                var expenses = await ExpenseService.GetExpensesAsync();
+
+                ExpenseRecords = expenses.Select(e => new ExpenseRecord
+                {
+                    ExpenseId = e.ExpenseCode,
+                    ExpenseDate = e.ExpenseDate,
+                    Category = e.Category,
+                    Description = e.Description ?? string.Empty,
+                    Payee = e.Payee ?? string.Empty,
+                    Amount = e.Amount,
+                    PaymentMethod = e.PaymentMethod,
+                    ReceiptNumber = e.OrNumber ?? string.Empty,
+                    RecordedBy = e.RecordedBy ?? string.Empty,
+                    ApprovedBy = e.ApprovedBy ?? string.Empty,
+                    Status = e.Status
+                }).ToList();
+            }
+            catch (OperationCanceledException)
+            {
+                Logger?.LogError("Timeout loading expenses: Operation took too long (10 seconds)");
+                throw new TimeoutException("Loading expenses timed out. The service may not be properly connected.");
+            }
+        }
+    }
+
+    // Event Handlers
+    private async Task HandleFeeAdded(FeeModel fee)
+    {
+        // Prevent concurrent submissions
+        if (_isProcessingFee)
+        {
+            return;
+        }
+        
+        _isProcessingFee = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Get grade level ID from name
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var gradeLevel = gradeLevels.FirstOrDefault(g => g.GradeLevelName == fee.GradeLevel);
+            
+            if (gradeLevel == null)
+            {
+                Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found. Please select a valid grade level.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Create request with breakdown items (filter out empty items)
+            var request = new CreateFeeRequest
+            {
+                GradeLevelId = gradeLevel.GradeLevelId,
+                TuitionFee = fee.TuitionFee,
+                MiscFee = fee.MiscFee,
+                OtherFee = fee.OtherFee,
+                TuitionBreakdown = fee.TuitionBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                MiscBreakdown = fee.MiscBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                OtherBreakdown = fee.OtherBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                CreatedBy = "Admin" // TODO: Get from current user context
+            };
+
+            await FeeService.CreateFeeAsync(request);
+            
+            // Reload fees from database
+            await LoadFeesAsync();
+            
+            // Show success toast
+            toastMessage = $"Fee for {fee.GradeLevel} added successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error adding fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
+            
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to add fee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+        finally
+        {
+            _isProcessingFee = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleFeeUpdated(FeeModel fee)
+    {
+        try
+        {
+            // Get grade level ID from name
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var gradeLevel = gradeLevels.FirstOrDefault(g => g.GradeLevelName == fee.GradeLevel);
+            
+            if (gradeLevel == null)
+            {
+                Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Get existing fee
+            var existingFee = await FeeService.GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
+            
+            if (existingFee == null)
+            {
+                Logger?.LogError("Fee not found for grade level: {GradeLevel}", fee.GradeLevel);
+                toastMessage = ErrorMessageHelper.ToHumanReadable($"Fee not found for {fee.GradeLevel}.");
+                toastType = ToastType.Error;
+                showToast = true;
+                StateHasChanged();
+                return;
+            }
+
+            // Create update request with breakdown items (filter out empty items)
+            var request = new UpdateFeeRequest
+            {
+                TuitionFee = fee.TuitionFee,
+                MiscFee = fee.MiscFee,
+                OtherFee = fee.OtherFee,
+                TuitionBreakdown = fee.TuitionBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                MiscBreakdown = fee.MiscBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                OtherBreakdown = fee.OtherBreakdown
+                    .Where(b => !string.IsNullOrWhiteSpace(b.Name) && b.Amount > 0)
+                    .Select(b => new FeeBreakdownItemDto
+                    {
+                        Name = b.Name.Trim(),
+                        Amount = b.Amount
+                    }).ToList(),
+                UpdatedBy = "Admin" // TODO: Get from current user context
+            };
+
+            await FeeService.UpdateFeeAsync(existingFee.FeeId, request);
+            
+            // Reload fees from database
+            await LoadFeesAsync();
+            
+            // Show success toast
+            toastMessage = $"Fee for {fee.GradeLevel} updated successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error updating fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
+            
+            // Show error toast
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update fee: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+    
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+
+    private async Task HandlePaymentProcessed(PaymentDataModel paymentData)
+    {
+        try
+        {
+            // Reload payment records to get updated data
+            await LoadPaymentRecordsAsync();
+            
+            // Show success toast
+            toastMessage = $"Payment of Php {paymentData.NewPaymentAmount:N2} processed successfully for {paymentData.StudentName}";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error handling payment processed: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating payment records: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadPaymentRecordsAsync()
+    {
+        try
+        {
+            var studentsWithPayments = await PaymentService.GetAllStudentsWithPaymentStatusAsync();
+            
+            PaymentRecords = studentsWithPayments.Select(s => new PaymentRecord
+            {
+                StudentId = s.StudentId,
+                Name = s.StudentName,
+                Grade = s.GradeLevel,
+                TotalFee = s.TotalFee,
+                AmountPaid = s.AmountPaid,
+                Balance = s.Balance,
+                PaymentStatus = s.PaymentStatus
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
+            PaymentRecords = new List<PaymentRecord>();
+        }
+    }
+
+    private async Task HandleExpenseSaved(ExpenseFormModel expenseForm)
+    {
+        try
+        {
+            // Parse amount string (e.g., "Php 1,000.00") to decimal
+            decimal amount = 0;
+            if (!string.IsNullOrWhiteSpace(expenseForm.Amount))
+            {
+                var cleaned = expenseForm.Amount
+                    .Replace("Php", "", StringComparison.OrdinalIgnoreCase)
+                    .Replace("₱", string.Empty)
+                    .Replace(",", string.Empty)
+                    .Trim();
+
+                if (!decimal.TryParse(cleaned, out amount))
+                {
+                    throw new Exception("Invalid amount. Please enter a valid number (e.g., 1000 or 1,000.00).");
+                }
+            }
+
+            bool isExisting = ExpenseRecords.Any(e => 
+                !string.IsNullOrWhiteSpace(e.ExpenseId) && 
+                e.ExpenseId == expenseForm.ExpenseId);
+
+            if (!isExisting)
+            {
+                var createRequest = new CreateExpenseRequest
+                {
+                    ExpenseCode = expenseForm.ExpenseId,
+                    Category = expenseForm.Category,
+                    Description = expenseForm.Description,
+                    Amount = amount,
+                    ExpenseDate = expenseForm.ExpenseDate,
+                    Payee = expenseForm.Payee,
+                    OrNumber = expenseForm.OrNumber,
+                    PaymentMethod = expenseForm.PaymentMethod,
+                    ApprovedBy = expenseForm.ApprovedBy,
+                    Status = expenseForm.Status,
+                    RecordedBy = expenseForm.RecordedBy
+                };
+
+                await ExpenseService.CreateExpenseAsync(createRequest);
+
+                toastMessage = "Expense added successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            else
+            {
+                var updateRequest = new UpdateExpenseRequest
+                {
+                    Category = expenseForm.Category,
+                    Description = expenseForm.Description,
+                    Amount = amount,
+                    ExpenseDate = expenseForm.ExpenseDate,
+                    Payee = expenseForm.Payee,
+                    OrNumber = expenseForm.OrNumber,
+                    PaymentMethod = expenseForm.PaymentMethod,
+                    ApprovedBy = expenseForm.ApprovedBy,
+                    Status = expenseForm.Status,
+                    RecordedBy = expenseForm.RecordedBy
+                };
+
+                await ExpenseService.UpdateExpenseAsync(expenseForm.ExpenseId, updateRequest);
+
+                toastMessage = "Expense updated successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+
+            // Refresh expenses list after add or update
+            await LoadExpensesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error saving expense: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to save expense: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            // Reset the form after saving or error, keeping UX consistent
+            ExpenseForm = new ExpenseFormModel
+            {
+                ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+                RecordedBy = "Admin User",
+                ExpenseDate = DateTime.Now,
+                PaymentMethod = "Cash",
+                Status = "Pending"
+            };
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleArchiveExpense(string expenseId)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(expenseId))
+            {
+                return;
+            }
+
+            await ExpenseService.ArchiveExpenseAsync(expenseId);
+            await LoadExpensesAsync();
+
+            toastMessage = "Expense archived successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error archiving expense: {Message}", ex.Message);
+            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to archive expense: {ex.Message}");
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+    }
+
+    private void HandleViewPaymentDetails(PaymentRecord record)
+    {
+        // TODO: Implement view payment details logic
+        // Could open a modal or navigate to a detail page
+    }
+
+    private void HandleEditPaymentRecord(PaymentRecord record)
+    {
+        // TODO: Implement edit payment record logic
+        // Could open a modal or navigate to an edit page
+    }
+
+    private async Task HandleExportPDF()
+    {
+        // TODO: Implement PDF export functionality
+        // This would typically generate a PDF with all payment records
+        await Task.CompletedTask;
+    }
+}
+</RoleAuthorizeView>

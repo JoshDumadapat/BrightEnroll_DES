@@ -1,0 +1,226 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Reports.ReportsComponents
+@using BrightEnroll_DES.Services.Business.Reports
+@using Microsoft.JSInterop
+@inject FinancialReportService FinancialReportService
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
+
+<div class="p-6">
+    <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Financial Reports</h2>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">From Date:</label>
+                <input type="date" @bind="fromDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">To Date:</label>
+                <input type="date" @bind="toDate" @bind:format="yyyy-MM-dd"
+                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Period:</label>
+                <select @bind="selectedPeriod" 
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="daily">Daily</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="flex items-end">
+                <button @onclick="GenerateReport" 
+                        disabled="@isLoading"
+                        class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    @if (isLoading)
+                    {
+                        <span>Loading...</span>
+                    }
+                    else
+                    {
+                        <span>Generate</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (summary != null)
+    {
+        <!-- Summary Cards -->
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Total Collections</p>
+                <p class="text-2xl font-bold text-green-600">₱@summary.TotalCollections.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Outstanding</p>
+                <p class="text-2xl font-bold text-red-600">₱@summary.Outstanding.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Total Expenses</p>
+                <p class="text-2xl font-bold text-orange-600">₱@summary.TotalExpenses.ToString("N2")</p>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 shadow">
+                <p class="text-sm text-gray-600">Net Income</p>
+                <p class="text-2xl font-bold text-blue-600">₱@summary.NetIncome.ToString("N2")</p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <!-- Financial Trends Line Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Financial Trends</h3>
+                <div class="relative h-64">
+                    <canvas id="financialTrendsChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Expenses by Category Bar Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Expenses by Category</h3>
+                <div class="relative h-64">
+                    <canvas id="expensesByCategoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Payment Status Distribution Pie Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Payment Status Distribution</h3>
+                <div class="relative h-64">
+                    <canvas id="paymentStatusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Net Income Trend Line Chart -->
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow">
+                <h3 class="mb-4 text-lg font-bold text-gray-800">Net Income Trend</h3>
+                <div class="relative h-64">
+                    <canvas id="netIncomeChart"></canvas>
+                </div>
+            </div>
+        </div>
+    }
+    else if (!isLoading)
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Click "Generate" to view financial report.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime? fromDate = DateTime.Now.AddMonths(-1);
+    private DateTime? toDate = DateTime.Now;
+    private string selectedPeriod = "monthly";
+    private bool isLoading = false;
+    private FinancialSummary? summary = null;
+    private List<FinancialTimeSeries>? timeSeriesData = null;
+    private List<ExpenseByCategory>? expensesByCategory = null;
+    private List<PaymentStatusDistribution>? paymentStatus = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && summary != null)
+        {
+            await Task.Delay(100);
+            await RenderCharts();
+        }
+    }
+
+    private async Task GenerateReport()
+    {
+        isLoading = true;
+        try
+        {
+            summary = await FinancialReportService.GetFinancialSummaryAsync(fromDate, toDate);
+            timeSeriesData = await FinancialReportService.GetFinancialTimeSeriesAsync(fromDate, toDate, selectedPeriod);
+            expensesByCategory = await FinancialReportService.GetExpensesByCategoryAsync(fromDate, toDate);
+            paymentStatus = await FinancialReportService.GetPaymentStatusDistributionAsync(fromDate, toDate);
+            
+            await RenderCharts();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RenderCharts()
+    {
+        if (timeSeriesData == null || expensesByCategory == null || paymentStatus == null)
+            return;
+
+        try
+        {
+            // Wait for DOM to be ready
+            await Task.Delay(100);
+            StateHasChanged();
+            await Task.Delay(100);
+
+            // Financial Trends Line Chart (Collections vs Expenses)
+            var trendsLabels = timeSeriesData.Select(d => d.Period).ToArray();
+            var trendsDatasets = new object[]
+            {
+                new { label = "Collections", data = timeSeriesData.Select(d => (double)d.Collections).ToArray(), borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false },
+                new { label = "Expenses", data = timeSeriesData.Select(d => (double)d.Expenses).ToArray(), borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false }
+            };
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart", "financialTrendsChart", trendsLabels, trendsDatasets, new { showLegend = true, isCurrency = true });
+
+            // Expenses by Category Bar Chart
+            var expensesLabels = expensesByCategory.Select(e => e.Category).ToArray();
+            var expensesDatasets = new object[]
+            {
+                new { label = "Amount", data = expensesByCategory.Select(e => (double)e.Amount).ToArray(), backgroundColor = "#3b82f6", borderColor = "#2563eb", borderWidth = 1 }
+            };
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderBarChart", "expensesByCategoryChart", expensesLabels, expensesDatasets, new { showLegend = false, isCurrency = true });
+
+            // Payment Status Pie Chart
+            var statusColorsDict = new Dictionary<string, string>
+            {
+                { "Fully Paid", "#22c55e" },
+                { "Partially Paid", "#f59e0b" },
+                { "Unpaid", "#ef4444" },
+                { "For Payment", "#f59e0b" },
+                { "Pending", "#6b7280" }
+            };
+            var paymentStatusLabels = paymentStatus.Select(p => p.Status).ToArray();
+            var paymentStatusValues = paymentStatus.Select(p => (double)p.Count).ToArray();
+            var paymentStatusColors = paymentStatus.Select(p => statusColorsDict.GetValueOrDefault(p.Status, "#9ca3af")).ToArray();
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderPieChart", "paymentStatusChart", paymentStatusLabels, paymentStatusValues, paymentStatusColors, false, new { showLegend = true, legendPosition = "bottom" });
+
+            // Net Income Trend Line Chart
+            var netIncomeLabels = timeSeriesData.Select(d => d.Period).ToArray();
+            var netIncomeDatasets = new object[]
+            {
+                new { label = "Net Income", data = timeSeriesData.Select(d => (double)d.NetIncome).ToArray(), borderColor = "#3b82f6", backgroundColor = "rgba(59, 130, 246, 0.1)", tension = 0.4, fill = true }
+            };
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart", "netIncomeChart", netIncomeLabels, netIncomeDatasets, new { showLegend = true, isCurrency = true });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error rendering charts: {ex.Message}");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "financialTrendsChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "expensesByCategoryChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "paymentStatusChart");
+            await JSRuntime.InvokeVoidAsync("dashboardCharts.destroyChart", "netIncomeChart");
+        }
+        catch
+        {
+            // Ignore errors during disposal
+        }
+    }
+}
+

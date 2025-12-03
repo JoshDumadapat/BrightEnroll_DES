@@ -15,7 +15,7 @@ public class StudentRegistrationModel
     [Required(ErrorMessage = "Birth date is required")]
     public DateTime? BirthDate { get; set; }
     [Required(ErrorMessage = "Age is required")]
-    [Range(1, 100, ErrorMessage = "Age must be between 1 and 100")]
+    [Range(3, 100, ErrorMessage = "Age must be 3 years old and above")]
     public int? Age { get; set; }
     [Required(ErrorMessage = "Place of birth is required")]
     public string PlaceOfBirth { get; set; } = "";
@@ -67,8 +67,8 @@ public class StudentRegistrationModel
     public string GuardianLastName { get; set; } = "";
     public string GuardianSuffix { get; set; } = "";
     [Required(ErrorMessage = "Contact number is required")]
-    [RegularExpression(@"^\d{1,11}$", ErrorMessage = "Contact number must contain only numbers and be maximum 11 digits")]
-    [MaxLength(11, ErrorMessage = "Contact number must be maximum 11 digits")]
+    [RegularExpression(@"^09\d{9}$", ErrorMessage = "Contact number must start with 09 and be 11 digits")]
+    [MaxLength(11, ErrorMessage = "Contact number must be 11 digits")]
     public string GuardianContactNumber { get; set; } = "";
     [Required(ErrorMessage = "Relationship is required")]
     public string GuardianRelationship { get; set; } = "";

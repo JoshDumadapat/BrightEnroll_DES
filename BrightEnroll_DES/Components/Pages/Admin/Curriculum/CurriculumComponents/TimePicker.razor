@@ -1,0 +1,243 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using Microsoft.AspNetCore.Components
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+
+<div class="relative" @ref="timePickerRef" data-time-picker>
+    <div class="relative">
+        <div class="absolute left-3 top-1/2 -translate-y-1/2 z-10 text-gray-400">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        </div>
+        <button type="button" 
+                @onclick="ToggleDropdown"
+                @onclick:stopPropagation="true"
+                disabled="@IsDisabled"
+                class="w-full rounded-lg border-2 border-gray-200 bg-white pl-10 pr-4 py-2.5 text-left text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-blue-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-gray-100 disabled:cursor-not-allowed">
+            <span class="@(string.IsNullOrEmpty(DisplayTime) ? "text-gray-400" : "text-gray-800")">
+                @(string.IsNullOrEmpty(DisplayTime) ? "Select time" : DisplayTime)
+            </span>
+            <div class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                <svg class="h-4 w-4 transition-transform duration-200 @(ShowDropdown ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </div>
+        </button>
+        
+        @if (ShowDropdown)
+        {
+            <div class="fixed inset-0 z-40" @onclick="CloseDropdown" @onclick:stopPropagation="false"></div>
+            <div class="absolute z-50 mt-1 w-full rounded-lg border-2 border-gray-200 bg-white shadow-xl" @onclick:stopPropagation="true" data-time-picker-dropdown>
+                <div class="flex divide-x divide-gray-200">
+                    <!-- Hours -->
+                    <div class="flex-1 overflow-y-auto" style="max-height: 200px;">
+                        <div class="sticky top-0 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Hour</div>
+                        <div class="p-2">
+                            @for (int h = 1; h <= 12; h++)
+                            {
+                                var hour = h; // Capture loop variable
+                                <button type="button"
+                                        @onclick="@(async () => await SelectHour(hour))"
+                                        class="w-full rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 @(SelectedHour == hour ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-blue-50")">
+                                    @hour.ToString("00")
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    <!-- Minutes -->
+                    <div class="flex-1 overflow-y-auto" style="max-height: 200px;">
+                        <div class="sticky top-0 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Minute</div>
+                        <div class="p-2">
+                            @foreach (var minute in Minutes)
+                            {
+                                <button type="button"
+                                        @onclick="@(async () => await SelectMinute(minute))"
+                                        class="w-full rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 @(SelectedMinute == minute ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-blue-50")">
+                                    @minute.ToString("00")
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    <!-- AM/PM -->
+                    <div class="flex-1 overflow-y-auto" style="max-height: 200px;">
+                        <div class="sticky top-0 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500 uppercase">Period</div>
+                        <div class="p-2">
+                            <button type="button"
+                                    @onclick="@(async () => await SelectPeriod("AM"))"
+                                    class="w-full rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 @(SelectedPeriod == "AM" ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-blue-50")">
+                                AM
+                            </button>
+                            <button type="button"
+                                    @onclick="@(async () => await SelectPeriod("PM"))"
+                                    class="w-full rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 @(SelectedPeriod == "PM" ? "bg-blue-600 text-white shadow-sm" : "text-gray-700 hover:bg-blue-50")">
+                                PM
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public string? TimeValue { get; set; }
+    [Parameter] public EventCallback<string> TimeValueChanged { get; set; }
+    [Parameter] public EventCallback OnTimeChanged { get; set; }
+    [Parameter] public bool IsDisabled { get; set; } = false;
+
+    private ElementReference timePickerRef;
+    private bool ShowDropdown { get; set; } = false;
+    private int SelectedHour { get; set; } = 12;
+    private int SelectedMinute { get; set; } = 0;
+    private string SelectedPeriod { get; set; } = "AM";
+    private string DisplayTime { get; set; } = "";
+    private bool isInitialized { get; set; } = false;
+
+    private readonly List<int> Minutes = new() { 0, 15, 30, 45 };
+
+    protected override void OnParametersSet()
+    {
+        // Only parse if TimeValue has actually changed or on first render
+        if (!string.IsNullOrEmpty(TimeValue))
+        {
+            var previousTime = $"{SelectedHour:D2}:{SelectedMinute:D2} {SelectedPeriod}";
+            ParseTimeValue(TimeValue);
+            UpdateDisplayTime();
+            
+            // Only mark as initialized after first parse
+            if (!isInitialized)
+            {
+                isInitialized = true;
+            }
+        }
+        else
+        {
+            // Reset to default values when TimeValue is empty
+            SelectedHour = 12;
+            SelectedMinute = 0;
+            SelectedPeriod = "AM";
+            DisplayTime = "";
+            if (!isInitialized)
+            {
+                isInitialized = true;
+            }
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        // Click outside handler will be managed by backdrop
+    }
+
+    private void ParseTimeValue(string timeValue)
+    {
+        if (TimeSpan.TryParse(timeValue, out var timeSpan))
+        {
+            var hours = timeSpan.Hours;
+            var minutes = timeSpan.Minutes;
+            
+            // Convert 24-hour to 12-hour format
+            if (hours == 0)
+            {
+                SelectedHour = 12;
+                SelectedPeriod = "AM";
+            }
+            else if (hours == 12)
+            {
+                SelectedHour = 12;
+                SelectedPeriod = "PM";
+            }
+            else if (hours > 12)
+            {
+                SelectedHour = hours - 12;
+                SelectedPeriod = "PM";
+            }
+            else
+            {
+                SelectedHour = hours;
+                SelectedPeriod = "AM";
+            }
+            
+            // Round to nearest 15 minutes
+            var roundedMinute = Minutes.OrderBy(m => Math.Abs(m - minutes)).First();
+            SelectedMinute = roundedMinute;
+        }
+    }
+
+    private async Task SelectHour(int hour)
+    {
+        SelectedHour = hour;
+        await UpdateTimeAsync();
+    }
+
+    private async Task SelectMinute(int minute)
+    {
+        SelectedMinute = minute;
+        await UpdateTimeAsync();
+    }
+
+    private async Task SelectPeriod(string period)
+    {
+        SelectedPeriod = period;
+        await UpdateTimeAsync();
+    }
+
+    private async Task UpdateTimeAsync()
+    {
+        int hour24;
+        
+        if (SelectedPeriod == "AM")
+        {
+            hour24 = SelectedHour == 12 ? 0 : SelectedHour;
+        }
+        else // PM
+        {
+            hour24 = SelectedHour == 12 ? 12 : SelectedHour + 12;
+        }
+        
+        var timeString = $"{hour24:D2}:{SelectedMinute:D2}:00";
+        TimeValue = timeString;
+        UpdateDisplayTime();
+        
+        await TimeValueChanged.InvokeAsync(TimeValue);
+        await OnTimeChanged.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private void UpdateDisplayTime()
+    {
+        if (string.IsNullOrEmpty(TimeValue) && SelectedHour == 0 && SelectedMinute == 0 && SelectedPeriod == "AM")
+        {
+            DisplayTime = "";
+            return;
+        }
+
+        DisplayTime = $"{SelectedHour:D2}:{SelectedMinute:D2} {SelectedPeriod}";
+    }
+
+    private void ToggleDropdown()
+    {
+        if (IsDisabled) return;
+        
+        // When opening dropdown, ensure we parse the current TimeValue to sync state
+        if (!ShowDropdown && !string.IsNullOrEmpty(TimeValue))
+        {
+            ParseTimeValue(TimeValue);
+            UpdateDisplayTime();
+        }
+        
+        ShowDropdown = !ShowDropdown;
+        StateHasChanged();
+    }
+
+    private void CloseDropdown()
+    {
+        ShowDropdown = false;
+        StateHasChanged();
+    }
+}
+

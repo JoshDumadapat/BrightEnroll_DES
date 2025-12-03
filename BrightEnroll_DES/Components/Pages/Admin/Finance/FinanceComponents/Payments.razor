@@ -1,0 +1,929 @@
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Services.QuestPDF
+@using Microsoft.Extensions.Logging
+@using System.Linq
+@inject IJSRuntime JSRuntime
+@inject PaymentService PaymentService
+@inject PaymentReceiptPdfGenerator PdfGenerator
+@inject ILogger<Payments> Logger
+
+<div class="text-gray-800 p-4 sm:p-6">
+    <!-- Header -->
+    <div class="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div class="min-w-0 flex-1">
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800">Process Payment</h1>
+            <p class="mt-1 text-sm text-gray-600">Accept and record student payments</p>
+        </div>
+    </div>
+
+    <!-- Student Search -->
+    <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+        <h2 class="mb-4 text-lg font-bold text-gray-800">Search Student</h2>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700">Student ID</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none z-10">
+                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text"
+                           @bind="searchStudentId"
+                           @bind:event="oninput"
+                           @onkeypress="HandleSearchKeyPress"
+                           placeholder="Enter Student ID and press Enter or click Search"
+                           class="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                </div>
+            </div>
+            <div class="flex items-end">
+                <button @onclick="SearchStudent"
+                        disabled="@isSearching"
+                        class="flex items-center justify-center gap-2 rounded-full bg-blue-600 px-4 sm:px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg w-full sm:w-auto disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    @if (isSearching)
+                    {
+                        <span>Searching...</span>
+                    }
+                    else
+                    {
+                        <span>Search</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(searchErrorMessage))
+        {
+            <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                <p class="text-sm font-medium text-red-800">@searchErrorMessage</p>
+            </div>
+        }
+    </div>
+
+    @if (hasSearched && studentFound)
+    {
+        <!-- Student Information -->
+        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 class="mb-4 text-lg font-bold text-gray-800">Student Information</h2>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div>
+                    <p class="text-sm text-gray-500">Student ID</p>
+                    <p class="font-semibold text-gray-800">@PaymentData.StudentId</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Full Name</p>
+                    <p class="font-semibold text-gray-800">@PaymentData.StudentName</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">Grade Level</p>
+                    <p class="font-semibold text-gray-800">@PaymentData.GradeLevel</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Summary -->
+        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 class="mb-4 text-lg font-bold text-gray-800">Account Summary</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 sm:p-4">
+                    <p class="text-xs sm:text-sm text-blue-600">Total Assessment</p>
+                    <p class="text-xl sm:text-2xl font-bold text-blue-800">₱@PaymentData.TotalFee.ToString("N2")</p>
+                </div>
+                <div class="rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4">
+                    <p class="text-xs sm:text-sm text-green-600">Total Paid</p>
+                    <p class="text-xl sm:text-2xl font-bold text-green-800">₱@PaymentData.AmountPaid.ToString("N2")</p>
+                </div>
+                <div class="rounded-lg border border-red-200 bg-red-50 p-3 sm:p-4">
+                    <p class="text-xs sm:text-sm text-red-600">Balance</p>
+                    <p class="text-xl sm:text-2xl font-bold text-red-800">₱@PaymentData.Balance.ToString("N2")</p>
+                </div>
+                <div class="@GetPaymentStatusCardClasses()">
+                    <p class="text-xs sm:text-sm @GetPaymentStatusLabelTextColor()">Payment Status</p>
+                    <p class="text-lg sm:text-xl font-bold @GetPaymentStatusValueTextColor()">
+                        @GetPaymentStatusText()
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Form -->
+        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+            <h2 class="mb-4 text-lg font-bold text-gray-800">Payment Details</h2>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method</label>
+                    <select @bind="PaymentData.PaymentMethod"
+                            disabled="@(PaymentData.Balance <= 0)"
+                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                        <option value="Cash">Cash</option>
+                        <option value="Check">Check</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Credit Card">Credit Card</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Amount</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                        <input type="text"
+                               value="@GetPaymentAmountDisplayValue()"
+                               @oninput="HandlePaymentAmountInput"
+                               @onfocus="HandlePaymentAmountFocus"
+                               @onblur="HandlePaymentAmountBlur"
+                               onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                               @onpaste="HandlePaymentAmountPaste"
+                               pattern="[0-9.]*"
+                               inputmode="decimal"
+                               placeholder="0.00"
+                               disabled="@(PaymentData.Balance <= 0)"
+                               class="w-full rounded-lg border border-gray-300 bg-white pl-7 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    </div>
+                    @if (PaymentData.Balance <= 0)
+                    {
+                        <p class="mt-1 text-xs text-gray-500">Student has fully paid.</p>
+                    }
+                    else
+                    {
+                        <p class="mt-1 text-xs text-gray-500">Minimum payment: Php 1,700.00. Balance: ₱@PaymentData.Balance.ToString("N2").</p>
+                    }
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="ClearPaymentForm" class="rounded-full border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                    Clear
+                </button>
+                <button @onclick="OpenPaymentConfirmationModal"
+                        disabled="@(PaymentData.Balance <= 0 || PaymentData.NewPaymentAmount <= 0 || isProcessingPayment)"
+                        class="flex items-center gap-2 rounded-full bg-green-600 px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    @if (isProcessingPayment)
+                    {
+                        <span>Processing...</span>
+                    }
+                    else
+                    {
+                        <span>Process Payment</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+    else if (hasSearched && !studentFound)
+    {
+        <div class="rounded-xl border border-gray-100 bg-white p-12 text-center shadow-sm">
+            <svg class="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p class="text-gray-500">No student found with that ID.</p>
+        </div>
+    }
+    else
+    {
+        <div class="rounded-xl border border-gray-100 bg-white p-12 text-center shadow-sm">
+            <svg class="mx-auto mb-4 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p class="text-gray-500">Search for a student to process payment.</p>
+        </div>
+    }
+</div>
+
+<!-- Payment Confirmation Modal (existing behavior preserved) -->
+@if (ShowPaymentConfirmationModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="payment-confirmation-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl overflow-hidden" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">Confirm Payment</h3>
+                <button @onclick="ClosePaymentConfirmationModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="text-sm text-gray-700 mb-3">
+                    Are you sure you want to process a payment of <span class="font-semibold">Php @PaymentData.NewPaymentAmount.ToString("N2")</span> for <span class="font-semibold">@PaymentData.StudentName</span> (ID: @PaymentData.StudentId)?
+                </p>
+                <div class="rounded-lg bg-gray-50 p-3 mb-4">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-gray-600">Payment Method:</span>
+                        <span class="font-medium text-gray-900">@PaymentData.PaymentMethod</span>
+                    </div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">New Balance:</span>
+                        <span class="font-medium text-gray-900">@($"Php {(PaymentData.Balance - PaymentData.NewPaymentAmount):N2}")</span>
+                    </div>
+                </div>
+                <div class="flex justify-end border-t border-gray-200 pt-3 mt-4">
+                    <button type="button" @onclick="ProcessPayment" class="rounded-lg px-3 py-1.5 text-sm font-medium text-white bg-blue-600 transition-all hover:opacity-90">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Payment Receipt Modal -->
+@if (ShowReceiptModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleReceiptBackdropClick">
+        <div id="payment-receipt-modal" class="w-full max-w-2xl mx-4 bg-white rounded-lg shadow-2xl overflow-hidden" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-center bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Payment Receipt</h3>
+            </div>
+
+            <!-- Receipt Content (Printable) -->
+            <div id="receipt-content" class="bg-white p-8">
+                <!-- Receipt Header -->
+                <div class="text-center mb-6 border-b-2 border-gray-300 pb-4">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-2">BRIGHTENROLL</h1>
+                    <p class="text-sm text-gray-600">Enrollment Management System</p>
+                    <p class="text-xs text-gray-500 mt-1">Official Receipt</p>
+                </div>
+
+                <!-- Receipt Details -->
+                <div class="space-y-4 mb-6">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <p class="text-xs text-gray-500 mb-1">Official Receipt Number</p>
+                            <p class="text-lg font-bold text-gray-800">@ReceiptData.OrNumber</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-500 mb-1">Date</p>
+                            <p class="text-sm font-semibold text-gray-800">@ReceiptData.PaymentDate.ToString("MMMM dd, yyyy")</p>
+                            <p class="text-xs text-gray-600">@ReceiptData.PaymentDate.ToString("hh:mm tt")</p>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-200 pt-4">
+                        <p class="text-xs text-gray-500 mb-1">Student Information</p>
+                        <p class="text-sm font-semibold text-gray-800">@ReceiptData.StudentName</p>
+                        <p class="text-xs text-gray-600">Student ID: @ReceiptData.StudentId</p>
+                        <p class="text-xs text-gray-600">Grade Level: @ReceiptData.GradeLevel</p>
+                    </div>
+
+                    <div class="border-t border-gray-200 pt-4">
+                        <p class="text-xs text-gray-500 mb-2">Payment Details</p>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-700">Payment Amount:</span>
+                                <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.PaymentAmount.ToString("N2")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-700">Payment Method:</span>
+                                <span class="text-sm font-semibold text-gray-800">@ReceiptData.PaymentMethod</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t-2 border-gray-300 pt-4">
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-700">Total Assessment:</span>
+                                <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.TotalFee.ToString("N2")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-700">Previous Payments:</span>
+                                <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.PreviousPaid.ToString("N2")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-700">This Payment:</span>
+                                <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.PaymentAmount.ToString("N2")</span>
+                            </div>
+                            <div class="flex justify-between pt-2 border-t border-gray-200">
+                                <span class="text-base font-bold text-gray-800">Total Paid:</span>
+                                <span class="text-base font-bold text-gray-800">₱@ReceiptData.TotalPaid.ToString("N2")</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-base font-bold text-gray-800">Remaining Balance:</span>
+                                <span class="text-base font-bold @(ReceiptData.Balance > 0 ? "text-red-600" : "text-green-600")">₱@ReceiptData.Balance.ToString("N2")</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Receipt Footer -->
+                <div class="border-t-2 border-gray-300 pt-4 mt-6">
+                    <div class="text-center space-y-2">
+                        <p class="text-xs text-gray-500">Thank you for your payment!</p>
+                        <p class="text-xs text-gray-400">This is an official receipt. Please keep this for your records.</p>
+                        <p class="text-xs text-gray-400 mt-4">Processed by: @ReceiptData.ProcessedBy</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer (Non-printable) -->
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 no-print">
+                <button @onclick="CloseReceiptModal" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                    Close
+                </button>
+                <button @onclick="PrintReceipt" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print Receipt
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    @@media print {
+        body * {
+            visibility: hidden;
+        }
+        #receipt-content, #receipt-content * {
+            visibility: visible;
+        }
+        #receipt-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            padding: 20px;
+        }
+        .no-print {
+            display: none !important;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public PaymentDataModel PaymentData { get; set; } = new();
+    [Parameter] public EventCallback<PaymentDataModel> OnPaymentProcessed { get; set; }
+
+    private bool ShowPaymentConfirmationModal { get; set; } = false;
+    private bool ShowReceiptModal { get; set; } = false;
+    private ReceiptDataModel ReceiptData { get; set; } = new();
+    private string NewPaymentAmountString { get; set; } = "";
+    private string paymentAmountRawInput { get; set; } = "";
+    private bool isEditingPaymentAmount { get; set; } = false;
+    private string searchStudentId { get; set; } = "";
+    private bool isSearching { get; set; } = false;
+    private bool hasSearched { get; set; } = false;
+    private bool studentFound { get; set; } = false;
+    private string searchErrorMessage { get; set; } = "";
+    private string enrollmentStatus { get; set; } = "";
+    private bool isProcessingPayment { get; set; } = false;
+
+    private async Task SearchStudent()
+    {
+        if (string.IsNullOrWhiteSpace(searchStudentId))
+        {
+            searchErrorMessage = "Please enter a Student ID";
+            StateHasChanged();
+            return;
+        }
+
+        isSearching = true;
+        hasSearched = true;
+        studentFound = false;
+        searchErrorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var paymentInfo = await PaymentService.GetStudentPaymentInfoAsync(searchStudentId.Trim());
+
+            if (paymentInfo == null)
+            {
+                studentFound = false;
+                searchErrorMessage = $"Student with ID '{searchStudentId}' not found.";
+                PaymentData = new PaymentDataModel();
+            }
+            else
+            {
+                studentFound = true;
+                PaymentData = new PaymentDataModel
+                {
+                    StudentId = paymentInfo.StudentId,
+                    StudentName = paymentInfo.StudentName,
+                    GradeLevel = paymentInfo.GradeLevel,
+                    TotalFee = paymentInfo.TotalFee,
+                    AmountPaid = paymentInfo.AmountPaid,
+                    Balance = paymentInfo.Balance,
+                    PaymentStatus = paymentInfo.PaymentStatus,
+                    NewPaymentAmount = 0,
+                    PaymentMethod = "Cash"
+                };
+                enrollmentStatus = paymentInfo.EnrollmentStatus;
+                paymentAmountRawInput = "";
+                isEditingPaymentAmount = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error searching for student: {Message}", ex.Message);
+            studentFound = false;
+            searchErrorMessage = $"Error searching for student: {ex.Message}";
+            PaymentData = new PaymentDataModel();
+        }
+        finally
+        {
+            isSearching = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchStudent();
+        }
+    }
+
+    // Get display value for payment amount field (formatted with commas)
+    private string GetPaymentAmountDisplayValue()
+    {
+        if (isEditingPaymentAmount && !string.IsNullOrWhiteSpace(paymentAmountRawInput))
+        {
+            return FormatNumberWithCommas(paymentAmountRawInput);
+        }
+        
+        // Return formatted value when not editing
+        if (PaymentData.NewPaymentAmount > 0)
+        {
+            return PaymentData.NewPaymentAmount.ToString("N2");
+        }
+        return "";
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+
+    // Handle payment amount input with auto-formatting
+    private void HandlePaymentAmountInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // IMMEDIATELY filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // If starting with "0" and next char is a digit (not "."), remove the leading "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input (without commas for parsing)
+        paymentAmountRawInput = cleaned;
+        
+        // Parse and update the payment amount
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            
+            // Validate payment amount doesn't exceed balance
+            if (parsedValue > PaymentData.Balance)
+            {
+                parsedValue = PaymentData.Balance;
+                paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
+                    ? ((int)PaymentData.Balance).ToString() 
+                    : PaymentData.Balance.ToString("0.##");
+            }
+            
+            PaymentData.NewPaymentAmount = parsedValue;
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            PaymentData.NewPaymentAmount = 0;
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle focus - start editing
+    private void HandlePaymentAmountFocus(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingPaymentAmount = true;
+        if (string.IsNullOrWhiteSpace(paymentAmountRawInput))
+        {
+            if (PaymentData.NewPaymentAmount > 0)
+            {
+                paymentAmountRawInput = PaymentData.NewPaymentAmount == Math.Floor(PaymentData.NewPaymentAmount) 
+                    ? ((int)PaymentData.NewPaymentAmount).ToString() 
+                    : PaymentData.NewPaymentAmount.ToString("0.##");
+            }
+            else
+            {
+                paymentAmountRawInput = "";
+            }
+        }
+        StateHasChanged();
+    }
+
+    // Handle blur - finish editing
+    private void HandlePaymentAmountBlur(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingPaymentAmount = false;
+        
+        // Ensure the value is properly formatted
+        if (!string.IsNullOrWhiteSpace(paymentAmountRawInput))
+        {
+            string rawValue = paymentAmountRawInput;
+            if (rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                
+                // Validate payment amount doesn't exceed balance
+                if (parsedValue > PaymentData.Balance)
+                {
+                    parsedValue = PaymentData.Balance;
+                }
+                
+                PaymentData.NewPaymentAmount = parsedValue;
+            }
+            else
+            {
+                PaymentData.NewPaymentAmount = 0;
+            }
+        }
+        else
+        {
+            PaymentData.NewPaymentAmount = 0;
+        }
+        
+        paymentAmountRawInput = "";
+        StateHasChanged();
+    }
+
+    // Handle paste to filter invalid characters
+    private async Task HandlePaymentAmountPaste(ClipboardEventArgs e)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
+        }
+        catch { }
+        
+        // Get clipboard text
+        var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+        
+        if (!string.IsNullOrWhiteSpace(clipboardText))
+        {
+            // Filter to only allow digits and period
+            var validChars = clipboardText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var cleaned = new string(validChars);
+            
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+            
+            // Update the payment amount
+            if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                
+                // Validate payment amount doesn't exceed balance
+                if (parsedValue > PaymentData.Balance)
+                {
+                    parsedValue = PaymentData.Balance;
+                }
+                
+                PaymentData.NewPaymentAmount = parsedValue;
+                paymentAmountRawInput = cleaned;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void ClearPaymentForm()
+    {
+        NewPaymentAmountString = "";
+        paymentAmountRawInput = "";
+        isEditingPaymentAmount = false;
+        PaymentData.NewPaymentAmount = 0;
+        PaymentData.PaymentMethod = "Cash";
+        StateHasChanged();
+    }
+
+    private void OpenPaymentConfirmationModal()
+    {
+        const decimal MINIMUM_PAYMENT = 1700m;
+
+        if (PaymentData.NewPaymentAmount <= 0)
+        {
+            searchErrorMessage = "Please enter a valid payment amount";
+            StateHasChanged();
+            return;
+        }
+
+        if (PaymentData.NewPaymentAmount < MINIMUM_PAYMENT)
+        {
+            searchErrorMessage = $"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.";
+            StateHasChanged();
+            return;
+        }
+
+        if (PaymentData.NewPaymentAmount > PaymentData.Balance)
+        {
+            searchErrorMessage = $"Payment amount cannot exceed balance of Php {PaymentData.Balance:N2}";
+            StateHasChanged();
+            return;
+        }
+
+        searchErrorMessage = "";
+        ShowPaymentConfirmationModal = true;
+        StateHasChanged();
+    }
+
+    private void HandleBackdropClick()
+    {
+        // Allow closing payment confirmation modal on backdrop click
+        ClosePaymentConfirmationModal();
+    }
+
+    private void ClosePaymentConfirmationModal()
+    {
+        ShowPaymentConfirmationModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ProcessPayment()
+    {
+        isProcessingPayment = true;
+        StateHasChanged();
+
+        try
+        {
+            // Store previous payment amount for receipt
+            decimal previousPaid = PaymentData.AmountPaid;
+            decimal paymentAmount = PaymentData.NewPaymentAmount;
+
+            // Generate OR number before processing payment
+            string orNumber = GenerateOrNumber();
+
+            // Process payment through service (now includes OR number)
+            var updatedInfo = await PaymentService.ProcessPaymentAsync(
+                PaymentData.StudentId,
+                PaymentData.NewPaymentAmount,
+                PaymentData.PaymentMethod,
+                orNumber
+            );
+
+            // Update payment data with latest info
+            PaymentData.AmountPaid = updatedInfo.AmountPaid;
+            PaymentData.Balance = updatedInfo.Balance;
+            PaymentData.PaymentStatus = updatedInfo.PaymentStatus;
+            enrollmentStatus = updatedInfo.EnrollmentStatus;
+
+            // Prepare receipt data
+            ReceiptData = new ReceiptDataModel
+            {
+                OrNumber = orNumber,
+                PaymentDate = DateTime.Now,
+                StudentId = PaymentData.StudentId,
+                StudentName = PaymentData.StudentName,
+                GradeLevel = PaymentData.GradeLevel,
+                PaymentAmount = paymentAmount,
+                PaymentMethod = PaymentData.PaymentMethod,
+                TotalFee = PaymentData.TotalFee,
+                PreviousPaid = previousPaid,
+                TotalPaid = updatedInfo.AmountPaid,
+                Balance = updatedInfo.Balance,
+                ProcessedBy = "System Administrator" // You can get this from auth service if needed
+            };
+
+            // Notify parent component
+            await OnPaymentProcessed.InvokeAsync(PaymentData);
+
+            ClosePaymentConfirmationModal();
+            NewPaymentAmountString = "";
+            paymentAmountRawInput = "";
+            isEditingPaymentAmount = false;
+            PaymentData.NewPaymentAmount = 0;
+            searchErrorMessage = "";
+
+            // Show receipt modal
+            ShowReceiptModal = true;
+
+            Logger?.LogInformation("Payment processed successfully for student {StudentId} with OR {OrNumber}", PaymentData.StudentId, orNumber);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error processing payment: {Message}", ex.Message);
+            searchErrorMessage = $"Error processing payment: {ex.Message}";
+        }
+        finally
+        {
+            isProcessingPayment = false;
+            StateHasChanged();
+        }
+    }
+
+    private string GenerateOrNumber()
+    {
+        // Generate OR number in format: OR-YYYYMMDD-XXXXX
+        // Using timestamp-based approach for uniqueness
+        var timestamp = DateTime.Now;
+        var random = new Random();
+        var randomSuffix = random.Next(1000, 9999);
+        return $"OR-{timestamp:yyyyMMdd}-{randomSuffix}";
+    }
+
+    private void CloseReceiptModal()
+    {
+        ShowReceiptModal = false;
+        StateHasChanged();
+    }
+
+    private void HandleReceiptBackdropClick()
+    {
+        // Don't close on backdrop click for receipt (user should explicitly close or print)
+    }
+
+    private async Task PrintReceipt()
+    {
+        try
+        {
+            // Convert ReceiptDataModel to PaymentReceiptPdfGenerator.ReceiptData
+            var receiptData = new PaymentReceiptPdfGenerator.ReceiptData
+            {
+                OrNumber = ReceiptData.OrNumber,
+                PaymentDate = ReceiptData.PaymentDate,
+                StudentId = ReceiptData.StudentId,
+                StudentName = ReceiptData.StudentName,
+                GradeLevel = ReceiptData.GradeLevel,
+                PaymentAmount = ReceiptData.PaymentAmount,
+                PaymentMethod = ReceiptData.PaymentMethod,
+                TotalFee = ReceiptData.TotalFee,
+                PreviousPaid = ReceiptData.PreviousPaid,
+                TotalPaid = ReceiptData.TotalPaid,
+                Balance = ReceiptData.Balance,
+                ProcessedBy = ReceiptData.ProcessedBy
+            };
+
+            // Generate PDF
+            var pdfBytes = PdfGenerator.GeneratePaymentReceipt(receiptData);
+            
+            // Create filename with OR number and date
+            var fileName = $"Payment_Receipt_{ReceiptData.OrNumber}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            // Convert to base64 for download
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            // Download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+            
+            Logger?.LogInformation("Payment receipt PDF generated and downloaded: {FileName}", fileName);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error generating receipt PDF: {Message}", ex.Message);
+            searchErrorMessage = "Error generating receipt PDF. Please try again.";
+            StateHasChanged();
+        }
+    }
+
+    private string GetPaymentStatusText()
+    {
+        // Derive status from latest values to ensure real-time accuracy
+        if (PaymentData.Balance <= 0 && (PaymentData.AmountPaid > 0 || PaymentData.TotalFee > 0))
+            return "Fully Paid";
+
+        if (PaymentData.AmountPaid > 0 && PaymentData.Balance > 0)
+            return "Partially Paid";
+
+        return "Unpaid";
+    }
+
+    private string GetPaymentStatusCardClasses()
+    {
+        var status = GetPaymentStatusText();
+
+        return status switch
+        {
+            "Fully Paid" => "rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4",
+            "Partially Paid" => "rounded-lg border border-orange-200 bg-orange-50 p-3 sm:p-4",
+            _ => "rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4"
+        };
+    }
+
+    private string GetPaymentStatusLabelTextColor()
+    {
+        var status = GetPaymentStatusText();
+
+        return status switch
+        {
+            "Fully Paid" => "text-green-600",
+            "Partially Paid" => "text-orange-600",
+            _ => "text-gray-600"
+        };
+    }
+
+    private string GetPaymentStatusValueTextColor()
+    {
+        var status = GetPaymentStatusText();
+
+        return status switch
+        {
+            "Fully Paid" => "text-green-800",
+            "Partially Paid" => "text-orange-800",
+            _ => "text-gray-700"
+        };
+    }
+
+    // Receipt Data Model (nested so it can be used directly within this component)
+    public class ReceiptDataModel
+    {
+        public string OrNumber { get; set; } = string.Empty;
+        public DateTime PaymentDate { get; set; }
+        public string StudentId { get; set; } = string.Empty;
+        public string StudentName { get; set; } = string.Empty;
+        public string GradeLevel { get; set; } = string.Empty;
+        public decimal PaymentAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public decimal TotalFee { get; set; }
+        public decimal PreviousPaid { get; set; }
+        public decimal TotalPaid { get; set; }
+        public decimal Balance { get; set; }
+        public string ProcessedBy { get; set; } = string.Empty;
+    }
+}

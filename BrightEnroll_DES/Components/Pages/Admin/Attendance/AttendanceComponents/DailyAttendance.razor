@@ -1,0 +1,128 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Attendance.AttendanceComponents
+
+<div class="p-6">
+    <!-- Date and Class Selection -->
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Date:</label>
+            <input type="date" value="@selectedDate.ToString("yyyy-MM-dd")" @onchange="@((ChangeEventArgs e) => { if (DateTime.TryParse(e.Value?.ToString(), out var date)) selectedDate = date; })"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Section:</label>
+            <select @bind="selectedSection" 
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                <option value="">Select Section</option>
+                <option value="Saturn">Saturn</option>
+                <option value="Rizal">Rizal</option>
+                <option value="Sun">Sun</option>
+                <option value="Laurel">Laurel</option>
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button @onclick="LoadStudents" 
+                    class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                Load Students
+            </button>
+        </div>
+    </div>
+
+    @if (students.Count > 0)
+    {
+        <!-- Attendance Table -->
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-100 font-semibold text-gray-600">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Student ID</th>
+                        <th class="px-4 py-3 text-left">Name</th>
+                        <th class="px-4 py-3 text-center">Status</th>
+                        <th class="px-4 py-3 text-center">Time In</th>
+                        <th class="px-4 py-3 text-center">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y">
+                    @foreach (var student in students)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@student.StudentId</td>
+                            <td class="px-4 py-3">@student.Name</td>
+                            <td class="px-4 py-3">
+                                <select @bind="student.Status" @bind:event="onchange"
+                                        class="rounded-lg border border-gray-300 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400">
+                                    <option value="Present">Present</option>
+                                    <option value="Absent">Absent</option>
+                                    <option value="Late">Late</option>
+                                    <option value="Excused">Excused</option>
+                                </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                @if (student.Status == "Present" || student.Status == "Late")
+                                {
+                                    <input type="time" value="@student.TimeIn" @onchange="@((ChangeEventArgs e) => student.TimeIn = e.Value?.ToString())" 
+                                           class="rounded-lg border border-gray-300 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3">
+                                <input type="text" @bind="student.Remarks" placeholder="Optional"
+                                       class="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Save Button -->
+        <div class="mt-6 flex justify-end">
+            <button @onclick="SaveAttendance" 
+                    class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                Save Attendance
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="py-12 text-center">
+            <p class="text-gray-500">Select a date and section, then click "Load Students" to record attendance.</p>
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime selectedDate = DateTime.Now;
+    private string selectedSection = "";
+    private List<AttendanceStudent> students = new();
+
+    private class AttendanceStudent
+    {
+        public string StudentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Status { get; set; } = "Present";
+        public string? TimeIn { get; set; }
+        public string? Remarks { get; set; }
+    }
+
+    private void LoadStudents()
+    {
+        // TODO: Load students from database based on selected section
+        // For now, using sample data
+        students = new List<AttendanceStudent>
+        {
+            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Status = "Present" },
+            new() { StudentId = "ST002", Name = "Maria Santos", Status = "Present" },
+            new() { StudentId = "ST003", Name = "Pedro Garcia", Status = "Late" },
+        };
+    }
+
+    private void SaveAttendance()
+    {
+        // TODO: Save attendance to database
+        // Show success message
+    }
+}
+

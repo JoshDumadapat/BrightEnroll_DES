@@ -1,14 +1,14 @@
 @if (Show)
 {
-    <div class="fixed top-4 right-4 z-[100] toast-slide-in">
+    <div class="fixed top-4 right-4 z-[100] toast-slide-in @(isClosing ? "toast-slide-out" : "")">
         @if (Type == ToastType.Error)
         {
             <!-- Error Toast -->
-            <div class="bg-red-50 border border-red-200 rounded-lg shadow-lg p-4 min-w-[320px] max-w-md flex items-start gap-3">
+            <div class="bg-red-50 border border-red-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md flex items-center gap-3">
                 <!-- Error Icon -->
                 <div class="flex-shrink-0">
-                    <div class="w-6 h-6 rounded-full border-2 border-red-600 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </div>
@@ -16,8 +16,7 @@
                 
                 <!-- Content -->
                 <div class="flex-1">
-                    <h4 class="text-sm font-semibold text-gray-800 mb-1">Error</h4>
-                    <p class="text-sm text-gray-700">@Message</p>
+                    <p class="text-sm font-medium text-gray-800">@Message</p>
                 </div>
                 
                 <!-- Close Button -->
@@ -28,14 +27,93 @@
                 </button>
             </div>
         }
+        else if (Type == ToastType.Edit)
+        {
+            <!-- Edit Toast -->
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md flex items-center gap-3">
+                <!-- Edit Icon -->
+                <div class="flex-shrink-0">
+                    <div class="w-6 h-6 rounded-full bg-yellow-500 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-800">@Message</p>
+                </div>
+                
+                <!-- Close Button -->
+                <button @onclick="Close" class="flex-shrink-0 text-gray-700 hover:text-gray-900 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        }
+        else if (Type == ToastType.Remove)
+        {
+            <!-- Remove Toast -->
+            <div class="bg-red-50 border border-red-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md flex items-center gap-3">
+                <!-- Remove Icon -->
+                <div class="flex-shrink-0">
+                    <div class="w-6 h-6 rounded-full bg-red-500 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-800">@Message</p>
+                </div>
+                
+                <!-- Close Button -->
+                <button @onclick="Close" class="flex-shrink-0 text-gray-700 hover:text-gray-900 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        }
+        else if (Type == ToastType.Loading)
+        {
+            <!-- Loading Toast with Progress Bar -->
+            <div class="bg-blue-50 border border-blue-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md">
+                <div class="flex items-center gap-3 mb-2">
+                    <!-- Loading Icon -->
+                    <div class="flex-shrink-0">
+                        <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center">
+                            <svg class="w-4 h-4 text-white animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    
+                    <!-- Content -->
+                    <div class="flex-1">
+                        <p class="text-sm font-medium text-gray-800">@Message</p>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar -->
+                <div class="w-full bg-blue-200 rounded-full h-2 overflow-hidden">
+                    <div class="bg-blue-600 h-2 rounded-full progress-bar-animate" style="width: 100%;"></div>
+                </div>
+            </div>
+        }
         else
         {
             <!-- Success Toast -->
-            <div class="bg-green-50 border border-green-200 rounded-lg shadow-lg p-4 min-w-[320px] max-w-md flex items-start gap-3">
+            <div class="bg-green-50 border border-green-200 rounded-lg shadow-lg px-4 py-3 min-w-[320px] max-w-md flex items-center gap-3">
                 <!-- Success Icon -->
                 <div class="flex-shrink-0">
-                    <div class="w-6 h-6 rounded-full border-2 border-gray-700 flex items-center justify-center">
-                        <svg class="w-4 h-4 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
                     </div>
@@ -43,8 +121,7 @@
                 
                 <!-- Content -->
                 <div class="flex-1">
-                    <h4 class="text-sm font-semibold text-gray-800 mb-1">Success</h4>
-                    <p class="text-sm text-gray-700">@Message</p>
+                    <p class="text-sm font-medium text-gray-800">@Message</p>
                 </div>
                 
                 <!-- Close Button -->
@@ -68,11 +145,14 @@
     [Parameter] public int Duration { get; set; } = 3000; // Auto-close after 3 seconds
 
     private System.Threading.Timer? _timer;
+    private bool isClosing = false;
 
     protected override void OnParametersSet()
     {
-        if (Show && Duration > 0)
+        // Loading toasts should not auto-close (Duration <= 0 means no auto-close)
+        if (Show && Duration > 0 && Type != ToastType.Loading)
         {
+            isClosing = false;
             _timer?.Dispose();
             _timer = new System.Threading.Timer(async _ =>
             {
@@ -86,15 +166,24 @@
         {
             _timer?.Dispose();
             _timer = null;
+            isClosing = false;
         }
     }
 
     private async Task Close()
     {
+        isClosing = true;
+        StateHasChanged();
+        
+        // Wait for slide-out animation
+        await Task.Delay(300);
+        
         _timer?.Dispose();
         _timer = null;
         Show = false;
+        isClosing = false;
         await OnClose.InvokeAsync();
+        StateHasChanged();
     }
 
     public void Dispose()

@@ -1,0 +1,423 @@
+@page "/cloud-management"
+@layout Components.Layout.MainLayout
+@inject IConnectivityService ConnectivityService
+@inject ILoadingService LoadingService
+@inject IDatabaseSyncService SyncService
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Database.Sync
+@implements IDisposable
+
+<PageTitle>Cloud Management</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="@(toastType == ToastType.Loading ? 0 : 4000)" />
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Cloud Management</h1>
+    
+    <!-- Connection Status Card -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <h5 class="text-lg font-bold text-gray-800">Connection Status</h5>
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    @if (isConnected)
+                    {
+                        <div class="h-3 w-3 rounded-full bg-green-500"></div>
+                        <span class="font-medium text-gray-700">Connected</span>
+                    }
+                    else
+                    {
+                        <div class="h-3 w-3 rounded-full bg-red-500"></div>
+                        <span class="font-medium text-gray-700">Disconnected</span>
+                    }
+                </div>
+                
+                @if (!string.IsNullOrEmpty(lastSyncTime))
+                {
+                    <span class="text-sm text-gray-500">Last sync: @lastSyncTime</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Actions Card -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <h5 class="text-lg font-bold text-gray-800">Sync Actions</h5>
+            </div>
+            
+            <div class="space-y-4">
+                <!-- Sync Now Button (Full Sync) -->
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="mb-3">
+                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Full Synchronization</h6>
+                        <p class="text-xs text-gray-500">Syncs all data bidirectionally between local and cloud databases</p>
+                    </div>
+                    <button @onclick="SyncNow" 
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                        @if (isSyncing)
+                        {
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Syncing...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Sync Now</span>
+                        }
+                    </button>
+                </div>
+
+                <!-- Sync To Cloud Button -->
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="mb-3">
+                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Push to Cloud</h6>
+                        <p class="text-xs text-gray-500">Uploads all local changes to the cloud database</p>
+                    </div>
+                    <button @onclick="SyncToCloud" 
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                        @if (isSyncing && syncType == "toCloud")
+                        {
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Uploading...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                            <span>Push to Cloud</span>
+                        }
+                    </button>
+                </div>
+
+                <!-- Sync From Cloud Button -->
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="mb-3">
+                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Pull from Cloud</h6>
+                        <p class="text-xs text-gray-500">Downloads all cloud data to the local database</p>
+                    </div>
+                    <button @onclick="SyncFromCloud" 
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                        @if (isSyncing && syncType == "fromCloud")
+                        {
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Downloading...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                            <span>Pull from Cloud</span>
+                        }
+                    </button>
+                </div>
+
+                <!-- Sync Reference Data Button -->
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="mb-3">
+                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Sync Reference Data</h6>
+                        <p class="text-xs text-gray-500">Syncs reference data (grade levels, fees, etc.) from cloud to local</p>
+                    </div>
+                    <button @onclick="SyncReferenceData" 
+                            disabled="@(isSyncing || !isConnected)"
+                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                        @if (isSyncing && syncType == "reference")
+                        {
+                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Syncing...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Sync Reference Data</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Status Card -->
+    @if (!string.IsNullOrEmpty(syncStatusMessage))
+    {
+        <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+            <div class="px-6 py-6">
+                <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                    <h5 class="text-lg font-bold text-gray-800">Sync Status</h5>
+                </div>
+                
+                <div class="@(syncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") rounded-lg p-4">
+                    <p class="text-sm @(syncStatusType == "error" ? "text-red-700" : "text-green-700")">@syncStatusMessage</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isConnected = false;
+    private bool isSyncing = false;
+    private string syncType = "";
+    private string lastSyncTime = "";
+    private string syncStatusMessage = "";
+    private string syncStatusType = "success"; // "success" or "error"
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check initial connectivity
+        isConnected = ConnectivityService.IsConnected;
+        
+        // Subscribe to connectivity changes
+        ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+        
+        await base.OnInitializedAsync();
+    }
+
+    private void OnConnectivityChanged(object? sender, bool connected)
+    {
+        isConnected = connected;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SyncNow()
+    {
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "full";
+        syncStatusMessage = "";
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Synchronizing data with cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
+        
+        try
+        {
+            var result = await SyncService.FullSyncAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Sync failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Sync error: {ex.Message}";
+            toastType = ToastType.Error;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            StateHasChanged();
+        }
+    }
+
+    private async Task SyncToCloud()
+    {
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "toCloud";
+        syncStatusMessage = "";
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Uploading data to cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
+        
+        try
+        {
+            var result = await SyncService.SyncToCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Successfully uploaded {result.RecordsPushed} records to cloud.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Upload failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Upload error: {ex.Message}";
+            toastType = ToastType.Error;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            StateHasChanged();
+        }
+    }
+
+    private async Task SyncFromCloud()
+    {
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "fromCloud";
+        syncStatusMessage = "";
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Downloading data from cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
+        
+        try
+        {
+            var result = await SyncService.SyncFromCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "success";
+                toastMessage = $"Successfully downloaded {result.RecordsPulled} records from cloud.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Download failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Download error: {ex.Message}";
+            toastType = ToastType.Error;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            StateHasChanged();
+        }
+    }
+
+    private async Task SyncReferenceData()
+    {
+        if (isSyncing || !isConnected) return;
+        
+        isSyncing = true;
+        syncType = "reference";
+        syncStatusMessage = "";
+        
+        // Show loading toast instead of full screen loading
+        toastMessage = "Syncing reference data from cloud...";
+        toastType = ToastType.Loading;
+        showToast = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Sync only reference tables (GradeLevel, Fees, etc.)
+            var result = await SyncService.SyncFromCloudAsync();
+            
+            if (result.Success)
+            {
+                syncStatusMessage = $"Reference data synced: {result.RecordsPulled} records updated.";
+                syncStatusType = "success";
+                toastMessage = $"Reference data synced successfully. {result.RecordsPulled} records updated.";
+                toastType = ToastType.Success;
+                lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+            }
+            else
+            {
+                syncStatusMessage = result.Message;
+                syncStatusType = "error";
+                toastMessage = $"Sync failed: {result.Message}";
+                toastType = ToastType.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            syncStatusMessage = $"Error: {ex.Message}";
+            syncStatusType = "error";
+            toastMessage = $"Sync error: {ex.Message}";
+            toastType = ToastType.Error;
+        }
+        finally
+        {
+            isSyncing = false;
+            syncType = "";
+            StateHasChanged();
+        }
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+    }
+}
+

@@ -1,5 +1,5 @@
 using BrightEnroll_DES.Models;
-using BrightEnroll_DES.Services;
+using BrightEnroll_DES.Services.Infrastructure;
 
 namespace BrightEnroll_DES.Components.Pages.Auth.Handlers;
 

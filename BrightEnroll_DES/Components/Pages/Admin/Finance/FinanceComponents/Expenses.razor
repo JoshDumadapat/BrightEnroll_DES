@@ -1,0 +1,781 @@
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
+@using BrightEnroll_DES.Components.Pages.Admin
+@using System.Linq
+@inject IJSRuntime JSRuntime
+
+<div class="p-6 space-y-6">
+    <!-- Header / Filters / Add Button -->
+    <div class="border-b border-gray-200 pb-4">
+        <div class="mb-2 flex items-center justify-between">
+            <h2 class="text-lg font-bold text-orange-600">Expenses</h2>
+        </div>
+        <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="relative flex w-full items-center sm:w-64">
+                    <span class="absolute left-3 flex items-center justify-center">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text"
+                           placeholder="Search by ID, category, payee..."
+                           @bind="SearchText" @bind:after="OnFilterChanged"
+                           class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400" />
+                </div>
+                <select @bind="StatusFilter" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400 sm:w-40">
+                    <option value="">Status</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Paid">Paid</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button @onclick="ClearFilters"
+                        class="w-full rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto">
+                    Clear Filters
+                </button>
+                <button @onclick="StartAddExpense"
+                        class="w-full rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-orange-600 hover:shadow-lg sm:w-auto">
+                    + Add Expense
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expenses Table -->
+    <div>
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 font-semibold text-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left">Expense ID</th>
+                    <th class="px-4 py-3 text-left">Date</th>
+                    <th class="px-4 py-3 text-left">Category</th>
+                    <th class="px-4 py-3 text-left">Description</th>
+                    <th class="px-4 py-3 text-left">Payee</th>
+                    <th class="px-4 py-3 text-left">Amount</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                @if (PaginatedExpenses != null && PaginatedExpenses.Any())
+                {
+                    @foreach (var expense in PaginatedExpenses)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3 font-medium">@expense.ExpenseId</td>
+                            <td class="px-4 py-3">@expense.ExpenseDate.ToString("MM/dd/yyyy")</td>
+                            <td class="px-4 py-3">@expense.Category</td>
+                            <td class="max-w-xs truncate px-4 py-3" title="@expense.Description">@expense.Description</td>
+                            <td class="px-4 py-3">@expense.Payee</td>
+                            <td class="px-4 py-3 font-medium">Php @expense.Amount.ToString("N2")</td>
+                            <td class="px-4 py-3">
+                                @if (expense.Status == "Approved" || expense.Status == "Paid")
+                                {
+                                    <span class="inline-block rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">@expense.Status</span>
+                                }
+                                else if (expense.Status == "Pending")
+                                {
+                                    <span class="inline-block rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">Pending</span>
+                                }
+                                else if (!string.IsNullOrWhiteSpace(expense.Status))
+                                {
+                                    <span class="inline-block rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">@expense.Status</span>
+                                }
+                                else
+                                {
+                                    <span class="text-xs font-semibold text-gray-400">N/A</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="flex items-center justify-center">
+                                    <button @onclick="() => ViewExpense(expense)"
+                                            class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-500 transition-colors hover:bg-blue-100">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        <span class="hidden sm:inline">View</span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="mb-3 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-base font-medium text-gray-600">No Expenses Recorded Yet</p>
+                                <p class="mt-1 text-sm text-gray-500">Click "Add Expense" to record your first school expense.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    <Pagination TotalItems="@FilteredExpenses.Count"
+                CurrentPage="@CurrentPage"
+                RowsPerPage="@RowsPerPage"
+                ItemName="expenses"
+                OnPageChanged="HandlePageChanged"
+                OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+    <!-- Expense Details Modal -->
+    @if (ShowDetailsPanel)
+    {
+        <div class="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 overflow-y-auto" @onclick="HandleBackdropClick">
+            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl mt-0" @onclick:stopPropagation="true">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3">
+                    <div>
+                        <h2 class="text-base font-semibold text-orange-600">Expense Details</h2>
+                        @if (!string.IsNullOrWhiteSpace(ExpenseForm.ExpenseId))
+                        {
+                            <p class="mt-0.5 text-xs text-gray-500">ID: @ExpenseForm.ExpenseId</p>
+                        }
+                    </div>
+                    <button type="button"
+                            class="text-gray-400 hover:text-gray-600"
+                            style="background: transparent; border: none; cursor: pointer;"
+                            @onclick="CancelDetails">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Modal Body -->
+                <div class="max-h-[75vh] overflow-y-auto px-6 py-4">
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Expense ID:</label>
+            <input type="text" @bind="ExpenseForm.ExpenseId"
+                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                   readonly />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Category:</label>
+            <select @bind="ExpenseForm.Category"
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                    disabled="@IsViewMode">
+                <option value="">Select category</option>
+                <option value="Utilities">Utilities (Water, Electricity, Internet)</option>
+                <option value="Office Supplies">Office Supplies</option>
+                <option value="Teaching Materials">Teaching Materials</option>
+                <option value="Equipment & Maintenance">Equipment &amp; Maintenance</option>
+                <option value="Salaries / Honorarium">Salaries / Honorarium</option>
+                <option value="Events / Activities">Events / Activities</option>
+                <option value="Miscellaneous">Miscellaneous</option>
+            </select>
+        </div>
+        <div class="md:col-span-2">
+            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Description:</label>
+            <textarea @bind="ExpenseForm.Description"
+                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                      readonly="@IsViewMode"
+                      rows="3"
+                      placeholder="Describe the expense..."></textarea>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Amount:</label>
+            <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                <input type="text" 
+                       value="@GetExpenseAmountDisplayValue()"
+                       @oninput="HandleExpenseAmountInput"
+                       @onfocus="HandleExpenseAmountFocus"
+                       @onblur="HandleExpenseAmountBlur"
+                       @onpaste="HandleExpenseAmountPaste"
+                       onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                       pattern="[0-9.]*"
+                       inputmode="decimal"
+                       placeholder="0.00"
+                       class="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                       readonly="@IsViewMode" />
+            </div>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Date:</label>
+            <input type="date" value="@(ExpenseForm.ExpenseDate.ToString("yyyy-MM-dd"))" 
+                   @onchange="@((ChangeEventArgs e) => { if (!IsViewMode && DateTime.TryParse(e.Value?.ToString(), out var date)) ExpenseForm.ExpenseDate = date; })"
+                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   disabled="@IsViewMode" />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Payee / Supplier:</label>
+            <input type="text" @bind="ExpenseForm.Payee"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   readonly="@IsViewMode"
+                   placeholder="Enter supplier or payee" />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">OR / Receipt Number:</label>
+            <input type="text" @bind="ExpenseForm.OrNumber"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   readonly="@IsViewMode"
+                   placeholder="Enter OR or receipt number" />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method:</label>
+            <select @bind="ExpenseForm.PaymentMethod"
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                    disabled="@IsViewMode">
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="GCash">GCash</option>
+                <option value="E-wallet">E-wallet</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Status:</label>
+            <select @bind="ExpenseForm.Status"
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                    disabled="@IsViewMode">
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Paid">Paid</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Recorded By:</label>
+            <input type="text" @bind="ExpenseForm.RecordedBy"
+                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                   readonly />
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Approved By:</label>
+            <input type="text" @bind="ExpenseForm.ApprovedBy"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   readonly="@IsViewMode"
+                   placeholder="Enter approver name" />
+        </div>
+        <div class="md:col-span-2">
+            <label class="mb-2 block text-sm font-medium text-gray-700">Attachments:</label>
+            <input type="file"
+                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   disabled="@IsViewMode" />
+            <p class="mt-1 text-xs text-gray-400">Upload receipts, invoices, or supporting documents.</p>
+        </div>
+            </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-3">
+                    <button type="button" @onclick="CancelDetails"
+                            class="rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                        Close
+                    </button>
+                    @if (!IsViewMode)
+                    {
+                        <button type="button" @onclick="OpenAddConfirmation"
+                                class="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-orange-600 hover:shadow-lg">
+                            Save Expense
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Add Expense Confirmation Modal -->
+    @if (ShowAddConfirmModal)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowAddConfirmModal = false">
+            <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+                    <h3 class="text-sm font-semibold text-orange-600">Confirm Add Expense</h3>
+                    <button class="text-gray-400 hover:text-gray-600" @onclick="() => ShowAddConfirmModal = false" style="background: transparent; border: none;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-5 py-4 text-sm text-gray-700">
+                    <p>Are you sure you want to add this expense?</p>
+                    <p class="mt-2 text-xs text-gray-500">
+                        Note: Once confirmed, this expense record will not be editable.
+                    </p>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-gray-200 px-5 py-3">
+                    <button class="rounded-lg bg-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
+                            @onclick="() => ShowAddConfirmModal = false">
+                        Cancel
+                    </button>
+                    <button class="rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
+                            @onclick="ConfirmAddAsync">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Archive Confirmation Modal -->
+    @if (ShowArchiveConfirmModal)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowArchiveConfirmModal = false">
+            <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+                <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+                    <h3 class="text-sm font-semibold text-red-600">Archive Expense</h3>
+                    <button class="text-gray-400 hover:text-gray-600" @onclick="() => ShowArchiveConfirmModal = false" style="background: transparent; border: none;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="px-5 py-4 text-sm text-gray-700">
+                    <p>Are you sure you want to archive this expense?</p>
+                    <p class="mt-2 text-xs text-gray-500">
+                        Note: Once archived, this expense record will be removed from the list.
+                    </p>
+                </div>
+                <div class="flex justify-end gap-3 border-t border-gray-200 px-5 py-3">
+                    <button class="rounded-lg bg-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
+                            @onclick="() => ShowArchiveConfirmModal = false">
+                        Cancel
+                    </button>
+                    <button class="rounded-lg bg-red-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-600"
+                            @onclick="ConfirmArchiveAsync">
+                        Archive
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public ExpenseFormModel ExpenseForm { get; set; } = new();
+    [Parameter] public EventCallback<ExpenseFormModel> OnExpenseSaved { get; set; }
+    [Parameter] public List<ExpenseRecord> ExpenseList { get; set; } = new();
+    [Parameter] public EventCallback<string> OnArchiveExpense { get; set; }
+
+    // List/filter state
+    private string SearchText { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 5;
+
+    private bool ShowDetailsPanel { get; set; } = false;
+    private bool IsViewMode { get; set; } = false;
+    private bool ShowAddConfirmModal { get; set; } = false;
+    private bool ShowArchiveConfirmModal { get; set; } = false;
+    private string? ExpenseIdPendingArchive { get; set; }
+
+    // Amount formatting state
+    private string expenseAmountRawInput { get; set; } = "";
+    private bool isEditingExpenseAmount { get; set; } = false;
+
+    protected override void OnInitialized()
+    {
+        if (string.IsNullOrWhiteSpace(ExpenseForm.ExpenseId))
+        {
+            ExpenseForm.ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}";
+        }
+        if (ExpenseForm.ExpenseDate == default)
+        {
+            ExpenseForm.ExpenseDate = DateTime.Now;
+        }
+    }
+
+    private List<ExpenseRecord> FilteredExpenses
+    {
+        get
+        {
+            var query = ExpenseList.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                query = query.Where(e =>
+                    (!string.IsNullOrWhiteSpace(e.ExpenseId) && e.ExpenseId.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(e.Category) && e.Category.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(e.Payee) && e.Payee.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                query = query.Where(e => string.Equals(e.Status, StatusFilter, StringComparison.OrdinalIgnoreCase));
+            }
+
+            return query
+                .OrderByDescending(e => e.ExpenseDate)
+                .ThenByDescending(e => e.ExpenseId)
+                .ToList();
+        }
+    }
+
+    private List<ExpenseRecord> PaginatedExpenses
+    {
+        get
+        {
+            var filtered = FilteredExpenses;
+            if (filtered == null || !filtered.Any())
+            {
+                return new List<ExpenseRecord>();
+            }
+
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return filtered.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = string.Empty;
+        StatusFilter = string.Empty;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void StartAddExpense()
+    {
+        // Initialize a fresh expense for adding
+        ExpenseForm = new ExpenseFormModel
+        {
+            ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+            RecordedBy = "Admin User",
+            ExpenseDate = DateTime.Now,
+            PaymentMethod = "Cash",
+            Status = "Pending"
+        };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
+        ShowDetailsPanel = true;
+        IsViewMode = false;
+    }
+
+    private void ViewExpense(ExpenseRecord record)
+    {
+        ExpenseForm = new ExpenseFormModel
+        {
+            ExpenseId = record.ExpenseId,
+            Category = record.Category,
+            Description = record.Description,
+            Amount = record.Amount.ToString("N2"),
+            ExpenseDate = record.ExpenseDate,
+            Payee = record.Payee,
+            OrNumber = record.ReceiptNumber,
+            PaymentMethod = record.PaymentMethod,
+            ApprovedBy = record.ApprovedBy,
+            Status = record.Status,
+            RecordedBy = record.RecordedBy
+        };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
+        ShowDetailsPanel = true;
+        IsViewMode = true;
+    }
+
+    private void CancelDetails()
+    {
+        ShowDetailsPanel = false;
+        IsViewMode = false;
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
+    }
+
+    private void HandleBackdropClick()
+    {
+        // Close modal when clicking outside the content
+        CancelDetails();
+    }
+
+    private void ClearExpenseForm()
+    {
+        ExpenseForm = new ExpenseFormModel
+        {
+            ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
+            RecordedBy = "Admin User",
+            ExpenseDate = DateTime.Now,
+            PaymentMethod = "Cash",
+            Status = "Pending"
+        };
+        expenseAmountRawInput = "";
+        isEditingExpenseAmount = false;
+    }
+
+    // Format number string with commas (for display while typing)
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        // Remove any existing commas
+        string cleaned = numberString.Replace(",", "");
+        
+        // Check if it has a decimal point
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            // Format integer part with commas
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+
+    // Get display value for expense amount field (formatted with commas)
+    private string GetExpenseAmountDisplayValue()
+    {
+        if (isEditingExpenseAmount && !string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            return FormatNumberWithCommas(expenseAmountRawInput);
+        }
+        
+        // Return formatted value when not editing
+        if (!string.IsNullOrWhiteSpace(ExpenseForm.Amount))
+        {
+            // Parse the amount string and format it
+            var cleaned = ExpenseForm.Amount.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            if (decimal.TryParse(cleaned, out decimal amount))
+            {
+                return amount.ToString("N2");
+            }
+        }
+        return "";
+    }
+
+    // Handle expense amount input with auto-formatting and strict validation
+    private void HandleExpenseAmountInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // IMMEDIATELY filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // If starting with "0" and next char is a digit (not "."), remove the leading "0"
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input (without commas for parsing)
+        expenseAmountRawInput = cleaned;
+        
+        // Parse and update the ExpenseForm.Amount
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            ExpenseForm.Amount = parsedValue.ToString("N2");
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            ExpenseForm.Amount = "";
+        }
+        
+        StateHasChanged();
+    }
+
+    // Handle focus - start editing
+    private void HandleExpenseAmountFocus(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingExpenseAmount = true;
+        if (string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            if (!string.IsNullOrWhiteSpace(ExpenseForm.Amount))
+            {
+                var cleaned = ExpenseForm.Amount.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+                if (decimal.TryParse(cleaned, out decimal amount))
+                {
+                    expenseAmountRawInput = amount == Math.Floor(amount) 
+                        ? ((int)amount).ToString() 
+                        : amount.ToString("0.##");
+                }
+                else
+                {
+                    expenseAmountRawInput = "";
+                }
+            }
+            else
+            {
+                expenseAmountRawInput = "";
+            }
+        }
+    }
+
+    // Handle blur - finish editing
+    private void HandleExpenseAmountBlur(Microsoft.AspNetCore.Components.Web.FocusEventArgs e)
+    {
+        isEditingExpenseAmount = false;
+        
+        // Finalize the amount value
+        if (!string.IsNullOrWhiteSpace(expenseAmountRawInput))
+        {
+            string rawValue = expenseAmountRawInput;
+            
+            // Clean and parse
+            var cleaned = rawValue.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            if (decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                ExpenseForm.Amount = parsedValue.ToString("N2");
+            }
+            else
+            {
+                ExpenseForm.Amount = "";
+            }
+        }
+        else
+        {
+            ExpenseForm.Amount = "";
+        }
+        
+        expenseAmountRawInput = "";
+        StateHasChanged();
+    }
+
+    // Handle paste to filter invalid characters
+    private async Task HandleExpenseAmountPaste(ClipboardEventArgs e)
+    {
+        // Prevent default paste
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
+        }
+        catch { }
+        
+        // Get clipboard text
+        var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+        
+        if (!string.IsNullOrWhiteSpace(clipboardText))
+        {
+            // Filter to only allow digits and period
+            var validChars = clipboardText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+            var cleaned = new string(validChars);
+            
+            // Remove peso sign, commas, spaces
+            cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+            
+            // Update the amount
+            if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                ExpenseForm.Amount = parsedValue.ToString("N2");
+                expenseAmountRawInput = cleaned;
+                StateHasChanged();
+            }
+        }
+    }
+
+    private void OpenAddConfirmation()
+    {
+        ShowAddConfirmModal = true;
+    }
+
+    private async Task ConfirmAddAsync()
+    {
+        ShowAddConfirmModal = false;
+        await OnExpenseSaved.InvokeAsync(ExpenseForm);
+        ClearExpenseForm();
+        ShowDetailsPanel = false;
+    }
+
+    private void PromptArchive(ExpenseRecord record)
+    {
+        ExpenseIdPendingArchive = record.ExpenseId;
+        ShowArchiveConfirmModal = true;
+    }
+
+    private async Task ConfirmArchiveAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(ExpenseIdPendingArchive))
+        {
+            await OnArchiveExpense.InvokeAsync(ExpenseIdPendingArchive);
+        }
+
+        ShowArchiveConfirmModal = false;
+        ExpenseIdPendingArchive = null;
+    }
+}
+

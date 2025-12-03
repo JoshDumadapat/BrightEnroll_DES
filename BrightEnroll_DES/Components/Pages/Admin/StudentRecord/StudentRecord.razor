@@ -1,0 +1,406 @@
+﻿@page "/student-record"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Services.Business.Students
+@using BrightEnroll_DES.Components
+@inject BrightEnroll_DES.Services.RoleBase.IAuthorizationService AuthorizationService
+@inject StudentService StudentService
+
+<PageTitle>Student Record</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewStudentRecord">
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Student Record</h1>
+    @if (ShowDetailView)
+    {
+        <StudentDetail StudentData="SelectedStudentData" AcademicRecords="SelectedAcademicRecords" EnrollmentRecords="SelectedEnrollmentRecords" OnBackClick="HandleBackClick" />
+    }
+    else
+    {
+    <!-- Card Container -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <!-- Filters -->
+        <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+            <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                        <span class="absolute left-4 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnFilterChanged"
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+                    <select @bind="LrnStatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="">LRN Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Assigned">Assigned</option>
+                    </select>
+                    <select @bind="DocumentStatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="">Document Status</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Not verified">Not verified</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                    <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="">Grade Level</option>
+                        @foreach (var grade in AvailableGrades)
+                        {
+                            <option value="@grade">@grade</option>
+                        }
+                    </select>
+                    <select @bind="SectionFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="">Section</option>
+                        @foreach (var secName in AvailableSections)
+                        {
+                            <option value="@secName">@secName</option>
+                        }
+                    </select>
+                </div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="group relative">
+                        <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                            Clear
+                        </button>
+                        <span class="tooltip-delay">Clear all filters</span>
+                    </div>
+                    <div class="group relative">
+                        <button class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Export
+                        </button>
+                        <span class="tooltip-delay">Export student records to file</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 font-semibold text-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left">ID</th>
+                    <th class="px-4 py-3 text-left">Name</th>
+                    <th class="px-4 py-3 text-left">LRN</th>
+                    <th class="px-4 py-3 text-left">Grade Level</th>
+                    <th class="px-4 py-3 text-left">Section</th>
+                    <th class="px-4 py-3 text-left">Documents</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                @if (PaginatedStudents != null && PaginatedStudents.Any())
+                {
+                    @foreach (var student in PaginatedStudents)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@student.Id</td>
+                            <td class="px-4 py-3">@student.Name</td>
+
+                            @if (student.LRN == "N/A")
+                            {
+                                <td class="px-4 py-3"><span class="text-xs font-semibold text-gray-400">@student.LRN</span></td>
+                            }
+                            else
+                            {
+                                <td class="px-4 py-3">@student.LRN</td>
+                            }
+
+                            <td class="px-4 py-3">@student.GradeLevel</td>
+                            <td class="px-4 py-3">@student.Section</td>
+
+                            <td class="cursor-pointer px-4 py-3 text-gray-900 hover:underline">@student.Documents</td>
+
+                            <td class="px-4 py-3">
+                                @if (student.Status == "Enrolled")
+                                {
+                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Enrolled</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">@student.Status</span>
+                                }
+                            </td>
+
+                            <td class="flex items-center justify-center px-4 py-3">
+                                <!-- View Button -->
+                                <button @onclick="() => HandleViewClick(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">View</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="8" class="px-4 py-12 text-center text-sm text-gray-500">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-base font-medium text-gray-600">No Records Available</p>
+                                <p class="text-sm text-gray-500 mt-1">There are no student records to display at this time.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <!-- Footer with Pagination -->
+        <Pagination TotalItems="@FilteredStudents.Count()"
+                    CurrentPage="@CurrentPage"
+                    RowsPerPage="@RowsPerPage"
+                    ItemName="students"
+                    OnPageChanged="HandlePageChanged"
+                    OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+    </div>
+    }
+</div>
+
+@code {
+    private bool ShowDetailView { get; set; } = false;
+    private StudentDetailData SelectedStudentData { get; set; } = new();
+    private List<AcademicRecordData> SelectedAcademicRecords { get; set; } = new();
+    private List<EnrollmentStatusData> SelectedEnrollmentRecords { get; set; } = new();
+
+    private string SearchText { get; set; } = string.Empty;
+    private string LrnStatusFilter { get; set; } = string.Empty;
+    private string DocumentStatusFilter { get; set; } = string.Empty;
+    private string GradeFilter { get; set; } = string.Empty;
+    private string SectionFilter { get; set; } = string.Empty;
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 9;
+
+    private List<EnrolledStudentDto> StudentRecords { get; set; } = new();
+
+    private IEnumerable<string> AvailableGrades =>
+        StudentRecords.Select(s => s.GradeLevel)
+                      .Where(g => !string.IsNullOrWhiteSpace(g) && g != "N/A")
+                      .Distinct()
+                      .OrderBy(g => g);
+
+    private IEnumerable<string> AvailableSections =>
+        StudentRecords.Select(s => s.Section)
+                      .Where(s => !string.IsNullOrWhiteSpace(s) && s != "N/A")
+                      .Distinct()
+                      .OrderBy(s => s);
+
+    private IEnumerable<EnrolledStudentDto> FilteredStudents =>
+        StudentRecords.Where(s =>
+            (string.IsNullOrWhiteSpace(SearchText) ||
+             s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+             s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+             s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(GradeFilter) || s.GradeLevel == GradeFilter) &&
+            (string.IsNullOrWhiteSpace(SectionFilter) || s.Section == SectionFilter) &&
+            (string.IsNullOrWhiteSpace(DocumentStatusFilter) || s.Documents == DocumentStatusFilter) &&
+            (string.IsNullOrWhiteSpace(LrnStatusFilter) ||
+                (LrnStatusFilter == "Assigned" && s.LRN != "N/A") ||
+                (LrnStatusFilter == "Pending" && s.LRN == "N/A")));
+
+    private IEnumerable<EnrolledStudentDto> PaginatedStudents
+        => FilteredStudents.Skip((CurrentPage - 1) * RowsPerPage)
+                           .Take(RowsPerPage);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStudentsAsync();
+    }
+
+    private async Task LoadStudentsAsync()
+    {
+        try
+        {
+            StudentRecords = await StudentService.GetEnrolledStudentsAsync();
+        }
+        catch
+        {
+            StudentRecords = new List<EnrolledStudentDto>();
+        }
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = string.Empty;
+        LrnStatusFilter = string.Empty;
+        DocumentStatusFilter = string.Empty;
+        GradeFilter = string.Empty;
+        SectionFilter = string.Empty;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private async Task HandleViewClick(EnrolledStudentDto student)
+    {
+        var entity = await StudentService.GetStudentByIdAsync(student.Id);
+        if (entity == null)
+        {
+            return;
+        }
+
+        var fullName = $"{entity.FirstName} {entity.MiddleName} {entity.LastName}"
+            .Replace("  ", " ")
+            .Trim();
+
+        var hasRealLrn = !string.IsNullOrWhiteSpace(entity.Lrn);
+        var rawLrn = entity.Lrn ?? string.Empty;
+
+        // Get latest enrollment for this student
+        var latestEnrollment = entity.SectionEnrollments
+            .OrderByDescending(e => e.CreatedAt)
+            .FirstOrDefault();
+
+        var sectionName = latestEnrollment?.Section?.SectionName ?? string.Empty;
+        var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty;
+        var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
+
+        // Helper to check a requirement by name using Status field (\"verified\" => checked)
+        bool IsRequirementChecked(string requirementName)
+        {
+            var requirement = entity.Requirements?.FirstOrDefault(r => r.RequirementName == requirementName);
+            if (requirement == null)
+            {
+                return false;
+            }
+
+            return !string.IsNullOrWhiteSpace(requirement.Status) &&
+                   requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+        }
+
+        // Determine if PSA Birth Certificate is verified
+        bool hasBirthCert = IsRequirementChecked("PSA Birth Certificate");
+
+        SelectedStudentData = new StudentDetailData
+        {
+            Id = entity.StudentId,
+            FullName = fullName,
+            FirstName = entity.FirstName,
+            MiddleName = entity.MiddleName ?? string.Empty,
+            LastName = entity.LastName,
+            Suffix = entity.Suffix ?? string.Empty,
+            GradeLevel = gradeLevelName,
+            Section = sectionName,
+            SchoolYear = schoolYear,
+            Status = entity.Status,
+            LRN = hasRealLrn ? rawLrn : "N/A",
+
+            BirthDate = entity.Birthdate,
+            PlaceOfBirth = entity.PlaceOfBirth ?? string.Empty,
+            Sex = entity.Sex,
+            MotherTongue = entity.MotherTongue ?? string.Empty,
+            IsIPCommunity = entity.IpComm ? "Yes" : "No",
+            IPCommunitySpecify = entity.IpSpecify ?? string.Empty,
+            Is4PsBeneficiary = entity.FourPs ? "Yes" : "No",
+            FourPsHouseholdId = entity.FourPsHseId ?? string.Empty,
+
+            CurrentHouseNo = entity.HseNo ?? string.Empty,
+            CurrentStreetName = entity.Street ?? string.Empty,
+            CurrentBarangay = entity.Brngy ?? string.Empty,
+            CurrentCity = entity.City ?? string.Empty,
+            CurrentProvince = entity.Province ?? string.Empty,
+            CurrentCountry = entity.Country ?? string.Empty,
+            CurrentZipCode = entity.ZipCode ?? string.Empty,
+
+            // Permanent address
+            PermanentHouseNo = entity.PhseNo ?? string.Empty,
+            PermanentStreetName = entity.Pstreet ?? string.Empty,
+            PermanentBarangay = entity.Pbrngy ?? string.Empty,
+            PermanentCity = entity.Pcity ?? string.Empty,
+            PermanentProvince = entity.Pprovince ?? string.Empty,
+            PermanentCountry = entity.Pcountry ?? string.Empty,
+            PermanentZipCode = entity.PzipCode ?? string.Empty,
+
+            GuardianFirstName = entity.Guardian?.FirstName ?? string.Empty,
+            GuardianMiddleName = entity.Guardian?.MiddleName ?? string.Empty,
+            GuardianLastName = entity.Guardian?.LastName ?? string.Empty,
+            GuardianSuffix = entity.Guardian?.Suffix ?? string.Empty,
+            GuardianContactNumber = entity.Guardian?.ContactNum ?? string.Empty,
+            GuardianRelationship = entity.Guardian?.Relationship ?? string.Empty,
+
+            StudentType = entity.StudentType,
+            HasLRN = hasRealLrn ? "Yes" : "No",
+            LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
+            GradeToEnroll = gradeLevelName,
+            HasBirthCertificate = hasBirthCert,
+
+            // Detailed requirement checklist
+            HasPSABirthCert = IsRequirementChecked("PSA Birth Certificate"),
+            HasBaptismalCert = IsRequirementChecked("Baptismal Certificate"),
+            HasReportCard = IsRequirementChecked("Report Card"),
+            HasForm138 = IsRequirementChecked("Form 138 (Report Card)"),
+            HasForm137 = IsRequirementChecked("Form 137 (Permanent Record)"),
+            HasGoodMoralCert = IsRequirementChecked("Good Moral Certificate"),
+            HasTransferCert = IsRequirementChecked("Transfer Certificate"),
+            HasUpdatedEnrollmentForm = IsRequirementChecked("Updated Enrollment Form"),
+            HasClearance = IsRequirementChecked("Clearance"),
+
+            PaymentStatus = entity.PaymentStatus ?? "N/A"
+        };
+
+        // For now, academic records are not yet stored - keep list empty
+        SelectedAcademicRecords = new List<AcademicRecordData>();
+
+        // Build enrollment status records from all enrollments
+        SelectedEnrollmentRecords = entity.SectionEnrollments
+            .OrderByDescending(e => e.CreatedAt)
+            .Select(e => new EnrollmentStatusData
+            {
+                SchoolYear = e.SchoolYear,
+                Grade = e.Section.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty,
+                Section = e.Section.SectionName ?? string.Empty,
+                Type = entity.StudentType,
+                Documents = DocumentsVerifiedHelper.CalculateDocumentsVerified(entity.Requirements, entity.StudentType) ? "Verified" : "Pending",
+                PaymentStatus = entity.PaymentStatus ?? "N/A",
+                Status = e.Status
+            })
+            .ToList();
+
+        ShowDetailView = true;
+    }
+
+    private void HandleBackClick()
+    {
+        ShowDetailView = false;
+    }
+
+}
+</RoleAuthorizeView>

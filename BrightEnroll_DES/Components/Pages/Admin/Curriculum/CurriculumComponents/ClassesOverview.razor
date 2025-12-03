@@ -1,0 +1,414 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Components
+@using DataModels = BrightEnroll_DES.Data.Models
+@using System.Linq
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto">
+                <span class="absolute left-3 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+            </div>
+            <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Grade</option>
+                @foreach (var grade in AvailableGrades)
+                {
+                    <option value="@grade">@grade</option>
+                }
+            </select>
+            <select @bind="SectionFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Section</option>
+                @foreach (var sec in AvailableSections)
+                {
+                    <option value="@sec">@sec</option>
+                }
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-100 font-semibold text-gray-600">
+            <tr>
+                <th class="px-4 py-3 text-left">Grade Level</th>
+                <th class="px-4 py-3 text-left">Adviser</th>
+                <th class="px-4 py-3 text-left">Subjects</th>
+                <th class="px-4 py-3 text-left">Schedule</th>
+                <th class="px-4 py-3 text-left">Section</th>
+                <th class="px-4 py-3 text-left">Classroom</th>
+                <th class="px-4 py-3 text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            @if (GroupedClasses != null && GroupedClasses.Any())
+            {
+                @foreach (var group in PaginatedGroupedClasses)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3">@group.GradeLevel</td>
+                        <td class="px-4 py-3">@group.Adviser</td>
+                        <td class="px-4 py-3">
+                            <div class="max-w-xs truncate" title="@group.Subjects">
+                                @group.Subjects
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <div class="max-w-xs truncate text-xs" title="@group.Schedule">
+                                @group.Schedule
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">@group.Section</td>
+                        <td class="px-4 py-3">@group.Classroom</td>
+                        <td class="flex items-center justify-center gap-2 px-4 py-3">
+                            <button @onclick="() => OnViewClass.InvokeAsync(group.AssignmentId)" class="flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span class="hidden sm:inline">View</span>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                        <div class="flex flex-col items-center justify-center">
+                            <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                            <p class="text-sm text-gray-500 mt-1">
+                                @if (FinalClasses == null || !FinalClasses.Any())
+                                {
+                                    <span>No class assignments with schedules found. Please create teacher assignments with schedules first.</span>
+                                }
+                                else
+                                {
+                                    <span>No classes match the current filters. Try adjusting your search or filter criteria.</span>
+                                }
+                            </p>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@(GroupedClasses?.Count ?? 0)" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="classes"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter] public List<DataModels.FinalClassView> FinalClasses { get; set; } = new();
+    [Parameter] public List<DataModels.Section> Sections { get; set; } = new();
+    [Parameter] public List<DataModels.TeacherSectionAssignment> Assignments { get; set; } = new();
+    [Parameter] public EventCallback<int> OnViewClass { get; set; }
+
+
+    private string SearchText { get; set; } = "";
+    private string GradeFilter { get; set; } = "";
+    private string SectionFilter { get; set; } = "";
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 10;
+
+    // Available filter options
+    private List<string> AvailableGrades => FinalClasses?.Where(fc => !string.IsNullOrEmpty(fc.GradeLevel)).Select(fc => fc.GradeLevel!).Distinct().OrderBy(g => g).ToList() ?? new List<string>();
+    private List<string> AvailableSections => FinalClasses?.Where(fc => !string.IsNullOrEmpty(fc.SectionName)).Select(fc => fc.SectionName!).Distinct().OrderBy(s => s).ToList() ?? new List<string>();
+
+    // Group classes by Section (one class = one section per grade)
+    private List<ClassGroup> GroupedClasses
+    {
+        get
+        {
+            if (FinalClasses == null || !FinalClasses.Any())
+            {
+                return new List<ClassGroup>();
+            }
+
+            var filtered = FinalClasses.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(c => 
+                    (c.TeacherName != null && c.TeacherName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.SectionName != null && c.SectionName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.SubjectName != null && c.SubjectName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) ||
+                    (c.Classroom != null && c.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(GradeFilter))
+            {
+                filtered = filtered.Where(c => c.GradeLevel == GradeFilter);
+            }
+
+            if (!string.IsNullOrWhiteSpace(SectionFilter))
+            {
+                filtered = filtered.Where(c => c.SectionName == SectionFilter);
+            }
+
+            // Group by Section (one class = one section)
+            // Each section represents one final class
+            var grouped = filtered
+                .GroupBy(c => new { c.SectionName, c.GradeLevel })
+                .Select(g =>
+                {
+                    var first = g.First();
+                    var allRows = g.ToList();
+                    
+                    // Find adviser - prioritize "adviser" role, then "homeroom_all_subjects"
+                    var adviser = allRows.FirstOrDefault(c => string.Equals(c.Role, "adviser", StringComparison.OrdinalIgnoreCase)) 
+                               ?? allRows.FirstOrDefault(c => string.Equals(c.Role, "homeroom_all_subjects", StringComparison.OrdinalIgnoreCase));
+                    
+                    // If adviser not found in FinalClassView, try to get from database assignments
+                    string adviserName = "-";
+                    int adviserAssignmentId = 0;
+                    
+                    if (adviser != null)
+                    {
+                        adviserName = adviser.TeacherName ?? "-";
+                        adviserAssignmentId = adviser.AssignmentId;
+                    }
+                    else
+                    {
+                        // Try to find adviser from database assignments
+                        var sectionName = first.SectionName;
+                        var section = Sections?.FirstOrDefault(s => s.SectionName == sectionName);
+                        if (section != null)
+                        {
+                            var adviserAssignment = Assignments?
+                                .FirstOrDefault(a => a.SectionId == section.SectionId && 
+                                                     !a.IsArchived &&
+                                                     string.Equals(a.Role, "adviser", StringComparison.OrdinalIgnoreCase));
+                            
+                            if (adviserAssignment?.Teacher != null)
+                            {
+                                adviserName = $"{adviserAssignment.Teacher.FirstName} {adviserAssignment.Teacher.LastName}";
+                                adviserAssignmentId = adviserAssignment.AssignmentId;
+                            }
+                            else if (section.AdviserId.HasValue)
+                            {
+                                // Fallback: check Section's AdviserId if assignment doesn't exist yet
+                                // This handles the case where adviser was just assigned but assignment hasn't been created yet
+                                var adviserFromSection = Assignments?
+                                    .FirstOrDefault(a => a.TeacherId == section.AdviserId.Value && 
+                                                         a.SectionId == section.SectionId &&
+                                                         !a.IsArchived);
+                                
+                                if (adviserFromSection?.Teacher != null)
+                                {
+                                    adviserName = $"{adviserFromSection.Teacher.FirstName} {adviserFromSection.Teacher.LastName}";
+                                    adviserAssignmentId = adviserFromSection.AssignmentId;
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Get all unique subjects from all assignments in this section
+                    // For "homeroom_all_subjects", SubjectName might be NULL, so we need to get subjects differently
+                    var subjects = new List<string>();
+                    
+                    // If there's a homeroom_all_subjects assignment, we need to get all subjects for that grade level
+                    if (adviser != null && adviser.Role == "homeroom_all_subjects")
+                    {
+                        // For homeroom_all_subjects, all subjects are assigned to this teacher
+                        // We can get subjects from the schedule rows that have SubjectName
+                        subjects = allRows
+                            .Where(c => !string.IsNullOrEmpty(c.SubjectName))
+                            .Select(c => c.SubjectName!)
+                            .Distinct()
+                            .OrderBy(s => s)
+                            .ToList();
+                        
+                        // If no subjects found in schedule rows, it might mean all subjects are assigned
+                        // but schedules haven't been created per subject yet
+                        if (!subjects.Any())
+                        {
+                            subjects.Add("All Subjects");
+                        }
+                    }
+                    else
+                    {
+                        // For regular assignments, get subjects from SubjectName column
+                        subjects = allRows
+                            .Where(c => !string.IsNullOrEmpty(c.SubjectName))
+                            .Select(c => c.SubjectName!)
+                            .Distinct()
+                            .OrderBy(s => s)
+                            .ToList();
+                    }
+                    
+                    // Format schedule: group by time range and days
+                    // Filter out rows with null times before grouping
+                    var validRows = allRows
+                        .Where(c => c.StartTime.HasValue && c.EndTime.HasValue)
+                        .ToList();
+                    
+                    var scheduleGroups = validRows
+                        .GroupBy(c => new { StartTime = c.StartTime!.Value, EndTime = c.EndTime!.Value })
+                        .OrderBy(timeGroup => timeGroup.Key.StartTime)
+                        .Select(timeGroup =>
+                        {
+                            var startTime = timeGroup.Key.StartTime;
+                            var endTime = timeGroup.Key.EndTime;
+                            
+                            var startHour = startTime.Hours > 12 
+                                ? startTime.Hours - 12 
+                                : (startTime.Hours == 0 ? 12 : startTime.Hours);
+                            var endHour = endTime.Hours > 12 
+                                ? endTime.Hours - 12 
+                                : (endTime.Hours == 0 ? 12 : endTime.Hours);
+                            var startAmPm = startTime.Hours < 12 ? "am" : "pm";
+                            var endAmPm = endTime.Hours < 12 ? "am" : "pm";
+                            
+                            // Get all unique days for this time slot, ordered properly
+                            var days = timeGroup
+                                .Select(c => c.DayOfWeek)
+                                .Where(d => !string.IsNullOrWhiteSpace(d))
+                                .Distinct()
+                                .OrderBy(d => GetDayOrder(d))
+                                .ToList();
+                            
+                            var daysStr = string.Join(", ", days);
+                            return $"{startHour}:{startTime.Minutes:D2}{startAmPm} - {endHour}:{endTime.Minutes:D2}{endAmPm} | {daysStr}";
+                        })
+                        .ToList();
+                    
+                    // Get classroom - should be consistent across all rows for same section
+                    var classroom = first.Classroom ?? "";
+                    var buildingName = allRows.FirstOrDefault(r => !string.IsNullOrEmpty(r.BuildingName))?.BuildingName;
+                    if (!string.IsNullOrEmpty(buildingName) && !string.IsNullOrEmpty(classroom) && !classroom.Contains(buildingName))
+                    {
+                        classroom = $"{classroom} ({buildingName})";
+                    }
+                    
+                    // Get assignment ID for view modal - use adviser assignment if available
+                    var viewAssignmentId = adviserAssignmentId > 0 ? adviserAssignmentId : allRows.First().AssignmentId;
+                    
+                    return new ClassGroup
+                    {
+                        AssignmentId = viewAssignmentId,
+                        GradeLevel = first.GradeLevel ?? "",
+                        Adviser = adviserName ?? "",
+                        Subjects = subjects.Any() ? string.Join(", ", subjects) : "-",
+                        Schedule = scheduleGroups.Any() ? string.Join("; ", scheduleGroups) : "No schedule",
+                        Section = first.SectionName ?? "",
+                        Classroom = classroom
+                    };
+                })
+                .OrderBy(g => g.GradeLevel)
+                .ThenBy(g => g.Section)
+                .ToList();
+
+            return grouped;
+        }
+    }
+
+    private int GetDayOrder(string? day)
+    {
+        if (string.IsNullOrWhiteSpace(day))
+            return 99;
+            
+        return day switch
+        {
+            "M" => 1,
+            "T" => 2,
+            "W" => 3,
+            "TH" => 4,
+            "F" => 5,
+            "Sat" => 6,
+            "Sun" => 7,
+            _ => 99
+        };
+    }
+
+    // Computed property for paginated grouped classes
+    private List<ClassGroup> PaginatedGroupedClasses
+    {
+        get
+        {
+            var grouped = GroupedClasses;
+            if (grouped == null || !grouped.Any())
+                return new List<ClassGroup>();
+
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return grouped.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnClearFilters()
+    {
+        SearchText = "";
+        GradeFilter = "";
+        SectionFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    public class ClassGroup
+    {
+        public int AssignmentId { get; set; }
+        public string GradeLevel { get; set; } = "";
+        public string Adviser { get; set; } = "";
+        public string Subjects { get; set; } = "";
+        public string Schedule { get; set; } = "";
+        public string Section { get; set; } = "";
+        public string Classroom { get; set; } = "";
+    }
+}
+

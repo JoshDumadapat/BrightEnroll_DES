@@ -1,0 +1,230 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.ArchiveComponents
+@using BrightEnroll_DES.Components.Pages.Admin
+@* Student Archive Component with Filters *@
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                <span class="absolute left-4 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <select @bind="StatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Status</option>
+                <option value="Rejected by School">Rejected by School</option>
+                <option value="Application Withdrawn">Application Withdrawn</option>
+                <option value="Withdrawn">Withdrawn</option>
+                <option value="Graduated">Graduated</option>
+                <option value="Transferred">Transferred</option>
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="group relative">
+                <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <span class="tooltip-delay">Clear all filters</span>
+            </div>
+            <div class="group relative">
+                <button @onclick="ExportPDF" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export
+                </button>
+                <span class="tooltip-delay">Export archived students to file</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<table class="min-w-full text-sm">
+    <thead class="bg-gray-100 font-semibold text-gray-600">
+        <tr>
+            <th class="px-4 py-3 text-left">ID</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">LRN</th>
+            <th class="px-4 py-3 text-left">Date</th>
+            <th class="px-4 py-3 text-left">Reason</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Archived Date</th>
+            <th class="px-4 py-3 text-center">Actions</th>
+        </tr>
+    </thead>
+    <tbody class="divide-y">
+        @if (Students != null && Students.Any())
+        {
+            @foreach (var student in PaginatedStudents)
+            {
+                <tr class="transition hover:bg-gray-50">
+                    <td class="px-4 py-3">@student.Id</td>
+                    <td class="px-4 py-3">@student.Name</td>
+                    <td class="px-4 py-3">
+                        <span class="text-gray-900">@student.LRN</span>
+                    </td>
+                    <td class="px-4 py-3">@student.Date</td>
+                    <td class="px-4 py-3">
+                        <span class="text-gray-700 text-xs">@(string.IsNullOrWhiteSpace(student.Reason) ? "-" : (student.Reason.Length > 50 ? student.Reason.Substring(0, 50) + "..." : student.Reason))</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        @if (student.Status == "Graduated")
+                        {
+                            <span class="rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">@student.Status</span>
+                        }
+                        else if (student.Status == "Transferred")
+                        {
+                            <span class="rounded-md bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">@student.Status</span>
+                        }
+                        else if (student.Status == "Withdrawn" || student.Status == "Application Withdrawn")
+                        {
+                            <span class="rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">@student.Status</span>
+                        }
+                        else if (student.Status == "Rejected by School")
+                        {
+                            <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">@student.Status</span>
+                        }
+                        else
+                        {
+                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">@student.Status</span>
+                        }
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">@student.ArchivedDate</td>
+                    <td class="flex items-center justify-center gap-2 px-4 py-3">
+                        <!-- View Button -->
+                        <button @onclick="() => ViewStudent(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <span class="hidden sm:inline">View</span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                        <p class="text-sm text-gray-500 mt-1">There are no archived students to display at this time.</p>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@FilteredStudents.Count" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="archived students"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter]
+    public List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent>? Students { get; set; }
+
+    [Parameter]
+    public int RowsPerPage { get; set; } = 5;
+
+    // Filter properties
+    private string SearchText { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+
+    // Computed property for filtered students
+    private List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent> FilteredStudents
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent>();
+
+            var filtered = Students.AsEnumerable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(s => 
+                    s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (s.Reason != null && s.Reason.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            // Status filter
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                filtered = filtered.Where(s => s.Status == StatusFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated students
+    private List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent> PaginatedStudents
+    {
+        get
+        {
+            var filtered = FilteredStudents;
+            return filtered
+                .Skip((CurrentPage - 1) * RowsPerPage)
+                .Take(RowsPerPage)
+                .ToList();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        StatusFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ExportPDF()
+    {
+        // Export PDF logic will be implemented here
+    }
+
+    private void ViewStudent(BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent student)
+    {
+        // View student details logic will be implemented here
+    }
+}
+

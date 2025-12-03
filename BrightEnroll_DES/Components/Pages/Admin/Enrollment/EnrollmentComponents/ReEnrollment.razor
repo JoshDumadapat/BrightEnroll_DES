@@ -1,0 +1,333 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Components.Pages.Admin
+@using BrightEnroll_DES.Services.QuestPDF
+@using Microsoft.JSInterop
+@inject EnrollmentPdfGenerator PdfGenerator
+@inject IJSRuntime JSRuntime
+@* Re-enrollment Component with Filters *@
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
+                <span class="absolute left-4 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <select @bind="TypeFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Type</option>
+                <option value="Eligible">Eligible</option>
+                <option value="New">New</option>
+                <option value="Transferee">Transferee</option>
+            </select>
+            <select @bind="GradeFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Grade</option>
+                <option value="Kinder">Kinder</option>
+                <option value="G1">G1</option>
+                <option value="G2">G2</option>
+                <option value="G3">G3</option>
+                <option value="G4">G4</option>
+                <option value="G5">G5</option>
+                <option value="G6">G6</option>
+            </select>
+            <select @bind="StatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Status</option>
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="group relative">
+                <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <span class="tooltip-delay">Clear all filters</span>
+            </div>
+            <div class="group relative">
+                <button @onclick="ExportPDF" disabled="@isExporting" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto" style="font-size: 13px;">
+                    @if (isExporting)
+                    {
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Exporting...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Export</span>
+                    }
+                </button>
+                <span class="tooltip-delay">Export re-enrollment students to file</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="overflow-x-auto w-full">
+<table class="w-full border-collapse">
+    <thead>
+        <tr class="border-b border-gray-200 bg-gray-50">
+            <th class="py-3 pl-6 pr-4 text-left text-xs font-semibold text-gray-700">ID</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Name</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">LRN</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Date</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Type</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Grade Level</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Documents</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Status</th>
+            <th class="py-3 pr-6 pl-4 text-center text-xs font-semibold text-gray-700">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (IsLoading)
+        {
+            <tr>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="animate-spin h-8 w-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Loading re-enrollment students...</span>
+                    </div>
+                </td>
+            </tr>
+        }
+        else if (Students != null && Students.Any())
+        {
+            @foreach (var student in PaginatedStudents)
+            {
+                <tr class="border-b border-gray-100 transition hover:bg-gray-50">
+                    <td class="py-3 pl-6 pr-4 text-sm text-gray-700">@student.Id</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@student.Name</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        @if (student.LRN == "N/A")
+                        {
+                            <span class="text-xs font-semibold text-gray-400">@student.LRN</span>
+                        }
+                        else
+                        {
+                            <span class="text-gray-900">@student.LRN</span>
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@FormatDate(student.Date)</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        <span class="text-green-600">@student.Type</span>
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">@student.GradeLevel</td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        @if (student.Documents == "Verified")
+                        {
+                            <span class="text-xs font-semibold text-green-600">@student.Documents</span>
+                        }
+                        else
+                        {
+                            <span class="text-xs font-semibold text-gray-400">@student.Documents</span>
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        <span class="rounded-full bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-600">@student.Status</span>
+                    </td>
+                    <td class="py-3 pr-6 pl-4 text-center">
+                        <!-- Edit Button -->
+                        <button class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                            </svg>
+                            <span class="hidden sm:inline">Edit</span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                        <p class="text-sm text-gray-500 mt-1">There are no re-enrollment students to display at this time.</p>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+</div>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@FilteredStudents.Count" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="re-enrollment students"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter]
+    public List<ReEnrollmentStudent>? Students { get; set; }
+
+    [Parameter]
+    public int RowsPerPage { get; set; } = 5;
+
+    [Parameter]
+    public bool IsLoading { get; set; } = false;
+
+    // Filter properties
+    private string SearchText { get; set; } = "";
+    private string TypeFilter { get; set; } = "";
+    private string GradeFilter { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+
+    // Computed property for filtered students
+    private List<ReEnrollmentStudent> FilteredStudents
+    {
+        get
+        {
+            if (Students == null || !Students.Any())
+                return new List<ReEnrollmentStudent>();
+
+            var filtered = Students.AsEnumerable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(s => 
+                    s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Type filter
+            if (!string.IsNullOrWhiteSpace(TypeFilter))
+            {
+                filtered = filtered.Where(s => s.Type == TypeFilter);
+            }
+
+            // Grade filter
+            if (!string.IsNullOrWhiteSpace(GradeFilter))
+            {
+                filtered = filtered.Where(s => s.GradeLevel == GradeFilter);
+            }
+
+            // Status filter
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                filtered = filtered.Where(s => s.Status == StatusFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated students
+    private List<ReEnrollmentStudent> PaginatedStudents
+    {
+        get
+        {
+            var filtered = FilteredStudents;
+            return filtered
+                .Skip((CurrentPage - 1) * RowsPerPage)
+                .Take(RowsPerPage)
+                .ToList();
+        }
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        TypeFilter = "";
+        GradeFilter = "";
+        StatusFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private bool isExporting = false;
+
+    private async Task ExportPDF()
+    {
+        if (isExporting) return;
+        
+        isExporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("ReEnrollment");
+            var fileName = $"Re_Enrollment_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private string FormatDate(string dateString)
+    {
+        if (string.IsNullOrWhiteSpace(dateString))
+            return "N/A";
+
+        // Try to parse the date string in various formats
+        if (DateTime.TryParse(dateString, out DateTime date))
+        {
+            return date.ToString("MMM. d, yyyy");
+        }
+
+        // If parsing fails, try common formats
+        string[] formats = { "dd MMM yyyy", "MMM dd, yyyy", "yyyy-MM-dd", "MM/dd/yyyy", "dd/MM/yyyy" };
+        foreach (var format in formats)
+        {
+            if (DateTime.TryParseExact(dateString, format, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out date))
+            {
+                return date.ToString("MMM. d, yyyy");
+            }
+        }
+
+        // If all parsing fails, return original string
+        return dateString;
+    }
+}

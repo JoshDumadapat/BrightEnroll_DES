@@ -1,0 +1,136 @@
+@using BrightEnroll_DES.Services.Database.Sync
+@using BrightEnroll_DES.Services.Infrastructure
+@inject ISyncStatusService SyncStatusService
+@inject IConnectivityService ConnectivityService
+@inject IDatabaseSyncService DatabaseSyncService
+@implements IDisposable
+
+<div class="fixed bottom-4 right-4 z-50">
+    <div class="rounded-lg border border-gray-200 bg-white p-3 shadow-lg">
+        <!-- Status Indicator -->
+        <div class="mb-2 flex items-center gap-2">
+            @if (ConnectivityService.IsConnected)
+            {
+                <div class="h-3 w-3 rounded-full bg-green-500 animate-pulse"></div>
+                <span class="text-sm font-semibold text-green-700">Online</span>
+            }
+            else
+            {
+                <div class="h-3 w-3 rounded-full bg-red-500"></div>
+                <span class="text-sm font-semibold text-red-700">Offline</span>
+            }
+        </div>
+
+        <!-- Sync Status -->
+        @if (SyncStatusService.IsSyncing)
+        {
+            <div class="mb-2 flex items-center gap-2">
+                <svg class="h-4 w-4 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-xs text-gray-600">Syncing...</span>
+            </div>
+        }
+
+        <!-- Last Sync Time -->
+        @if (SyncStatusService.LastSyncTime.HasValue)
+        {
+            <div class="mb-2 text-xs text-gray-500">
+                Last sync: @SyncStatusService.LastSyncTime.Value.ToString("MM/dd HH:mm")
+            </div>
+        }
+        else
+        {
+            <div class="mb-2 text-xs text-gray-400">Never synced</div>
+        }
+
+        <!-- Pending Operations -->
+        @if (SyncStatusService.PendingOperationsCount > 0)
+        {
+            <div class="mb-2 flex items-center gap-2">
+                <span class="text-xs font-semibold text-orange-600">
+                    @SyncStatusService.PendingOperationsCount pending
+                </span>
+            </div>
+        }
+
+        <!-- Errors -->
+        @if (SyncStatusService.Errors.Any())
+        {
+            <div class="mb-2">
+                <button @onclick="ToggleErrors" class="text-xs text-red-600 hover:underline">
+                    @SyncStatusService.Errors.Count error(s)
+                </button>
+                @if (showErrors)
+                {
+                    <div class="mt-1 max-h-32 overflow-y-auto text-xs text-red-600">
+                        @foreach (var error in SyncStatusService.Errors.Take(3))
+                        {
+                            <div>• @error</div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Manual Sync Button -->
+        @if (ConnectivityService.IsConnected && !SyncStatusService.IsSyncing)
+        {
+            <button @onclick="ManualSync" 
+                    class="w-full rounded bg-blue-500 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-600">
+                Sync Now
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private bool showErrors = false;
+    private Timer? _refreshTimer;
+
+    protected override void OnInitialized()
+    {
+        SyncStatusService.StatusChanged += OnStatusChanged;
+        ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+        
+        // Refresh UI every 5 seconds
+        _refreshTimer = new Timer(_ => InvokeAsync(StateHasChanged), null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+    }
+
+    private void OnStatusChanged(object? sender, SyncStatusChangedEventArgs e)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void OnConnectivityChanged(object? sender, bool isConnected)
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleErrors()
+    {
+        showErrors = !showErrors;
+        StateHasChanged();
+    }
+
+    private async Task ManualSync()
+    {
+        try
+        {
+            await DatabaseSyncService.FullSyncAsync();
+        }
+        catch (Exception)
+        {
+            // Error will be shown in status
+        }
+    }
+
+    public void Dispose()
+    {
+        SyncStatusService.StatusChanged -= OnStatusChanged;
+        ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+        _refreshTimer?.Dispose();
+    }
+}
+

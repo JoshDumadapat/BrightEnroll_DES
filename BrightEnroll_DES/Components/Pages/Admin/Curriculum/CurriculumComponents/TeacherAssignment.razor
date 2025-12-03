@@ -1,0 +1,217 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
+@using BrightEnroll_DES.Components.Pages.Admin
+@using System.Linq
+
+<!-- Filters -->
+<div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+    <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div class="relative flex w-full items-center sm:w-auto">
+                <span class="absolute left-3 flex items-center justify-center">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </span>
+                <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                       class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+            </div>
+            <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                <option value="">Grade</option>
+                @foreach (var grade in AvailableGrades)
+                {
+                    <option value="@grade">@grade</option>
+                }
+            </select>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+            </button>
+            <button @onclick="OnAddAssignment" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                + Add Assignment
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<table class="min-w-full text-sm">
+    <thead class="bg-gray-100 font-semibold text-gray-600">
+        <tr>
+            <th class="px-4 py-3 text-left">Grade</th>
+            <th class="px-4 py-3 text-left">Section</th>
+            <th class="px-4 py-3 text-left">Classroom</th>
+            <th class="px-4 py-3 text-left">Adviser</th>
+            <th class="px-4 py-3 text-left">Subjects</th>
+            <th class="px-4 py-3 text-left">Subject Names</th>
+            <th class="px-4 py-3 text-center">Actions</th>
+        </tr>
+    </thead>
+    <tbody class="divide-y">
+        @if (PaginatedAssignments != null && PaginatedAssignments.Any())
+        {
+            @foreach (var assignment in PaginatedAssignments)
+            {
+                <tr class="transition hover:bg-gray-50">
+                    <td class="px-4 py-3">@assignment.Grade</td>
+                    <td class="px-4 py-3">@assignment.Section</td>
+                    <td class="px-4 py-3">@assignment.Classroom</td>
+                    <td class="px-4 py-3">
+                        @(!string.IsNullOrWhiteSpace(assignment.AdviserName) 
+                            ? assignment.AdviserName 
+                            : "-")
+                    </td>
+                    <td class="px-4 py-3">
+                        @(assignment.SubjectsCount > 0 ? assignment.SubjectsCount.ToString() : "-")
+                    </td>
+                    <td class="px-4 py-3">
+                        @(assignment.SubjectsList != null && assignment.SubjectsList.Any()
+                            ? string.Join(", ", assignment.SubjectsList)
+                            : "-")
+                    </td>
+                    <td class="flex items-center justify-center gap-2 px-4 py-3">
+                        <button @onclick="() => OnEditAssignment.InvokeAsync(assignment)" class="flex items-center gap-1.5 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <span class="hidden sm:inline">View</span>
+                        </button>
+                        <button @onclick="() => OnArchiveAssignment.InvokeAsync(assignment)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
+                            </svg>
+                            <span class="hidden sm:inline">Archive</span>
+                        </button>
+                    </td>
+                </tr>
+            }
+        }
+        else
+        {
+            <tr>
+                <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                        <p class="text-sm text-gray-500 mt-1">There are no teacher assignments to display at this time.</p>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@FilteredAssignments.Count" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="assignments"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+
+@code {
+    [Parameter] public List<TeacherAssignmentModel> Assignments { get; set; } = new();
+    [Parameter] public EventCallback OnAddAssignment { get; set; }
+    [Parameter] public EventCallback<TeacherAssignmentModel> OnEditAssignment { get; set; }
+    [Parameter] public EventCallback<TeacherAssignmentModel> OnArchiveAssignment { get; set; }
+
+    private string SearchText { get; set; } = "";
+    private string GradeFilter { get; set; } = "";
+
+    private List<string> AvailableGrades =>
+        Assignments?
+            .Select(a => a.Grade)
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Distinct()
+            .OrderBy(g => g)
+            .ToList() ?? new List<string>();
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 5;
+
+    // Computed property for filtered assignments
+    private List<TeacherAssignmentModel> FilteredAssignments
+    {
+        get
+        {
+            if (Assignments == null || !Assignments.Any())
+                return new List<TeacherAssignmentModel>();
+
+            var filtered = Assignments.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(a => 
+                    a.Grade.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    a.Section.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    a.Classroom.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (!string.IsNullOrWhiteSpace(a.AdviserName) && a.AdviserName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(GradeFilter))
+            {
+                filtered = filtered.Where(a => a.Grade == GradeFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated assignments
+    private List<TeacherAssignmentModel> PaginatedAssignments
+    {
+        get
+        {
+            var filtered = FilteredAssignments;
+            if (filtered == null || !filtered.Any())
+                return new List<TeacherAssignmentModel>();
+
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return filtered.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        StateHasChanged();
+    }
+
+    private void OnClearFilters()
+    {
+        SearchText = "";
+        GradeFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+}
+

@@ -1,0 +1,135 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
+@using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@* Student Detail Component with Tabs *@
+
+<div class="text-gray-800">
+    <!-- Tabs -->
+    <div class="mb-6">
+        <!-- Tabs Card -->
+        <div class="overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+            <div class="flex items-center gap-6">
+                <button @onclick="() => SelectedTab = TabType.StudentInfo" 
+                        class="@GetTabClasses(TabType.StudentInfo)"
+                        style="@GetStudentInfoStyle()">
+                    Student Info
+                </button>
+                <button @onclick="() => SelectedTab = TabType.AcademicRecord" 
+                        class="@GetTabClasses(TabType.AcademicRecord)">
+                    Academic Record
+                </button>
+                <button @onclick="() => SelectedTab = TabType.EnrollmentStatus" 
+                        class="@GetTabClasses(TabType.EnrollmentStatus)">
+                    Enrollment Status
+                </button>
+            </div>
+        </div>
+        
+        <!-- Back Button below Tabs -->
+        <div class="mt-4 flex justify-start">
+            <button @onclick="OnBack" class="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+    </div>
+
+    <!-- Student Summary Card (Shown in all tabs) -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-4">
+            <!-- Row 1: Name and Status -->
+            <div class="mb-2 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-800">@StudentData.FullName</h3>
+                <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@StudentData.Status</span>
+            </div>
+            
+            <!-- Row 2: Grade and School Year -->
+            <div class="mb-2 flex items-center justify-between">
+                <span class="text-sm text-gray-700">Grade: @StudentData.GradeLevel</span>
+                <span class="text-sm text-gray-700">S.Y.: @StudentData.SchoolYear</span>
+            </div>
+            
+            <!-- Row 3: Section -->
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-700">Section: @StudentData.Section</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    @if (SelectedTab == TabType.StudentInfo)
+    {
+        <StudentInfo StudentData="StudentData" />
+    }
+    else if (SelectedTab == TabType.AcademicRecord)
+    {
+        <AcademicRecord AcademicRecords="AcademicRecords" />
+    }
+    else if (SelectedTab == TabType.EnrollmentStatus)
+    {
+        <EnrollmentStatus EnrollmentRecords="EnrollmentRecords" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public StudentDetailData StudentData { get; set; } = new();
+
+    [Parameter]
+    public List<AcademicRecordData>? AcademicRecords { get; set; }
+
+    [Parameter]
+    public List<EnrollmentStatusData>? EnrollmentRecords { get; set; }
+
+    [Parameter]
+    public EventCallback OnBackClick { get; set; }
+
+    private enum TabType
+    {
+        StudentInfo,
+        AcademicRecord,
+        EnrollmentStatus
+    }
+
+    private TabType SelectedTab { get; set; } = TabType.StudentInfo;
+
+    private string GetStudentInfoStyle()
+    {
+        bool isSelected = SelectedTab == TabType.StudentInfo;
+        if (isSelected)
+        {
+            return "color: #0E335D; border-bottom: 2px solid #0E335D;";
+        }
+        else
+        {
+            return "color: #0E335D;";
+        }
+    }
+
+    private string GetTabClasses(TabType tab)
+    {
+        bool isSelected = SelectedTab == tab;
+        
+        return tab switch
+        {
+            TabType.StudentInfo => isSelected
+                ? "px-3 py-2 text-sm font-semibold"
+                : "px-3 py-2 text-sm font-semibold transition-colors duration-200",
+            TabType.AcademicRecord => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+                : "px-3 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            TabType.EnrollmentStatus => isSelected
+                ? "px-3 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600"
+                : "px-3 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            _ => "px-3 py-2 text-sm font-semibold"
+        };
+    }
+
+    private async Task OnBack()
+    {
+        await OnBackClick.InvokeAsync();
+    }
+}
+

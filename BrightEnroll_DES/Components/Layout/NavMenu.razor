@@ -1,5 +1,6 @@
-﻿@using BrightEnroll_DES.Services.AuthFunction
-@inject IAuthService AuthService
+﻿@using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Services.Authentication
+@inject IAuthorizationService AuthorizationService
 
 @code {
     [Parameter] public EventCallback OnNavigate { get; set; }
@@ -15,10 +16,48 @@
         await OnLogout.InvokeAsync();
     }
 
-    private bool IsTeacher => AuthService.CurrentUser?.user_role == "Teacher";
-    private bool IsCashier => AuthService.CurrentUser?.user_role == "Cashier";
-    private bool IsSuperAdmin => AuthService.CurrentUser?.user_role == "Super Admin";
-    private bool IsAdmin => AuthService.CurrentUser?.user_role == "Admin";
+    // Check if user is SuperAdmin or Admin - they see all menu items
+    private bool IsAdmin()
+    {
+        var userRole = AuthorizationService.GetUserRole();
+        if (string.IsNullOrWhiteSpace(userRole))
+        {
+            return false;
+        }
+        
+        // Check if role is SuperAdmin or Admin (case-insensitive)
+        var roleLower = userRole.ToLower().Trim();
+        return roleLower == "superadmin" || roleLower == "admin";
+    }
+
+    // Helper to check if menu item should be shown
+    private bool ShouldShowMenuItem(string permission)
+    {
+        // Admin, System Admin, and Super Admin see everything - no permission checks needed
+        // EXCEPT for Teacher-only modules (Attendance and Gradebook)
+        if (IsAdmin())
+        {
+            // Attendance and Gradebook are Teacher-only, even for Admins
+            if (permission == Permissions.ViewAttendance || permission == Permissions.ViewGradebook)
+            {
+                return false;
+            }
+            return true;
+        }
+        // Other roles need permission
+        return AuthorizationService.HasPermission(permission);
+    }
+
+    // Check if user is Teacher
+    private bool IsTeacher()
+    {
+        var userRole = AuthorizationService.GetUserRole();
+        if (string.IsNullOrWhiteSpace(userRole))
+        {
+            return false;
+        }
+        return string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 <div class="flex h-full w-full min-w-[200px] flex-col bg-white">
@@ -381,6 +420,8 @@
                 <div class="nav-indicator"></div>
             </NavLink>
 
+        @if (ShouldShowMenuItem(Permissions.ViewEnrollment))
+        {
             <NavLink href="/enrollment" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <img src="/images/navmenu/enrollment.png" alt="Enrollment" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
@@ -390,7 +431,10 @@
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
+        @if (ShouldShowMenuItem(Permissions.ViewStudentRecord))
+        {
             <NavLink href="/student-record" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <img src="/images/navmenu/studrec.png" alt="Student Record" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
@@ -400,17 +444,23 @@
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
-            <NavLink href="/academics" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+        @if (ShouldShowMenuItem(Permissions.ViewCurriculum))
+        {
+            <NavLink href="/curriculum-management" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                    <img src="/images/navmenu/acad.png" alt="Academics" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                    <img src="/images/navmenu/acadfocused.png" alt="Academics" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Academics</span>
-                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Academics</span>
+                    <img src="/images/navmenu/acad.png" alt="Curriculum" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/acadfocused.png" alt="Curriculum" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Curriculum</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Curriculum</span>
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
+        @if (ShouldShowMenuItem(Permissions.ViewFinance))
+        {
             <NavLink href="/finance" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <img src="/images/navmenu/finance.png" alt="Finance" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
@@ -420,7 +470,10 @@
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
+        @if (ShouldShowMenuItem(Permissions.ViewHR))
+        {
             <NavLink href="/human-resource" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <img src="/images/navmenu/hr.png" alt="Human Resource" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
@@ -430,7 +483,97 @@
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
+        @* Attendance - Teacher Only *@
+        @if (IsTeacher() && AuthorizationService.HasPermission(Permissions.ViewAttendance))
+        {
+            <NavLink href="/attendance" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Attendance</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Attendance</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @* Gradebook - Teacher Only *@
+        @if (IsTeacher() && AuthorizationService.HasPermission(Permissions.ViewGradebook))
+        {
+            <NavLink href="/gradebook" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Gradebook</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Gradebook</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @if (ShouldShowMenuItem(Permissions.ViewPayroll))
+        {
+            <NavLink href="/payroll" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Payroll</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Payroll</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @if (ShouldShowMenuItem(Permissions.ViewReports))
+        {
+            <NavLink href="/reports" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Reports</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Reports</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @if (ShouldShowMenuItem(Permissions.ViewInventory))
+        {
+            <NavLink href="/inventory" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Inventory</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Inventory</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @if (ShouldShowMenuItem(Permissions.ViewArchive))
+        {
             <NavLink href="/archive" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
@@ -444,7 +587,10 @@
                 </div>
                 <div class="nav-indicator"></div>
             </NavLink>
+        }
 
+        @if (ShouldShowMenuItem(Permissions.ViewAuditLog))
+        {
             <NavLink href="/audit-log" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
@@ -460,22 +606,41 @@
             </NavLink>
         }
 
-        <!-- Settings (Available to all roles) -->
-        <NavLink href="/settings" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                </svg>
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Settings</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Settings</span>
-            </div>
-            <div class="nav-indicator"></div>
-        </NavLink>
+        @if (ShouldShowMenuItem(Permissions.ViewCloudManagement))
+        {
+            <NavLink href="/cloud-management" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Cloud Management</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Cloud Management</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @if (ShouldShowMenuItem(Permissions.ViewSettings))
+        {
+            <NavLink href="/settings" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Settings</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Settings</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
 
         <!-- Logout (Available to all roles) -->
         <button type="button" @onclick="HandleLogout" @onclick:preventDefault="true" class="nav-link relative block w-full text-left">
