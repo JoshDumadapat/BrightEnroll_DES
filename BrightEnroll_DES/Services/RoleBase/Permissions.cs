@@ -22,6 +22,9 @@ namespace BrightEnroll_DES.Services.RoleBase
         public const string EditStudentRecord = "edit_student_record";
         public const string DeleteStudentRecord = "delete_student_record";
         public const string ViewAcademicRecord = "view_academic_record";
+        
+        // Student Registration
+        public const string CreateStudentRegistration = "create_student_registration";
 
         // Curriculum Management
         public const string ViewCurriculum = "view_curriculum";
@@ -118,6 +121,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                 ViewDashboard,
                 ViewEnrollment, CreateEnrollment, EditEnrollment, DeleteEnrollment, ProcessReEnrollment,
                 ViewStudentRecord, CreateStudentRecord, EditStudentRecord, DeleteStudentRecord, ViewAcademicRecord,
+                CreateStudentRegistration,
                 ViewCurriculum, CreateCurriculum, EditCurriculum, DeleteCurriculum, ManageSections, ManageSubjects, ManageClassrooms, AssignTeachers,
                 ViewFinance, CreateFee, EditFee, DeleteFee, ProcessPayment, ViewPaymentRecords, ManageExpenses, ViewFinancialReports,
                 ViewHR, CreateEmployee, EditEmployee, DeleteEmployee, ViewEmployeeProfile, ManageEmployeeData,

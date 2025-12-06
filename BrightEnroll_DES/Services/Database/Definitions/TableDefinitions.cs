@@ -50,6 +50,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetAssetAssignmentsTableDefinition(),
                 // Student status logging table (must be after tbl_Students)
                 GetStudentStatusLogsTableDefinition(),
+                // Audit logging table (must be after tbl_Users and tbl_Students)
+                GetAuditLogsTableDefinition(),
             };
         }
 
@@ -1128,6 +1130,62 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_student_status_logs_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_student_status_logs'))
                         CREATE INDEX IX_tbl_student_status_logs_CreatedAt ON [dbo].[tbl_student_status_logs]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_audit_logs table - enhanced audit logging with student registration details
+        public static TableDefinition GetAuditLogsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_audit_logs",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_audit_logs' AND schema_id = SCHEMA_ID('dbo'))
+                    BEGIN
+                        CREATE TABLE [dbo].[tbl_audit_logs](
+                            [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                            [timestamp] DATETIME NOT NULL DEFAULT GETDATE(),
+                            [user_name] VARCHAR(100) NULL,
+                            [user_role] VARCHAR(50) NULL,
+                            [user_id] INT NULL,
+                            [action] VARCHAR(100) NOT NULL,
+                            [module] VARCHAR(100) NULL,
+                            [description] NVARCHAR(MAX) NULL,
+                            [ip_address] VARCHAR(45) NULL,
+                            [status] VARCHAR(20) NULL,
+                            [severity] VARCHAR(20) NULL,
+                            [student_id] VARCHAR(6) NULL,
+                            [student_name] VARCHAR(200) NULL,
+                            [grade] VARCHAR(10) NULL,
+                            [student_status] VARCHAR(20) NULL,
+                            [registrar_id] INT NULL,
+                            CONSTRAINT FK_tbl_audit_logs_tbl_Users FOREIGN KEY ([user_id]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
+                            CONSTRAINT FK_tbl_audit_logs_tbl_Users_Registrar FOREIGN KEY ([registrar_id]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
+                            CONSTRAINT FK_tbl_audit_logs_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE SET NULL
+                        );
+                    END",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_Timestamp ON [dbo].[tbl_audit_logs]([timestamp] DESC)",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_Module' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_Module ON [dbo].[tbl_audit_logs]([module])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_Action' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_Action ON [dbo].[tbl_audit_logs]([action])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_StudentId' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_StudentId ON [dbo].[tbl_audit_logs]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_RegistrarId' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_RegistrarId ON [dbo].[tbl_audit_logs]([registrar_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_Module_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
+                        CREATE INDEX IX_tbl_audit_logs_Module_Timestamp ON [dbo].[tbl_audit_logs]([module], [timestamp] DESC)"
                 }
             };
         }

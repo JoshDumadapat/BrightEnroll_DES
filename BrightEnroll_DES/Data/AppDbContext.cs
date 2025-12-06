@@ -38,6 +38,9 @@ public class AppDbContext : DbContext
     
     // Student status logging
     public DbSet<StudentStatusLog> StudentStatusLogs { get; set; }
+    
+    // Audit logging
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     // Curriculum tables
     public DbSet<Classroom> Classrooms { get; set; }
@@ -666,6 +669,34 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(a => a.AssetId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure Audit Log entity
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+            entity.ToTable("tbl_audit_logs");
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.Module);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.RegistrarId);
+            entity.HasIndex(e => new { e.Module, e.Timestamp });
+
+            entity.HasOne(a => a.User)
+                  .WithMany()
+                  .HasForeignKey(a => a.UserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(a => a.Registrar)
+                  .WithMany()
+                  .HasForeignKey(a => a.RegistrarId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(a => a.Student)
+                  .WithMany()
+                  .HasForeignKey(a => a.StudentId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

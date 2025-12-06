@@ -971,6 +971,10 @@
                 "Fully Paid"
             );
 
+            // Get status logs for all students
+            var studentIds = students.Select(s => s.StudentId).ToList();
+            var statusLogs = await EnrollmentStatusService.GetLatestStatusLogsAsync(studentIds);
+
             ForEnrollmentStudents = students.Select(s =>
             {
                 // Derive a consistent payment status even if the database value is missing or outdated
@@ -987,6 +991,11 @@
                     };
                 }
 
+                // Get status change information
+                var statusLog = statusLogs.GetValueOrDefault(s.StudentId);
+                var changedBy = statusLog?.ChangedByName ?? "N/A";
+                var changedOn = statusLog?.CreatedAt;
+
                 return new ForEnrollment.ForEnrollmentStudent
                 {
                     Id = s.StudentId,
@@ -997,7 +1006,9 @@
                     GradeLevel = s.GradeLevel ?? "N/A",
                     Status = status,
                     PaymentStatus = paymentStatus,
-                    DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType)
+                    DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType),
+                    ChangedBy = changedBy,
+                    ChangedOn = changedOn
                 };
             }).ToList();
         }

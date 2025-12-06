@@ -97,26 +97,36 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                     string tableKey = tableDef.TableName;
                     if (!existingTables.Contains(tableKey))
                     {
-                        // Create table
-                        using var createCommand = new SqlCommand(tableDef.CreateTableScript, connection);
-                        await createCommand.ExecuteNonQueryAsync();
-                        anyTableCreated = true;
-
-                        // Create all indexes for this table in one batch
-                        if (tableDef.CreateIndexesScripts.Any())
+                        try
                         {
-                            foreach (var indexScript in tableDef.CreateIndexesScripts)
+                            // Create table
+                            using var createCommand = new SqlCommand(tableDef.CreateTableScript, connection);
+                            await createCommand.ExecuteNonQueryAsync();
+                            anyTableCreated = true;
+                            System.Diagnostics.Debug.WriteLine($"Successfully created table: {tableKey}");
+
+                            // Create all indexes for this table in one batch
+                            if (tableDef.CreateIndexesScripts.Any())
                             {
-                                try
+                                foreach (var indexScript in tableDef.CreateIndexesScripts)
                                 {
-                                    using var indexCommand = new SqlCommand(indexScript, connection);
-                                    await indexCommand.ExecuteNonQueryAsync();
-                                }
-                                catch (Exception indexEx)
-                                {
-                                    System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for {tableDef.TableName}: {indexEx.Message}");
+                                    try
+                                    {
+                                        using var indexCommand = new SqlCommand(indexScript, connection);
+                                        await indexCommand.ExecuteNonQueryAsync();
+                                    }
+                                    catch (Exception indexEx)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for {tableDef.TableName}: {indexEx.Message}");
+                                    }
                                 }
                             }
+                        }
+                        catch (Exception tableEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error creating table {tableKey}: {tableEx.Message}");
+                            System.Diagnostics.Debug.WriteLine($"SQL Script preview: {tableDef.CreateTableScript.Substring(0, Math.Min(200, tableDef.CreateTableScript.Length))}...");
+                            // Continue with other tables even if one fails
                         }
                     }
                 }
@@ -897,6 +907,67 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Ensures tbl_audit_logs table exists (for existing databases that might not have it)
+        public async Task<bool> EnsureAuditLogsTableExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_audit_logs' 
+                    AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkCommand = new SqlCommand(checkTableQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var tableExists = result != null ? (int)result : 0;
+
+                if (tableExists == 0)
+                {
+                    // Get the audit logs table definition
+                    var auditLogsTableDef = TableDefinitions.GetAuditLogsTableDefinition();
+                    
+                    // Create table
+                    using var createCommand = new SqlCommand(auditLogsTableDef.CreateTableScript, connection);
+                    await createCommand.ExecuteNonQueryAsync();
+
+                    // Create indexes
+                    if (auditLogsTableDef.CreateIndexesScripts.Any())
+                    {
+                        foreach (var indexScript in auditLogsTableDef.CreateIndexesScripts)
+                        {
+                            try
+                            {
+                                using var indexCommand = new SqlCommand(indexScript, connection);
+                                await indexCommand.ExecuteNonQueryAsync();
+                            }
+                            catch (Exception indexEx)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for tbl_audit_logs: {indexEx.Message}");
+                            }
+                        }
+                    }
+                    
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error ensuring audit logs table exists: {ex.Message}");
+                return false;
+            }
+        }
+
         // Initializes everything - creates database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
@@ -915,6 +986,9 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();
                 await SeedGradeLevelsAsync();
+                
+                // Explicitly ensure audit logs table exists (for existing databases)
+                await EnsureAuditLogsTableExistsAsync();
                 
                 return dbCreated || tablesCreated;
             }

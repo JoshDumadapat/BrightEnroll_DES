@@ -44,6 +44,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                     Permissions.ViewDashboard,
                     Permissions.ViewEnrollment, Permissions.CreateEnrollment, Permissions.EditEnrollment, Permissions.DeleteEnrollment, Permissions.ProcessReEnrollment,
                     Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.DeleteStudentRecord, Permissions.ViewAcademicRecord,
+                    Permissions.CreateStudentRegistration,
                     Permissions.ViewCurriculum, Permissions.CreateCurriculum, Permissions.EditCurriculum, Permissions.DeleteCurriculum, Permissions.ManageSections, Permissions.ManageSubjects, Permissions.ManageClassrooms, Permissions.AssignTeachers,
                     Permissions.ViewFinance, Permissions.CreateFee, Permissions.EditFee, Permissions.DeleteFee, Permissions.ProcessPayment, Permissions.ViewPaymentRecords, Permissions.ManageExpenses, Permissions.ViewFinancialReports,
                     Permissions.ViewHR, Permissions.CreateEmployee, Permissions.EditEmployee, Permissions.DeleteEmployee, Permissions.ViewEmployeeProfile, Permissions.ManageEmployeeData,
@@ -64,6 +65,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                     Permissions.ViewDashboard,
                     Permissions.ViewEnrollment, Permissions.CreateEnrollment, Permissions.EditEnrollment, Permissions.DeleteEnrollment, Permissions.ProcessReEnrollment,
                     Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.DeleteStudentRecord, Permissions.ViewAcademicRecord,
+                    Permissions.CreateStudentRegistration,
                     Permissions.ViewCurriculum, Permissions.CreateCurriculum, Permissions.EditCurriculum, Permissions.DeleteCurriculum, Permissions.ManageSections, Permissions.ManageSubjects, Permissions.ManageClassrooms, Permissions.AssignTeachers,
                     Permissions.ViewFinance, Permissions.CreateFee, Permissions.EditFee, Permissions.DeleteFee, Permissions.ProcessPayment, Permissions.ViewPaymentRecords, Permissions.ManageExpenses, Permissions.ViewFinancialReports,
                     Permissions.ViewHR, Permissions.CreateEmployee, Permissions.EditEmployee, Permissions.DeleteEmployee, Permissions.ViewEmployeeProfile, Permissions.ManageEmployeeData,
@@ -97,6 +99,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                     // Removed: DeleteEnrollment - Registrar should only archive, not delete
                     Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.ViewAcademicRecord,
                     // Removed: DeleteStudentRecord - Registrar should only archive, not delete
+                    Permissions.CreateStudentRegistration, // Student Registration in sidebar
                     Permissions.ViewCurriculum, // To see sections/subjects for enrollment
                     Permissions.ViewFinance, // To check payment status for enrollment
                     Permissions.ViewArchive, // To view archived students

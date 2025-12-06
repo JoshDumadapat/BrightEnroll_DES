@@ -323,8 +323,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             // Register student using StudentService
             var registeredStudent = await StudentService.RegisterStudentAsync(studentData);
             
-            // Success - navigate to login page, toast will show on destination page
-            Navigation.NavigateTo("/login?toast=registration_submitted");
+            // Success - navigate to enrollment page (since we're now in the main app)
+            Navigation.NavigateTo("/enrollment?toast=registration_submitted");
         }
         catch (Exception ex)
         {

@@ -1,5 +1,7 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Authentication;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -13,11 +15,19 @@ public class StudentService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<StudentService>? _logger;
+    private readonly AuditLogService? _auditLogService;
+    private readonly IAuthService? _authService;
 
-    public StudentService(AppDbContext context, ILogger<StudentService>? logger = null)
+    public StudentService(
+        AppDbContext context, 
+        ILogger<StudentService>? logger = null,
+        AuditLogService? auditLogService = null,
+        IAuthService? authService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _auditLogService = auditLogService;
+        _authService = authService;
     }
 
     public async Task<Student> RegisterStudentAsync(StudentRegistrationData studentData)
@@ -298,6 +308,34 @@ public class StudentService
             
             await _context.Entry(student).Reference(s => s.Guardian).LoadAsync();
             await _context.Entry(student).Collection(s => s.Requirements).LoadAsync();
+
+            // Create enhanced audit log entry
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    var studentName = $"{student.FirstName} {student.MiddleName} {student.LastName}".Replace("  ", " ").Trim();
+                    var registrarId = _authService?.CurrentUser?.user_ID;
+                    var registrarName = _authService?.CurrentUser != null 
+                        ? $"{_authService.CurrentUser.first_name} {_authService.CurrentUser.last_name}".Trim()
+                        : null;
+
+                    await _auditLogService.CreateStudentRegistrationLogAsync(
+                        studentId: student.StudentId,
+                        studentName: studentName,
+                        grade: student.GradeLevel,
+                        studentStatus: student.Status,
+                        registrarId: registrarId,
+                        registrarName: registrarName,
+                        ipAddress: null // Can be passed from component if needed
+                    );
+                }
+                catch (Exception auditEx)
+                {
+                    _logger?.LogWarning(auditEx, "Failed to create audit log entry for student registration. Registration was successful.");
+                    // Don't throw - audit logging failure shouldn't break registration
+                }
+            }
 
             return student;
         }
