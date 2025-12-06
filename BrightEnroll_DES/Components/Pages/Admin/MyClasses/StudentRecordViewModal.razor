@@ -1,0 +1,228 @@
+@using BrightEnroll_DES.Services.Business.Academic
+@inject TeacherService TeacherService
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseModal">
+    <div class="relative w-full max-w-4xl max-h-[90vh] rounded-xl bg-white shadow-xl overflow-hidden" @onclick:stopPropagation="true">
+        <!-- Modal Header -->
+        <div class="border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Student Record</h2>
+                    <p class="text-sm text-gray-600">@(StudentDetails?.FirstName ?? "") @(StudentDetails?.LastName ?? "")</p>
+                </div>
+                <button @onclick="CloseModal" 
+                        class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="max-h-[calc(90vh-80px)] overflow-y-auto p-6">
+            @if (IsLoading)
+            {
+                <div class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading student record...</p>
+                    </div>
+                </div>
+            }
+            else if (StudentDetails != null)
+            {
+                <!-- Personal Information Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-blue-600 mb-4 pb-2 border-b border-gray-200">Personal Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Student ID</label>
+                            <p class="text-sm font-medium text-gray-800">@(StudentDetails.StudentId ?? "N/A")</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Full Name</label>
+                            <p class="text-sm font-medium text-gray-800">
+                                @(StudentDetails.FirstName ?? "") 
+                                @(string.IsNullOrEmpty(StudentDetails.MiddleName) ? "" : StudentDetails.MiddleName + " ") 
+                                @(StudentDetails.LastName ?? "") 
+                                @(string.IsNullOrEmpty(StudentDetails.Suffix) ? "" : " " + StudentDetails.Suffix)
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Birthdate</label>
+                            <p class="text-sm font-medium text-gray-800">@(StudentDetails.Birthdate != default(DateTime) ? StudentDetails.Birthdate.ToString("MMMM dd, yyyy") : "N/A")</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Contact Number</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.ContactNumber) ? "N/A" : StudentDetails.ContactNumber)</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Current Address</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.CurrentAddress) ? "N/A" : StudentDetails.CurrentAddress)</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Permanent Address</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.PermanentAddress) ? "N/A" : StudentDetails.PermanentAddress)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-6 border-gray-200" />
+
+                <!-- Guardian Information Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-blue-600 mb-4 pb-2 border-b border-gray-200">Guardian Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Guardian Name</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.GuardianName) ? "N/A" : StudentDetails.GuardianName)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Relationship</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.GuardianRelationship) ? "N/A" : StudentDetails.GuardianRelationship)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Phone Number</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.GuardianPhone) ? "N/A" : StudentDetails.GuardianPhone)</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Address</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.GuardianAddress) ? "N/A" : StudentDetails.GuardianAddress)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-6 border-gray-200" />
+
+                <!-- Enrollment Information Section -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-bold text-blue-600 mb-4 pb-2 border-b border-gray-200">Enrollment Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Grade Level</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.GradeLevel) ? "N/A" : StudentDetails.GradeLevel)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Section</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.Section) ? "N/A" : StudentDetails.Section)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">School Year</label>
+                            <p class="text-sm font-medium text-gray-800">@(string.IsNullOrEmpty(StudentDetails.SchoolYear) ? "N/A" : StudentDetails.SchoolYear)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Status</label>
+                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                                @(string.IsNullOrEmpty(StudentDetails.EnrollmentStatus) ? "N/A" : StudentDetails.EnrollmentStatus)
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(StudentDetails.SpecialNotes))
+                        {
+                            <div class="md:col-span-2">
+                                <label class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Special Notes</label>
+                                <p class="text-sm font-medium text-gray-800">@StudentDetails.SpecialNotes</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Student record not found.</p>
+                </div>
+            }
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex justify-end">
+                <button @onclick="CloseModal" 
+                        class="rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string StudentId { get; set; } = "";
+    [Parameter] public int SectionId { get; set; }
+    [Parameter] public string SchoolYear { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private StudentDetailsItem? StudentDetails { get; set; }
+    private bool IsLoading { get; set; } = true;
+    private string? _lastStudentId;
+    private int _lastSectionId;
+    private string? _lastSchoolYear;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load data on initial render if parameters are already set
+        if (!string.IsNullOrEmpty(StudentId) && SectionId > 0 && !string.IsNullOrEmpty(SchoolYear))
+        {
+            await LoadStudentDetails();
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only reload if parameters actually changed
+        if (!string.IsNullOrEmpty(StudentId) && SectionId > 0 && !string.IsNullOrEmpty(SchoolYear))
+        {
+            if (_lastStudentId != StudentId || _lastSectionId != SectionId || _lastSchoolYear != SchoolYear)
+            {
+                _lastStudentId = StudentId;
+                _lastSectionId = SectionId;
+                _lastSchoolYear = SchoolYear;
+                await LoadStudentDetails();
+            }
+        }
+    }
+
+    private async Task LoadStudentDetails()
+    {
+        IsLoading = true;
+        StudentDetails = null; // Clear previous data
+        
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"Loading student details: StudentId={StudentId}, SectionId={SectionId}, SchoolYear={SchoolYear}");
+            
+            StudentDetails = await TeacherService.GetStudentDetailsAsync(StudentId, SectionId, SchoolYear);
+            
+            if (StudentDetails != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"Student details loaded successfully: {StudentDetails.FirstName} {StudentDetails.LastName}");
+                System.Diagnostics.Debug.WriteLine($"Guardian: {StudentDetails.GuardianName}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Student details returned null from service");
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading student details: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            StudentDetails = null;
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged(); // Explicitly trigger UI update
+        }
+    }
+
+    private void CloseModal()
+    {
+        OnClose.InvokeAsync();
+    }
+}
+

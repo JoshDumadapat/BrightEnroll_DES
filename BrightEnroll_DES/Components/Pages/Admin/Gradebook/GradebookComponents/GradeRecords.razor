@@ -1,6 +1,20 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Gradebook.GradebookComponents
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.AspNetCore.Components.Web
+@inject GradeService GradeService
+@inject TeacherService TeacherService
+@inject IAuthService AuthService
 
 <div class="p-6">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+            @errorMessage
+        </div>
+    }
+
     <!-- Filters -->
     <div class="mb-6 border-b border-gray-200 px-3 py-4 sm:px-6">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -12,18 +26,32 @@
                                   d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </span>
-                    <input type="text" placeholder="Search student..."
+                    <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeypress="HandleSearchKeyPress"
+                           placeholder="Search student..."
                            class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
                 </div>
-                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                    <option value="">All Sections</option>
-                    <option value="Saturn">Saturn</option>
-                    <option value="Rizal">Rizal</option>
+                <select @bind="selectedSchoolYear" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    @foreach (var year in availableSchoolYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
                 </select>
-                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                    <option value="">All Subjects</option>
-                    <option value="Math">Mathematics</option>
-                    <option value="English">English</option>
+                <select @bind="selectedSectionId" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="0">All Sections</option>
+                    @foreach (var sec in availableSections)
+                    {
+                        <option value="@sec.SectionId">@sec.SectionName</option>
+                    }
+                </select>
+                <select @bind="selectedSubjectId" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="0">All Subjects</option>
+                    @foreach (var subj in availableSubjects)
+                    {
+                        <option value="@subj.SubjectId">@subj.SubjectName</option>
+                    }
                 </select>
             </div>
         </div>
@@ -46,27 +74,43 @@
                 </tr>
             </thead>
             <tbody class="divide-y">
-                @foreach (var record in gradeRecords)
+                @if (isLoading)
                 {
-                    <tr class="transition hover:bg-gray-50">
-                        <td class="px-4 py-3">@record.StudentId</td>
-                        <td class="px-4 py-3">@record.Name</td>
-                        <td class="px-4 py-3">@record.Section</td>
-                        <td class="px-4 py-3 text-center font-semibold">@record.Q1.ToString("F2")</td>
-                        <td class="px-4 py-3 text-center font-semibold">@record.Q2.ToString("F2")</td>
-                        <td class="px-4 py-3 text-center font-semibold">@record.Q3.ToString("F2")</td>
-                        <td class="px-4 py-3 text-center font-semibold">@record.Q4.ToString("F2")</td>
-                        <td class="px-4 py-3 text-center font-bold text-blue-600">@record.Final.ToString("F2")</td>
-                        <td class="flex items-center justify-center gap-2 px-4 py-3">
-                            <button class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                View
-                            </button>
-                        </td>
+                    <tr>
+                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">Loading grade records...</td>
                     </tr>
+                }
+                else if (!gradeRecords.Any())
+                {
+                    <tr>
+                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">No grade records found.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var record in gradeRecords)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@record.StudentId</td>
+                            <td class="px-4 py-3">@record.Name</td>
+                            <td class="px-4 py-3">@record.Section</td>
+                            <td class="px-4 py-3 text-center font-semibold">@(record.Q1 > 0 ? record.Q1.ToString("F2") : "-")</td>
+                            <td class="px-4 py-3 text-center font-semibold">@(record.Q2 > 0 ? record.Q2.ToString("F2") : "-")</td>
+                            <td class="px-4 py-3 text-center font-semibold">@(record.Q3 > 0 ? record.Q3.ToString("F2") : "-")</td>
+                            <td class="px-4 py-3 text-center font-semibold">@(record.Q4 > 0 ? record.Q4.ToString("F2") : "-")</td>
+                            <td class="px-4 py-3 text-center font-bold text-blue-600">@(record.Final > 0 ? record.Final.ToString("F2") : "-")</td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                <button @onclick="() => ViewGradeHistory(record)" 
+                                        class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    View History
+                                </button>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -74,38 +118,124 @@
 
     <!-- Footer -->
     <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        <span>Showing @gradeRecords.Count records</span>
-        <div class="flex items-center gap-2">
-            <button class="rounded-md bg-blue-900 px-3 py-1 text-xs text-white">1</button>
-            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
-        </div>
+        <span>Showing @gradeRecords.Count record(s)</span>
     </div>
 </div>
 
 @code {
-    private List<GradeRecord> gradeRecords = new();
+    private List<GradeRecordDto> gradeRecords = new();
+    private List<Section> availableSections = new();
+    private List<Subject> availableSubjects = new();
+    private List<string> availableSchoolYears = new();
+    private string selectedSchoolYear = "";
+    private int selectedSectionId = 0;
+    private int selectedSubjectId = 0;
+    private string searchTerm = "";
+    private int teacherId = 0;
+    private string errorMessage = "";
+    private bool isLoading = false;
 
-    private class GradeRecord
+    protected override async Task OnInitializedAsync()
     {
-        public string StudentId { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Section { get; set; } = "";
-        public decimal Q1 { get; set; }
-        public decimal Q2 { get; set; }
-        public decimal Q3 { get; set; }
-        public decimal Q4 { get; set; }
-        public decimal Final => (Q1 + Q2 + Q3 + Q4) / 4;
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            errorMessage = "You must be logged in to view grade records.";
+            return;
+        }
+
+        teacherId = currentUser.user_ID;
+
+        // Initialize school years
+        var currentYear = DateTime.Now.Year;
+        var nextYear = currentYear + 1;
+        selectedSchoolYear = $"{currentYear}-{nextYear}";
+        availableSchoolYears = new List<string>();
+        for (int i = 0; i < 3; i++)
+        {
+            var year = currentYear - i;
+            availableSchoolYears.Add($"{year}-{year + 1}");
+        }
+
+        await LoadFiltersAsync();
+        await LoadGradeRecordsAsync();
     }
 
-    protected override void OnInitialized()
+    private async Task LoadFiltersAsync()
     {
-        // TODO: Load grade records from database
-        gradeRecords = new List<GradeRecord>
+        try
         {
-            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Section = "Saturn", Q1 = 88.5m, Q2 = 90.0m, Q3 = 87.5m, Q4 = 89.0m },
-            new() { StudentId = "ST002", Name = "Maria Santos", Section = "Saturn", Q1 = 92.0m, Q2 = 94.5m, Q3 = 91.5m, Q4 = 93.0m },
-            new() { StudentId = "ST003", Name = "Pedro Garcia", Section = "Saturn", Q1 = 81.0m, Q2 = 83.5m, Q3 = 80.0m, Q4 = 82.5m },
-        };
+            if (teacherId == 0) return;
+
+            // Load assigned sections
+            availableSections = await TeacherService.GetAssignedSectionsForGradeEntryAsync(teacherId, selectedSchoolYear);
+
+            // Load assigned subjects
+            var assignments = await TeacherService.GetAssignedSectionsAsync(teacherId, selectedSchoolYear);
+            var subjectIds = assignments
+                .SelectMany(a => a.Subjects)
+                .Distinct()
+                .ToList();
+
+            // Get subject details
+            // Note: We need to get subject names from assignments or use a different approach
+            // For now, we'll load all subjects and filter in the service
+            availableSubjects.Clear();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading filters: {ex.Message}";
+        }
+    }
+
+    private async Task LoadGradeRecordsAsync()
+    {
+        try
+        {
+            if (teacherId == 0) return;
+
+            isLoading = true;
+            errorMessage = "";
+            StateHasChanged();
+
+            gradeRecords = await GradeService.GetGradeRecordsAsync(
+                teacherId,
+                selectedSchoolYear,
+                selectedSectionId > 0 ? selectedSectionId : null,
+                selectedSubjectId > 0 ? selectedSubjectId : null,
+                string.IsNullOrWhiteSpace(searchTerm) ? null : searchTerm
+            );
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading grade records: {ex.Message}";
+            gradeRecords.Clear();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadGradeRecordsAsync();
+    }
+
+    private async Task HandleSearchKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await LoadGradeRecordsAsync();
+        }
+    }
+
+    private void ViewGradeHistory(GradeRecordDto record)
+    {
+        // TODO: Implement grade history modal/view
+        // For now, just show an alert
+        // You can create a modal component similar to StudentRecordViewModal
     }
 }
 

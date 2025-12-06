@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<StudentRequirement> StudentRequirements { get; set; }
     public DbSet<StudentSectionEnrollment> StudentSectionEnrollments { get; set; }
     public DbSet<Grade> Grades { get; set; }
+    public DbSet<GradeWeight> GradeWeights { get; set; }
+    public DbSet<GradeHistory> GradeHistories { get; set; }
     
     // Employee tables
     public DbSet<EmployeeAddress> EmployeeAddresses { get; set; }
@@ -60,6 +62,10 @@ public class AppDbContext : DbContext
     public DbSet<Asset> Assets { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
     public DbSet<AssetAssignment> AssetAssignments { get; set; }
+
+    // Teacher-specific tables
+    public DbSet<TeacherActivityLog> TeacherActivityLogs { get; set; }
+    public DbSet<Attendance> Attendances { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -185,16 +191,96 @@ public class AppDbContext : DbContext
             entity.HasOne(g => g.Subject)
                   .WithMany()
                   .HasForeignKey(g => g.SubjectId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(g => g.Section)
                   .WithMany()
                   .HasForeignKey(g => g.SectionId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
 
             entity.HasOne(g => g.Teacher)
                   .WithMany()
                   .HasForeignKey(g => g.TeacherId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure GradeWeight entity
+        modelBuilder.Entity<GradeWeight>(entity =>
+        {
+            entity.HasKey(e => e.WeightId);
+            entity.ToTable("tbl_GradeWeights");
+            entity.HasIndex(e => e.SubjectId).IsUnique();
+
+            entity.Property(e => e.QuizWeight)
+                  .HasColumnType("decimal(5,2)")
+                  .HasDefaultValue(0.30m);
+
+            entity.Property(e => e.ExamWeight)
+                  .HasColumnType("decimal(5,2)")
+                  .HasDefaultValue(0.40m);
+
+            entity.Property(e => e.ProjectWeight)
+                  .HasColumnType("decimal(5,2)")
+                  .HasDefaultValue(0.20m);
+
+            entity.Property(e => e.ParticipationWeight)
+                  .HasColumnType("decimal(5,2)")
+                  .HasDefaultValue(0.10m);
+
+            entity.HasOne(w => w.Subject)
+                  .WithMany()
+                  .HasForeignKey(w => w.SubjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure GradeHistory entity
+        modelBuilder.Entity<GradeHistory>(entity =>
+        {
+            entity.HasKey(e => e.HistoryId);
+            entity.ToTable("tbl_GradeHistory");
+            entity.HasIndex(e => e.GradeId);
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.ChangedAt);
+            entity.HasIndex(e => e.ChangedBy);
+
+            entity.Property(e => e.QuizOld)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.QuizNew)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ExamOld)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ExamNew)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ProjectOld)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ProjectNew)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ParticipationOld)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.ParticipationNew)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.FinalGradeOld)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.FinalGradeNew)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.HasOne(h => h.Grade)
+                  .WithMany()
+                  .HasForeignKey(h => h.GradeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(h => h.ChangedByUser)
+                  .WithMany()
+                  .HasForeignKey(h => h.ChangedBy)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -697,6 +783,124 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(a => a.StudentId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Configure TeacherActivityLog entity
+        modelBuilder.Entity<TeacherActivityLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_TeacherActivityLogs");
+            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => new { e.TeacherId, e.CreatedAt });
+
+            entity.Property(e => e.Id)
+                  .HasColumnName("id")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.TeacherId)
+                  .HasColumnName("teacher_id");
+
+            entity.Property(e => e.Action)
+                  .HasColumnName("action")
+                  .HasMaxLength(100);
+
+            entity.Property(e => e.Details)
+                  .HasColumnName("details")
+                  .HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("created_at")
+                  .HasColumnType("datetime")
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.HasOne(a => a.Teacher)
+                  .WithMany()
+                  .HasForeignKey(a => a.TeacherId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure Attendance entity
+        modelBuilder.Entity<Attendance>(entity =>
+        {
+            entity.HasKey(e => e.AttendanceId);
+            entity.ToTable("tbl_Attendance");
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.AttendanceDate);
+            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => new { e.SectionId, e.AttendanceDate });
+            entity.HasIndex(e => new { e.StudentId, e.AttendanceDate });
+
+            entity.Property(e => e.AttendanceId)
+                  .HasColumnName("AttendanceID")
+                  .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.StudentId)
+                  .HasColumnName("StudentID")
+                  .HasMaxLength(6);
+
+            entity.Property(e => e.SectionId)
+                  .HasColumnName("SectionID");
+
+            entity.Property(e => e.SubjectId)
+                  .HasColumnName("SubjectID");
+
+            entity.Property(e => e.AttendanceDate)
+                  .HasColumnName("AttendanceDate")
+                  .HasColumnType("date");
+
+            entity.Property(e => e.Status)
+                  .HasColumnName("Status")
+                  .HasMaxLength(20);
+
+            entity.Property(e => e.TimeIn)
+                  .HasColumnName("TimeIn")
+                  .HasColumnType("time");
+
+            entity.Property(e => e.TimeOut)
+                  .HasColumnName("TimeOut")
+                  .HasColumnType("time");
+
+            entity.Property(e => e.Remarks)
+                  .HasColumnName("Remarks")
+                  .HasMaxLength(500);
+
+            entity.Property(e => e.TeacherId)
+                  .HasColumnName("TeacherID");
+
+            entity.Property(e => e.SchoolYear)
+                  .HasColumnName("SchoolYear")
+                  .HasMaxLength(20);
+
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnName("CreatedAt")
+                  .HasColumnType("datetime")
+                  .HasDefaultValueSql("GETDATE()");
+
+            entity.Property(e => e.UpdatedAt)
+                  .HasColumnName("UpdatedAt")
+                  .HasColumnType("datetime");
+
+            entity.HasOne(a => a.Student)
+                  .WithMany()
+                  .HasForeignKey(a => a.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(a => a.Section)
+                  .WithMany()
+                  .HasForeignKey(a => a.SectionId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(a => a.Subject)
+                  .WithMany()
+                  .HasForeignKey(a => a.SubjectId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(a => a.Teacher)
+                  .WithMany()
+                  .HasForeignKey(a => a.TeacherId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

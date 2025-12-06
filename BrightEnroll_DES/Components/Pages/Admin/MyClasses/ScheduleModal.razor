@@ -1,0 +1,175 @@
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
+@inject TeacherService TeacherService
+@inject AppDbContext Context
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseModal">
+    <div class="relative w-full max-w-4xl rounded-xl bg-white shadow-xl" @onclick:stopPropagation="true">
+        <!-- Modal Header -->
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Class Schedule</h2>
+                    <p class="text-sm text-gray-600">@SectionName</p>
+                </div>
+                <button @onclick="CloseModal" 
+                        class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="max-h-[70vh] overflow-y-auto p-6">
+            @if (IsLoading)
+            {
+                <div class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading schedule...</p>
+                    </div>
+                </div>
+            }
+            else if (ScheduleItems != null && ScheduleItems.Any())
+            {
+                <div class="space-y-4">
+                    @foreach (var dayGroup in ScheduleItems.GroupBy(s => s.DayOfWeek).OrderBy(g => GetDayOrder(g.Key)))
+                    {
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <h3 class="mb-3 font-semibold text-gray-800">@GetDayName(dayGroup.Key)</h3>
+                            <div class="space-y-2">
+                                @foreach (var schedule in dayGroup.OrderBy(s => s.StartTime))
+                                {
+                                    <div class="flex items-center justify-between rounded-lg bg-white p-3 shadow-sm">
+                                        <div class="flex-1">
+                                            <p class="font-medium text-gray-800">@schedule.SubjectName</p>
+                                            <p class="text-sm text-gray-600">@schedule.RoomName</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-semibold text-gray-800">
+                                                @FormatTime(schedule.StartTime) - @FormatTime(schedule.EndTime)
+                                            </p>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">No schedule available for this section.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int SectionId { get; set; }
+    [Parameter] public string SectionName { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<SectionScheduleItem>? ScheduleItems { get; set; }
+    private bool IsLoading { get; set; } = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (SectionId > 0)
+        {
+            await LoadSchedule();
+        }
+    }
+
+    private async Task LoadSchedule()
+    {
+        IsLoading = true;
+        try
+        {
+            // Get schedules for this section from ClassSchedule table
+            var schedules = await Context.ClassSchedules
+                .Include(cs => cs.Assignment!)
+                    .ThenInclude(a => a.Subject)
+                .Include(cs => cs.Room)
+                .Where(cs => cs.Assignment != null && 
+                            cs.Assignment.SectionId == SectionId && 
+                            !cs.Assignment.IsArchived)
+                .OrderBy(cs => GetDayOrder(cs.DayOfWeek))
+                .ThenBy(cs => cs.StartTime)
+                .ToListAsync();
+
+            ScheduleItems = schedules.Select(cs => new SectionScheduleItem
+            {
+                ScheduleId = cs.ScheduleId,
+                DayOfWeek = cs.DayOfWeek,
+                StartTime = cs.StartTime,
+                EndTime = cs.EndTime,
+                RoomName = cs.Room?.RoomName ?? "TBA",
+                SubjectName = cs.Assignment?.Subject?.SubjectName ?? 
+                            (cs.Assignment?.Role == "adviser" ? "Homeroom" : "Unknown")
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading schedule: {ex.Message}");
+            ScheduleItems = new List<SectionScheduleItem>();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private int GetDayOrder(string dayOfWeek)
+    {
+        return dayOfWeek.ToUpper() switch
+        {
+            "M" => 1,
+            "T" => 2,
+            "W" => 3,
+            "TH" => 4,
+            "F" => 5,
+            "SAT" => 6,
+            "SUN" => 7,
+            _ => 99
+        };
+    }
+
+    private string GetDayName(string dayOfWeek)
+    {
+        return dayOfWeek.ToUpper() switch
+        {
+            "M" => "Monday",
+            "T" => "Tuesday",
+            "W" => "Wednesday",
+            "TH" => "Thursday",
+            "F" => "Friday",
+            "SAT" => "Saturday",
+            "SUN" => "Sunday",
+            _ => dayOfWeek
+        };
+    }
+
+    private string FormatTime(TimeSpan time)
+    {
+        var hours = time.Hours > 12 ? time.Hours - 12 : (time.Hours == 0 ? 12 : time.Hours);
+        var minutes = time.Minutes.ToString("D2");
+        var amPm = time.Hours < 12 ? "AM" : "PM";
+        return $"{hours}:{minutes} {amPm}";
+    }
+
+    private void CloseModal()
+    {
+        OnClose.InvokeAsync();
+    }
+}
+

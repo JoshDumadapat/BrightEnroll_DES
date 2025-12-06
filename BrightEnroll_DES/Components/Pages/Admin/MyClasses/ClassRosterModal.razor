@@ -1,0 +1,116 @@
+@using BrightEnroll_DES.Services.Business.Academic
+@inject TeacherService TeacherService
+
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseModal">
+    <div class="relative w-full max-w-4xl rounded-xl bg-white shadow-xl" @onclick:stopPropagation="true">
+        <!-- Modal Header -->
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-800">Class Roster</h2>
+                    <p class="text-sm text-gray-600">@(SectionName ?? "Section")</p>
+                </div>
+                <button @onclick="CloseModal" 
+                        class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="max-h-[70vh] overflow-y-auto p-6">
+            @if (IsLoading)
+            {
+                <div class="flex items-center justify-center py-12">
+                    <div class="text-center">
+                        <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                        <p class="mt-2 text-sm text-gray-600">Loading roster...</p>
+                    </div>
+                </div>
+            }
+            else if (RosterItems != null && RosterItems.Any())
+            {
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">#</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Enrollment Date</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            @for (int i = 0; i < RosterItems.Count; i++)
+                            {
+                                var student = RosterItems[i];
+                                <tr class="hover:bg-gray-50">
+                                    <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">@(i + 1)</td>
+                                    <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">@student.StudentSystemId</td>
+                                    <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">@student.StudentName</td>
+                                    <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">@student.EnrollmentDate.ToString("MMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-4 text-sm text-gray-600">
+                    <p>Total Students: <span class="font-semibold">@RosterItems.Count</span></p>
+                </div>
+            }
+            else
+            {
+                <div class="py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">No students enrolled in this section.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int SectionId { get; set; }
+    [Parameter] public string SectionName { get; set; } = "";
+    [Parameter] public string SchoolYear { get; set; } = "";
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<ClassRosterItem>? RosterItems { get; set; }
+    private bool IsLoading { get; set; } = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (SectionId > 0 && !string.IsNullOrEmpty(SchoolYear))
+        {
+            await LoadRoster();
+        }
+    }
+
+    private async Task LoadRoster()
+    {
+        IsLoading = true;
+        try
+        {
+            RosterItems = await TeacherService.GetClassRosterAsync(SectionId, SchoolYear);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading roster: {ex.Message}");
+            RosterItems = new List<ClassRosterItem>();
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        OnClose.InvokeAsync();
+    }
+}
+

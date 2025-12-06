@@ -1,28 +1,62 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Gradebook.GradebookComponents
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Data.Models
+@inject GradeService GradeService
+@inject TeacherService TeacherService
+@inject IAuthService AuthService
 
 <div class="p-6">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+            @errorMessage
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
+            @successMessage
+        </div>
+    }
+
     <!-- Report Card Generation -->
     <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <h2 class="mb-4 text-lg font-bold text-gray-800">Generate Report Card</h2>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
-                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                    <option value="2024-2025">2024-2025</option>
-                    <option value="2023-2024">2023-2024</option>
+                <select @bind="selectedSchoolYear" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    @foreach (var year in availableSchoolYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
                 </select>
             </div>
             <div>
                 <label class="mb-2 block text-sm font-medium text-gray-700">Section:</label>
-                <select class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                    <option value="">Select Section</option>
-                    <option value="Saturn">Saturn</option>
-                    <option value="Rizal">Rizal</option>
+                <select @bind="selectedSectionId" @bind:after="OnFilterChanged"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    <option value="0">Select Section</option>
+                    @foreach (var sec in availableSections)
+                    {
+                        <option value="@sec.SectionId">@sec.SectionName</option>
+                    }
                 </select>
             </div>
             <div class="flex items-end">
-                <button class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-                    Generate Report Cards
+                <button @onclick="GenerateReportCards" 
+                        disabled="@(selectedSectionId == 0 || isLoading)"
+                        class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (isLoading)
+                    {
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span>Generate Report Cards</span>
+                    }
                 </button>
             </div>
         </div>
@@ -42,23 +76,42 @@
                 </tr>
             </thead>
             <tbody class="divide-y">
-                @foreach (var card in reportCards)
+                @if (isLoading)
                 {
-                    <tr class="transition hover:bg-gray-50">
-                        <td class="px-4 py-3">@card.StudentId</td>
-                        <td class="px-4 py-3">@card.Name</td>
-                        <td class="px-4 py-3">@card.Section</td>
-                        <td class="px-4 py-3 text-center">@card.SchoolYear</td>
-                        <td class="px-4 py-3 text-center font-bold text-blue-600">@card.FinalGrade.ToString("F2")</td>
-                        <td class="flex items-center justify-center gap-2 px-4 py-3">
-                            <button class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100">
-                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                Download PDF
-                            </button>
-                        </td>
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading report cards...</td>
                     </tr>
+                }
+                else if (!reportCards.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="px-4 py-8 text-center text-gray-500">No report cards available. Please generate report cards for a section.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var card in reportCards)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@card.StudentId</td>
+                            <td class="px-4 py-3">@card.Name</td>
+                            <td class="px-4 py-3">@card.Section</td>
+                            <td class="px-4 py-3 text-center">@card.SchoolYear</td>
+                            <td class="px-4 py-3 text-center">
+                                <div class="font-bold text-blue-600">@card.TransmutedGrade.ToString("F2")</div>
+                                <div class="text-xs text-gray-500">@card.DescriptiveRating</div>
+                            </td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                <button @onclick="() => DownloadReportCard(card)" 
+                                        class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Download PDF
+                                </button>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -66,26 +119,113 @@
 </div>
 
 @code {
-    private List<ReportCard> reportCards = new();
+    private List<ReportCardDto> reportCards = new();
+    private List<Section> availableSections = new();
+    private List<string> availableSchoolYears = new();
+    private string selectedSchoolYear = "";
+    private int selectedSectionId = 0;
+    private int teacherId = 0;
+    private string errorMessage = "";
+    private string successMessage = "";
+    private bool isLoading = false;
 
-    private class ReportCard
+    protected override async Task OnInitializedAsync()
     {
-        public string StudentId { get; set; } = "";
-        public string Name { get; set; } = "";
-        public string Section { get; set; } = "";
-        public string SchoolYear { get; set; } = "";
-        public decimal FinalGrade { get; set; }
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            errorMessage = "You must be logged in to view report cards.";
+            return;
+        }
+
+        teacherId = currentUser.user_ID;
+
+        // Initialize school years
+        var currentYear = DateTime.Now.Year;
+        var nextYear = currentYear + 1;
+        selectedSchoolYear = $"{currentYear}-{nextYear}";
+        availableSchoolYears = new List<string>();
+        for (int i = 0; i < 3; i++)
+        {
+            var year = currentYear - i;
+            availableSchoolYears.Add($"{year}-{year + 1}");
+        }
+
+        await LoadSectionsAsync();
     }
 
-    protected override void OnInitialized()
+    private async Task LoadSectionsAsync()
     {
-        // TODO: Load report cards from database
-        reportCards = new List<ReportCard>
+        try
         {
-            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 88.75m },
-            new() { StudentId = "ST002", Name = "Maria Santos", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 92.75m },
-            new() { StudentId = "ST003", Name = "Pedro Garcia", Section = "Saturn", SchoolYear = "2024-2025", FinalGrade = 81.75m },
-        };
+            if (teacherId == 0) return;
+
+            availableSections = await TeacherService.GetAssignedSectionsForGradeEntryAsync(teacherId, selectedSchoolYear);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading sections: {ex.Message}";
+        }
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadSectionsAsync();
+        reportCards.Clear();
+    }
+
+    private async Task GenerateReportCards()
+    {
+        if (selectedSectionId == 0)
+        {
+            errorMessage = "Please select a section.";
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            errorMessage = "";
+            successMessage = "";
+            StateHasChanged();
+
+            reportCards = await GradeService.GetReportCardsAsync(selectedSectionId, selectedSchoolYear);
+
+            if (reportCards.Any())
+            {
+                successMessage = $"Successfully generated {reportCards.Count} report card(s).";
+            }
+            else
+            {
+                errorMessage = "No grades found for this section. Please ensure grades have been entered.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error generating report cards: {ex.Message}";
+            reportCards.Clear();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void DownloadReportCard(ReportCardDto card)
+    {
+        // TODO: Implement PDF generation
+        // For now, show an alert
+        // You can use a library like QuestPDF or iTextSharp for PDF generation
+        // This would generate a DepEd-compliant report card with:
+        // - Student information
+        // - All subject grades (Q1-Q4, Final)
+        // - Transmuted grades
+        // - Descriptive ratings
+        // - General average
+        // - School information and signatures
+        errorMessage = "PDF generation feature will be implemented soon.";
+        StateHasChanged();
     }
 }
 

@@ -1,0 +1,38 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace BrightEnroll_DES.Data.Models;
+
+/// <summary>
+/// Activity log specifically for teachers to track their actions and activities.
+/// Used for teacher dashboard recent activity feed.
+/// </summary>
+[Table("tbl_TeacherActivityLogs")]
+public class TeacherActivityLog
+{
+    [Key]
+    [Column("id")]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public int Id { get; set; }
+
+    [Required]
+    [Column("teacher_id")]
+    public int TeacherId { get; set; }
+
+    [Required]
+    [MaxLength(100)]
+    [Column("action")]
+    public string Action { get; set; } = string.Empty; // e.g., "Recorded Attendance", "Entered Grades", "Viewed Class"
+
+    [Column("details", TypeName = "nvarchar(max)")]
+    public string? Details { get; set; } // Additional details about the action
+
+    [Required]
+    [Column("created_at", TypeName = "datetime")]
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    // Navigation property
+    [ForeignKey("TeacherId")]
+    public virtual UserEntity? Teacher { get; set; }
+}
+

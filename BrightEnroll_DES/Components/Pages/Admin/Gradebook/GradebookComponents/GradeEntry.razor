@@ -3,7 +3,7 @@
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Data.Models
 @inject GradeService GradeService
-@inject CurriculumService CurriculumService
+@inject TeacherService TeacherService
 @inject IAuthService AuthService
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 
@@ -25,10 +25,12 @@
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
-            <select @bind="selectedSchoolYear" @bind:after="OnSelectionChanged"
+            <select @bind="selectedSchoolYear" @bind:after="OnSchoolYearChanged"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                <option value="2024-2025">2024-2025</option>
-                <option value="2023-2024">2023-2024</option>
+                @foreach (var year in availableSchoolYears)
+                {
+                    <option value="@year">@year</option>
+                }
             </select>
         </div>
         <div>
@@ -45,7 +47,8 @@
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Subject:</label>
             <select @bind="selectedSubjectId" @bind:after="OnSelectionChanged"
-                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                    disabled="@(selectedSectionId == 0)"
+                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
                 <option value="0">Select Subject</option>
                 @foreach (var subj in availableSubjects)
                 {
@@ -74,10 +77,10 @@
                     <tr>
                         <th class="px-4 py-3 text-left">Student ID</th>
                         <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-center">Quiz (30%)</th>
-                        <th class="px-4 py-3 text-center">Exam (40%)</th>
-                        <th class="px-4 py-3 text-center">Project (20%)</th>
-                        <th class="px-4 py-3 text-center">Participation (10%)</th>
+                        <th class="px-4 py-3 text-center">Quiz (@(GetQuizWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Exam (@(GetExamWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Project (@(GetProjectWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Participation (@(GetParticipationWeightDisplay()))</th>
                         <th class="px-4 py-3 text-center">Final Grade</th>
                     </tr>
                 </thead>
@@ -161,13 +164,15 @@
 </div>
 
 @code {
-    private string selectedSchoolYear = "2024-2025";
+    private string selectedSchoolYear = "";
     private int selectedSectionId = 0;
     private int selectedSubjectId = 0;
     private string selectedPeriod = "Q1";
     private List<GradeStudent> students = new();
     private List<Section> availableSections = new();
     private List<Subject> availableSubjects = new();
+    private List<string> availableSchoolYears = new();
+    private int teacherId = 0;
     private string errorMessage = "";
     private string successMessage = "";
     private bool isLoading = false;
@@ -180,29 +185,94 @@
         public decimal? Exam { get; set; }
         public decimal? Project { get; set; }
         public decimal? Participation { get; set; }
+        
+        // Weights will be set from GradeService
+        public decimal QuizWeight { get; set; } = 0.30m;
+        public decimal ExamWeight { get; set; } = 0.40m;
+        public decimal ProjectWeight { get; set; } = 0.20m;
+        public decimal ParticipationWeight { get; set; } = 0.10m;
+        
         public decimal FinalGrade => 
-            (Quiz ?? 0) * 0.30m + 
-            (Exam ?? 0) * 0.40m + 
-            (Project ?? 0) * 0.20m + 
-            (Participation ?? 0) * 0.10m;
+            (Quiz ?? 0) * QuizWeight + 
+            (Exam ?? 0) * ExamWeight + 
+            (Project ?? 0) * ProjectWeight + 
+            (Participation ?? 0) * ParticipationWeight;
     }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadSectionsAndSubjectsAsync();
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            errorMessage = "You must be logged in to access the gradebook.";
+            return;
+        }
+
+        teacherId = currentUser.user_ID;
+        await InitializeDataAsync();
     }
 
-    private async Task LoadSectionsAndSubjectsAsync()
+    private async Task InitializeDataAsync()
     {
         try
         {
-            availableSections = await CurriculumService.GetAllSectionsAsync();
-            availableSubjects = await CurriculumService.GetAllSubjectsAsync();
+            isLoading = true;
+            
+            // Get current school year
+            var currentYear = DateTime.Now.Year;
+            var nextYear = currentYear + 1;
+            selectedSchoolYear = $"{currentYear}-{nextYear}";
+            
+            // Generate available school years (current and past 2 years)
+            availableSchoolYears = new List<string>();
+            for (int i = 0; i < 3; i++)
+            {
+                var year = currentYear - i;
+                availableSchoolYears.Add($"{year}-{year + 1}");
+            }
+
+            await LoadAssignedSectionsAsync();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading sections and subjects: {ex.Message}";
+            errorMessage = $"Error initializing gradebook: {ex.Message}";
         }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadAssignedSectionsAsync()
+    {
+        try
+        {
+            if (teacherId == 0) return;
+
+            // Load only sections assigned to this teacher
+            availableSections = await TeacherService.GetAssignedSectionsForGradeEntryAsync(teacherId, selectedSchoolYear);
+            
+            // Clear subjects when section changes
+            availableSubjects.Clear();
+            selectedSubjectId = 0;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading assigned sections: {ex.Message}";
+        }
+    }
+
+    private async Task OnSchoolYearChanged()
+    {
+        errorMessage = "";
+        successMessage = "";
+        selectedSectionId = 0;
+        selectedSubjectId = 0;
+        availableSections.Clear();
+        availableSubjects.Clear();
+        students.Clear();
+        
+        await LoadAssignedSectionsAsync();
     }
 
     private async Task OnSelectionChanged()
@@ -210,6 +280,18 @@
         errorMessage = "";
         successMessage = "";
         
+        if (selectedSectionId > 0)
+        {
+            // Load subjects for the selected section
+            await LoadAssignedSubjectsAsync();
+        }
+        else
+        {
+            availableSubjects.Clear();
+            selectedSubjectId = 0;
+            students.Clear();
+        }
+
         if (selectedSectionId > 0 && selectedSubjectId > 0)
         {
             await LoadStudentsAsync();
@@ -217,6 +299,21 @@
         else
         {
             students.Clear();
+        }
+    }
+
+    private async Task LoadAssignedSubjectsAsync()
+    {
+        try
+        {
+            if (teacherId == 0 || selectedSectionId == 0) return;
+
+            // Load only subjects assigned to this teacher for the selected section
+            availableSubjects = await TeacherService.GetAssignedSubjectsForGradeEntryAsync(teacherId, selectedSectionId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading assigned subjects: {ex.Message}";
         }
     }
 
@@ -231,6 +328,9 @@
             errorMessage = "";
             StateHasChanged();
 
+            // Get grade weights for this subject
+            var weights = await GradeService.GetGradeWeightsAsync(selectedSubjectId);
+
             // Get students enrolled in the section
             var studentDtos = await GradeService.GetStudentsForGradeEntryAsync(selectedSectionId, selectedSchoolYear);
             
@@ -241,7 +341,7 @@
                 selectedSchoolYear, 
                 selectedPeriod);
 
-            // Map to GradeStudent objects
+            // Map to GradeStudent objects with weights
             students = studentDtos.Select(s => 
             {
                 var existingGrade = existingGrades.ContainsKey(s.StudentId) ? existingGrades[s.StudentId] : null;
@@ -252,7 +352,11 @@
                     Quiz = existingGrade?.Quiz,
                     Exam = existingGrade?.Exam,
                     Project = existingGrade?.Project,
-                    Participation = existingGrade?.Participation
+                    Participation = existingGrade?.Participation,
+                    QuizWeight = weights.QuizWeight,
+                    ExamWeight = weights.ExamWeight,
+                    ProjectWeight = weights.ProjectWeight,
+                    ParticipationWeight = weights.ParticipationWeight
                 };
             }).ToList();
         }
@@ -361,6 +465,26 @@
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private string GetQuizWeightDisplay()
+    {
+        return students.FirstOrDefault()?.QuizWeight.ToString("P0") ?? "30%";
+    }
+
+    private string GetExamWeightDisplay()
+    {
+        return students.FirstOrDefault()?.ExamWeight.ToString("P0") ?? "40%";
+    }
+
+    private string GetProjectWeightDisplay()
+    {
+        return students.FirstOrDefault()?.ProjectWeight.ToString("P0") ?? "20%";
+    }
+
+    private string GetParticipationWeightDisplay()
+    {
+        return students.FirstOrDefault()?.ParticipationWeight.ToString("P0") ?? "10%";
     }
 }
 

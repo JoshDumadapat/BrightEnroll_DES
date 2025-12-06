@@ -124,8 +124,13 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         }
                         catch (Exception tableEx)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Error creating table {tableKey}: {tableEx.Message}");
-                            System.Diagnostics.Debug.WriteLine($"SQL Script preview: {tableDef.CreateTableScript.Substring(0, Math.Min(200, tableDef.CreateTableScript.Length))}...");
+                            System.Diagnostics.Debug.WriteLine($"ERROR creating table {tableKey}: {tableEx.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Full error: {tableEx}");
+                            if (tableEx.InnerException != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Inner exception: {tableEx.InnerException.Message}");
+                            }
+                            System.Diagnostics.Debug.WriteLine($"SQL Script preview: {tableDef.CreateTableScript.Substring(0, Math.Min(500, tableDef.CreateTableScript.Length))}...");
                             // Continue with other tables even if one fails
                         }
                     }
@@ -968,6 +973,85 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Ensures tbl_Grades table exists (for existing databases that might not have it)
+        public async Task<bool> EnsureGradesTableExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_Grades' 
+                    AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkCommand = new SqlCommand(checkTableQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var tableExists = result != null ? (int)result : 0;
+
+                if (tableExists == 0)
+                {
+                    // Get the grades table definition
+                    var gradesTableDef = TableDefinitions.GetGradesTableDefinition();
+                    
+                    System.Diagnostics.Debug.WriteLine("Attempting to create tbl_Grades table...");
+                    System.Diagnostics.Debug.WriteLine($"Table script length: {gradesTableDef.CreateTableScript.Length} characters");
+                    
+                    // Create table
+                    try
+                    {
+                        using var createCommand = new SqlCommand(gradesTableDef.CreateTableScript, connection);
+                        await createCommand.ExecuteNonQueryAsync();
+                        System.Diagnostics.Debug.WriteLine("tbl_Grades table created successfully.");
+                    }
+                    catch (Exception createEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR creating tbl_Grades table: {createEx.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Full error: {createEx}");
+                        if (createEx.InnerException != null)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Inner exception: {createEx.InnerException.Message}");
+                        }
+                        throw; // Re-throw to be caught by outer catch
+                    }
+
+                    // Create indexes
+                    if (gradesTableDef.CreateIndexesScripts.Any())
+                    {
+                        foreach (var indexScript in gradesTableDef.CreateIndexesScripts)
+                        {
+                            try
+                            {
+                                using var indexCommand = new SqlCommand(indexScript, connection);
+                                await indexCommand.ExecuteNonQueryAsync();
+                            }
+                            catch (Exception indexEx)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for tbl_Grades: {indexEx.Message}");
+                            }
+                        }
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine("Successfully created tbl_Grades table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error ensuring grades table exists: {ex.Message}");
+                return false;
+            }
+        }
+
         // Initializes everything - creates database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
@@ -987,8 +1071,9 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await CreateStoredProceduresIfNotExistAsync();
                 await SeedGradeLevelsAsync();
                 
-                // Explicitly ensure audit logs table exists (for existing databases)
+                // Explicitly ensure critical tables exist (for existing databases)
                 await EnsureAuditLogsTableExistsAsync();
+                await EnsureGradesTableExistsAsync();
                 
                 return dbCreated || tablesCreated;
             }

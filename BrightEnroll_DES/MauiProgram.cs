@@ -97,6 +97,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<PaymentService>();
             builder.Services.AddScoped<CurriculumService>();
             builder.Services.AddScoped<GradeService>();
+            builder.Services.AddScoped<TeacherService>();
 
             // Report services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Reports.EnrollmentReportService>();

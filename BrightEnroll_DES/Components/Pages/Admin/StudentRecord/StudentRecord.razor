@@ -4,9 +4,11 @@
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
 @using BrightEnroll_DES.Services.RoleBase
 @using BrightEnroll_DES.Services.Business.Students
+@using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Components
 @inject BrightEnroll_DES.Services.RoleBase.IAuthorizationService AuthorizationService
 @inject StudentService StudentService
+@inject GradeService GradeService
 
 <PageTitle>Student Record</PageTitle>
 
@@ -376,8 +378,8 @@
             PaymentStatus = entity.PaymentStatus ?? "N/A"
         };
 
-        // For now, academic records are not yet stored - keep list empty
-        SelectedAcademicRecords = new List<AcademicRecordData>();
+        // Load academic records from database
+        await LoadAcademicRecordsAsync(entity.StudentId);
 
         // Build enrollment status records from all enrollments
         SelectedEnrollmentRecords = entity.SectionEnrollments
@@ -400,6 +402,147 @@
     private void HandleBackClick()
     {
         ShowDetailView = false;
+    }
+
+    /// <summary>
+    /// Loads academic records for a student from the database
+    /// </summary>
+    private async Task LoadAcademicRecordsAsync(string studentId)
+    {
+        try
+        {
+            // Get the student entity to access enrollment history
+            var studentEntity = await StudentService.GetStudentByIdAsync(studentId);
+            if (studentEntity == null)
+            {
+                SelectedAcademicRecords = new List<AcademicRecordData>();
+                return;
+            }
+
+            // Get all unique school years from student's enrollment history
+            var schoolYears = studentEntity.SectionEnrollments
+                .Select(e => e.SchoolYear)
+                .Where(sy => !string.IsNullOrWhiteSpace(sy))
+                .Distinct()
+                .ToList();
+
+            // If no enrollments, also check current and previous years
+            if (!schoolYears.Any())
+            {
+                var currentYear = DateTime.Now.Year;
+                for (int i = 0; i < 4; i++)
+                {
+                    schoolYears.Add($"{currentYear - i}-{currentYear - i + 1}");
+                }
+            }
+
+            var allGrades = new List<BrightEnroll_DES.Data.Models.Grade>();
+            
+            // Get grades for each school year
+            foreach (var schoolYear in schoolYears)
+            {
+                try
+                {
+                    var grades = await GradeService.GetStudentGradesAsync(studentId, schoolYear);
+                    if (grades != null && grades.Any())
+                    {
+                        allGrades.AddRange(grades);
+                    }
+                }
+                catch
+                {
+                    // Continue if one year fails
+                }
+            }
+            
+            if (!allGrades.Any())
+            {
+                SelectedAcademicRecords = new List<AcademicRecordData>();
+                return;
+            }
+
+            // Group grades by school year and subject
+            var academicRecords = allGrades
+                .GroupBy(g => new 
+                { 
+                    g.SchoolYear, 
+                    g.SubjectId, 
+                    SubjectName = g.Subject?.SubjectName ?? string.Empty,
+                    GradeLevelName = g.Section?.GradeLevel?.GradeLevelName ?? string.Empty
+                })
+                .Select(group =>
+                {
+                    var q1Grade = group.FirstOrDefault(g => g.GradingPeriod == "Q1" || g.GradingPeriod == "Quarter 1");
+                    var q2Grade = group.FirstOrDefault(g => g.GradingPeriod == "Q2" || g.GradingPeriod == "Quarter 2");
+                    var q3Grade = group.FirstOrDefault(g => g.GradingPeriod == "Q3" || g.GradingPeriod == "Quarter 3");
+                    var q4Grade = group.FirstOrDefault(g => g.GradingPeriod == "Q4" || g.GradingPeriod == "Quarter 4");
+
+                    // Check if quarters have valid grades
+                    var hasQ1 = q1Grade?.FinalGrade.HasValue == true && q1Grade.FinalGrade.Value > 0;
+                    var hasQ2 = q2Grade?.FinalGrade.HasValue == true && q2Grade.FinalGrade.Value > 0;
+                    var hasQ3 = q3Grade?.FinalGrade.HasValue == true && q3Grade.FinalGrade.Value > 0;
+                    var hasQ4 = q4Grade?.FinalGrade.HasValue == true && q4Grade.FinalGrade.Value > 0;
+
+                    // Count how many quarters have grades
+                    var quartersWithGrades = new List<decimal>();
+                    if (hasQ1) quartersWithGrades.Add(q1Grade!.FinalGrade!.Value);
+                    if (hasQ2) quartersWithGrades.Add(q2Grade!.FinalGrade!.Value);
+                    if (hasQ3) quartersWithGrades.Add(q3Grade!.FinalGrade!.Value);
+                    if (hasQ4) quartersWithGrades.Add(q4Grade!.FinalGrade!.Value);
+                    
+                    var finalGrade = quartersWithGrades.Any() ? quartersWithGrades.Average() : 0m;
+                    
+                    // Determine remarks based on completeness and grade
+                    string remarks;
+                    if (!quartersWithGrades.Any())
+                    {
+                        remarks = "No Grade";
+                    }
+                    else if (quartersWithGrades.Count < 4)
+                    {
+                        // Incomplete - not all quarters have grades
+                        remarks = "Incomplete";
+                    }
+                    else
+                    {
+                        // All quarters present - calculate descriptive rating
+                        var transmutedGrade = GradeService.GetTransmutedGrade(finalGrade);
+                        remarks = GradeService.GetDescriptiveRating(transmutedGrade);
+                    }
+
+                    return new AcademicRecordData
+                    {
+                        SchoolYear = group.Key.SchoolYear,
+                        Grade = group.Key.GradeLevelName,
+                        Subject = group.Key.SubjectName,
+                        Q1 = q1Grade?.FinalGrade.HasValue == true && q1Grade.FinalGrade.Value > 0 
+                            ? q1Grade.FinalGrade.Value.ToString("F2") 
+                            : "-",
+                        Q2 = q2Grade?.FinalGrade.HasValue == true && q2Grade.FinalGrade.Value > 0 
+                            ? q2Grade.FinalGrade.Value.ToString("F2") 
+                            : "-",
+                        Q3 = q3Grade?.FinalGrade.HasValue == true && q3Grade.FinalGrade.Value > 0 
+                            ? q3Grade.FinalGrade.Value.ToString("F2") 
+                            : "-",
+                        Q4 = q4Grade?.FinalGrade.HasValue == true && q4Grade.FinalGrade.Value > 0 
+                            ? q4Grade.FinalGrade.Value.ToString("F2") 
+                            : "-",
+                        FinalGrade = finalGrade > 0 ? finalGrade.ToString("F2") : "-",
+                        Remarks = remarks
+                    };
+                })
+                .OrderByDescending(r => r.SchoolYear)
+                .ThenBy(r => r.Subject)
+                .ToList();
+
+            SelectedAcademicRecords = academicRecords;
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash - just show empty list
+            System.Diagnostics.Debug.WriteLine($"Error loading academic records: {ex.Message}");
+            SelectedAcademicRecords = new List<AcademicRecordData>();
+        }
     }
 
 }

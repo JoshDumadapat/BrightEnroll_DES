@@ -1,0 +1,333 @@
+@page "/my-classes"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@inject ILoadingService LoadingService
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject TeacherService TeacherService
+@inject AppDbContext Context
+@inject NavigationManager NavigationManager
+
+<PageTitle>My Classes</PageTitle>
+
+<RoleAuthorizeView RequiredPermission="@Permissions.ViewDashboard">
+    @if (IsTeacher)
+    {
+        <div class="text-gray-800">
+            <h1 class="mb-6 text-2xl font-bold text-gray-800">My Classes</h1>
+
+            <!-- Filters -->
+            <div class="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">School Year</label>
+                        <select @bind="SelectedSchoolYear" @bind:after="OnFilterChanged" 
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                            @foreach (var year in AvailableSchoolYears)
+                            {
+                                <option value="@year">@year</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Grade Level</label>
+                        <select @bind="SelectedGradeLevel" @bind:after="OnFilterChanged" 
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                            <option value="">All Grades</option>
+                            @foreach (var grade in AvailableGradeLevels)
+                            {
+                                <option value="@grade">@grade</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button @onclick="ClearFilters" 
+                                class="rounded-lg bg-gray-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-600">
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Classes List - Card Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                @if (AssignedSections != null && AssignedSections.Any())
+                {
+                    @foreach (var classSection in FilteredSections)
+                    {
+                        var cardColorClass = GetCardColorClass(classSection.SectionId);
+                        <div @onclick="() => NavigateToClassDetails(classSection.SectionId)" 
+                             class="group cursor-pointer overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:shadow-lg hover:border-blue-300">
+                            <!-- Card Header -->
+                            <div class="border-b border-gray-200 @cardColorClass px-5 py-4">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <h2 class="text-lg font-bold text-gray-800 group-hover:text-blue-600 transition-colors">@classSection.SectionName</h2>
+                                        <p class="text-sm font-medium text-gray-700 mt-1">@classSection.GradeLevel</p>
+                                    </div>
+                                    @if (classSection.IsAdviser)
+                                    {
+                                        <span class="ml-2 rounded-full bg-blue-600 px-2 py-0.5 text-xs font-medium text-white">Adviser</span>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Card Body -->
+                            <div class="px-5 py-4">
+                                <div class="space-y-3">
+                                    <!-- School Year -->
+                                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                        </svg>
+                                        <span class="font-medium">@SelectedSchoolYear</span>
+                                    </div>
+
+                                    <!-- Students Count -->
+                                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                                        <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                                        </svg>
+                                        <span><span class="font-semibold text-gray-800">@classSection.StudentCount</span> of @classSection.Capacity students</span>
+                                    </div>
+
+                                    <!-- Subjects -->
+                                    @if (classSection.Subjects.Any())
+                                    {
+                                        <div class="pt-2 border-t border-gray-100">
+                                            <p class="text-xs font-medium text-gray-500 mb-1">Subjects:</p>
+                                            <p class="text-sm text-gray-700 line-clamp-2">@string.Join(", ", classSection.Subjects)</p>
+                                        </div>
+                                    }
+
+                                    <!-- Classroom -->
+                                    @if (!string.IsNullOrEmpty(classSection.ClassroomName))
+                                    {
+                                        <div class="flex items-center gap-2 text-sm text-gray-600">
+                                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                                            </svg>
+                                            <span>@classSection.ClassroomName</span>
+                                            @if (!string.IsNullOrEmpty(classSection.BuildingName))
+                                            {
+                                                <span class="text-gray-400">(@classSection.BuildingName)</span>
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Card Footer - Click Indicator -->
+                            <div class="border-t border-gray-200 bg-gray-50 px-5 py-3">
+                                <div class="flex items-center justify-between text-sm text-blue-600 font-medium">
+                                    <span>View Details</span>
+                                    <svg class="h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="rounded-xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+                        <svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        <h3 class="mt-4 text-lg font-semibold text-gray-900">No Classes Assigned</h3>
+                        <p class="mt-2 text-sm text-gray-500">You don't have any assigned classes at this time.</p>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Class Roster Modal -->
+        @if (ShowClassRosterModal && SelectedSectionId > 0)
+        {
+            <ClassRosterModal SectionId="SelectedSectionId" 
+                            SectionName="SelectedSectionName"
+                            SchoolYear="SelectedSchoolYear"
+                            OnClose="CloseClassRosterModal" />
+        }
+
+        <!-- Schedule Modal -->
+        @if (ShowScheduleModal && SelectedSectionId > 0)
+        {
+            <ScheduleModal SectionId="SelectedSectionId" 
+                         SectionName="SelectedSectionName"
+                         OnClose="CloseScheduleModal" />
+        }
+    }
+    else
+    {
+        <div class="text-center py-12">
+            <p class="text-gray-600">This page is only accessible to teachers.</p>
+        </div>
+    }
+</RoleAuthorizeView>
+
+@code {
+    private bool IsTeacher { get; set; }
+    private int TeacherId { get; set; }
+    private List<AssignedSectionItem>? AssignedSections { get; set; }
+    private string SelectedSchoolYear { get; set; } = "";
+    private string SelectedGradeLevel { get; set; } = "";
+    private List<string> AvailableSchoolYears { get; set; } = new();
+    private List<string> AvailableGradeLevels { get; set; } = new();
+    
+    // Modal states
+    private bool ShowClassRosterModal { get; set; } = false;
+    private bool ShowScheduleModal { get; set; } = false;
+    private int SelectedSectionId { get; set; }
+    private string SelectedSectionName { get; set; } = "";
+
+    private List<AssignedSectionItem> FilteredSections
+    {
+        get
+        {
+            if (AssignedSections == null || !AssignedSections.Any())
+                return new List<AssignedSectionItem>();
+
+            var filtered = AssignedSections.AsEnumerable();
+
+            if (!string.IsNullOrEmpty(SelectedGradeLevel))
+            {
+                filtered = filtered.Where(s => s.GradeLevel == SelectedGradeLevel);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        LoadingService.HideLoading();
+        
+        if (AuthService.IsAuthenticated && AuthService.CurrentUser != null)
+        {
+            IsTeacher = AuthorizationService.HasRole("Teacher");
+            if (IsTeacher)
+            {
+                TeacherId = AuthService.CurrentUser.user_ID;
+                await LoadData();
+            }
+        }
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            // Get current school year
+            var currentYear = DateTime.Now.Year;
+            var nextYear = currentYear + 1;
+            SelectedSchoolYear = $"{currentYear}-{nextYear}";
+            
+            // Generate school years (current and past 2 years)
+            AvailableSchoolYears = new List<string>();
+            for (int i = 0; i < 3; i++)
+            {
+                var year = currentYear - i;
+                AvailableSchoolYears.Add($"{year}-{year + 1}");
+            }
+
+            // Load assigned sections
+            await LoadAssignedSections();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading data: {ex.Message}");
+        }
+    }
+
+    private async Task LoadAssignedSections()
+    {
+        try
+        {
+            AssignedSections = await TeacherService.GetAssignedSectionsAsync(TeacherId, SelectedSchoolYear, SelectedGradeLevel);
+            
+            // Extract unique grade levels
+            AvailableGradeLevels = AssignedSections?
+                .Select(s => s.GradeLevel)
+                .Where(g => !string.IsNullOrEmpty(g))
+                .Distinct()
+                .OrderBy(g => g)
+                .ToList() ?? new List<string>();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading assigned sections: {ex.Message}");
+        }
+    }
+
+    private async Task OnFilterChanged()
+    {
+        await LoadAssignedSections();
+    }
+
+    private async Task ClearFilters()
+    {
+        SelectedGradeLevel = "";
+        await LoadAssignedSections();
+    }
+
+    private void NavigateToClassDetails(int sectionId)
+    {
+        NavigationManager.NavigateTo($"/my-classes/class-details/{sectionId}");
+    }
+
+    private void ViewClassRoster(int sectionId)
+    {
+        SelectedSectionId = sectionId;
+        SelectedSectionName = AssignedSections?.FirstOrDefault(s => s.SectionId == sectionId)?.SectionName ?? "";
+        ShowClassRosterModal = true;
+    }
+
+    private void EnterGrades(int sectionId)
+    {
+        NavigationManager.NavigateTo($"/gradebook?sectionId={sectionId}");
+    }
+
+    private void ViewSchedule(int sectionId)
+    {
+        SelectedSectionId = sectionId;
+        SelectedSectionName = AssignedSections?.FirstOrDefault(s => s.SectionId == sectionId)?.SectionName ?? "";
+        ShowScheduleModal = true;
+    }
+
+    private void CloseClassRosterModal()
+    {
+        ShowClassRosterModal = false;
+        SelectedSectionId = 0;
+    }
+
+    private void CloseScheduleModal()
+    {
+        ShowScheduleModal = false;
+        SelectedSectionId = 0;
+    }
+
+    private string GetCardColorClass(int sectionId)
+    {
+        // Generate consistent color based on section ID
+        var colors = new[]
+        {
+            "bg-gradient-to-r from-blue-50 to-indigo-50",
+            "bg-gradient-to-r from-green-50 to-emerald-50",
+            "bg-gradient-to-r from-purple-50 to-violet-50",
+            "bg-gradient-to-r from-orange-50 to-amber-50",
+            "bg-gradient-to-r from-pink-50 to-rose-50",
+            "bg-gradient-to-r from-cyan-50 to-teal-50",
+            "bg-gradient-to-r from-yellow-50 to-lime-50",
+            "bg-gradient-to-r from-indigo-50 to-blue-50"
+        };
+        return colors[sectionId % colors.Length];
+    }
+}
+
