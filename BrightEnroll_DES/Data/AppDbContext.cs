@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Guardian> Guardians { get; set; }
     public DbSet<StudentRequirement> StudentRequirements { get; set; }
     public DbSet<StudentSectionEnrollment> StudentSectionEnrollments { get; set; }
+    public DbSet<Grade> Grades { get; set; }
     
     // Employee tables
     public DbSet<EmployeeAddress> EmployeeAddresses { get; set; }
@@ -143,6 +144,54 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Section)
                   .WithMany()
                   .HasForeignKey(e => e.SectionId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Grade>(entity =>
+        {
+            entity.HasKey(e => e.GradeId);
+            entity.ToTable("tbl_Grades");
+
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.SubjectId);
+            entity.HasIndex(e => e.SectionId);
+            entity.HasIndex(e => e.TeacherId);
+            entity.HasIndex(e => new { e.StudentId, e.SubjectId, e.SectionId, e.GradingPeriod, e.SchoolYear });
+            entity.HasIndex(e => new { e.StudentId, e.SubjectId, e.SectionId, e.GradingPeriod, e.SchoolYear }).IsUnique();
+
+            entity.Property(e => e.Quiz)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.Exam)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.Project)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.Participation)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.Property(e => e.FinalGrade)
+                  .HasColumnType("decimal(5,2)");
+
+            entity.HasOne(g => g.Student)
+                  .WithMany()
+                  .HasForeignKey(g => g.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(g => g.Subject)
+                  .WithMany()
+                  .HasForeignKey(g => g.SubjectId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(g => g.Section)
+                  .WithMany()
+                  .HasForeignKey(g => g.SectionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(g => g.Teacher)
+                  .WithMany()
+                  .HasForeignKey(g => g.TeacherId)
                   .OnDelete(DeleteBehavior.Restrict);
         });
 

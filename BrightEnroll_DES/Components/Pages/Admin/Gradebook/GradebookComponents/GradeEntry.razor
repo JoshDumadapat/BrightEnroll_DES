@@ -1,11 +1,31 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Gradebook.GradebookComponents
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Data.Models
+@inject GradeService GradeService
+@inject CurriculumService CurriculumService
+@inject IAuthService AuthService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 
 <div class="p-6">
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
+            @errorMessage
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
+            @successMessage
+        </div>
+    }
+
     <!-- Class Selection -->
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
-            <select @bind="selectedSchoolYear" 
+            <select @bind="selectedSchoolYear" @bind:after="OnSelectionChanged"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                 <option value="2024-2025">2024-2025</option>
                 <option value="2023-2024">2023-2024</option>
@@ -13,28 +33,29 @@
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Section:</label>
-            <select @bind="selectedSection" 
+            <select @bind="selectedSectionId" @bind:after="OnSelectionChanged"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                <option value="">Select Section</option>
-                <option value="Saturn">Saturn</option>
-                <option value="Rizal">Rizal</option>
-                <option value="Sun">Sun</option>
+                <option value="0">Select Section</option>
+                @foreach (var sec in availableSections)
+                {
+                    <option value="@sec.SectionId">@sec.SectionName</option>
+                }
             </select>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Subject:</label>
-            <select @bind="selectedSubject" 
+            <select @bind="selectedSubjectId" @bind:after="OnSelectionChanged"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                <option value="">Select Subject</option>
-                <option value="Math">Mathematics</option>
-                <option value="English">English</option>
-                <option value="Science">Science</option>
-                <option value="Filipino">Filipino</option>
+                <option value="0">Select Subject</option>
+                @foreach (var subj in availableSubjects)
+                {
+                    <option value="@subj.SubjectId">@subj.SubjectName</option>
+                }
             </select>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Grading Period:</label>
-            <select @bind="selectedPeriod" 
+            <select @bind="selectedPeriod" @bind:after="OnSelectionChanged"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
                 <option value="Q1">Quarter 1</option>
                 <option value="Q2">Quarter 2</option>
@@ -44,7 +65,7 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrEmpty(selectedSection) && !string.IsNullOrEmpty(selectedSubject))
+    @if (selectedSectionId > 0 && selectedSubjectId > 0)
     {
         <!-- Grade Entry Table -->
         <div class="mb-4 overflow-x-auto">
@@ -67,23 +88,42 @@
                             <td class="px-4 py-3">@student.StudentId</td>
                             <td class="px-4 py-3">@student.Name</td>
                             <td class="px-4 py-3">
-                                <input type="number" @bind="student.Quiz" min="0" max="100" step="0.01"
+                                <input type="number" 
+                                       value="@(student.Quiz?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Quiz), e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
-                                <input type="number" @bind="student.Exam" min="0" max="100" step="0.01"
+                                <input type="number" 
+                                       value="@(student.Exam?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Exam), e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
-                                <input type="number" @bind="student.Project" min="0" max="100" step="0.01"
+                                <input type="number" 
+                                       value="@(student.Project?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Project), e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
-                                <input type="number" @bind="student.Participation" min="0" max="100" step="0.01"
+                                <input type="number" 
+                                       value="@(student.Participation?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Participation), e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3 text-center font-semibold">
-                                @student.FinalGrade.ToString("F2")
+                                @if (student.Quiz.HasValue || student.Exam.HasValue || student.Project.HasValue || student.Participation.HasValue)
+                                {
+                                    @student.FinalGrade.ToString("F2")
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
                             </td>
                         </tr>
                     }
@@ -94,12 +134,21 @@
         <!-- Action Buttons -->
         <div class="flex justify-end gap-3">
             <button @onclick="ComputeGrades" 
-                    class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                    disabled="@isLoading"
+                    class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 Compute Grades
             </button>
             <button @onclick="SaveGrades" 
-                    class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
-                Save Grades
+                    disabled="@isLoading"
+                    class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                @if (isLoading)
+                {
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Grades</span>
+                }
             </button>
         </div>
     }
@@ -113,39 +162,139 @@
 
 @code {
     private string selectedSchoolYear = "2024-2025";
-    private string selectedSection = "";
-    private string selectedSubject = "";
+    private int selectedSectionId = 0;
+    private int selectedSubjectId = 0;
     private string selectedPeriod = "Q1";
     private List<GradeStudent> students = new();
+    private List<Section> availableSections = new();
+    private List<Subject> availableSubjects = new();
+    private string errorMessage = "";
+    private string successMessage = "";
+    private bool isLoading = false;
 
     private class GradeStudent
     {
         public string StudentId { get; set; } = "";
         public string Name { get; set; } = "";
-        public decimal Quiz { get; set; }
-        public decimal Exam { get; set; }
-        public decimal Project { get; set; }
-        public decimal Participation { get; set; }
-        public decimal FinalGrade => (Quiz * 0.30m) + (Exam * 0.40m) + (Project * 0.20m) + (Participation * 0.10m);
+        public decimal? Quiz { get; set; }
+        public decimal? Exam { get; set; }
+        public decimal? Project { get; set; }
+        public decimal? Participation { get; set; }
+        public decimal FinalGrade => 
+            (Quiz ?? 0) * 0.30m + 
+            (Exam ?? 0) * 0.40m + 
+            (Project ?? 0) * 0.20m + 
+            (Participation ?? 0) * 0.10m;
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnInitializedAsync()
     {
-        if (!string.IsNullOrEmpty(selectedSection) && !string.IsNullOrEmpty(selectedSubject))
+        await LoadSectionsAndSubjectsAsync();
+    }
+
+    private async Task LoadSectionsAndSubjectsAsync()
+    {
+        try
         {
-            LoadStudents();
+            availableSections = await CurriculumService.GetAllSectionsAsync();
+            availableSubjects = await CurriculumService.GetAllSubjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading sections and subjects: {ex.Message}";
         }
     }
 
-    private void LoadStudents()
+    private async Task OnSelectionChanged()
     {
-        // TODO: Load students from database
-        students = new List<GradeStudent>
+        errorMessage = "";
+        successMessage = "";
+        
+        if (selectedSectionId > 0 && selectedSubjectId > 0)
         {
-            new() { StudentId = "ST001", Name = "Juan Dela Cruz", Quiz = 85, Exam = 90, Project = 88, Participation = 92 },
-            new() { StudentId = "ST002", Name = "Maria Santos", Quiz = 92, Exam = 95, Project = 90, Participation = 94 },
-            new() { StudentId = "ST003", Name = "Pedro Garcia", Quiz = 78, Exam = 82, Project = 80, Participation = 85 },
-        };
+            await LoadStudentsAsync();
+        }
+        else
+        {
+            students.Clear();
+        }
+    }
+
+    private async Task LoadStudentsAsync()
+    {
+        if (selectedSectionId <= 0 || selectedSubjectId <= 0)
+            return;
+
+        try
+        {
+            isLoading = true;
+            errorMessage = "";
+            StateHasChanged();
+
+            // Get students enrolled in the section
+            var studentDtos = await GradeService.GetStudentsForGradeEntryAsync(selectedSectionId, selectedSchoolYear);
+            
+            // Get existing grades if any
+            var existingGrades = await GradeService.GetExistingGradesAsync(
+                selectedSectionId, 
+                selectedSubjectId, 
+                selectedSchoolYear, 
+                selectedPeriod);
+
+            // Map to GradeStudent objects
+            students = studentDtos.Select(s => 
+            {
+                var existingGrade = existingGrades.ContainsKey(s.StudentId) ? existingGrades[s.StudentId] : null;
+                return new GradeStudent
+                {
+                    StudentId = s.StudentId,
+                    Name = s.Name,
+                    Quiz = existingGrade?.Quiz,
+                    Exam = existingGrade?.Exam,
+                    Project = existingGrade?.Project,
+                    Participation = existingGrade?.Participation
+                };
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading students: {ex.Message}";
+            students.Clear();
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnGradeChanged(GradeStudent student, string propertyName, ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        decimal? parsedValue = null;
+        
+        if (!string.IsNullOrWhiteSpace(value) && decimal.TryParse(value, out var num))
+        {
+            parsedValue = num;
+        }
+
+        switch (propertyName)
+        {
+            case nameof(GradeStudent.Quiz):
+                student.Quiz = parsedValue;
+                break;
+            case nameof(GradeStudent.Exam):
+                student.Exam = parsedValue;
+                break;
+            case nameof(GradeStudent.Project):
+                student.Project = parsedValue;
+                break;
+            case nameof(GradeStudent.Participation):
+                student.Participation = parsedValue;
+                break;
+        }
+
+        StateHasChanged();
     }
 
     private void ComputeGrades()
@@ -154,9 +303,64 @@
         StateHasChanged();
     }
 
-    private void SaveGrades()
+    private async Task SaveGrades()
     {
-        // TODO: Save grades to database
+        if (selectedSectionId <= 0 || selectedSubjectId <= 0)
+        {
+            errorMessage = "Please select a section and subject.";
+            return;
+        }
+
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            errorMessage = "You must be logged in to save grades.";
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            errorMessage = "";
+            successMessage = "";
+            StateHasChanged();
+
+            // Prepare grade inputs
+            var gradeInputs = students.Select(s => new GradeInputDto
+            {
+                StudentId = s.StudentId,
+                SubjectId = selectedSubjectId,
+                SectionId = selectedSectionId,
+                SchoolYear = selectedSchoolYear,
+                GradingPeriod = selectedPeriod,
+                Quiz = s.Quiz,
+                Exam = s.Exam,
+                Project = s.Project,
+                Participation = s.Participation,
+                FinalGrade = s.FinalGrade
+            }).ToList();
+
+            // Save grades
+            var result = await GradeService.SaveGradesAsync(gradeInputs, currentUser.user_ID);
+
+            if (result)
+            {
+                successMessage = $"Successfully saved grades for {students.Count} student(s).";
+            }
+            else
+            {
+                errorMessage = "Failed to save grades. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error saving grades: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 }
 

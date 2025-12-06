@@ -6,6 +6,7 @@
 @inject BrightEnroll_DES.Services.Business.Finance.PaymentService PaymentService
 @inject ILoadingService LoadingService
 @inject Microsoft.Extensions.Logging.ILogger<Finance> Logger
+@inject BrightEnroll_DES.Services.Seeders.DatabaseSeeder DatabaseSeeder
 
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
@@ -246,7 +247,44 @@
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
-            // Don't show error toast for payment records as it's not critical on initial load
+            
+            // Check if it's a missing table error
+            string errorMsg = ex.Message;
+            if (ex.InnerException != null)
+            {
+                errorMsg = ex.InnerException.Message;
+            }
+            
+            if (errorMsg.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) ||
+                errorMsg.Contains("tbl_StudentPayments", StringComparison.OrdinalIgnoreCase) ||
+                errorMsg.Contains("does not exist", StringComparison.OrdinalIgnoreCase) ||
+                errorMsg.Contains("tbl_Expenses", StringComparison.OrdinalIgnoreCase) ||
+                errorMsg.Contains("tbl_Fees", StringComparison.OrdinalIgnoreCase) ||
+                errorMsg.Contains("tbl_GradeLevel", StringComparison.OrdinalIgnoreCase))
+            {
+                // Try to automatically create missing finance tables
+                try
+                {
+                    Logger?.LogInformation("Attempting to create missing finance tables...");
+                    await DatabaseSeeder.EnsureFinanceTablesExistAsync();
+                    Logger?.LogInformation("Finance tables created successfully. Retrying payment records load...");
+                    
+                    // Retry loading payment records after creating tables
+                    await LoadPaymentRecordsAsync();
+                    
+                    toastMessage = "Finance tables created successfully. Please refresh if needed.";
+                    toastType = ToastType.Success;
+                    showToast = true;
+                }
+                catch (Exception createEx)
+                {
+                    Logger?.LogError(createEx, "Failed to create finance tables: {Message}", createEx.Message);
+                    toastMessage = "Database table not found. Please ensure the database is properly initialized.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                }
+            }
+            // Don't show error toast for other payment record errors as it's not critical on initial load
         }
     }
 

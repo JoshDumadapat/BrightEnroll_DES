@@ -58,40 +58,29 @@ public class ArchiveService
         {
             const string inactiveStatus = "Inactive";
 
-            // 1. Get the latest status-change log per user (any status)
-            var latestStatusLogsByUserId = await _context.UserStatusLogs
-                .GroupBy(l => l.UserId)
-                .Select(g => g.OrderByDescending(l => l.CreatedAt).First())
+            // 1. Get all employees with Inactive status directly from the view
+            // The view normalizes status to proper case, so we can do a direct comparison
+            var inactiveEmployees = await _context.EmployeeDataViews
+                .Where(e => e.Status == inactiveStatus)
                 .ToListAsync();
 
-            // 2. From those logs, keep only users whose *current* (latest) status is Inactive
-            var inactiveUserIds = latestStatusLogsByUserId
-                .Where(l => !string.IsNullOrWhiteSpace(l.NewStatus) &&
-                            l.NewStatus.Trim().Equals(inactiveStatus, StringComparison.OrdinalIgnoreCase))
-                .Select(l => l.UserId)
-                .Distinct()
-                .ToList();
-
-            if (!inactiveUserIds.Any())
+            if (!inactiveEmployees.Any())
             {
                 return new List<Components.Pages.Admin.Archive.ArchivedEmployee>();
             }
 
-            // 3. Get employee view data only for those inactive users
-            var inactiveEmployees = await _context.EmployeeDataViews
-                .Where(e => inactiveUserIds.Contains(e.UserId))
-                .ToListAsync();
+            // 2. Get the user IDs of inactive employees
+            var inactiveUserIds = inactiveEmployees.Select(e => e.UserId).ToList();
 
-            // 4. For archive reason / date, we still care about the latest *inactive* log
+            // 3. Get the latest inactive status log for each user (for reason and date)
             var latestInactiveLogsByUserId = await _context.UserStatusLogs
                 .Where(l => inactiveUserIds.Contains(l.UserId) &&
-                            !string.IsNullOrWhiteSpace(l.NewStatus) &&
-                            l.NewStatus.Trim().Equals(inactiveStatus, StringComparison.OrdinalIgnoreCase))
+                            l.NewStatus == inactiveStatus)
                 .GroupBy(l => l.UserId)
                 .Select(g => g.OrderByDescending(l => l.CreatedAt).First())
                 .ToDictionaryAsync(l => l.UserId, l => l);
 
-            // 5. Build the result list
+            // 4. Build the result list
             var result = inactiveEmployees
                 .Select(emp =>
                 {
@@ -100,6 +89,7 @@ public class ArchiveService
 
                     return new Components.Pages.Admin.Archive.ArchivedEmployee
                     {
+                        UserId = emp.UserId,
                         Id = emp.SystemId ?? emp.UserId.ToString(),
                         Name = emp.FullName
                                ?? ($"{emp.FirstName} {emp.MiddleName ?? ""} {emp.LastName}"

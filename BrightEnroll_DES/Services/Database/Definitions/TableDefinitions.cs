@@ -34,6 +34,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetTeacherSectionAssignmentTableDefinition(),
                 GetClassScheduleTableDefinition(),
                 GetStudentSectionEnrollmentTableDefinition(),
+                // Grades table (must be after tbl_Students, tbl_Subjects, tbl_Sections, tbl_Users)
+                GetGradesTableDefinition(),
                 // Payroll tables (standalone, no foreign keys)
                 GetRolesTableDefinition(),
                 GetDeductionsTableDefinition(),
@@ -764,6 +766,58 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
+        // Creates tbl_Grades table - must be created after tbl_Students, tbl_Subjects, tbl_Sections, tbl_Users
+        public static TableDefinition GetGradesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Grades",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Grades](
+                        [grade_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [subject_id] INT NOT NULL,
+                        [section_id] INT NOT NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [grading_period] VARCHAR(10) NOT NULL,
+                        [quiz] DECIMAL(5,2) NULL,
+                        [exam] DECIMAL(5,2) NULL,
+                        [project] DECIMAL(5,2) NULL,
+                        [participation] DECIMAL(5,2) NULL,
+                        [final_grade] DECIMAL(5,2) NULL,
+                        [teacher_id] INT NOT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_Grades_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_Grades_tbl_Subjects FOREIGN KEY ([subject_id]) REFERENCES [dbo].[tbl_Subjects]([SubjectID]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_Grades_tbl_Sections FOREIGN KEY ([section_id]) REFERENCES [dbo].[tbl_Sections]([SectionID]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_Grades_tbl_Users FOREIGN KEY ([teacher_id]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE RESTRICT
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_StudentId' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_StudentId ON [dbo].[tbl_Grades]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_SubjectId' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_SubjectId ON [dbo].[tbl_Grades]([subject_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_SectionId' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_SectionId ON [dbo].[tbl_Grades]([section_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_TeacherId' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_TeacherId ON [dbo].[tbl_Grades]([teacher_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Grades_Student_Subject_Section_Period' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE INDEX IX_tbl_Grades_Student_Subject_Section_Period ON [dbo].[tbl_Grades]([student_id], [subject_id], [section_id], [grading_period], [school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UX_tbl_Grades_Student_Subject_Section_Period_Year' AND object_id = OBJECT_ID('dbo.tbl_Grades'))
+                        CREATE UNIQUE INDEX UX_tbl_Grades_Student_Subject_Section_Period_Year ON [dbo].[tbl_Grades]([student_id], [subject_id], [section_id], [grading_period], [school_year])"
+                }
+            };
+        }
+
         // Creates tbl_roles table - standalone table for role salary configuration
         public static TableDefinition GetRolesTableDefinition()
         {
@@ -906,7 +960,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [or_number] VARCHAR(50) NOT NULL,
                         [processed_by] VARCHAR(50) NULL,
                         [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
-                        CONSTRAINT FK_tbl_StudentPayments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_ID]) ON DELETE CASCADE
+                        CONSTRAINT FK_tbl_StudentPayments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
                     )",
                 CreateIndexesScripts = new List<string>
                 {

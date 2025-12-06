@@ -353,7 +353,11 @@ public class EmployeeService
     {
         try
         {
+            // Exclude inactive employees - they should only appear in the Archive page
+            // Note: The database view normalizes status to proper case (first letter uppercase)
+            // and defaults null/empty status to 'Active', so we just need to exclude 'Inactive'
             var employeeViews = await _context.EmployeeDataViews
+                .Where(e => e.Status == null || e.Status != "Inactive")
                 .OrderBy(e => e.LastName)
                 .ThenBy(e => e.FirstName)
                 .ToListAsync();

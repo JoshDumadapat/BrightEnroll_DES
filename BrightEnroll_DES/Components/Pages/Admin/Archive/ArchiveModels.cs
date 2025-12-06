@@ -14,6 +14,7 @@ public class ArchivedStudent
 
 public class ArchivedEmployee
 {
+    public int UserId { get; set; }
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Address { get; set; } = "";
