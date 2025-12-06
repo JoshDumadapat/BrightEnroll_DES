@@ -30,6 +30,24 @@
         return roleLower == "superadmin" || roleLower == "admin";
     }
 
+    // Check if user is SuperAdmin
+    private bool IsSuperAdmin()
+    {
+        var userRole = AuthorizationService.GetUserRole();
+        if (string.IsNullOrWhiteSpace(userRole))
+        {
+            return false;
+        }
+        var roleLower = userRole.ToLower().Trim();
+        return roleLower == "superadmin";
+    }
+
+    // Get dashboard path based on user role
+    private string GetDashboardPath()
+    {
+        return IsSuperAdmin() ? "/superadmin-dashboard" : "/dashboard";
+    }
+
     // Helper to check if menu item should be shown
     private bool ShouldShowMenuItem(string permission)
     {
@@ -67,7 +85,7 @@
     </div>
 
     <nav class="m-0 flex flex-1 flex-col gap-1 pl-2">
-        <NavLink href="/dashboard" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+        <NavLink href="@GetDashboardPath()" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
             <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                 <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
                 <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
