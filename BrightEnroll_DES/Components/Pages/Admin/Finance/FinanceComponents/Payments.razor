@@ -2,10 +2,12 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Data.Models
 @using Microsoft.Extensions.Logging
 @using System.Linq
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
+@inject FeeService FeeService
 @inject PaymentReceiptPdfGenerator PdfGenerator
 @inject ILogger<Payments> Logger
 
@@ -67,113 +69,297 @@
 
     @if (hasSearched && studentFound)
     {
-        <!-- Student Information -->
-        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h2 class="mb-4 text-lg font-bold text-gray-800">Student Information</h2>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div>
-                    <p class="text-sm text-gray-500">Student ID</p>
-                    <p class="font-semibold text-gray-800">@PaymentData.StudentId</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500">Full Name</p>
-                    <p class="font-semibold text-gray-800">@PaymentData.StudentName</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500">Grade Level</p>
-                    <p class="font-semibold text-gray-800">@PaymentData.GradeLevel</p>
-                </div>
+        <!-- A. Student Information Header (Top Section) -->
+        <div class="mb-6 rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 shadow-lg overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <h2 class="text-2xl font-bold text-white">Student Information</h2>
             </div>
-        </div>
-
-        <!-- Account Summary -->
-        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h2 class="mb-4 text-lg font-bold text-gray-800">Account Summary</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="rounded-lg border border-blue-200 bg-blue-50 p-3 sm:p-4">
-                    <p class="text-xs sm:text-sm text-blue-600">Total Assessment</p>
-                    <p class="text-xl sm:text-2xl font-bold text-blue-800">₱@PaymentData.TotalFee.ToString("N2")</p>
-                </div>
-                <div class="rounded-lg border border-green-200 bg-green-50 p-3 sm:p-4">
-                    <p class="text-xs sm:text-sm text-green-600">Total Paid</p>
-                    <p class="text-xl sm:text-2xl font-bold text-green-800">₱@PaymentData.AmountPaid.ToString("N2")</p>
-                </div>
-                <div class="rounded-lg border border-red-200 bg-red-50 p-3 sm:p-4">
-                    <p class="text-xs sm:text-sm text-red-600">Balance</p>
-                    <p class="text-xl sm:text-2xl font-bold text-red-800">₱@PaymentData.Balance.ToString("N2")</p>
-                </div>
-                <div class="@GetPaymentStatusCardClasses()">
-                    <p class="text-xs sm:text-sm @GetPaymentStatusLabelTextColor()">Payment Status</p>
-                    <p class="text-lg sm:text-xl font-bold @GetPaymentStatusValueTextColor()">
-                        @GetPaymentStatusText()
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Payment Form -->
-        <div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h2 class="mb-4 text-lg font-bold text-gray-800">Payment Details</h2>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method</label>
-                    <select @bind="PaymentData.PaymentMethod"
-                            disabled="@(PaymentData.Balance <= 0)"
-                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
-                        <option value="Cash">Cash</option>
-                        <option value="Check">Check</option>
-                        <option value="Bank Transfer">Bank Transfer</option>
-                        <option value="Credit Card">Credit Card</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Payment Amount</label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                        <input type="text"
-                               value="@GetPaymentAmountDisplayValue()"
-                               @oninput="HandlePaymentAmountInput"
-                               @onfocus="HandlePaymentAmountFocus"
-                               @onblur="HandlePaymentAmountBlur"
-                               onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
-                               @onpaste="HandlePaymentAmountPaste"
-                               pattern="[0-9.]*"
-                               inputmode="decimal"
-                               placeholder="0.00"
-                               disabled="@(PaymentData.Balance <= 0)"
-                               class="w-full rounded-lg border border-gray-300 bg-white pl-7 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Student Name</p>
+                        <p class="text-xl font-bold text-gray-900">@PaymentData.StudentName</p>
                     </div>
-                    @if (PaymentData.Balance <= 0)
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Student ID</p>
+                        <p class="text-xl font-bold text-gray-900">@PaymentData.StudentId</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Grade Level</p>
+                        <p class="text-xl font-bold text-gray-900">@PaymentData.GradeLevel</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Enrollment Status</p>
+                        <p class="text-xl font-bold @GetEnrollmentStatusColor()">@enrollmentStatus</p>
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Balance Summary</p>
+                        <p class="text-2xl font-bold @(PaymentData.Balance > 0 ? "text-red-600" : "text-green-600")">₱@PaymentData.Balance.ToString("N2")</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- B & C. Main Content: Two-Column Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <!-- B. Tuition & Fees Breakdown (Left/Main Panel - 2 columns) -->
+            <div class="lg:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800">Tuition & Fees Breakdown</h2>
+                </div>
+                <div class="p-6">
+                    @if (feeBreakdown != null && feeBreakdown.Any())
                     {
-                        <p class="mt-1 text-xs text-gray-500">Student has fully paid.</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-300">
+                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Fee Category</th>
+                                        <th class="text-right py-4 px-4 text-sm font-bold text-gray-800">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Tuition"))
+                                    {
+                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Tuition").OrderBy(b => b.DisplayOrder))
+                                        {
+                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
+                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Tuition Fee</td>
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Tuition").Sum(b => b.Amount).ToString("N2")</td>
+                                        </tr>
+                                    }
+                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Misc"))
+                                    {
+                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Misc").OrderBy(b => b.DisplayOrder))
+                                        {
+                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
+                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Miscellaneous</td>
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Misc").Sum(b => b.Amount).ToString("N2")</td>
+                                        </tr>
+                                    }
+                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Other"))
+                                    {
+                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Other").OrderBy(b => b.DisplayOrder))
+                                        {
+                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
+                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Other Fees</td>
+                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Other").Sum(b => b.Amount).ToString("N2")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="border-t-4 border-gray-400 bg-blue-50">
+                                        <td class="py-4 px-4 text-base font-bold text-gray-900">Total Tuition</td>
+                                        <td class="py-4 px-4 text-base font-bold text-blue-800 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
+                                    </tr>
+                                    <tr class="bg-green-50">
+                                        <td class="py-3 px-4 text-base font-bold text-gray-900">Total Paid</td>
+                                        <td class="py-3 px-4 text-base font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
+                                    </tr>
+                                    <tr class="bg-red-50">
+                                        <td class="py-3 px-4 text-base font-bold text-gray-900">Remaining Balance</td>
+                                        <td class="py-3 px-4 text-base font-bold text-red-800 text-right">₱@PaymentData.Balance.ToString("N2")</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     }
                     else
                     {
-                        <p class="mt-1 text-xs text-gray-500">Minimum payment: Php 1,700.00. Balance: ₱@PaymentData.Balance.ToString("N2").</p>
+                        <p class="text-sm text-gray-500 text-center py-8">No fee breakdown available for this grade level.</p>
                     }
                 </div>
             </div>
 
-            <div class="mt-6 flex justify-end gap-3">
-                <button @onclick="ClearPaymentForm" class="rounded-full border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
-                    Clear
-                </button>
-                <button @onclick="OpenPaymentConfirmationModal"
-                        disabled="@(PaymentData.Balance <= 0 || PaymentData.NewPaymentAmount <= 0 || isProcessingPayment)"
-                        class="flex items-center gap-2 rounded-full bg-green-600 px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <!-- C. Today's Payment Panel (Right Panel - 1 column) -->
+            <div class="rounded-xl border-2 border-green-200 bg-white shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
+                    <h2 class="text-xl font-bold text-white">Today's Payment</h2>
+                </div>
+                <div class="p-6 space-y-6">
+                    <!-- Payment Type Selector -->
+                    <div>
+                        <label class="mb-3 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Type</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Downpayment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeDownpayment">
+                                <input type="radio" name="paymentType" checked="@(paymentType == "Downpayment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold @(paymentType == "Downpayment" ? "text-green-700" : "text-gray-700")">Downpayment</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Other Fees" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeOtherFees">
+                                <input type="radio" name="paymentType" checked="@(paymentType == "Other Fees")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold @(paymentType == "Other Fees" ? "text-green-700" : "text-gray-700")">Other Fees</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Partial Payment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypePartial">
+                                <input type="radio" name="paymentType" checked="@(paymentType == "Partial Payment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold @(paymentType == "Partial Payment" ? "text-green-700" : "text-gray-700")">Partial Payment</p>
+                                </div>
+                            </label>
+                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Full Payment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeFull">
+                                <input type="radio" name="paymentType" checked="@(paymentType == "Full Payment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-semibold @(paymentType == "Full Payment" ? "text-green-700" : "text-gray-700")">Full Payment</p>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Divider -->
+                    <div class="border-t border-gray-200"></div>
+
+                    <!-- Payment Method -->
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Payment Method</label>
+                        <select @bind="PaymentData.PaymentMethod"
+                                disabled="@(PaymentData.Balance <= 0)"
+                                class="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="Cash">Cash</option>
+                            <option value="Check">Check</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Credit Card">Credit Card</option>
+                        </select>
+                    </div>
+
+                    <!-- Amount Input -->
+                    <div>
+                        <label class="mb-2 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Amount</label>
+                        <div class="relative">
+                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-600">₱</span>
+                            <input type="text"
+                                   value="@GetPaymentAmountDisplayValue()"
+                                   @oninput="HandlePaymentAmountInput"
+                                   @onfocus="HandlePaymentAmountFocus"
+                                   @onblur="HandlePaymentAmountBlur"
+                                   onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                   @onpaste="HandlePaymentAmountPaste"
+                                   pattern="[0-9.]*"
+                                   inputmode="decimal"
+                                   placeholder="0.00"
+                                   disabled="@(PaymentData.Balance <= 0)"
+                                   class="w-full rounded-lg border-2 border-gray-300 bg-white pl-10 pr-4 py-3 text-xl text-right font-bold text-gray-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        </div>
+                        @if (PaymentData.Balance <= 0)
+                        {
+                            <p class="mt-2 text-xs text-gray-500">Student has fully paid.</p>
+                        }
+                        else
+                        {
+                            <p class="mt-2 text-xs text-gray-500">Minimum: <span class="font-semibold">₱1,700.00</span> | Balance: <span class="font-semibold text-red-600">₱@PaymentData.Balance.ToString("N2")</span></p>
+                        }
+                    </div>
+
+                    <!-- Payment Summary Box -->
+                    <div class="rounded-lg border-2 border-gray-300 bg-gray-50 p-5">
+                        <h3 class="mb-3 text-sm font-bold text-gray-800 uppercase tracking-wide">Payment Summary</h3>
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm font-medium text-gray-700">Payment Type:</span>
+                                <span class="text-sm font-bold text-gray-900">@paymentType</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm font-medium text-gray-700">Amount Entered:</span>
+                                <span class="text-base font-bold text-green-600">₱@PaymentData.NewPaymentAmount.ToString("N2")</span>
+                            </div>
+                            <div class="border-t border-gray-300 pt-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-semibold text-gray-800">Updated Balance:</span>
+                                    <span class="text-lg font-bold @((PaymentData.Balance - PaymentData.NewPaymentAmount) > 0 ? "text-red-600" : "text-green-600")">₱@((PaymentData.Balance - PaymentData.NewPaymentAmount).ToString("N2"))</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pay / Submit Button -->
+                    <div class="pt-2">
+                        <button @onclick="OpenPaymentConfirmationModal"
+                                disabled="@(PaymentData.Balance <= 0 || PaymentData.NewPaymentAmount <= 0 || isProcessingPayment)"
+                                class="w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-4 text-base font-bold text-white shadow-lg transition-all duration-300 hover:bg-green-700 hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            @if (isProcessingPayment)
+                            {
+                                <span>Processing...</span>
+                            }
+                            else
+                            {
+                                <span>Process Payment</span>
+                            }
+                        </button>
+                        <button @onclick="ClearPaymentForm" class="mt-2 w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Payment History Section (Bottom Panel) -->
+        <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-3 border-b border-gray-200 cursor-pointer" @onclick="TogglePaymentHistory">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-gray-800">Payment History</h2>
+                    <svg class="h-5 w-5 text-gray-600 transition-transform @(showPaymentHistory ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
-                    @if (isProcessingPayment)
+                </div>
+            </div>
+            @if (showPaymentHistory)
+            {
+                <div class="p-6">
+                    @if (paymentHistory != null && paymentHistory.Any())
                     {
-                        <span>Processing...</span>
+                        <div class="overflow-x-auto max-h-96 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr class="border-b-2 border-gray-300">
+                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Date</th>
+                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Type</th>
+                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">OR Number</th>
+                                        <th class="text-right py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Amount</th>
+                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Cashier</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var payment in paymentHistory)
+                                    {
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                            <td class="py-2 px-3 text-xs text-gray-700">@payment.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                            <td class="py-2 px-3 text-xs text-gray-700">@payment.PaymentMethod</td>
+                                            <td class="py-2 px-3 text-xs text-gray-700 font-mono">@payment.OrNumber</td>
+                                            <td class="py-2 px-3 text-xs text-gray-900 text-right font-medium">₱@payment.Amount.ToString("N2")</td>
+                                            <td class="py-2 px-3 text-xs text-gray-700">@(payment.ProcessedBy ?? "N/A")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
                     }
                     else
                     {
-                        <span>Process Payment</span>
+                        <p class="text-sm text-gray-500 text-center py-8">No payment history available.</p>
                     }
-                </button>
-            </div>
+                </div>
+            }
         </div>
     }
     else if (hasSearched && !studentFound)
@@ -380,6 +566,10 @@
     private string searchErrorMessage { get; set; } = "";
     private string enrollmentStatus { get; set; } = "";
     private bool isProcessingPayment { get; set; } = false;
+    private List<FeeBreakdown> feeBreakdown { get; set; } = new();
+    private string paymentType { get; set; } = "Downpayment";
+    private List<StudentPayment> paymentHistory { get; set; } = new();
+    private bool showPaymentHistory { get; set; } = false;
 
     private async Task SearchStudent()
     {
@@ -424,6 +614,13 @@
                 enrollmentStatus = paymentInfo.EnrollmentStatus;
                 paymentAmountRawInput = "";
                 isEditingPaymentAmount = false;
+                paymentType = "Downpayment";
+
+                // Load fee breakdown
+                await LoadFeeBreakdownAsync(paymentInfo.Student?.GradeLevel);
+
+                // Load payment history
+                await LoadPaymentHistoryAsync(paymentInfo.StudentId);
             }
         }
         catch (Exception ex)
@@ -681,7 +878,108 @@
         isEditingPaymentAmount = false;
         PaymentData.NewPaymentAmount = 0;
         PaymentData.PaymentMethod = "Cash";
+        paymentType = "Downpayment";
         StateHasChanged();
+    }
+
+    private void SetPaymentTypeDownpayment()
+    {
+        paymentType = "Downpayment";
+        // Auto-set amount to minimum downpayment if balance allows
+        if (PaymentData.Balance >= 1700m)
+        {
+            PaymentData.NewPaymentAmount = 1700m;
+            paymentAmountRawInput = "1700";
+        }
+        StateHasChanged();
+    }
+
+    private void SetPaymentTypeOtherFees()
+    {
+        paymentType = "Other Fees";
+        StateHasChanged();
+    }
+
+    private void SetPaymentTypePartial()
+    {
+        paymentType = "Partial Payment";
+        StateHasChanged();
+    }
+
+    private void SetPaymentTypeFull()
+    {
+        paymentType = "Full Payment";
+        // Auto-set amount to full balance
+        PaymentData.NewPaymentAmount = PaymentData.Balance;
+        paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
+            ? ((int)PaymentData.Balance).ToString() 
+            : PaymentData.Balance.ToString("0.##");
+        StateHasChanged();
+    }
+
+    private void TogglePaymentHistory()
+    {
+        showPaymentHistory = !showPaymentHistory;
+        StateHasChanged();
+    }
+
+    private async Task LoadFeeBreakdownAsync(string? gradeLevel)
+    {
+        try
+        {
+            feeBreakdown = new List<FeeBreakdown>();
+            
+            if (string.IsNullOrWhiteSpace(gradeLevel))
+            {
+                return;
+            }
+
+            // Get grade level ID
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var grade = gradeLevels.FirstOrDefault(g => g.GradeLevelName == gradeLevel);
+            
+            if (grade == null)
+            {
+                return;
+            }
+
+            // Get fee with breakdown
+            var fee = await FeeService.GetFeeByGradeLevelIdAsync(grade.GradeLevelId);
+            
+            if (fee != null && fee.Breakdowns != null)
+            {
+                feeBreakdown = fee.Breakdowns.OrderBy(b => b.BreakdownType).ThenBy(b => b.DisplayOrder).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading fee breakdown: {Message}", ex.Message);
+            feeBreakdown = new List<FeeBreakdown>();
+        }
+    }
+
+    private async Task LoadPaymentHistoryAsync(string studentId)
+    {
+        try
+        {
+            paymentHistory = await PaymentService.GetPaymentsByStudentIdAsync(studentId);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading payment history: {Message}", ex.Message);
+            paymentHistory = new List<StudentPayment>();
+        }
+    }
+
+    private string GetEnrollmentStatusColor()
+    {
+        return enrollmentStatus switch
+        {
+            "Fully Paid" => "text-green-600",
+            "Partially Paid" => "text-orange-600",
+            "For Payment" => "text-red-600",
+            _ => "text-gray-600"
+        };
     }
 
     private void OpenPaymentConfirmationModal()
@@ -753,6 +1051,12 @@
             PaymentData.Balance = updatedInfo.Balance;
             PaymentData.PaymentStatus = updatedInfo.PaymentStatus;
             enrollmentStatus = updatedInfo.EnrollmentStatus;
+
+            // Reload payment history
+            await LoadPaymentHistoryAsync(PaymentData.StudentId);
+
+            // Reload payment history
+            await LoadPaymentHistoryAsync(PaymentData.StudentId);
 
             // Prepare receipt data
             ReceiptData = new ReceiptDataModel
