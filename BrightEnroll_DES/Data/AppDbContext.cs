@@ -168,16 +168,13 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => new { e.StudentId, e.SubjectId, e.SectionId, e.GradingPeriod, e.SchoolYear });
             entity.HasIndex(e => new { e.StudentId, e.SubjectId, e.SectionId, e.GradingPeriod, e.SchoolYear }).IsUnique();
 
-            entity.Property(e => e.Quiz)
+            entity.Property(e => e.WrittenWork)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.Exam)
+            entity.Property(e => e.PerformanceTasks)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.Project)
-                  .HasColumnType("decimal(5,2)");
-
-            entity.Property(e => e.Participation)
+            entity.Property(e => e.QuarterlyAssessment)
                   .HasColumnType("decimal(5,2)");
 
             entity.Property(e => e.FinalGrade)
@@ -211,21 +208,17 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_GradeWeights");
             entity.HasIndex(e => e.SubjectId).IsUnique();
 
-            entity.Property(e => e.QuizWeight)
-                  .HasColumnType("decimal(5,2)")
-                  .HasDefaultValue(0.30m);
-
-            entity.Property(e => e.ExamWeight)
-                  .HasColumnType("decimal(5,2)")
-                  .HasDefaultValue(0.40m);
-
-            entity.Property(e => e.ProjectWeight)
+            entity.Property(e => e.WrittenWorkWeight)
                   .HasColumnType("decimal(5,2)")
                   .HasDefaultValue(0.20m);
 
-            entity.Property(e => e.ParticipationWeight)
+            entity.Property(e => e.PerformanceTasksWeight)
                   .HasColumnType("decimal(5,2)")
-                  .HasDefaultValue(0.10m);
+                  .HasDefaultValue(0.60m);
+
+            entity.Property(e => e.QuarterlyAssessmentWeight)
+                  .HasColumnType("decimal(5,2)")
+                  .HasDefaultValue(0.20m);
 
             entity.HasOne(w => w.Subject)
                   .WithMany()
@@ -243,28 +236,22 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.ChangedAt);
             entity.HasIndex(e => e.ChangedBy);
 
-            entity.Property(e => e.QuizOld)
+            entity.Property(e => e.WrittenWorkOld)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.QuizNew)
+            entity.Property(e => e.WrittenWorkNew)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.ExamOld)
+            entity.Property(e => e.PerformanceTasksOld)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.ExamNew)
+            entity.Property(e => e.PerformanceTasksNew)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.ProjectOld)
+            entity.Property(e => e.QuarterlyAssessmentOld)
                   .HasColumnType("decimal(5,2)");
 
-            entity.Property(e => e.ProjectNew)
-                  .HasColumnType("decimal(5,2)");
-
-            entity.Property(e => e.ParticipationOld)
-                  .HasColumnType("decimal(5,2)");
-
-            entity.Property(e => e.ParticipationNew)
+            entity.Property(e => e.QuarterlyAssessmentNew)
                   .HasColumnType("decimal(5,2)");
 
             entity.Property(e => e.FinalGradeOld)

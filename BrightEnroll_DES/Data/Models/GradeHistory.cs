@@ -31,29 +31,23 @@ public class GradeHistory
     [Column("section_id")]
     public int SectionId { get; set; }
 
-    [Column("quiz_old", TypeName = "decimal(5,2)")]
-    public decimal? QuizOld { get; set; }
+    [Column("written_work_old", TypeName = "decimal(5,2)")]
+    public decimal? WrittenWorkOld { get; set; }
 
-    [Column("quiz_new", TypeName = "decimal(5,2)")]
-    public decimal? QuizNew { get; set; }
+    [Column("written_work_new", TypeName = "decimal(5,2)")]
+    public decimal? WrittenWorkNew { get; set; }
 
-    [Column("exam_old", TypeName = "decimal(5,2)")]
-    public decimal? ExamOld { get; set; }
+    [Column("performance_tasks_old", TypeName = "decimal(5,2)")]
+    public decimal? PerformanceTasksOld { get; set; }
 
-    [Column("exam_new", TypeName = "decimal(5,2)")]
-    public decimal? ExamNew { get; set; }
+    [Column("performance_tasks_new", TypeName = "decimal(5,2)")]
+    public decimal? PerformanceTasksNew { get; set; }
 
-    [Column("project_old", TypeName = "decimal(5,2)")]
-    public decimal? ProjectOld { get; set; }
+    [Column("quarterly_assessment_old", TypeName = "decimal(5,2)")]
+    public decimal? QuarterlyAssessmentOld { get; set; }
 
-    [Column("project_new", TypeName = "decimal(5,2)")]
-    public decimal? ProjectNew { get; set; }
-
-    [Column("participation_old", TypeName = "decimal(5,2)")]
-    public decimal? ParticipationOld { get; set; }
-
-    [Column("participation_new", TypeName = "decimal(5,2)")]
-    public decimal? ParticipationNew { get; set; }
+    [Column("quarterly_assessment_new", TypeName = "decimal(5,2)")]
+    public decimal? QuarterlyAssessmentNew { get; set; }
 
     [Column("final_grade_old", TypeName = "decimal(5,2)")]
     public decimal? FinalGradeOld { get; set; }

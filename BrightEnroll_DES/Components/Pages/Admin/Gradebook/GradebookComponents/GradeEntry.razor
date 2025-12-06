@@ -2,24 +2,16 @@
 @using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
 @inject GradeService GradeService
 @inject TeacherService TeacherService
 @inject IAuthService AuthService
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
+
 <div class="p-6">
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-            @errorMessage
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(successMessage))
-    {
-        <div class="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
-            @successMessage
-        </div>
-    }
 
     <!-- Class Selection -->
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -77,11 +69,10 @@
                     <tr>
                         <th class="px-4 py-3 text-left">Student ID</th>
                         <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-center">Quiz (@(GetQuizWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Exam (@(GetExamWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Project (@(GetProjectWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Participation (@(GetParticipationWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Final Grade</th>
+                        <th class="px-4 py-3 text-center">Written Work (@(GetWrittenWorkWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Performance Tasks (@(GetPerformanceTasksWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Quarterly Assessment (@(GetQuarterlyAssessmentWeightDisplay()))</th>
+                        <th class="px-4 py-3 text-center">Quarterly Grade</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
@@ -92,36 +83,29 @@
                             <td class="px-4 py-3">@student.Name</td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.Quiz?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Quiz), e))"
-                                       min="0" max="100" step="0.01"
+                                       value="@(student.WrittenWork?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.WrittenWork), e))"
+                                       min="0" max="100" step="0.01" required
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.Exam?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Exam), e))"
-                                       min="0" max="100" step="0.01"
+                                       value="@(student.PerformanceTasks?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.PerformanceTasks), e))"
+                                       min="0" max="100" step="0.01" required
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.Project?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Project), e))"
-                                       min="0" max="100" step="0.01"
-                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
-                            </td>
-                            <td class="px-4 py-3">
-                                <input type="number" 
-                                       value="@(student.Participation?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.Participation), e))"
-                                       min="0" max="100" step="0.01"
+                                       value="@(student.QuarterlyAssessment?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.QuarterlyAssessment), e))"
+                                       min="0" max="100" step="0.01" required
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3 text-center font-semibold">
-                                @if (student.Quiz.HasValue || student.Exam.HasValue || student.Project.HasValue || student.Participation.HasValue)
+                                @if (student.WrittenWork.HasValue && student.PerformanceTasks.HasValue && student.QuarterlyAssessment.HasValue)
                                 {
-                                    @student.FinalGrade.ToString("F2")
+                                    @student.QuarterlyGrade.ToString("F2")
                                 }
                                 else
                                 {
@@ -136,11 +120,6 @@
 
         <!-- Action Buttons -->
         <div class="flex justify-end gap-3">
-            <button @onclick="ComputeGrades" 
-                    disabled="@isLoading"
-                    class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                Compute Grades
-            </button>
             <button @onclick="SaveGrades" 
                     disabled="@isLoading"
                     class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
@@ -173,30 +152,29 @@
     private List<Subject> availableSubjects = new();
     private List<string> availableSchoolYears = new();
     private int teacherId = 0;
-    private string errorMessage = "";
-    private string successMessage = "";
     private bool isLoading = false;
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
 
     private class GradeStudent
     {
         public string StudentId { get; set; } = "";
         public string Name { get; set; } = "";
-        public decimal? Quiz { get; set; }
-        public decimal? Exam { get; set; }
-        public decimal? Project { get; set; }
-        public decimal? Participation { get; set; }
+        public decimal? WrittenWork { get; set; }
+        public decimal? PerformanceTasks { get; set; }
+        public decimal? QuarterlyAssessment { get; set; }
         
-        // Weights will be set from GradeService
-        public decimal QuizWeight { get; set; } = 0.30m;
-        public decimal ExamWeight { get; set; } = 0.40m;
-        public decimal ProjectWeight { get; set; } = 0.20m;
-        public decimal ParticipationWeight { get; set; } = 0.10m;
+        // DepEd standard weights: WW 20%, PT 60%, QA 20%
+        public decimal WrittenWorkWeight { get; set; } = 0.20m;
+        public decimal PerformanceTasksWeight { get; set; } = 0.60m;
+        public decimal QuarterlyAssessmentWeight { get; set; } = 0.20m;
         
-        public decimal FinalGrade => 
-            (Quiz ?? 0) * QuizWeight + 
-            (Exam ?? 0) * ExamWeight + 
-            (Project ?? 0) * ProjectWeight + 
-            (Participation ?? 0) * ParticipationWeight;
+        // DepEd Formula: Quarterly Grade = (WW × 20%) + (PT × 60%) + (QA × 20%)
+        public decimal QuarterlyGrade => 
+            (WrittenWork ?? 0) * WrittenWorkWeight + 
+            (PerformanceTasks ?? 0) * PerformanceTasksWeight + 
+            (QuarterlyAssessment ?? 0) * QuarterlyAssessmentWeight;
     }
 
     protected override async Task OnInitializedAsync()
@@ -204,7 +182,7 @@
         var currentUser = AuthService.CurrentUser;
         if (currentUser == null)
         {
-            errorMessage = "You must be logged in to access the gradebook.";
+            ShowToast("You must be logged in to access the gradebook.", ToastType.Error);
             return;
         }
 
@@ -235,7 +213,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error initializing gradebook: {ex.Message}";
+            ShowToast($"Error initializing gradebook: {ex.Message}", ToastType.Error);
         }
         finally
         {
@@ -258,14 +236,12 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading assigned sections: {ex.Message}";
+            ShowToast($"Error loading assigned sections: {ex.Message}", ToastType.Error);
         }
     }
 
     private async Task OnSchoolYearChanged()
     {
-        errorMessage = "";
-        successMessage = "";
         selectedSectionId = 0;
         selectedSubjectId = 0;
         availableSections.Clear();
@@ -277,9 +253,6 @@
 
     private async Task OnSelectionChanged()
     {
-        errorMessage = "";
-        successMessage = "";
-        
         if (selectedSectionId > 0)
         {
             // Load subjects for the selected section
@@ -313,7 +286,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading assigned subjects: {ex.Message}";
+            ShowToast($"Error loading assigned subjects: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -325,7 +298,6 @@
         try
         {
             isLoading = true;
-            errorMessage = "";
             StateHasChanged();
 
             // Get grade weights for this subject
@@ -349,20 +321,18 @@
                 {
                     StudentId = s.StudentId,
                     Name = s.Name,
-                    Quiz = existingGrade?.Quiz,
-                    Exam = existingGrade?.Exam,
-                    Project = existingGrade?.Project,
-                    Participation = existingGrade?.Participation,
-                    QuizWeight = weights.QuizWeight,
-                    ExamWeight = weights.ExamWeight,
-                    ProjectWeight = weights.ProjectWeight,
-                    ParticipationWeight = weights.ParticipationWeight
+                    WrittenWork = existingGrade?.WrittenWork,
+                    PerformanceTasks = existingGrade?.PerformanceTasks,
+                    QuarterlyAssessment = existingGrade?.QuarterlyAssessment,
+                    WrittenWorkWeight = weights.WrittenWorkWeight,
+                    PerformanceTasksWeight = weights.PerformanceTasksWeight,
+                    QuarterlyAssessmentWeight = weights.QuarterlyAssessmentWeight
                 };
             }).ToList();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading students: {ex.Message}";
+            ShowToast($"Error loading students: {ex.Message}", ToastType.Error);
             students.Clear();
         }
         finally
@@ -384,26 +354,17 @@
 
         switch (propertyName)
         {
-            case nameof(GradeStudent.Quiz):
-                student.Quiz = parsedValue;
+            case nameof(GradeStudent.WrittenWork):
+                student.WrittenWork = parsedValue;
                 break;
-            case nameof(GradeStudent.Exam):
-                student.Exam = parsedValue;
+            case nameof(GradeStudent.PerformanceTasks):
+                student.PerformanceTasks = parsedValue;
                 break;
-            case nameof(GradeStudent.Project):
-                student.Project = parsedValue;
-                break;
-            case nameof(GradeStudent.Participation):
-                student.Participation = parsedValue;
+            case nameof(GradeStudent.QuarterlyAssessment):
+                student.QuarterlyAssessment = parsedValue;
                 break;
         }
 
-        StateHasChanged();
-    }
-
-    private void ComputeGrades()
-    {
-        // Grades are computed automatically via FinalGrade property
         StateHasChanged();
     }
 
@@ -411,22 +372,20 @@
     {
         if (selectedSectionId <= 0 || selectedSubjectId <= 0)
         {
-            errorMessage = "Please select a section and subject.";
+            ShowToast("Please select a section and subject.", ToastType.Error);
             return;
         }
 
         var currentUser = AuthService.CurrentUser;
         if (currentUser == null)
         {
-            errorMessage = "You must be logged in to save grades.";
+            ShowToast("You must be logged in to save grades.", ToastType.Error);
             return;
         }
 
         try
         {
             isLoading = true;
-            errorMessage = "";
-            successMessage = "";
             StateHasChanged();
 
             // Prepare grade inputs
@@ -437,11 +396,10 @@
                 SectionId = selectedSectionId,
                 SchoolYear = selectedSchoolYear,
                 GradingPeriod = selectedPeriod,
-                Quiz = s.Quiz,
-                Exam = s.Exam,
-                Project = s.Project,
-                Participation = s.Participation,
-                FinalGrade = s.FinalGrade
+                WrittenWork = s.WrittenWork,
+                PerformanceTasks = s.PerformanceTasks,
+                QuarterlyAssessment = s.QuarterlyAssessment,
+                FinalGrade = s.QuarterlyGrade > 0 ? s.QuarterlyGrade : null
             }).ToList();
 
             // Save grades
@@ -449,16 +407,16 @@
 
             if (result)
             {
-                successMessage = $"Successfully saved grades for {students.Count} student(s).";
+                ShowToast($"Successfully saved grades for {students.Count} student(s).", ToastType.Success);
             }
             else
             {
-                errorMessage = "Failed to save grades. Please try again.";
+                ShowToast("Failed to save grades. Please try again.", ToastType.Error);
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error saving grades: {ex.Message}";
+            ShowToast($"Error saving grades: {ex.Message}", ToastType.Error);
         }
         finally
         {
@@ -467,24 +425,33 @@
         }
     }
 
-    private string GetQuizWeightDisplay()
+    private void ShowToast(string message, ToastType type)
     {
-        return students.FirstOrDefault()?.QuizWeight.ToString("P0") ?? "30%";
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
     }
 
-    private string GetExamWeightDisplay()
+    private void CloseToast()
     {
-        return students.FirstOrDefault()?.ExamWeight.ToString("P0") ?? "40%";
+        showToast = false;
+        StateHasChanged();
     }
 
-    private string GetProjectWeightDisplay()
+    private string GetWrittenWorkWeightDisplay()
     {
-        return students.FirstOrDefault()?.ProjectWeight.ToString("P0") ?? "20%";
+        return students.FirstOrDefault()?.WrittenWorkWeight.ToString("P0") ?? "20%";
     }
 
-    private string GetParticipationWeightDisplay()
+    private string GetPerformanceTasksWeightDisplay()
     {
-        return students.FirstOrDefault()?.ParticipationWeight.ToString("P0") ?? "10%";
+        return students.FirstOrDefault()?.PerformanceTasksWeight.ToString("P0") ?? "60%";
+    }
+
+    private string GetQuarterlyAssessmentWeightDisplay()
+    {
+        return students.FirstOrDefault()?.QuarterlyAssessmentWeight.ToString("P0") ?? "20%";
     }
 }
 

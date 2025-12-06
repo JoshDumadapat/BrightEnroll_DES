@@ -65,25 +65,26 @@
                     <th class="px-4 py-3 text-left">Student ID</th>
                     <th class="px-4 py-3 text-left">Name</th>
                     <th class="px-4 py-3 text-left">Section</th>
+                    <th class="px-4 py-3 text-left">Subject</th>
                     <th class="px-4 py-3 text-center">Q1</th>
                     <th class="px-4 py-3 text-center">Q2</th>
                     <th class="px-4 py-3 text-center">Q3</th>
                     <th class="px-4 py-3 text-center">Q4</th>
                     <th class="px-4 py-3 text-center">Final</th>
-                    <th class="px-4 py-3 text-center">Actions</th>
+                    <th class="px-4 py-3 text-center">Remarks</th>
                 </tr>
             </thead>
             <tbody class="divide-y">
                 @if (isLoading)
                 {
                     <tr>
-                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">Loading grade records...</td>
+                        <td colspan="10" class="px-4 py-8 text-center text-gray-500">Loading grade records...</td>
                     </tr>
                 }
                 else if (!gradeRecords.Any())
                 {
                     <tr>
-                        <td colspan="9" class="px-4 py-8 text-center text-gray-500">No grade records found.</td>
+                        <td colspan="10" class="px-4 py-8 text-center text-gray-500">No grade records found.</td>
                     </tr>
                 }
                 else
@@ -94,20 +95,29 @@
                             <td class="px-4 py-3">@record.StudentId</td>
                             <td class="px-4 py-3">@record.Name</td>
                             <td class="px-4 py-3">@record.Section</td>
+                            <td class="px-4 py-3 font-medium">@record.Subject</td>
                             <td class="px-4 py-3 text-center font-semibold">@(record.Q1 > 0 ? record.Q1.ToString("F2") : "-")</td>
                             <td class="px-4 py-3 text-center font-semibold">@(record.Q2 > 0 ? record.Q2.ToString("F2") : "-")</td>
                             <td class="px-4 py-3 text-center font-semibold">@(record.Q3 > 0 ? record.Q3.ToString("F2") : "-")</td>
                             <td class="px-4 py-3 text-center font-semibold">@(record.Q4 > 0 ? record.Q4.ToString("F2") : "-")</td>
                             <td class="px-4 py-3 text-center font-bold text-blue-600">@(record.Final > 0 ? record.Final.ToString("F2") : "-")</td>
-                            <td class="flex items-center justify-center gap-2 px-4 py-3">
-                                <button @onclick="() => ViewGradeHistory(record)" 
-                                        class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                    View History
-                                </button>
+                            <td class="px-4 py-3 text-center">
+                                @if (record.Remarks == "Incomplete" || record.Remarks == "No Grade")
+                                {
+                                    <span class="rounded-md bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@record.Remarks</span>
+                                }
+                                else if (record.Remarks == "Outstanding" || record.Remarks == "Very Satisfactory")
+                                {
+                                    <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@record.Remarks</span>
+                                }
+                                else if (record.Remarks == "Did Not Meet Expectations")
+                                {
+                                    <span class="rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-700">@record.Remarks</span>
+                                }
+                                else
+                                {
+                                    <span class="rounded-md bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">@record.Remarks</span>
+                                }
                             </td>
                         </tr>
                     }
@@ -170,17 +180,20 @@
             // Load assigned sections
             availableSections = await TeacherService.GetAssignedSectionsForGradeEntryAsync(teacherId, selectedSchoolYear);
 
-            // Load assigned subjects
-            var assignments = await TeacherService.GetAssignedSectionsAsync(teacherId, selectedSchoolYear);
-            var subjectIds = assignments
-                .SelectMany(a => a.Subjects)
-                .Distinct()
+            // Load assigned subjects - get unique subjects from all assigned sections
+            var allSubjects = new List<Subject>();
+            foreach (var section in availableSections)
+            {
+                var sectionSubjects = await TeacherService.GetAssignedSubjectsForGradeEntryAsync(teacherId, section.SectionId);
+                allSubjects.AddRange(sectionSubjects);
+            }
+            
+            // Get unique subjects
+            availableSubjects = allSubjects
+                .GroupBy(s => s.SubjectId)
+                .Select(g => g.First())
+                .OrderBy(s => s.SubjectName)
                 .ToList();
-
-            // Get subject details
-            // Note: We need to get subject names from assignments or use a different approach
-            // For now, we'll load all subjects and filter in the service
-            availableSubjects.Clear();
         }
         catch (Exception ex)
         {
@@ -229,13 +242,6 @@
         {
             await LoadGradeRecordsAsync();
         }
-    }
-
-    private void ViewGradeHistory(GradeRecordDto record)
-    {
-        // TODO: Implement grade history modal/view
-        // For now, just show an alert
-        // You can create a modal component similar to StudentRecordViewModal
     }
 }
 

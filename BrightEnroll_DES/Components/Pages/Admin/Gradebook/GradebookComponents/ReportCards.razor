@@ -2,23 +2,19 @@
 @using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.QuestPDF
+@using Microsoft.JSInterop
 @inject GradeService GradeService
 @inject TeacherService TeacherService
 @inject IAuthService AuthService
+@inject ReportCardPdfGenerator PdfGenerator
+@inject IJSRuntime JSRuntime
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
 
 <div class="p-6">
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <div class="mb-4 rounded-lg bg-red-50 p-4 text-red-700">
-            @errorMessage
-        </div>
-    }
-    @if (!string.IsNullOrEmpty(successMessage))
-    {
-        <div class="mb-4 rounded-lg bg-green-50 p-4 text-green-700">
-            @successMessage
-        </div>
-    }
 
     <!-- Report Card Generation -->
     <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -98,8 +94,16 @@
                             <td class="px-4 py-3">@card.Section</td>
                             <td class="px-4 py-3 text-center">@card.SchoolYear</td>
                             <td class="px-4 py-3 text-center">
-                                <div class="font-bold text-blue-600">@card.TransmutedGrade.ToString("F2")</div>
-                                <div class="text-xs text-gray-500">@card.DescriptiveRating</div>
+                                @if (card.GeneralAverage > 0)
+                                {
+                                    <div class="font-bold text-blue-600">@card.TransmutedGrade.ToString("F2")</div>
+                                    <div class="text-xs text-gray-500">@card.DescriptiveRating</div>
+                                }
+                                else
+                                {
+                                    <div class="font-bold text-gray-400">-</div>
+                                    <div class="text-xs text-gray-500">@card.DescriptiveRating</div>
+                                }
                             </td>
                             <td class="flex items-center justify-center gap-2 px-4 py-3">
                                 <button @onclick="() => DownloadReportCard(card)" 
@@ -125,16 +129,17 @@
     private string selectedSchoolYear = "";
     private int selectedSectionId = 0;
     private int teacherId = 0;
-    private string errorMessage = "";
-    private string successMessage = "";
     private bool isLoading = false;
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
 
     protected override async Task OnInitializedAsync()
     {
         var currentUser = AuthService.CurrentUser;
         if (currentUser == null)
         {
-            errorMessage = "You must be logged in to view report cards.";
+            ShowToast("You must be logged in to view report cards.", ToastType.Error);
             return;
         }
 
@@ -164,7 +169,7 @@
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error loading sections: {ex.Message}";
+            ShowToast($"Error loading sections: {ex.Message}", ToastType.Error);
         }
     }
 
@@ -178,31 +183,29 @@
     {
         if (selectedSectionId == 0)
         {
-            errorMessage = "Please select a section.";
+            ShowToast("Please select a section.", ToastType.Error);
             return;
         }
 
         try
         {
             isLoading = true;
-            errorMessage = "";
-            successMessage = "";
             StateHasChanged();
 
             reportCards = await GradeService.GetReportCardsAsync(selectedSectionId, selectedSchoolYear);
 
             if (reportCards.Any())
             {
-                successMessage = $"Successfully generated {reportCards.Count} report card(s).";
+                ShowToast($"Successfully generated {reportCards.Count} report card(s).", ToastType.Success);
             }
             else
             {
-                errorMessage = "No grades found for this section. Please ensure grades have been entered.";
+                ShowToast("No grades found for this section. Please ensure grades have been entered.", ToastType.Error);
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Error generating report cards: {ex.Message}";
+            ShowToast($"Error generating report cards: {ex.Message}", ToastType.Error);
             reportCards.Clear();
         }
         finally
@@ -212,19 +215,51 @@
         }
     }
 
-    private void DownloadReportCard(ReportCardDto card)
+    private async Task DownloadReportCard(ReportCardDto card)
     {
-        // TODO: Implement PDF generation
-        // For now, show an alert
-        // You can use a library like QuestPDF or iTextSharp for PDF generation
-        // This would generate a DepEd-compliant report card with:
-        // - Student information
-        // - All subject grades (Q1-Q4, Final)
-        // - Transmuted grades
-        // - Descriptive ratings
-        // - General average
-        // - School information and signatures
-        errorMessage = "PDF generation feature will be implemented soon.";
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            var section = availableSections.FirstOrDefault(s => s.SectionName == card.Section);
+            if (section == null)
+            {
+                ShowToast("Section not found.", ToastType.Error);
+                return;
+            }
+
+            var pdfBytes = await PdfGenerator.GenerateReportCardAsync(card.StudentId, section.SectionId, card.SchoolYear);
+            
+            var fileName = $"ReportCard_{card.StudentId}_{card.SchoolYear.Replace("-", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+            
+            ShowToast("Report card PDF generated successfully.", ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error generating report card PDF: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
         StateHasChanged();
     }
 }

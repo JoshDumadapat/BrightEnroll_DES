@@ -5,7 +5,7 @@ namespace BrightEnroll_DES.Data.Models;
 
 /// <summary>
 /// Stores student grades for subjects by grading period.
-/// Teachers can input component grades (Quiz, Exam, Project, Participation) and final grades.
+/// Teachers can input component grades (Written Work, Performance Tasks, Quarterly Assessment) per DepEd standards.
 /// </summary>
 [Table("tbl_Grades")]
 public class Grade
@@ -38,17 +38,14 @@ public class Grade
     [Column("grading_period")]
     public string GradingPeriod { get; set; } = string.Empty; // Q1, Q2, Q3, Q4
 
-    [Column("quiz", TypeName = "decimal(5,2)")]
-    public decimal? Quiz { get; set; }
+    [Column("written_work", TypeName = "decimal(5,2)")]
+    public decimal? WrittenWork { get; set; }
 
-    [Column("exam", TypeName = "decimal(5,2)")]
-    public decimal? Exam { get; set; }
+    [Column("performance_tasks", TypeName = "decimal(5,2)")]
+    public decimal? PerformanceTasks { get; set; }
 
-    [Column("project", TypeName = "decimal(5,2)")]
-    public decimal? Project { get; set; }
-
-    [Column("participation", TypeName = "decimal(5,2)")]
-    public decimal? Participation { get; set; }
+    [Column("quarterly_assessment", TypeName = "decimal(5,2)")]
+    public decimal? QuarterlyAssessment { get; set; }
 
     [Column("final_grade", TypeName = "decimal(5,2)")]
     public decimal? FinalGrade { get; set; }

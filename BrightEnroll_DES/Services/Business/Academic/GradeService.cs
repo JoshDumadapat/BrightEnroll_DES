@@ -123,10 +123,9 @@ public class GradeService
                             [section_id] INT NOT NULL,
                             [school_year] VARCHAR(20) NOT NULL,
                             [grading_period] VARCHAR(10) NOT NULL,
-                            [quiz] DECIMAL(5,2) NULL,
-                            [exam] DECIMAL(5,2) NULL,
-                            [project] DECIMAL(5,2) NULL,
-                            [participation] DECIMAL(5,2) NULL,
+                            [written_work] DECIMAL(5,2) NULL,
+                            [performance_tasks] DECIMAL(5,2) NULL,
+                            [quarterly_assessment] DECIMAL(5,2) NULL,
                             [final_grade] DECIMAL(5,2) NULL,
                             [teacher_id] INT NOT NULL,
                             [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
@@ -298,24 +297,26 @@ public class GradeService
                 }
             }
 
-            // Validate grade ranges
+            // Validate grade ranges and required components (DepEd requirement: all three components must be entered)
             foreach (var input in gradeInputs)
             {
-                if (input.Quiz.HasValue && (input.Quiz < 0 || input.Quiz > 100))
+                // Validate all three components are present (DepEd requirement)
+                if (!input.WrittenWork.HasValue || !input.PerformanceTasks.HasValue || !input.QuarterlyAssessment.HasValue)
                 {
-                    throw new ArgumentException($"Quiz grade must be between 0 and 100. Student: {input.StudentId}");
+                    throw new ArgumentException($"All grade components (Written Work, Performance Tasks, Quarterly Assessment) must be entered. Student: {input.StudentId}");
                 }
-                if (input.Exam.HasValue && (input.Exam < 0 || input.Exam > 100))
+
+                if (input.WrittenWork.HasValue && (input.WrittenWork < 0 || input.WrittenWork > 100))
                 {
-                    throw new ArgumentException($"Exam grade must be between 0 and 100. Student: {input.StudentId}");
+                    throw new ArgumentException($"Written Work grade must be between 0 and 100. Student: {input.StudentId}");
                 }
-                if (input.Project.HasValue && (input.Project < 0 || input.Project > 100))
+                if (input.PerformanceTasks.HasValue && (input.PerformanceTasks < 0 || input.PerformanceTasks > 100))
                 {
-                    throw new ArgumentException($"Project grade must be between 0 and 100. Student: {input.StudentId}");
+                    throw new ArgumentException($"Performance Tasks grade must be between 0 and 100. Student: {input.StudentId}");
                 }
-                if (input.Participation.HasValue && (input.Participation < 0 || input.Participation > 100))
+                if (input.QuarterlyAssessment.HasValue && (input.QuarterlyAssessment < 0 || input.QuarterlyAssessment > 100))
                 {
-                    throw new ArgumentException($"Participation grade must be between 0 and 100. Student: {input.StudentId}");
+                    throw new ArgumentException($"Quarterly Assessment grade must be between 0 and 100. Student: {input.StudentId}");
                 }
                 if (input.FinalGrade.HasValue && (input.FinalGrade < 0 || input.FinalGrade > 100))
                 {
@@ -339,6 +340,17 @@ public class GradeService
             {
                 foreach (var input in gradeInputs)
                 {
+                    // Calculate quarterly grade using DepEd formula if not provided
+                    decimal? computedFinalGrade = input.FinalGrade;
+                    if (!computedFinalGrade.HasValue && input.WrittenWork.HasValue && 
+                        input.PerformanceTasks.HasValue && input.QuarterlyAssessment.HasValue)
+                    {
+                        computedFinalGrade = CalculateQuarterlyGrade(
+                            input.WrittenWork, 
+                            input.PerformanceTasks, 
+                            input.QuarterlyAssessment);
+                    }
+
                     // Check if grade already exists
                     var existingGrade = await _context.Grades
                         .FirstOrDefaultAsync(g => g.StudentId == input.StudentId
@@ -353,11 +365,10 @@ public class GradeService
                         await CreateGradeHistoryAsync(existingGrade, input, teacherId, "Grade updated");
 
                         // Update existing grade
-                        existingGrade.Quiz = input.Quiz;
-                        existingGrade.Exam = input.Exam;
-                        existingGrade.Project = input.Project;
-                        existingGrade.Participation = input.Participation;
-                        existingGrade.FinalGrade = input.FinalGrade;
+                        existingGrade.WrittenWork = input.WrittenWork;
+                        existingGrade.PerformanceTasks = input.PerformanceTasks;
+                        existingGrade.QuarterlyAssessment = input.QuarterlyAssessment;
+                        existingGrade.FinalGrade = computedFinalGrade;
                         existingGrade.TeacherId = teacherId;
                         existingGrade.UpdatedAt = DateTime.Now;
 
@@ -373,11 +384,10 @@ public class GradeService
                             SectionId = input.SectionId,
                             SchoolYear = input.SchoolYear,
                             GradingPeriod = input.GradingPeriod,
-                            Quiz = input.Quiz,
-                            Exam = input.Exam,
-                            Project = input.Project,
-                            Participation = input.Participation,
-                            FinalGrade = input.FinalGrade,
+                            WrittenWork = input.WrittenWork,
+                            PerformanceTasks = input.PerformanceTasks,
+                            QuarterlyAssessment = input.QuarterlyAssessment,
+                            FinalGrade = computedFinalGrade,
                             TeacherId = teacherId,
                             CreatedAt = DateTime.Now
                         };
@@ -531,6 +541,40 @@ public class GradeService
                     var q3Grade = g.FirstOrDefault(x => x.GradingPeriod == "Q3");
                     var q4Grade = g.FirstOrDefault(x => x.GradingPeriod == "Q4");
 
+                    var q1 = q1Grade?.FinalGrade ?? 0;
+                    var q2 = q2Grade?.FinalGrade ?? 0;
+                    var q3 = q3Grade?.FinalGrade ?? 0;
+                    var q4 = q4Grade?.FinalGrade ?? 0;
+                    var final = CalculateFinalGrade(
+                        q1Grade?.FinalGrade,
+                        q2Grade?.FinalGrade,
+                        q3Grade?.FinalGrade,
+                        q4Grade?.FinalGrade);
+
+                    // Determine remarks based on completeness and grade
+                    string remarks;
+                    var quartersWithGrades = new List<decimal>();
+                    if (q1 > 0) quartersWithGrades.Add(q1);
+                    if (q2 > 0) quartersWithGrades.Add(q2);
+                    if (q3 > 0) quartersWithGrades.Add(q3);
+                    if (q4 > 0) quartersWithGrades.Add(q4);
+
+                    if (!quartersWithGrades.Any())
+                    {
+                        remarks = "No Grade";
+                    }
+                    else if (quartersWithGrades.Count < 4)
+                    {
+                        // Incomplete - not all quarters have grades
+                        remarks = "Incomplete";
+                    }
+                    else
+                    {
+                        // All quarters present - calculate descriptive rating
+                        var transmutedGrade = GetTransmutedGrade(final);
+                        remarks = GetDescriptiveRating(transmutedGrade);
+                    }
+
                     return new GradeRecordDto
                     {
                         StudentId = g.Key.StudentId,
@@ -539,20 +583,21 @@ public class GradeService
                             : g.Key.StudentId,
                         Section = firstGrade.Section?.SectionName ?? "",
                         Subject = firstGrade.Subject?.SubjectName ?? "",
-                        Q1 = q1Grade?.FinalGrade ?? 0,
-                        Q2 = q2Grade?.FinalGrade ?? 0,
-                        Q3 = q3Grade?.FinalGrade ?? 0,
-                        Q4 = q4Grade?.FinalGrade ?? 0,
-                        Final = CalculateFinalGrade(
-                            q1Grade?.FinalGrade,
-                            q2Grade?.FinalGrade,
-                            q3Grade?.FinalGrade,
-                            q4Grade?.FinalGrade)
+                        Q1 = q1,
+                        Q2 = q2,
+                        Q3 = q3,
+                        Q4 = q4,
+                        Final = final,
+                        Remarks = remarks
                     };
                 })
                 .ToList();
 
-            return groupedGrades.OrderBy(g => g.Name).ToList();
+            // Sort by Subject first, then by Name to group subjects together and reduce visual redundancy
+            return groupedGrades
+                .OrderBy(g => g.Subject)
+                .ThenBy(g => g.Name)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -562,7 +607,7 @@ public class GradeService
     }
 
     /// <summary>
-    /// Gets grade weights for a subject, or returns defaults if not configured
+    /// Gets grade weights for a subject, or returns DepEd defaults if not configured
     /// </summary>
     public async Task<GradeWeightDto> GetGradeWeightsAsync(int subjectId)
     {
@@ -576,34 +621,31 @@ public class GradeService
                 return new GradeWeightDto
                 {
                     SubjectId = weight.SubjectId,
-                    QuizWeight = weight.QuizWeight,
-                    ExamWeight = weight.ExamWeight,
-                    ProjectWeight = weight.ProjectWeight,
-                    ParticipationWeight = weight.ParticipationWeight
+                    WrittenWorkWeight = weight.WrittenWorkWeight,
+                    PerformanceTasksWeight = weight.PerformanceTasksWeight,
+                    QuarterlyAssessmentWeight = weight.QuarterlyAssessmentWeight
                 };
             }
 
-            // Return defaults
+            // Return DepEd standard defaults
             return new GradeWeightDto
             {
                 SubjectId = subjectId,
-                QuizWeight = 0.30m,
-                ExamWeight = 0.40m,
-                ProjectWeight = 0.20m,
-                ParticipationWeight = 0.10m
+                WrittenWorkWeight = 0.20m,
+                PerformanceTasksWeight = 0.60m,
+                QuarterlyAssessmentWeight = 0.20m
             };
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error getting grade weights: {Message}", ex.Message);
-            // Return defaults on error
+            // Return DepEd standard defaults on error
             return new GradeWeightDto
             {
                 SubjectId = subjectId,
-                QuizWeight = 0.30m,
-                ExamWeight = 0.40m,
-                ProjectWeight = 0.20m,
-                ParticipationWeight = 0.10m
+                WrittenWorkWeight = 0.20m,
+                PerformanceTasksWeight = 0.60m,
+                QuarterlyAssessmentWeight = 0.20m
             };
         }
     }
@@ -630,6 +672,7 @@ public class GradeService
 
     /// <summary>
     /// Gets DepEd transmuted grade from raw grade
+    /// Minimum passing grade: 60 (transmuted to 75 on report card)
     /// </summary>
     public decimal GetTransmutedGrade(decimal rawGrade)
     {
@@ -642,11 +685,10 @@ public class GradeService
         if (rawGrade >= 71.00m && rawGrade <= 75.99m) return 75.00m;
         if (rawGrade >= 66.00m && rawGrade <= 70.99m) return 70.00m;
         if (rawGrade >= 61.00m && rawGrade <= 65.99m) return 65.00m;
-        if (rawGrade >= 56.00m && rawGrade <= 60.99m) return 60.00m;
-        if (rawGrade >= 51.00m && rawGrade <= 55.99m) return 55.00m;
-        if (rawGrade >= 46.00m && rawGrade <= 50.99m) return 50.00m;
-        if (rawGrade >= 0.00m && rawGrade <= 45.99m) return 50.00m;
-        return 50.00m; // Default minimum
+        if (rawGrade >= 60.00m && rawGrade <= 60.99m) return 60.00m;
+        // Minimum passing grade: 60 (transmuted to 75 on report card)
+        if (rawGrade >= 0.00m && rawGrade < 60.00m) return 75.00m;
+        return 75.00m; // Default minimum (DepEd standard: minimum passing is 60, transmuted to 75)
     }
 
     /// <summary>
@@ -664,6 +706,10 @@ public class GradeService
 
     /// <summary>
     /// Calculates general average for a student across all subjects
+    /// DepEd Formula:
+    /// 1. For each subject: Final Grade = Average of Q1, Q2, Q3, Q4 (all 4 quarters must be complete)
+    /// 2. General Average = Average of all subject final grades
+    /// Note: Only subjects with all 4 quarters complete are included in the general average
     /// </summary>
     public async Task<decimal> CalculateGeneralAverageAsync(string studentId, int sectionId, string schoolYear)
     {
@@ -678,19 +724,26 @@ public class GradeService
                 .ToListAsync();
 
             // Group by subject and calculate final grade per subject
+            // Each subject's FinalGrade field contains the quarterly grade (computed from WW×20% + PT×60% + QA×20%)
             var subjectAverages = grades
                 .GroupBy(g => g.SubjectId)
-                .Select(g => CalculateFinalGrade(
-                    g.FirstOrDefault(x => x.GradingPeriod == "Q1")?.FinalGrade,
-                    g.FirstOrDefault(x => x.GradingPeriod == "Q2")?.FinalGrade,
-                    g.FirstOrDefault(x => x.GradingPeriod == "Q3")?.FinalGrade,
-                    g.FirstOrDefault(x => x.GradingPeriod == "Q4")?.FinalGrade))
-                .Where(avg => avg > 0)
+                .Select(g => 
+                {
+                    var q1 = g.FirstOrDefault(x => x.GradingPeriod == "Q1")?.FinalGrade;
+                    var q2 = g.FirstOrDefault(x => x.GradingPeriod == "Q2")?.FinalGrade;
+                    var q3 = g.FirstOrDefault(x => x.GradingPeriod == "Q3")?.FinalGrade;
+                    var q4 = g.FirstOrDefault(x => x.GradingPeriod == "Q4")?.FinalGrade;
+                    
+                    // Calculate subject final grade (average of Q1-Q4, requires all 4 quarters)
+                    return CalculateFinalGrade(q1, q2, q3, q4);
+                })
+                .Where(avg => avg > 0) // Only include subjects with all 4 quarters complete
                 .ToList();
 
             if (!subjectAverages.Any())
                 return 0;
 
+            // General Average = Average of all subject final grades
             return subjectAverages.Average();
         }
         catch (Exception ex)
@@ -707,6 +760,8 @@ public class GradeService
     {
         try
         {
+            await EnsureGradesTableExistsAsync();
+
             var enrollments = await _context.StudentSectionEnrollments
                 .Where(e => e.SectionId == sectionId 
                          && e.SchoolYear == schoolYear 
@@ -718,9 +773,71 @@ public class GradeService
 
             foreach (var enrollment in enrollments)
             {
-                var generalAverage = await CalculateGeneralAverageAsync(enrollment.StudentId, sectionId, schoolYear);
-                var transmutedGrade = GetTransmutedGrade(generalAverage);
-                var descriptiveRating = GetDescriptiveRating(transmutedGrade);
+                var studentGrades = await _context.Grades
+                    .Where(g => g.StudentId == enrollment.StudentId 
+                             && g.SectionId == sectionId 
+                             && g.SchoolYear == schoolYear)
+                    .ToListAsync();
+
+                var studentSubjectIds = studentGrades
+                    .Select(g => g.SubjectId)
+                    .Distinct()
+                    .ToList();
+
+                if (!studentSubjectIds.Any())
+                {
+                    reportCards.Add(new ReportCardDto
+                    {
+                        StudentId = enrollment.StudentId,
+                        Name = enrollment.Student != null 
+                            ? $"{enrollment.Student.FirstName} {enrollment.Student.LastName}".Trim()
+                            : enrollment.StudentId,
+                        Section = enrollment.Section?.SectionName ?? "",
+                        SchoolYear = schoolYear,
+                        GeneralAverage = 0,
+                        TransmutedGrade = 0,
+                        DescriptiveRating = "No Grade"
+                    });
+                    continue;
+                }
+
+                bool allSubjectsComplete = true;
+
+                foreach (var subjectId in studentSubjectIds)
+                {
+                    var subjectGrades = studentGrades.Where(g => g.SubjectId == subjectId).ToList();
+                    var hasQ1 = subjectGrades.Any(g => g.GradingPeriod == "Q1" && g.FinalGrade.HasValue && g.FinalGrade.Value > 0);
+                    var hasQ2 = subjectGrades.Any(g => g.GradingPeriod == "Q2" && g.FinalGrade.HasValue && g.FinalGrade.Value > 0);
+                    var hasQ3 = subjectGrades.Any(g => g.GradingPeriod == "Q3" && g.FinalGrade.HasValue && g.FinalGrade.Value > 0);
+                    var hasQ4 = subjectGrades.Any(g => g.GradingPeriod == "Q4" && g.FinalGrade.HasValue && g.FinalGrade.Value > 0);
+                    
+                    bool isComplete = hasQ1 && hasQ2 && hasQ3 && hasQ4;
+                    
+                    if (!isComplete)
+                    {
+                        allSubjectsComplete = false;
+                        break;
+                    }
+                }
+
+                decimal generalAverage = 0;
+                decimal transmutedGrade = 0;
+                string descriptiveRating = "Incomplete";
+
+                if (allSubjectsComplete)
+                {
+                    generalAverage = await CalculateGeneralAverageAsync(enrollment.StudentId, sectionId, schoolYear);
+                    
+                    if (generalAverage > 0)
+                    {
+                        transmutedGrade = GetTransmutedGrade(generalAverage);
+                        descriptiveRating = GetDescriptiveRating(transmutedGrade);
+                    }
+                    else
+                    {
+                        descriptiveRating = "No Grade";
+                    }
+                }
 
                 reportCards.Add(new ReportCardDto
                 {
@@ -752,10 +869,9 @@ public class GradeService
         try
         {
             // Only create history if there are actual changes
-            bool hasChanges = grade.Quiz != newInput.Quiz ||
-                             grade.Exam != newInput.Exam ||
-                             grade.Project != newInput.Project ||
-                             grade.Participation != newInput.Participation ||
+            bool hasChanges = grade.WrittenWork != newInput.WrittenWork ||
+                             grade.PerformanceTasks != newInput.PerformanceTasks ||
+                             grade.QuarterlyAssessment != newInput.QuarterlyAssessment ||
                              grade.FinalGrade != newInput.FinalGrade;
 
             if (!hasChanges && reason != "Grade created")
@@ -767,14 +883,12 @@ public class GradeService
                 StudentId = grade.StudentId,
                 SubjectId = grade.SubjectId,
                 SectionId = grade.SectionId,
-                QuizOld = reason == "Grade created" ? null : grade.Quiz,
-                QuizNew = newInput.Quiz,
-                ExamOld = reason == "Grade created" ? null : grade.Exam,
-                ExamNew = newInput.Exam,
-                ProjectOld = reason == "Grade created" ? null : grade.Project,
-                ProjectNew = newInput.Project,
-                ParticipationOld = reason == "Grade created" ? null : grade.Participation,
-                ParticipationNew = newInput.Participation,
+                WrittenWorkOld = reason == "Grade created" ? null : grade.WrittenWork,
+                WrittenWorkNew = newInput.WrittenWork,
+                PerformanceTasksOld = reason == "Grade created" ? null : grade.PerformanceTasks,
+                PerformanceTasksNew = newInput.PerformanceTasks,
+                QuarterlyAssessmentOld = reason == "Grade created" ? null : grade.QuarterlyAssessment,
+                QuarterlyAssessmentNew = newInput.QuarterlyAssessment,
                 FinalGradeOld = reason == "Grade created" ? null : grade.FinalGrade,
                 FinalGradeNew = newInput.FinalGrade,
                 ChangedBy = changedBy,
@@ -791,18 +905,34 @@ public class GradeService
         }
     }
 
-    private decimal CalculateFinalGrade(decimal? q1, decimal? q2, decimal? q3, decimal? q4)
+    /// <summary>
+    /// Calculates quarterly grade using DepEd formula: (WW × 20%) + (PT × 60%) + (QA × 20%)
+    /// </summary>
+    private decimal CalculateQuarterlyGrade(decimal? writtenWork, decimal? performanceTasks, decimal? quarterlyAssessment)
     {
-        var quarters = new List<decimal>();
-        if (q1.HasValue && q1.Value > 0) quarters.Add(q1.Value);
-        if (q2.HasValue && q2.Value > 0) quarters.Add(q2.Value);
-        if (q3.HasValue && q3.Value > 0) quarters.Add(q3.Value);
-        if (q4.HasValue && q4.Value > 0) quarters.Add(q4.Value);
-
-        if (!quarters.Any())
+        if (!writtenWork.HasValue || !performanceTasks.HasValue || !quarterlyAssessment.HasValue)
             return 0;
 
-        return quarters.Average();
+        // DepEd Formula: Quarterly Grade = (WW × 20%) + (PT × 60%) + (QA × 20%)
+        return (writtenWork.Value * 0.20m) + 
+               (performanceTasks.Value * 0.60m) + 
+               (quarterlyAssessment.Value * 0.20m);
+    }
+
+    /// <summary>
+    /// Calculates final grade as average of all four quarters
+    /// DepEd Requirement: Final grade only computed when all 4 quarters are complete
+    /// </summary>
+    private decimal CalculateFinalGrade(decimal? q1, decimal? q2, decimal? q3, decimal? q4)
+    {
+        // DepEd Requirement: All 4 quarters must have grades before calculating final grade
+        if (!q1.HasValue || q1.Value <= 0) return 0;
+        if (!q2.HasValue || q2.Value <= 0) return 0;
+        if (!q3.HasValue || q3.Value <= 0) return 0;
+        if (!q4.HasValue || q4.Value <= 0) return 0;
+
+        // All quarters are complete, calculate average
+        return (q1.Value + q2.Value + q3.Value + q4.Value) / 4.0m;
     }
 
     private async Task<string> GetCurrentSchoolYearAsync()
@@ -827,7 +957,7 @@ public class StudentGradeDto
 }
 
 /// <summary>
-/// DTO for grade input from teacher
+/// DTO for grade input from teacher (DepEd-compliant components)
 /// </summary>
 public class GradeInputDto
 {
@@ -836,10 +966,9 @@ public class GradeInputDto
     public int SectionId { get; set; }
     public string SchoolYear { get; set; } = string.Empty;
     public string GradingPeriod { get; set; } = string.Empty;
-    public decimal? Quiz { get; set; }
-    public decimal? Exam { get; set; }
-    public decimal? Project { get; set; }
-    public decimal? Participation { get; set; }
+    public decimal? WrittenWork { get; set; }
+    public decimal? PerformanceTasks { get; set; }
+    public decimal? QuarterlyAssessment { get; set; }
     public decimal? FinalGrade { get; set; }
 }
 
@@ -857,18 +986,18 @@ public class GradeRecordDto
     public decimal Q3 { get; set; }
     public decimal Q4 { get; set; }
     public decimal Final { get; set; }
+    public string Remarks { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// DTO for grade weights
+/// DTO for grade weights (DepEd-compliant: WW 20%, PT 60%, QA 20%)
 /// </summary>
 public class GradeWeightDto
 {
     public int SubjectId { get; set; }
-    public decimal QuizWeight { get; set; }
-    public decimal ExamWeight { get; set; }
-    public decimal ProjectWeight { get; set; }
-    public decimal ParticipationWeight { get; set; }
+    public decimal WrittenWorkWeight { get; set; }
+    public decimal PerformanceTasksWeight { get; set; }
+    public decimal QuarterlyAssessmentWeight { get; set; }
 }
 
 /// <summary>

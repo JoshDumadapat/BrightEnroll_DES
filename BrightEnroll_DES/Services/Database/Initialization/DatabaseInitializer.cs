@@ -1042,6 +1042,16 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                     System.Diagnostics.Debug.WriteLine("Successfully created tbl_Grades table.");
                     return true;
                 }
+                else
+                {
+                    // Table exists, check if we need to migrate columns
+                    await MigrateGradesTableColumnsAsync(connection);
+                    
+                    // Also migrate related tables (they might be accessed soon)
+                    // Note: These methods create their own connections, so we don't pass the connection
+                    await MigrateGradeWeightsTableColumnsAsync();
+                    await MigrateGradeHistoryTableColumnsAsync();
+                }
 
                 return false;
             }
@@ -1049,6 +1059,324 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             {
                 System.Diagnostics.Debug.WriteLine($"Error ensuring grades table exists: {ex.Message}");
                 return false;
+            }
+        }
+
+        // Migrates tbl_Grades table from old column names to new DepEd-compliant column names
+        private async Task MigrateGradesTableColumnsAsync(SqlConnection connection)
+        {
+            try
+            {
+                // Check if new columns already exist
+                string checkNewColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Grades') 
+                    AND name IN ('written_work', 'performance_tasks', 'quarterly_assessment')";
+
+                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
+                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
+                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
+
+                // If all three new columns exist, migration already done
+                if (newColumnsCount == 3)
+                {
+                    System.Diagnostics.Debug.WriteLine("tbl_Grades table already has new DepEd-compliant columns.");
+                    return;
+                }
+
+                // Check if old columns exist
+                string checkOldColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Grades') 
+                    AND name IN ('quiz', 'exam', 'project', 'participation')";
+
+                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
+                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
+                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
+
+                // If old columns exist, migrate data
+                if (oldColumnsCount > 0 && newColumnsCount == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine("Migrating tbl_Grades table columns to DepEd-compliant structure...");
+
+                    // Add new columns
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_Grades]
+                        ADD [written_work] DECIMAL(5,2) NULL,
+                            [performance_tasks] DECIMAL(5,2) NULL,
+                            [quarterly_assessment] DECIMAL(5,2) NULL";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_Grades.");
+
+                    // Migrate data from old columns to new columns
+                    // Map: quiz -> written_work, exam -> performance_tasks, project -> quarterly_assessment
+                    // Note: participation is not mapped as it's not part of DepEd structure
+                    string migrateDataQuery = @"
+                        UPDATE [dbo].[tbl_Grades]
+                        SET [written_work] = [quiz],
+                            [performance_tasks] = [exam],
+                            [quarterly_assessment] = [project]
+                        WHERE [quiz] IS NOT NULL OR [exam] IS NOT NULL OR [project] IS NOT NULL";
+
+                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
+                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade records.");
+
+                    // Note: We keep old columns for now to allow rollback if needed
+                    // They can be dropped manually later after verification
+                    System.Diagnostics.Debug.WriteLine("Migration completed. Old columns (quiz, exam, project, participation) are kept for safety.");
+                }
+                else if (newColumnsCount == 0)
+                {
+                    // Table exists but has neither old nor new columns - add new columns
+                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_Grades table...");
+                    
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_Grades]
+                        ADD [written_work] DECIMAL(5,2) NULL,
+                            [performance_tasks] DECIMAL(5,2) NULL,
+                            [quarterly_assessment] DECIMAL(5,2) NULL";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_Grades.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error migrating grades table columns: {ex.Message}");
+                // Don't throw - allow table to work even if migration fails
+            }
+        }
+
+        // Migrates tbl_GradeWeights table from old column names to new DepEd-compliant column names
+        private async Task MigrateGradeWeightsTableColumnsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_GradeWeights' 
+                    AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    return; // Table doesn't exist, nothing to migrate
+                }
+
+                // Check if new columns already exist
+                string checkNewColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeWeights') 
+                    AND name IN ('written_work_weight', 'performance_tasks_weight', 'quarterly_assessment_weight')";
+
+                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
+                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
+                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
+
+                // If all three new columns exist, migration already done
+                if (newColumnsCount == 3)
+                {
+                    System.Diagnostics.Debug.WriteLine("tbl_GradeWeights table already has new DepEd-compliant columns.");
+                    return;
+                }
+
+                // Check if old columns exist
+                string checkOldColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeWeights') 
+                    AND name IN ('quiz_weight', 'exam_weight', 'project_weight', 'participation_weight')";
+
+                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
+                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
+                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
+
+                // If old columns exist, migrate data
+                if (oldColumnsCount > 0 && newColumnsCount == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine("Migrating tbl_GradeWeights table columns to DepEd-compliant structure...");
+
+                    // Add new columns with DepEd defaults
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_GradeWeights]
+                        ADD [written_work_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20,
+                            [performance_tasks_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.60,
+                            [quarterly_assessment_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeWeights.");
+
+                    // Migrate data: quiz_weight -> written_work_weight, exam_weight -> performance_tasks_weight, project_weight -> quarterly_assessment_weight
+                    string migrateDataQuery = @"
+                        UPDATE [dbo].[tbl_GradeWeights]
+                        SET [written_work_weight] = [quiz_weight],
+                            [performance_tasks_weight] = [exam_weight],
+                            [quarterly_assessment_weight] = [project_weight]
+                        WHERE [quiz_weight] IS NOT NULL OR [exam_weight] IS NOT NULL OR [project_weight] IS NOT NULL";
+
+                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
+                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade weight records.");
+                }
+                else if (newColumnsCount == 0)
+                {
+                    // Table exists but has neither old nor new columns - add new columns
+                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_GradeWeights table...");
+                    
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_GradeWeights]
+                        ADD [written_work_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20,
+                            [performance_tasks_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.60,
+                            [quarterly_assessment_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeWeights.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error migrating grade weights table columns: {ex.Message}");
+                // Don't throw - allow table to work even if migration fails
+            }
+        }
+
+        // Migrates tbl_GradeHistory table from old column names to new DepEd-compliant column names
+        private async Task MigrateGradeHistoryTableColumnsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_GradeHistory' 
+                    AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    return; // Table doesn't exist, nothing to migrate
+                }
+
+                // Check if new columns already exist
+                string checkNewColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeHistory') 
+                    AND name IN ('written_work_old', 'written_work_new', 'performance_tasks_old', 'performance_tasks_new', 'quarterly_assessment_old', 'quarterly_assessment_new')";
+
+                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
+                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
+                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
+
+                // If all six new columns exist, migration already done
+                if (newColumnsCount == 6)
+                {
+                    System.Diagnostics.Debug.WriteLine("tbl_GradeHistory table already has new DepEd-compliant columns.");
+                    return;
+                }
+
+                // Check if old columns exist
+                string checkOldColumnsQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeHistory') 
+                    AND name IN ('quiz_old', 'quiz_new', 'exam_old', 'exam_new', 'project_old', 'project_new', 'participation_old', 'participation_new')";
+
+                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
+                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
+                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
+
+                // If old columns exist, migrate data
+                if (oldColumnsCount > 0 && newColumnsCount == 0)
+                {
+                    System.Diagnostics.Debug.WriteLine("Migrating tbl_GradeHistory table columns to DepEd-compliant structure...");
+
+                    // Add new columns
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_GradeHistory]
+                        ADD [written_work_old] DECIMAL(5,2) NULL,
+                            [written_work_new] DECIMAL(5,2) NULL,
+                            [performance_tasks_old] DECIMAL(5,2) NULL,
+                            [performance_tasks_new] DECIMAL(5,2) NULL,
+                            [quarterly_assessment_old] DECIMAL(5,2) NULL,
+                            [quarterly_assessment_new] DECIMAL(5,2) NULL";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeHistory.");
+
+                    // Migrate data: quiz -> written_work, exam -> performance_tasks, project -> quarterly_assessment
+                    string migrateDataQuery = @"
+                        UPDATE [dbo].[tbl_GradeHistory]
+                        SET [written_work_old] = [quiz_old],
+                            [written_work_new] = [quiz_new],
+                            [performance_tasks_old] = [exam_old],
+                            [performance_tasks_new] = [exam_new],
+                            [quarterly_assessment_old] = [project_old],
+                            [quarterly_assessment_new] = [project_new]
+                        WHERE [quiz_old] IS NOT NULL OR [quiz_new] IS NOT NULL 
+                           OR [exam_old] IS NOT NULL OR [exam_new] IS NOT NULL
+                           OR [project_old] IS NOT NULL OR [project_new] IS NOT NULL";
+
+                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
+                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade history records.");
+                }
+                else if (newColumnsCount == 0)
+                {
+                    // Table exists but has neither old nor new columns - add new columns
+                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_GradeHistory table...");
+                    
+                    string addColumnsQuery = @"
+                        ALTER TABLE [dbo].[tbl_GradeHistory]
+                        ADD [written_work_old] DECIMAL(5,2) NULL,
+                            [written_work_new] DECIMAL(5,2) NULL,
+                            [performance_tasks_old] DECIMAL(5,2) NULL,
+                            [performance_tasks_new] DECIMAL(5,2) NULL,
+                            [quarterly_assessment_old] DECIMAL(5,2) NULL,
+                            [quarterly_assessment_new] DECIMAL(5,2) NULL";
+
+                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeHistory.");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error migrating grade history table columns: {ex.Message}");
+                // Don't throw - allow table to work even if migration fails
             }
         }
 
@@ -1074,6 +1402,10 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 // Explicitly ensure critical tables exist (for existing databases)
                 await EnsureAuditLogsTableExistsAsync();
                 await EnsureGradesTableExistsAsync();
+                
+                // Migrate grade-related table columns if needed
+                await MigrateGradeWeightsTableColumnsAsync();
+                await MigrateGradeHistoryTableColumnsAsync();
                 
                 return dbCreated || tablesCreated;
             }
