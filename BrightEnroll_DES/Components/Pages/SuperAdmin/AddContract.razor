@@ -1,0 +1,327 @@
+@page "/system-admin/contracts/add"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Add New Contract</PageTitle>
+
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Add New Contract</h1>
+    <div class="mx-auto max-w-5xl">
+        <div class="mb-6 flex justify-start">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="mb-4 rounded-lg border border-red-300 bg-red-50 p-4 text-red-700">
+                <p>@ErrorMessage</p>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(SuccessMessage))
+        {
+            <div class="mb-4 rounded-lg border border-green-300 bg-green-50 p-4 text-green-700">
+                <p>@SuccessMessage</p>
+            </div>
+        }
+
+        <form @onsubmit:preventDefault="true">
+            <!-- Contract Information -->
+            <div class="mb-6 overflow-hidden rounded-xl bg-white shadow sm:mb-8">
+                <div class="px-6 py-6">
+                    <h2 class="mb-4 border-b-2 border-blue-600 pb-2 text-lg font-bold text-blue-600 sm:mb-6 sm:text-xl">Contract Information</h2>
+
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- Customer Selection -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Customer (School) <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="SelectedCustomerId" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="0">Select a customer</option>
+                                @foreach (var customer in CustomersList)
+                                {
+                                    <option value="@customer.CustomerId">@customer.SchoolName (@customer.CustomerCode)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Contract Number -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Contract Number</label>
+                            <input type="text" value="AUTO-GENERATED"
+                                   class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 outline-none sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="Auto-generated" disabled />
+                        </div>
+
+                        <!-- Contract Type -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Contract Type</label>
+                            <select @bind="ContractType"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="">Select type</option>
+                                <option value="Subscription">Subscription</option>
+                                <option value="License">License</option>
+                                <option value="Service Agreement">Service Agreement</option>
+                                <option value="Maintenance">Maintenance</option>
+                            </select>
+                        </div>
+
+                        <!-- Start Date -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Start Date <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" @bind="StartDate" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- End Date -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                End Date <span class="text-red-500">*</span>
+                            </label>
+                            <input type="date" @bind="EndDate" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- Renewal Date -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Renewal Date</label>
+                            <input type="date" @bind="RenewalDate"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
+                        </div>
+
+                        <!-- Monthly Fee -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Monthly Fee (₱) <span class="text-red-500">*</span>
+                            </label>
+                            <input type="number" @bind="MonthlyFee" step="0.01" min="0" required
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="0.00" />
+                        </div>
+
+                        <!-- Status -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Status</label>
+                            <select @bind="Status"
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="Active">Active</option>
+                                <option value="Expired">Expired</option>
+                                <option value="Renewed">Renewed</option>
+                                <option value="Cancelled">Cancelled</option>
+                            </select>
+                        </div>
+
+                        <!-- Auto Renew -->
+                        <div class="md:col-span-2">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" @bind="AutoRenew"
+                                       class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                <span class="text-sm font-medium text-gray-700">Auto Renew</span>
+                            </label>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Notes</label>
+                            <textarea @bind="Notes" rows="4"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="Additional notes about this contract..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="mb-6 flex justify-end gap-4">
+                <button type="button" @onclick="GoBack" 
+                        class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit" @onclick="HandleSubmit" 
+                        disabled="@IsSubmitting"
+                        class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-300 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    @if (IsSubmitting)
+                    {
+                        <span>Creating Contract...</span>
+                    }
+                    else
+                    {
+                        <span>Create Contract</span>
+                    }
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@code {
+    private List<Customer> CustomersList { get; set; } = new();
+    private int SelectedCustomerId { get; set; } = 0;
+    private string ContractType { get; set; } = string.Empty;
+    private DateTime StartDate { get; set; } = DateTime.Today;
+    private DateTime EndDate { get; set; } = DateTime.Today.AddYears(1);
+    private DateTime? RenewalDate { get; set; }
+    private decimal MonthlyFee { get; set; } = 0;
+    private string Status { get; set; } = "Active";
+    private bool AutoRenew { get; set; } = false;
+    private string Notes { get; set; } = string.Empty;
+    
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+    private bool IsSubmitting { get; set; } = false;
+    private bool _dataLoaded = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded) return;
+        _dataLoaded = true;
+
+        try
+        {
+            LoadingService?.ShowLoading("Loading customers...");
+            CustomersList = await SuperAdminService.GetAllCustomersAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AddContract] Error loading customers: {ex.Message}");
+            ErrorMessage = "Failed to load customers. Please try again.";
+            CustomersList = new List<Customer>();
+            StateHasChanged();
+        }
+        finally
+        {
+            LoadingService?.HideLoading();
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        // Clear previous messages
+        ErrorMessage = null;
+        SuccessMessage = null;
+        
+        // Prevent double submission
+        if (IsSubmitting)
+        {
+            return;
+        }
+
+        // Validate required fields
+        if (SelectedCustomerId == 0)
+        {
+            ErrorMessage = "Please select a customer.";
+            StateHasChanged();
+            return;
+        }
+
+        if (EndDate <= StartDate)
+        {
+            ErrorMessage = "End Date must be after Start Date.";
+            StateHasChanged();
+            return;
+        }
+
+        if (MonthlyFee <= 0)
+        {
+            ErrorMessage = "Monthly Fee must be greater than 0.";
+            StateHasChanged();
+            return;
+        }
+
+        IsSubmitting = true;
+        LoadingService.ShowLoading("Creating contract...");
+        
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[AddContract] Starting contract creation. CustomerId: {SelectedCustomerId}");
+
+            var contract = new Contract
+            {
+                CustomerId = SelectedCustomerId,
+                ContractType = string.IsNullOrWhiteSpace(ContractType) ? null : ContractType,
+                StartDate = StartDate,
+                EndDate = EndDate,
+                RenewalDate = RenewalDate,
+                MonthlyFee = MonthlyFee,
+                Status = Status,
+                AutoRenew = AutoRenew,
+                Notes = string.IsNullOrWhiteSpace(Notes) ? null : Notes,
+                CreatedBy = AuthService.CurrentUser?.user_ID
+            };
+
+            var createdContract = await SuperAdminService.CreateContractAsync(contract, AuthService.CurrentUser?.user_ID);
+            
+            System.Diagnostics.Debug.WriteLine($"[AddContract] Contract created successfully. ContractId: {createdContract.ContractId}, ContractNumber: {createdContract.ContractNumber}");
+            
+            if (createdContract.ContractId > 0)
+            {
+                SuccessMessage = $"Contract '{createdContract.ContractNumber}' has been created successfully!";
+                System.Diagnostics.Debug.WriteLine($"[AddContract] ✅ VERIFIED: Contract saved with ID: {createdContract.ContractId}");
+                
+                LoadingService.HideLoading();
+                
+                // Reset form
+                SelectedCustomerId = 0;
+                ContractType = string.Empty;
+                StartDate = DateTime.Today;
+                EndDate = DateTime.Today.AddYears(1);
+                RenewalDate = null;
+                MonthlyFee = 0;
+                Status = "Active";
+                AutoRenew = false;
+                Notes = string.Empty;
+                
+                StateHasChanged();
+                
+                // Navigate back after 2 seconds
+                await Task.Delay(2000);
+                Navigation.NavigateTo("/system-admin/contracts");
+            }
+            else
+            {
+                ErrorMessage = "Failed to create contract. Please try again.";
+                LoadingService.HideLoading();
+                IsSubmitting = false;
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AddContract] ❌ ERROR: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"[AddContract] Stack trace: {ex.StackTrace}");
+            ErrorMessage = $"An error occurred: {ex.Message}";
+            LoadingService.HideLoading();
+            IsSubmitting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/contracts");
+}
+

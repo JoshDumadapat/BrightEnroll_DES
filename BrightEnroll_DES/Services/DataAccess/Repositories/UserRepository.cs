@@ -105,10 +105,28 @@ namespace BrightEnroll_DES.Services.DataAccess.Repositories
             try
             {
                 var sanitizedInput = SanitizeString(emailOrSystemId, 150);
+                System.Diagnostics.Debug.WriteLine($"[UserRepository] Querying database for: {sanitizedInput}");
+                Console.WriteLine($"[UserRepository] Querying database for: {sanitizedInput}");
+                
                 var userEntity = await _context.Users
                     .FirstOrDefaultAsync(u => u.Email == sanitizedInput || u.SystemId == sanitizedInput);
 
-                return userEntity != null ? MapEntityToUser(userEntity) : null;
+                System.Diagnostics.Debug.WriteLine($"[UserRepository] Query result: {userEntity != null}");
+                Console.WriteLine($"[UserRepository] Query result: {userEntity != null}");
+                
+                if (userEntity != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[UserRepository] Mapping entity to User model...");
+                    Console.WriteLine($"[UserRepository] Mapping entity to User model...");
+                    var mappedUser = MapEntityToUser(userEntity);
+                    System.Diagnostics.Debug.WriteLine($"[UserRepository] Mapped user - SystemId: {mappedUser.system_ID}, Role: {mappedUser.user_role}");
+                    Console.WriteLine($"[UserRepository] Mapped user - SystemId: {mappedUser.system_ID}, Role: {mappedUser.user_role}");
+                    return mappedUser;
+                }
+                
+                System.Diagnostics.Debug.WriteLine($"[UserRepository] No user found");
+                Console.WriteLine($"[UserRepository] No user found");
+                return null;
             }
             catch (Exception ex)
             {

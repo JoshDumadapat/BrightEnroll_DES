@@ -1,0 +1,194 @@
+@page "/system-admin/contracts"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Contracts & Licensing</PageTitle>
+
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Contracts & Licensing</h1>
+            <p class="text-sm text-gray-600">Manage agreements and module licenses</p>
+        </div>
+        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-gray-700">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Active Contracts</p>
+        <p class="text-2xl font-bold text-green-800">@ActiveContracts</p>
+    </div>
+    <div class="rounded-xl border border-orange-200 bg-orange-50 p-4">
+        <p class="text-sm text-orange-600">Expiring Soon</p>
+        <p class="text-2xl font-bold text-orange-800">@ExpiringSoon</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Total Contracts</p>
+        <p class="text-2xl font-bold text-blue-800">@TotalContracts</p>
+    </div>
+</div>
+
+<!-- Contracts Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b p-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-gray-800">Active Contracts</h2>
+            <button @onclick="NavigateToAddContract" class="rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Add Contract</button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Contract Number</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Contract Period</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase text-gray-600">Monthly Fee</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @if (ContractList.Any())
+                {
+                    @foreach (var contract in ContractList)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 font-medium text-gray-800">@contract.ContractNumber</td>
+                            <td class="px-6 py-4 font-medium text-gray-800">@(contract.Customer?.SchoolName ?? "N/A")</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">
+                                <div>
+                                    <p>Start: @contract.StartDate.ToString("MMM dd, yyyy")</p>
+                                    <p>End: @contract.EndDate.ToString("MMM dd, yyyy")</p>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-right text-sm font-semibold text-gray-800">₱@contract.MonthlyFee.ToString("N0")</td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(contract.Status)">@contract.Status</span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <p>No contracts found</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<Contract> ContractList { get; set; } = new();
+    private int ActiveContracts { get; set; }
+    private int ExpiringSoon { get; set; }
+    private int TotalContracts { get; set; }
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            await Task.Delay(500);
+            LoadingService?.ShowLoading("Loading contracts...");
+
+            try
+            {
+                await LoadContracts();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Contracts] Error loading contracts: {ex.Message}");
+                ContractList = new List<Contract>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                LoadingService?.HideLoading();
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Contracts] Critical error: {ex.Message}");
+            LoadingService?.HideLoading();
+            ContractList = new List<Contract>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadContracts()
+    {
+        if (SuperAdminService == null)
+        {
+            ContractList = new List<Contract>();
+            return;
+        }
+
+        ContractList = await SuperAdminService.GetAllContractsAsync();
+        
+        ActiveContracts = ContractList.Count(c => c.Status == "Active");
+        var expiringContracts = await SuperAdminService.GetExpiringContractsAsync(30);
+        ExpiringSoon = expiringContracts.Count;
+        TotalContracts = ContractList.Count;
+    }
+
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
+
+    private void NavigateToAddContract() => Navigation.NavigateTo("/system-admin/contracts/add");
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Active" => "bg-green-100 text-green-800",
+        "Expired" => "bg-red-100 text-red-800",
+        "Renewed" => "bg-blue-100 text-blue-800",
+        "Cancelled" => "bg-gray-100 text-gray-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+}

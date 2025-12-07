@@ -1,0 +1,389 @@
+@page "/system-admin/sales"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Sales Management</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Sales Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Track leads, conversions, and revenue</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-gray-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+            <button @onclick="ShowAddLeadModal" class="flex items-center gap-2 rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-blue-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Lead
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600">Active Leads</p>
+        <p class="text-2xl font-bold text-yellow-800">@ActiveLeads</p>
+        <p class="mt-1 text-xs text-gray-600">+8 this week</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">Converted Sales</p>
+        <p class="text-2xl font-bold text-green-800">@ConvertedSales</p>
+        <p class="mt-1 text-xs text-gray-600">75% conversion rate</p>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <p class="text-sm text-purple-600">Monthly Revenue</p>
+        <p class="text-2xl font-bold text-purple-800">?@MonthlyRevenue.ToString("N0")</p>
+        <p class="mt-1 text-xs text-gray-600">+12% from last month</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Follow-ups Due</p>
+        <p class="text-2xl font-bold text-blue-800">@FollowUpsDue</p>
+        <p class="mt-1 text-xs text-gray-600">This week</p>
+    </div>
+</div>
+
+<!-- Sales Pipeline -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Sales Pipeline</h2>
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="rounded-lg border-2 border-yellow-200 bg-yellow-50 p-4">
+            <h3 class="mb-2 font-semibold text-yellow-800">New Leads (@GetLeadsByStage("New Lead").Count)</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                @foreach (var lead in GetLeadsByStage("New Lead").Take(5))
+                {
+                    <div class="rounded-lg bg-white p-3 shadow-sm">
+                        <p class="font-medium text-gray-800">@lead.SchoolName</p>
+                        <p class="text-xs text-gray-500">@(lead.ContactPerson ?? "No contact")</p>
+                    </div>
+                }
+                @if (!GetLeadsByStage("New Lead").Any())
+                {
+                    <p class="text-xs text-gray-400 text-center py-2">No new leads</p>
+                }
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+            <h3 class="mb-2 font-semibold text-blue-800">Qualified (@GetLeadsByStage("Qualified").Count)</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                @foreach (var lead in GetLeadsByStage("Qualified").Take(5))
+                {
+                    <div class="rounded-lg bg-white p-3 shadow-sm">
+                        <p class="font-medium text-gray-800">@lead.SchoolName</p>
+                        <p class="text-xs text-gray-500">@(lead.InterestedPlan ?? "No plan")</p>
+                    </div>
+                }
+                @if (!GetLeadsByStage("Qualified").Any())
+                {
+                    <p class="text-xs text-gray-400 text-center py-2">No qualified leads</p>
+                }
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-purple-200 bg-purple-50 p-4">
+            <h3 class="mb-2 font-semibold text-purple-800">Proposal Sent (@GetLeadsByStage("Proposal Sent").Count)</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                @foreach (var lead in GetLeadsByStage("Proposal Sent").Take(5))
+                {
+                    <div class="rounded-lg bg-white p-3 shadow-sm">
+                        <p class="font-medium text-gray-800">@lead.SchoolName</p>
+                        <p class="text-xs text-gray-500">@(lead.InterestedPlan ?? "No plan")</p>
+                    </div>
+                }
+                @if (!GetLeadsByStage("Proposal Sent").Any())
+                {
+                    <p class="text-xs text-gray-400 text-center py-2">No proposals sent</p>
+                }
+            </div>
+        </div>
+
+        <div class="rounded-lg border-2 border-green-200 bg-green-50 p-4">
+            <h3 class="mb-2 font-semibold text-green-800">Closing (@GetLeadsByStage("Closing").Count)</h3>
+            <div class="space-y-2 max-h-64 overflow-y-auto">
+                @foreach (var lead in GetLeadsByStage("Closing").Take(5))
+                {
+                    <div class="rounded-lg bg-white p-3 shadow-sm">
+                        <p class="font-medium text-gray-800">@lead.SchoolName</p>
+                        <p class="text-xs text-gray-500">@(lead.EstimatedValue.HasValue ? $"₱{lead.EstimatedValue.Value.ToString("N0")}" : "No estimate")</p>
+                    </div>
+                }
+                @if (!GetLeadsByStage("Closing").Any())
+                {
+                    <p class="text-xs text-gray-400 text-center py-2">No leads closing</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- All Leads Table -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-800">All Sales Leads</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Lead Code</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Contact</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Stage</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Plan</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+                @if (AllLeads.Any())
+                {
+                    @foreach (var lead in AllLeads.OrderByDescending(l => l.CreatedAt))
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-blue-600">@lead.LeadCode</td>
+                            <td class="whitespace-nowrap px-6 py-4">
+                                <div>
+                                    <p class="font-semibold text-gray-800">@lead.SchoolName</p>
+                                    <p class="text-xs text-gray-500">@(lead.Address ?? "N/A")</p>
+                                </div>
+                            </td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">
+                                <div>
+                                    <p class="font-medium">@(lead.ContactPerson ?? "N/A")</p>
+                                    <p class="text-xs text-gray-500">@(lead.ContactEmail ?? "N/A")</p>
+                                </div>
+                            </td>
+                            <td class="whitespace-nowrap px-6 py-4">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStageClass(lead.Stage)">
+                                    @lead.Stage
+                                </span>
+                            </td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@(lead.InterestedPlan ?? "N/A")</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-center">
+                                <div class="flex items-center justify-center gap-2">
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            <p>No sales leads found</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Recent Conversions -->
+<div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Recent Conversions</h2>
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Sales Agent</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Plan</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Date</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase text-gray-600">Amount</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @if (RecentConversions.Any())
+                {
+                    @foreach (var sale in RecentConversions)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="whitespace-nowrap px-6 py-4 font-medium text-gray-800">@sale.SchoolName</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@sale.SalesAgent</td>
+                            <td class="whitespace-nowrap px-6 py-4">
+                                <span class="inline-flex rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-800">@sale.Plan</span>
+                            </td>
+                            <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">@sale.ConversionDate.ToString("MMM dd, yyyy")</td>
+                            <td class="whitespace-nowrap px-6 py-4 text-right font-semibold text-green-600">?@sale.Amount.ToString("N0")</td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            <p>No recent conversions found</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private int ActiveLeads { get; set; }
+    private int ConvertedSales { get; set; }
+    private decimal MonthlyRevenue { get; set; }
+    private int FollowUpsDue { get; set; }
+
+    private List<SaleConversion> RecentConversions { get; set; } = new();
+    private List<SalesLead> AllLeads { get; set; } = new();
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        ActiveLeads = 0;
+        ConvertedSales = 0;
+        MonthlyRevenue = 0;
+        FollowUpsDue = 0;
+        RecentConversions = new List<SaleConversion>();
+        AllLeads = new List<SalesLead>();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            if (AuthService?.CurrentUser?.user_role != "Super Admin")
+            {
+                Navigation.NavigateTo("/dashboard");
+                _isLoading = false;
+                return;
+            }
+
+            // Wait for services to be ready
+            await Task.Delay(500);
+
+            LoadingService?.ShowLoading("Loading sales data...");
+            
+            try
+            {
+                await LoadSalesData();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (InvalidOperationException ioEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Sales] InvalidOperationException: {ioEx.Message}");
+                RecentConversions = new List<SaleConversion>();
+                AllLeads = new List<SalesLead>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Sales] Error loading sales data: {ex.Message}");
+                RecentConversions = new List<SaleConversion>();
+                AllLeads = new List<SalesLead>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                LoadingService?.HideLoading();
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Sales] Critical error: {ex.Message}");
+            LoadingService?.HideLoading();
+            RecentConversions = new List<SaleConversion>();
+            AllLeads = new List<SalesLead>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSalesData()
+    {
+        if (SuperAdminService == null)
+        {
+            AllLeads = new List<SalesLead>();
+            return;
+        }
+
+        AllLeads = await SuperAdminService.GetAllSalesLeadsAsync();
+        
+        ActiveLeads = AllLeads.Count(l => l.Stage != "Converted" && l.Stage != "Lost");
+        ConvertedSales = AllLeads.Count(l => l.Stage == "Converted");
+        MonthlyRevenue = AllLeads.Where(l => l.Stage == "Converted" && l.ConvertedAmount.HasValue)
+            .Sum(l => l.ConvertedAmount ?? 0);
+        FollowUpsDue = AllLeads.Count(l => l.FollowUpDate.HasValue && 
+            l.FollowUpDate.Value.Date <= DateTime.Now.AddDays(7).Date && 
+            l.Stage != "Converted" && l.Stage != "Lost");
+
+        RecentConversions = AllLeads
+            .Where(l => l.Stage == "Converted" && l.ConversionDate.HasValue)
+            .OrderByDescending(l => l.ConversionDate)
+            .Take(10)
+            .Select(l => new SaleConversion
+            {
+                SchoolName = l.SchoolName,
+                SalesAgent = l.AssignedToUser != null ? $"{l.AssignedToUser.FirstName ?? ""} {l.AssignedToUser.LastName ?? ""}".Trim() : "Unassigned",
+                Plan = l.InterestedPlan ?? "Unknown",
+                Amount = l.ConvertedAmount ?? 0,
+                ConversionDate = l.ConversionDate ?? DateTime.Now
+            })
+            .ToList();
+    }
+
+    private void ShowAddLeadModal()
+    {
+        Navigation.NavigateTo("/system-admin/sales/add-lead");
+    }
+
+    private List<SalesLead> GetLeadsByStage(string stage)
+    {
+        return AllLeads.Where(l => l.Stage == stage).ToList();
+    }
+
+    private string GetStageClass(string stage) => stage switch
+    {
+        "New Lead" => "bg-yellow-100 text-yellow-800",
+        "Qualified" => "bg-blue-100 text-blue-800",
+        "Proposal Sent" => "bg-purple-100 text-purple-800",
+        "Closing" => "bg-orange-100 text-orange-800",
+        "Converted" => "bg-green-100 text-green-800",
+        "Lost" => "bg-red-100 text-red-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
+
+    public class SaleConversion
+    {
+        public string SchoolName { get; set; } = string.Empty;
+        public string SalesAgent { get; set; } = string.Empty;
+        public string Plan { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime ConversionDate { get; set; }
+    }
+}

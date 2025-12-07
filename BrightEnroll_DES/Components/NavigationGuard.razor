@@ -12,7 +12,7 @@
     {
         // Subscribe to navigation events
         Navigation.LocationChanged += OnLocationChanged;
-        
+
         // Check initial location
         CheckAndRedirect();
     }
@@ -41,15 +41,17 @@
         }
 
         // Redirect based on role - matches Login.razor logic
-        var roleLower = role.ToLower().Trim();
-        return roleLower switch
+        // Normalize role name: remove spaces and convert to lowercase for comparison
+        var roleNormalized = role.Replace(" ", "").ToLower().Trim();
+        
+        return roleNormalized switch
         {
             "cashier" => "/finance",
             "registrar" => "/enrollment",
             "hr" => "/human-resource",
             "teacher" => "/gradebook",
             "admin" => "/dashboard",
-            "superadmin" => "/superadmin-dashboard",
+            "superadmin" => "/SuperAdmin/dashboard", // Super Admin or SuperAdmin goes to SuperAdmin dashboard
             _ => "/dashboard" // Default for other roles
         };
     }
@@ -59,4 +61,3 @@
         Navigation.LocationChanged -= OnLocationChanged;
     }
 }
-

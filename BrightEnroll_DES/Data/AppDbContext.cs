@@ -58,6 +58,13 @@ public class AppDbContext : DbContext
     public DbSet<InventoryItem> InventoryItems { get; set; }
     public DbSet<AssetAssignment> AssetAssignments { get; set; }
 
+    // SuperAdmin tables
+    public DbSet<Customer> Customers { get; set; }
+    public DbSet<SalesLead> SalesLeads { get; set; }
+    public DbSet<SupportTicket> SupportTickets { get; set; }
+    public DbSet<Contract> Contracts { get; set; }
+    public DbSet<SystemUpdate> SystemUpdates { get; set; }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
@@ -666,6 +673,105 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(a => a.AssetId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure SuperAdmin entities
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.HasKey(e => e.CustomerId);
+            entity.ToTable("tbl_Customers");
+            entity.HasIndex(e => e.CustomerCode).IsUnique();
+            entity.HasIndex(e => e.SchoolName);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.ContractEndDate);
+
+            entity.Property(e => e.MonthlyFee)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0m);
+
+            entity.HasOne(e => e.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SalesLead>(entity =>
+        {
+            entity.HasKey(e => e.LeadId);
+            entity.ToTable("tbl_SalesLeads");
+            entity.HasIndex(e => e.LeadCode).IsUnique();
+            entity.HasIndex(e => e.Stage);
+            entity.HasIndex(e => e.FollowUpDate);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.EstimatedValue)
+                  .HasColumnType("decimal(18,2)");
+
+            entity.Property(e => e.ConvertedAmount)
+                  .HasColumnType("decimal(18,2)");
+
+            entity.HasOne(e => e.AssignedToUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.AssignedTo)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SupportTicket>(entity =>
+        {
+            entity.HasKey(e => e.TicketId);
+            entity.ToTable("tbl_SupportTickets");
+            entity.HasIndex(e => e.TicketNumber).IsUnique();
+            entity.HasIndex(e => e.CustomerId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Priority);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.HasOne(e => e.Customer)
+                  .WithMany()
+                  .HasForeignKey(e => e.CustomerId)
+                  .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.AssignedToUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.AssignedTo)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Contract>(entity =>
+        {
+            entity.HasKey(e => e.ContractId);
+            entity.ToTable("tbl_Contracts");
+            entity.HasIndex(e => e.ContractNumber).IsUnique();
+            entity.HasIndex(e => e.CustomerId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.EndDate);
+
+            entity.Property(e => e.MonthlyFee)
+                  .HasColumnType("decimal(18,2)");
+
+            entity.HasOne(e => e.Customer)
+                  .WithMany()
+                  .HasForeignKey(e => e.CustomerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SystemUpdate>(entity =>
+        {
+            entity.HasKey(e => e.UpdateId);
+            entity.ToTable("tbl_SystemUpdates");
+            entity.HasIndex(e => e.VersionNumber).IsUnique();
+            entity.HasIndex(e => e.ReleaseDate);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

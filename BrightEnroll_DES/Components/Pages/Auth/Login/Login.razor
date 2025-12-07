@@ -367,6 +367,9 @@
 
     private async Task HandleLogin()
     {
+        System.Diagnostics.Debug.WriteLine($"[Login] ===== HandleLogin CALLED =====");
+        Console.WriteLine($"[Login] ===== HandleLogin CALLED =====");
+        
         // Reset errors first
         emailOrSystemIdError = false;
         passwordError = false;
@@ -392,9 +395,14 @@
         // If validation fails, show errors immediately and return (no loading)
         if (!isValid)
         {
+            System.Diagnostics.Debug.WriteLine($"[Login] Validation failed");
+            Console.WriteLine($"[Login] Validation failed");
             StateHasChanged();
             return;
         }
+        
+        System.Diagnostics.Debug.WriteLine($"[Login] Validation passed, proceeding with login");
+        Console.WriteLine($"[Login] Validation passed, proceeding with login");
         
         // Only show loading state on button if validation passes
         isLoggingIn = true;
@@ -402,21 +410,33 @@
 
         try
         {
+            System.Diagnostics.Debug.WriteLine($"[Login] Starting login attempt for: {_emailOrSystemId}");
+            Console.WriteLine($"[Login] Starting login attempt for: {_emailOrSystemId}");
+            Console.WriteLine($"[Login] Password provided: {!string.IsNullOrEmpty(_password)}");
+            
             // Attempt login using AuthService (accepts email or system ID)
+            System.Diagnostics.Debug.WriteLine($"[Login] Calling AuthService.LoginAsync...");
+            Console.WriteLine($"[Login] Calling AuthService.LoginAsync...");
+            
             var loginResult = await AuthService.LoginAsync(_emailOrSystemId, _password);
+            
+            System.Diagnostics.Debug.WriteLine($"[Login] LoginAsync returned: {loginResult}");
+            Console.WriteLine($"[Login] LoginAsync returned: {loginResult}");
 
             if (loginResult)
             {
+                System.Diagnostics.Debug.WriteLine($"[Login] Login successful! Proceeding with redirect...");
+                Console.WriteLine($"[Login] Login successful! Proceeding with redirect...");
+                
+                // Hide button loading first
+                isLoggingIn = false;
+                StateHasChanged();
+                
                 // Save credentials if remember me is checked
                 if (_rememberMeHandler != null)
                 {
                     await _rememberMeHandler.SaveCredentialsAsync(_emailOrSystemId, _password, rememberMe);
                 }
-
-                // Hide button loading and show full screen loading for redirect
-                isLoggingIn = false;
-                LoadingService.ShowLoading("Logging in...");
-                StateHasChanged();
 
                 // Login successful - redirect based on user role
                 try
@@ -424,18 +444,33 @@
                     // Get role directly from AuthService to ensure it's available
                     var currentUser = AuthService.CurrentUser;
                     var userRole = currentUser?.user_role;
+                    
+                    // Debug logging
+                    System.Diagnostics.Debug.WriteLine($"[Login] User logged in successfully. Role: '{userRole}', Email: '{currentUser?.email}', SystemId: '{currentUser?.system_ID}'");
+                    Console.WriteLine($"[Login] User logged in successfully. Role: '{userRole}', Email: '{currentUser?.email}', SystemId: '{currentUser?.system_ID}'");
+                    
                     var redirectPath = GetRedirectPathForRole(userRole);
+                    System.Diagnostics.Debug.WriteLine($"[Login] Redirecting to: {redirectPath}");
+                    Console.WriteLine($"[Login] Redirecting to: {redirectPath}");
                     
                     // Small delay to ensure state is updated before navigation
-                    await Task.Delay(100);
+                    await Task.Delay(300);
                     
-                    // Navigate to the appropriate page
+                    // Navigate to the appropriate page (don't show loading screen - it causes issues)
+                    System.Diagnostics.Debug.WriteLine($"[Login] Executing navigation to: {redirectPath}");
+                    Console.WriteLine($"[Login] Executing navigation to: {redirectPath}");
                     Navigation.NavigateTo(redirectPath, forceLoad: true);
+                    
+                    System.Diagnostics.Debug.WriteLine($"[Login] Navigation executed");
+                    Console.WriteLine($"[Login] Navigation executed");
                 }
                 catch (Exception ex)
                 {
                     // Log the exception for diagnostics, but fall back to dashboard
-                    Console.WriteLine($"Error determining redirect path after login: {ex}");
+                    System.Diagnostics.Debug.WriteLine($"[Login] Error determining redirect path after login: {ex}");
+                    System.Diagnostics.Debug.WriteLine($"[Login] Stack trace: {ex.StackTrace}");
+                    Console.WriteLine($"[Login] Error determining redirect path after login: {ex}");
+                    Console.WriteLine($"[Login] Stack trace: {ex.StackTrace}");
 
                     await Task.Delay(50);
                     Navigation.NavigateTo("/dashboard", forceLoad: true);
@@ -444,6 +479,7 @@
             else
             {
                 // Login failed - show error message and red outlines on both fields
+                Console.WriteLine($"[Login] Login failed for: {_emailOrSystemId}");
                 isLoggingIn = false;
                 loginError = true;
                 emailOrSystemIdError = true;
@@ -523,15 +559,17 @@
         }
 
         // Redirect based on role - you can customize these paths
-        var roleLower = role.ToLower().Trim();
-        return roleLower switch
+        // Normalize role name: remove spaces and convert to lowercase for comparison
+        var roleNormalized = role.Replace(" ", "").ToLower().Trim();
+        
+        return roleNormalized switch
         {
             "cashier" => "/finance", // Cashier goes to Finance page
             "registrar" => "/enrollment", // Registrar goes to Enrollment page
             "hr" => "/human-resource", // HR goes to HR page
             "teacher" => "/gradebook", // Teacher goes to Gradebook page
             "admin" => "/dashboard",
-            "superadmin" => "/superadmin-dashboard", // SuperAdmin goes to SuperAdmin dashboard
+            "superadmin" => "/system-admin/dashboard", // Super Admin or SuperAdmin goes to SuperAdmin dashboard
             _ => "/dashboard" // Default to dashboard for other roles
         };
     }

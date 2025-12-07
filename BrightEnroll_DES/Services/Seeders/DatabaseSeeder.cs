@@ -386,7 +386,7 @@ namespace BrightEnroll_DES.Services.Seeders
                         Age = age,
                         Gender = "male",
                         ContactNum = "09111111111",
-                        UserRole = "SuperAdmin",
+                        UserRole = "Super Admin",
                         Email = "superadmin@brightenroll.com",
                         Password = hashedPassword,
                         DateHired = DateTime.Now,

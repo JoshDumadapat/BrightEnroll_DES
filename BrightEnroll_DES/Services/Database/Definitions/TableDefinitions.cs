@@ -50,6 +50,12 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetAssetAssignmentsTableDefinition(),
                 // Student status logging table (must be after tbl_Students)
                 GetStudentStatusLogsTableDefinition(),
+                // SuperAdmin tables (must be after tbl_Users)
+                GetCustomersTableDefinition(),
+                GetSalesLeadsTableDefinition(),
+                GetSupportTicketsTableDefinition(),
+                GetContractsTableDefinition(),
+                GetSystemUpdatesTableDefinition(),
             };
         }
 
@@ -1128,6 +1134,231 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_student_status_logs_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_student_status_logs'))
                         CREATE INDEX IX_tbl_student_status_logs_CreatedAt ON [dbo].[tbl_student_status_logs]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_Customers table
+        public static TableDefinition GetCustomersTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Customers",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Customers](
+                        [customer_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [customer_code] VARCHAR(50) NOT NULL UNIQUE,
+                        [school_name] VARCHAR(200) NOT NULL,
+                        [school_type] VARCHAR(50) NULL,
+                        [address] VARCHAR(500) NULL,
+                        [city] VARCHAR(100) NULL,
+                        [province] VARCHAR(100) NULL,
+                        [contact_person] VARCHAR(200) NULL,
+                        [contact_position] VARCHAR(100) NULL,
+                        [contact_email] VARCHAR(150) NULL,
+                        [contact_phone] VARCHAR(20) NULL,
+                        [subscription_plan] VARCHAR(50) NULL,
+                        [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [contract_start_date] DATE NULL,
+                        [contract_end_date] DATE NULL,
+                        [contract_duration_months] INT NULL,
+                        [student_count] INT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [notes] NVARCHAR(MAX) NULL,
+                        [date_registered] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [created_by] INT NULL,
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_Customers_CreatedBy FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_CustomerCode' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_CustomerCode ON [dbo].[tbl_Customers]([customer_code])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_SchoolName ON [dbo].[tbl_Customers]([school_name])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_Status' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_Status ON [dbo].[tbl_Customers]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_ContractEndDate' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                        CREATE INDEX IX_tbl_Customers_ContractEndDate ON [dbo].[tbl_Customers]([contract_end_date])"
+                }
+            };
+        }
+
+        // Creates tbl_SalesLeads table
+        public static TableDefinition GetSalesLeadsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SalesLeads",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SalesLeads](
+                        [lead_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [lead_code] VARCHAR(50) NOT NULL UNIQUE,
+                        [school_name] VARCHAR(200) NOT NULL,
+                        [contact_person] VARCHAR(200) NULL,
+                        [contact_email] VARCHAR(150) NULL,
+                        [contact_phone] VARCHAR(20) NULL,
+                        [address] VARCHAR(500) NULL,
+                        [stage] VARCHAR(50) NOT NULL DEFAULT 'New Lead',
+                        [interested_plan] VARCHAR(50) NULL,
+                        [estimated_value] DECIMAL(18,2) NULL,
+                        [follow_up_date] DATE NULL,
+                        [conversion_date] DATE NULL,
+                        [converted_amount] DECIMAL(18,2) NULL,
+                        [assigned_to] INT NULL,
+                        [notes] NVARCHAR(MAX) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_SalesLeads_AssignedTo FOREIGN KEY ([assigned_to]) REFERENCES [dbo].[tbl_Users]([user_ID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_LeadCode' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_LeadCode ON [dbo].[tbl_SalesLeads]([lead_code])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_Stage' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_Stage ON [dbo].[tbl_SalesLeads]([stage])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_FollowUpDate' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_FollowUpDate ON [dbo].[tbl_SalesLeads]([follow_up_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                        CREATE INDEX IX_tbl_SalesLeads_CreatedAt ON [dbo].[tbl_SalesLeads]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_SupportTickets table
+        public static TableDefinition GetSupportTicketsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SupportTickets",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SupportTickets](
+                        [ticket_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [ticket_number] VARCHAR(50) NOT NULL UNIQUE,
+                        [customer_id] INT NULL,
+                        [subject] VARCHAR(200) NOT NULL,
+                        [description] NVARCHAR(MAX) NULL,
+                        [priority] VARCHAR(50) NOT NULL DEFAULT 'Medium',
+                        [status] VARCHAR(50) NOT NULL DEFAULT 'Open',
+                        [category] VARCHAR(50) NULL,
+                        [assigned_to] INT NULL,
+                        [resolved_at] DATETIME NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_SupportTickets_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]),
+                        CONSTRAINT FK_SupportTickets_AssignedTo FOREIGN KEY ([assigned_to]) REFERENCES [dbo].[tbl_Users]([user_ID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_TicketNumber' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_TicketNumber ON [dbo].[tbl_SupportTickets]([ticket_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_CustomerId ON [dbo].[tbl_SupportTickets]([customer_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Status' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_Status ON [dbo].[tbl_SupportTickets]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Priority' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_Priority ON [dbo].[tbl_SupportTickets]([priority])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                        CREATE INDEX IX_tbl_SupportTickets_CreatedAt ON [dbo].[tbl_SupportTickets]([created_at])"
+                }
+            };
+        }
+
+        // Creates tbl_Contracts table
+        public static TableDefinition GetContractsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Contracts",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Contracts](
+                        [contract_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [contract_number] VARCHAR(50) NOT NULL UNIQUE,
+                        [customer_id] INT NOT NULL,
+                        [contract_type] VARCHAR(200) NULL,
+                        [start_date] DATE NOT NULL,
+                        [end_date] DATE NOT NULL,
+                        [renewal_date] DATE NULL,
+                        [monthly_fee] DECIMAL(18,2) NOT NULL,
+                        [status] VARCHAR(50) NOT NULL DEFAULT 'Active',
+                        [auto_renew] BIT NOT NULL DEFAULT 0,
+                        [contract_file_path] NVARCHAR(MAX) NULL,
+                        [notes] NVARCHAR(MAX) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [created_by] INT NULL,
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_Contracts_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]),
+                        CONSTRAINT FK_Contracts_CreatedBy FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_ContractNumber' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_ContractNumber ON [dbo].[tbl_Contracts]([contract_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_CustomerId ON [dbo].[tbl_Contracts]([customer_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_Status' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_Status ON [dbo].[tbl_Contracts]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_EndDate' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                        CREATE INDEX IX_tbl_Contracts_EndDate ON [dbo].[tbl_Contracts]([end_date])"
+                }
+            };
+        }
+
+        // Creates tbl_SystemUpdates table
+        public static TableDefinition GetSystemUpdatesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SystemUpdates",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SystemUpdates](
+                        [update_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [version_number] VARCHAR(50) NOT NULL UNIQUE,
+                        [title] VARCHAR(200) NOT NULL,
+                        [description] NVARCHAR(MAX) NULL,
+                        [update_type] VARCHAR(50) NOT NULL DEFAULT 'Feature',
+                        [release_date] DATE NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Released',
+                        [is_major_update] BIT NOT NULL DEFAULT 0,
+                        [requires_action] BIT NOT NULL DEFAULT 0,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [created_by] INT NULL,
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_SystemUpdates_CreatedBy FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_VersionNumber' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                        CREATE INDEX IX_tbl_SystemUpdates_VersionNumber ON [dbo].[tbl_SystemUpdates]([version_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_ReleaseDate' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                        CREATE INDEX IX_tbl_SystemUpdates_ReleaseDate ON [dbo].[tbl_SystemUpdates]([release_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_Status' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                        CREATE INDEX IX_tbl_SystemUpdates_Status ON [dbo].[tbl_SystemUpdates]([status])"
                 }
             };
         }

@@ -38,11 +38,14 @@ else
 
         var userRole = AuthorizationService.GetUserRole();
         
-        // SuperAdmin has access to everything
-        if (!string.IsNullOrWhiteSpace(userRole) && 
-            string.Equals(userRole, "SuperAdmin", StringComparison.OrdinalIgnoreCase))
+        // SuperAdmin has access to everything (handle both "Super Admin" and "SuperAdmin")
+        if (!string.IsNullOrWhiteSpace(userRole))
         {
-            return true;
+            var roleNormalized = userRole.Replace(" ", "").ToLower().Trim();
+            if (roleNormalized == "superadmin")
+            {
+                return true;
+            }
         }
 
         // Check role-based authorization
@@ -73,6 +76,16 @@ else
 
     private void GoToDashboard()
     {
+        var userRole = AuthorizationService.GetUserRole();
+        if (!string.IsNullOrWhiteSpace(userRole))
+        {
+            var roleNormalized = userRole.Replace(" ", "").ToLower().Trim();
+            if (roleNormalized == "superadmin")
+            {
+                Navigation.NavigateTo("/system-admin/dashboard");
+                return;
+            }
+        }
         Navigation.NavigateTo("/dashboard");
     }
 }

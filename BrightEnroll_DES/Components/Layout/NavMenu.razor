@@ -1,14 +1,82 @@
-﻿@using BrightEnroll_DES.Services.RoleBase
+﻿﻿@using BrightEnroll_DES.Services.RoleBase
 @using BrightEnroll_DES.Services.Authentication
+@using Microsoft.AspNetCore.Components
 @inject IAuthorizationService AuthorizationService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
 
 @code {
     [Parameter] public EventCallback OnNavigate { get; set; }
     [Parameter] public EventCallback OnLogout { get; set; }
 
+    // Computed property that re-evaluates on every access
+    private bool IsSuperAdminUser
+    {
+        get
+        {
+            var currentRole = AuthService.CurrentUser?.user_role ?? AuthorizationService.GetUserRole();
+            if (string.IsNullOrWhiteSpace(currentRole))
+            {
+                System.Diagnostics.Debug.WriteLine($"[NavMenu] IsSuperAdminUser - No role found. IsAuthenticated: {AuthService.IsAuthenticated}, CurrentUser: {AuthService.CurrentUser != null}");
+                return false;
+            }
+            
+            // Handle both "Super Admin" (with space) and "SuperAdmin" (no space)
+            var isSuperAdmin = currentRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                               currentRole.Replace(" ", "").Equals("Super Admin", StringComparison.OrdinalIgnoreCase);
+            
+            System.Diagnostics.Debug.WriteLine($"[NavMenu] IsSuperAdminUser getter - Role: '{currentRole}', IsSuperAdmin: {isSuperAdmin}");
+            return isSuperAdmin;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Subscribe to navigation changes to force re-render
+        Navigation.LocationChanged += OnLocationChanged;
+        
+        // Force initial check
+        System.Diagnostics.Debug.WriteLine($"[NavMenu] OnInitialized - IsAuthenticated: {AuthService.IsAuthenticated}, CurrentUser: {AuthService.CurrentUser?.system_ID}, Role: {AuthService.CurrentUser?.user_role}");
+        Console.WriteLine($"[NavMenu] OnInitialized - IsAuthenticated: {AuthService.IsAuthenticated}, CurrentUser: {AuthService.CurrentUser?.system_ID}, Role: {AuthService.CurrentUser?.user_role}");
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Re-check on parameter changes
+        System.Diagnostics.Debug.WriteLine($"[NavMenu] OnParametersSet - IsAuthenticated: {AuthService.IsAuthenticated}, Role: {AuthService.CurrentUser?.user_role}, IsSuperAdmin: {IsSuperAdminUser}");
+        Console.WriteLine($"[NavMenu] OnParametersSet - IsAuthenticated: {AuthService.IsAuthenticated}, Role: {AuthService.CurrentUser?.user_role}, IsSuperAdmin: {IsSuperAdminUser}");
+        StateHasChanged(); // Force re-render
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Wait a bit for auth state to be ready, then force re-render
+            await Task.Delay(100);
+            System.Diagnostics.Debug.WriteLine($"[NavMenu] OnAfterRenderAsync - IsAuthenticated: {AuthService.IsAuthenticated}, Role: {AuthService.CurrentUser?.user_role}, IsSuperAdmin: {IsSuperAdminUser}");
+            StateHasChanged();
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // Force re-render on navigation
+        System.Diagnostics.Debug.WriteLine($"[NavMenu] Location changed to: {e.Location}, IsSuperAdmin: {IsSuperAdminUser}");
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
     private async Task HandleNavigate()
     {
         await OnNavigate.InvokeAsync();
+        // Force re-evaluation of IsSuperAdminUser after navigation
+        StateHasChanged();
     }
 
     private async Task HandleLogout()
@@ -16,7 +84,40 @@
         await OnLogout.InvokeAsync();
     }
 
-    // Check if user is SuperAdmin or Admin - they see all menu items
+    // Helper method to get the correct dashboard path based on role
+    private string GetDashboardPath()
+    {
+        if (IsSuperAdminUser)
+        {
+            return "/system-admin/dashboard";
+        }
+        return "/dashboard";
+    }
+
+    // Check if user is SuperAdmin
+    private bool IsSuperAdmin()
+    {
+        // Try AuthService first (most direct), then AuthorizationService as fallback
+        var userRole = AuthService.CurrentUser?.user_role ?? AuthorizationService.GetUserRole();
+        
+        if (string.IsNullOrWhiteSpace(userRole))
+        {
+            System.Diagnostics.Debug.WriteLine($"[NavMenu] IsSuperAdmin - No role found. IsAuthenticated: {AuthService.IsAuthenticated}, CurrentUser: {AuthService.CurrentUser != null}");
+            return false;
+        }
+
+        // Handle both "Super Admin" (with space) and "SuperAdmin" (no space)
+        var isSuperAdmin = userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                          userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase);
+        
+        // Debug logging
+        System.Diagnostics.Debug.WriteLine($"[NavMenu] IsSuperAdmin check - Role: '{userRole}', Result: {isSuperAdmin}");
+        Console.WriteLine($"[NavMenu] IsSuperAdmin check - Role: '{userRole}', Result: {isSuperAdmin}");
+        
+        return isSuperAdmin;
+    }
+
+    // Check if user is Admin (but not SuperAdmin)
     private bool IsAdmin()
     {
         var userRole = AuthorizationService.GetUserRole();
@@ -24,28 +125,16 @@
         {
             return false;
         }
-        
-        // Check if role is SuperAdmin or Admin (case-insensitive)
-        var roleLower = userRole.ToLower().Trim();
-        return roleLower == "superadmin" || roleLower == "admin";
+
+        // Normalize role: remove spaces and convert to lowercase
+        var roleNormalized = userRole.Replace(" ", "").ToLower().Trim();
+        return roleNormalized == "admin";
     }
 
-    // Check if user is SuperAdmin
-    private bool IsSuperAdmin()
+    // Check if user is Admin or SuperAdmin - they see all menu items
+    private bool IsAdminOrSuperAdmin()
     {
-        var userRole = AuthorizationService.GetUserRole();
-        if (string.IsNullOrWhiteSpace(userRole))
-        {
-            return false;
-        }
-        var roleLower = userRole.ToLower().Trim();
-        return roleLower == "superadmin";
-    }
-
-    // Get dashboard path based on user role
-    private string GetDashboardPath()
-    {
-        return IsSuperAdmin() ? "/superadmin-dashboard" : "/dashboard";
+        return IsAdmin() || IsSuperAdmin();
     }
 
     // Helper to check if menu item should be shown
@@ -53,7 +142,7 @@
     {
         // Admin, System Admin, and Super Admin see everything - no permission checks needed
         // EXCEPT for Teacher-only modules (Attendance and Gradebook)
-        if (IsAdmin())
+        if (IsAdminOrSuperAdmin())
         {
             // Attendance and Gradebook are Teacher-only, even for Admins
             if (permission == Permissions.ViewAttendance || permission == Permissions.ViewGradebook)
@@ -85,17 +174,122 @@
     </div>
 
     <nav class="m-0 flex flex-1 flex-col gap-1 pl-2">
-        <NavLink href="@GetDashboardPath()" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
-            <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
-                <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
-                <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
-                <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
-                <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
-            </div>
+        @if (IsSuperAdminUser)
+        {
+            <NavLink href="/system-admin/dashboard" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+        else
+        {
+            <NavLink href="/dashboard" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <img src="/images/navmenu/dash.png" alt="Dashboard" class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" />
+                    <img src="/images/navmenu/dashfocused.png" alt="Dashboard" class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" />
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Dashboard</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Dashboard</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
 
-            <div class="nav-indicator"></div>
-        </NavLink>
+        @* Super Admin specific menu items *@
+        @if (IsSuperAdminUser)
+        {
+            <NavLink href="/system-admin/customers" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Customers</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Customers</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
 
+            <NavLink href="/system-admin/sales" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Sales</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Sales</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/system-admin/contracts" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Contracts</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Contracts</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/system-admin/subscriptions" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Subscriptions</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Subscriptions</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/system-admin/support" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Support</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Support</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
+            <NavLink href="/system-admin/updates" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Updates</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Updates</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+        }
+
+        @* Regular Admin/School Management Menu Items - Hidden for Super Admin *@
+        @if (!IsSuperAdminUser)
+        {
         @if (ShouldShowMenuItem(Permissions.ViewEnrollment))
         {
             <NavLink href="/enrollment" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
@@ -317,6 +511,7 @@
                 <div class="nav-indicator"></div>
             </NavLink>
         }
+        }
 
         <button type="button" @onclick="HandleLogout" @onclick:preventDefault="true" class="nav-link relative block w-full text-left">
             <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
@@ -334,4 +529,3 @@
 
     </nav>
 </div>
-

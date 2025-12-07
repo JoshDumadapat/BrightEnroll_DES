@@ -49,6 +49,12 @@ namespace BrightEnroll_DES
             builder.Services.AddSingleton<AddressService>();
             builder.Services.AddSingleton<SchoolYearService>();
 
+            // SuperAdmin services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
+
+            // SuperAdmin services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
+
             // Role-based access control services
             builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();
             builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();

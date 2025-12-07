@@ -1,0 +1,212 @@
+@page "/system-admin/subscriptions"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@inject IAuthService AuthService
+@inject ILoadingService LoadingService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Subscription Management</PageTitle>
+
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Subscription Management</h1>
+            <p class="text-sm text-gray-600">Manage billing, plans, and renewals</p>
+        </div>
+        <button @onclick="GoBack" class="flex items-center gap-2 rounded-full bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md hover:bg-gray-700">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back
+        </button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600">Active Subscriptions</p>
+        <p class="text-2xl font-bold text-blue-800">@ActiveSubscriptions</p>
+    </div>
+    <div class="rounded-xl border border-orange-200 bg-orange-50 p-4">
+        <p class="text-sm text-orange-600">Expiring This Month</p>
+        <p class="text-2xl font-bold text-orange-800">@ExpiringThisMonth</p>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600">MRR (Monthly Recurring Revenue)</p>
+        <p class="text-2xl font-bold text-green-800">?@MonthlyRecurringRevenue.ToString("N0")</p>
+    </div>
+</div>
+
+<!-- Pricing Plans Overview -->
+<div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+    <div class="rounded-xl border-2 border-gray-200 bg-white p-6">
+        <h3 class="mb-2 text-xl font-bold text-gray-800">Basic Plan</h3>
+        <p class="mb-4 text-3xl font-bold text-gray-800">?35,000<span class="text-sm text-gray-500">/month</span></p>
+        <ul class="space-y-2 text-sm text-gray-600">
+            <li>? Up to 100 students</li>
+            <li>? 5 admin users</li>
+            <li>? Basic modules</li>
+            <li>? Email support</li>
+        </ul>
+        <p class="mt-4 text-sm font-medium text-blue-600">@BasicPlanCount schools subscribed</p>
+    </div>
+
+    <div class="rounded-xl border-2 border-blue-500 bg-white p-6 shadow-lg">
+        <div class="mb-2 inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">Most Popular</div>
+        <h3 class="mb-2 text-xl font-bold text-gray-800">Standard Plan</h3>
+        <p class="mb-4 text-3xl font-bold text-gray-800">?55,000<span class="text-sm text-gray-500">/month</span></p>
+        <ul class="space-y-2 text-sm text-gray-600">
+            <li>? Up to 500 students</li>
+            <li>? 15 admin users</li>
+            <li>? All standard modules</li>
+            <li>? Priority support</li>
+        </ul>
+        <p class="mt-4 text-sm font-medium text-blue-600">@StandardPlanCount schools subscribed</p>
+    </div>
+
+    <div class="rounded-xl border-2 border-purple-500 bg-white p-6">
+        <h3 class="mb-2 text-xl font-bold text-gray-800">Premium Plan</h3>
+        <p class="mb-4 text-3xl font-bold text-gray-800">?85,000<span class="text-sm text-gray-500">/month</span></p>
+        <ul class="space-y-2 text-sm text-gray-600">
+            <li>? Unlimited students</li>
+            <li>? Unlimited users</li>
+            <li>? All modules + custom</li>
+            <li>? 24/7 dedicated support</li>
+        </ul>
+        <p class="mt-4 text-sm font-medium text-purple-600">@PremiumPlanCount schools subscribed</p>
+    </div>
+</div>
+
+<!-- Expiring Soon -->
+<div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Expiring Soon</h2>
+    <div class="space-y-3">
+        @if (ExpiringSubscriptions.Any())
+        {
+            @foreach (var subscription in ExpiringSubscriptions.Take(5))
+            {
+                var daysUntilExpiry = subscription.ContractEndDate.HasValue 
+                    ? (subscription.ContractEndDate.Value - DateTime.Now).Days 
+                    : 0;
+                <div class="flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 p-4">
+                    <div>
+                        <p class="font-semibold text-gray-800">@subscription.SchoolName</p>
+                        <p class="text-sm text-gray-600">
+                            Expires in @daysUntilExpiry days 
+                            @(subscription.ContractEndDate.HasValue ? $"({subscription.ContractEndDate.Value.ToString("MMM dd, yyyy")})" : "")
+                        </p>
+                    </div>
+                    <button class="rounded-full bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700">Send Reminder</button>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="py-8 text-center text-gray-500">
+                <p>No subscriptions expiring soon</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<Customer> Customers { get; set; } = new();
+    private int ActiveSubscriptions { get; set; }
+    private int ExpiringThisMonth { get; set; }
+    private decimal MonthlyRecurringRevenue { get; set; }
+    private int BasicPlanCount { get; set; }
+    private int StandardPlanCount { get; set; }
+    private int PremiumPlanCount { get; set; }
+    private List<Customer> ExpiringSubscriptions { get; set; } = new();
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        if (AuthService.CurrentUser?.user_role != "Super Admin")
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            await Task.Delay(500);
+            LoadingService?.ShowLoading("Loading subscription data...");
+
+            try
+            {
+                await LoadSubscriptionData();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Subscription] Error loading data: {ex.Message}");
+                Customers = new List<Customer>();
+                ExpiringSubscriptions = new List<Customer>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                LoadingService?.HideLoading();
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Subscription] Critical error: {ex.Message}");
+            LoadingService?.HideLoading();
+            Customers = new List<Customer>();
+            ExpiringSubscriptions = new List<Customer>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSubscriptionData()
+    {
+        if (SuperAdminService == null)
+        {
+            Customers = new List<Customer>();
+            return;
+        }
+
+        Customers = await SuperAdminService.GetAllCustomersAsync();
+        
+        ActiveSubscriptions = Customers.Count(c => c.Status == "Active");
+        ExpiringThisMonth = Customers.Count(c => c.Status == "Active" && 
+            c.ContractEndDate.HasValue && 
+            c.ContractEndDate.Value.Month == DateTime.Now.Month && 
+            c.ContractEndDate.Value.Year == DateTime.Now.Year);
+        MonthlyRecurringRevenue = Customers.Where(c => c.Status == "Active").Sum(c => c.MonthlyFee);
+        
+        BasicPlanCount = Customers.Count(c => c.SubscriptionPlan == "Basic" && c.Status == "Active");
+        StandardPlanCount = Customers.Count(c => c.SubscriptionPlan == "Standard" && c.Status == "Active");
+        PremiumPlanCount = Customers.Count(c => c.SubscriptionPlan == "Premium" && c.Status == "Active");
+
+        ExpiringSubscriptions = Customers
+            .Where(c => c.Status == "Active" && 
+                c.ContractEndDate.HasValue && 
+                c.ContractEndDate.Value >= DateTime.Now && 
+                c.ContractEndDate.Value <= DateTime.Now.AddDays(30))
+            .OrderBy(c => c.ContractEndDate)
+            .ToList();
+    }
+
+    private void GoBack() => Navigation.NavigateTo("/system-admin/dashboard");
+}
