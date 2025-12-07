@@ -22,6 +22,7 @@ BEGIN
         [approved_by] INT NULL, -- Admin/Payroll user who approved/rejected
         [requested_at] DATETIME NOT NULL DEFAULT GETDATE(),
         [approved_at] DATETIME NULL,
+        [effective_date] DATE NULL,
         [school_year] VARCHAR(20) NOT NULL,
         [is_initial_registration] BIT NOT NULL DEFAULT 0, -- True if from Add Employee, False if from Edit
         

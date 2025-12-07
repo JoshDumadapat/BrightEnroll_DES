@@ -36,59 +36,138 @@ public class SalaryChangeRequestService
         int requestedBy,
         bool isInitialRegistration = false)
     {
-        var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
-
-        var request = new SalaryChangeRequest
+        try
         {
-            UserId = userId,
-            CurrentBaseSalary = currentBaseSalary,
-            CurrentAllowance = currentAllowance,
-            RequestedBaseSalary = requestedBaseSalary,
-            RequestedAllowance = requestedAllowance,
-            Reason = reason,
-            Status = "Pending",
-            RequestedBy = requestedBy,
-            RequestedAt = DateTime.Now,
-            SchoolYear = currentSchoolYear,
-            IsInitialRegistration = isInitialRegistration
-        };
+            var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
 
-        _context.SalaryChangeRequests.Add(request);
-        await _context.SaveChangesAsync();
+            _logger?.LogInformation("DEBUG: Creating salary change request - UserId={UserId}, CurrentBase={CurrentBase}, RequestedBase={RequestedBase}", 
+                userId, currentBaseSalary, requestedBaseSalary);
 
-        // Get employee and requester names for audit log
-        var employee = await _context.Users.FindAsync(userId);
-        var requester = await _context.Users.FindAsync(requestedBy);
-        var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "Unknown";
-        var requesterName = requester != null ? $"{requester.FirstName} {requester.LastName}" : "Unknown";
-        var requesterRole = requester?.UserRole ?? "Unknown";
+            var request = new SalaryChangeRequest
+            {
+                UserId = userId,
+                CurrentBaseSalary = currentBaseSalary,
+                CurrentAllowance = currentAllowance,
+                RequestedBaseSalary = requestedBaseSalary,
+                RequestedAllowance = requestedAllowance,
+                Reason = reason,
+                Status = "Pending",
+                RequestedBy = requestedBy,
+                RequestedAt = DateTime.Now,
+                SchoolYear = currentSchoolYear,
+                IsInitialRegistration = isInitialRegistration,
+                EffectiveDate = null // Will be set on approval
+            };
 
-        // Create audit log
-        await _auditLogService.CreateLogAsync(
-            action: isInitialRegistration ? "Salary Change Request Created (New Employee)" : "Salary Change Request Created",
-            module: "HR",
-            description: $"Requested salary change for {employeeName}. Current: ₱{currentBaseSalary:N2} + ₱{currentAllowance:N2}, Requested: ₱{requestedBaseSalary:N2} + ₱{requestedAllowance:N2}. Reason: {reason ?? "N/A"}. School Year: {currentSchoolYear}",
-            userName: requesterName,
-            userRole: requesterRole,
-            userId: requestedBy,
-            status: "Success",
-            severity: "Medium"
-        );
+            _logger?.LogInformation("DEBUG: SalaryChangeRequest object created - RequestId will be assigned, EffectiveDate={EffectiveDate}", 
+                request.EffectiveDate);
 
-        _logger?.LogInformation("Salary change request created: RequestId={RequestId}, UserId={UserId}, Status={Status}",
-            request.RequestId, userId, request.Status);
+            _context.SalaryChangeRequests.Add(request);
+            
+            _logger?.LogInformation("DEBUG: Request added to context, attempting SaveChangesAsync...");
+            
+            try
+            {
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation("DEBUG: SaveChangesAsync completed successfully - RequestId={RequestId}", request.RequestId);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+            {
+                _logger?.LogError(dbEx, "DEBUG: DbUpdateException occurred during SaveChangesAsync");
+                _logger?.LogError("DEBUG: Inner Exception Type: {InnerType}, Message: {InnerMessage}", 
+                    dbEx.InnerException?.GetType().Name ?? "None", 
+                    dbEx.InnerException?.Message ?? "None");
+                
+                if (dbEx.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx)
+                {
+                    _logger?.LogError("DEBUG: SQL Exception Details:");
+                    _logger?.LogError("  - Error Number: {ErrorNumber}", sqlEx.Number);
+                    _logger?.LogError("  - Error State: {State}", sqlEx.State);
+                    _logger?.LogError("  - Error Class: {Class}", sqlEx.Class);
+                    _logger?.LogError("  - Error Message: {Message}", sqlEx.Message);
+                    _logger?.LogError("  - Server: {Server}", sqlEx.Server);
+                    _logger?.LogError("  - Procedure: {Procedure}", sqlEx.Procedure ?? "N/A");
+                    _logger?.LogError("  - Line Number: {LineNumber}", sqlEx.LineNumber);
+                    
+                    if (sqlEx.Number == 207) // Invalid column name
+                    {
+                        _logger?.LogError("DEBUG: CRITICAL - Invalid column name error detected!");
+                        _logger?.LogError("DEBUG: The 'effective_date' column does not exist in tbl_salary_change_requests table.");
+                        _logger?.LogError("DEBUG: Please run the migration script: Database_Scripts/Add_effective_date_to_salary_change_requests.sql");
+                        
+                        // Check if column exists
+                        var columnExists = await CheckColumnExistsAsync("tbl_salary_change_requests", "effective_date");
+                        _logger?.LogError("DEBUG: Column 'effective_date' exists check result: {Exists}", columnExists);
+                    }
+                }
+                
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "DEBUG: General exception during SaveChangesAsync - Type: {Type}, Message: {Message}", 
+                    ex.GetType().Name, ex.Message);
+                throw;
+            }
 
-        return request;
+            // Get employee and requester names for audit log
+            var employee = await _context.Users.FindAsync(userId);
+            var requester = await _context.Users.FindAsync(requestedBy);
+            var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "Unknown";
+            var requesterName = requester != null ? $"{requester.FirstName} {requester.LastName}" : "Unknown";
+            var requesterRole = requester?.UserRole ?? "Unknown";
+
+            // Create audit log
+            await _auditLogService.CreateLogAsync(
+                action: isInitialRegistration ? "Salary Change Request Created (New Employee)" : "Salary Change Request Created",
+                module: "HR",
+                description: $"Requested salary change for {employeeName}. Current: ₱{currentBaseSalary:N2} + ₱{currentAllowance:N2}, Requested: ₱{requestedBaseSalary:N2} + ₱{requestedAllowance:N2}. Reason: {reason ?? "N/A"}. School Year: {currentSchoolYear}",
+                userName: requesterName,
+                userRole: requesterRole,
+                userId: requestedBy,
+                status: "Success",
+                severity: "Medium"
+            );
+
+            _logger?.LogInformation("Salary change request created: RequestId={RequestId}, UserId={UserId}, Status={Status}",
+                request.RequestId, userId, request.Status);
+
+            return request;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "DEBUG: FATAL ERROR in CreateRequestAsync - Type: {Type}, Message: {Message}, StackTrace: {StackTrace}", 
+                ex.GetType().Name, ex.Message, ex.StackTrace);
+            throw;
+        }
     }
 
     public async Task<List<SalaryChangeRequest>> GetPendingRequestsAsync()
     {
-        return await _context.SalaryChangeRequests
-            .Include(r => r.User)
-            .Include(r => r.RequestedByUser)
-            .Where(r => r.Status == "Pending")
-            .OrderByDescending(r => r.RequestedAt)
-            .ToListAsync();
+        try
+        {
+            _logger?.LogInformation("DEBUG: GetPendingRequestsAsync - Starting query...");
+            var result = await _context.SalaryChangeRequests
+                .Include(r => r.User)
+                .Include(r => r.RequestedByUser)
+                .Where(r => r.Status == "Pending")
+                .OrderByDescending(r => r.RequestedAt)
+                .ToListAsync();
+            _logger?.LogInformation("DEBUG: GetPendingRequestsAsync - Query completed, found {Count} requests", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "DEBUG: ERROR in GetPendingRequestsAsync - Type: {Type}, Message: {Message}", 
+                ex.GetType().Name, ex.Message);
+            if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx && sqlEx.Number == 207)
+            {
+                _logger?.LogError("DEBUG: CRITICAL - Invalid column name 'effective_date' in GetPendingRequestsAsync");
+                var columnExists = await CheckColumnExistsAsync("tbl_salary_change_requests", "effective_date");
+                _logger?.LogError("DEBUG: Column 'effective_date' exists check result: {Exists}", columnExists);
+            }
+            throw;
+        }
     }
 
     public async Task<SalaryChangeRequest?> GetRequestByIdAsync(int requestId)
@@ -117,6 +196,10 @@ public class SalaryChangeRequestService
             request.Status = "Approved";
             request.ApprovedBy = approvedBy;
             request.ApprovedAt = DateTime.Now;
+            
+            // Save the effective date (use provided date or default to today)
+            var finalEffectiveDate = effectiveDate ?? DateTime.Today;
+            request.EffectiveDate = finalEffectiveDate.Date;
 
             // Find existing salary record (could be inactive if from initial registration)
             var existingSalary = await _context.SalaryInfos
@@ -129,7 +212,7 @@ public class SalaryChangeRequestService
                 // Update existing salary record (activate it if it was pending)
                 existingSalary.BaseSalary = request.RequestedBaseSalary;
                 existingSalary.Allowance = request.RequestedAllowance;
-                existingSalary.DateEffective = DateTime.Today;
+                existingSalary.DateEffective = finalEffectiveDate.Date; // Use the effective date from approval
                 existingSalary.IsActive = true; // Activate the salary
                 existingSalary.SchoolYear = request.SchoolYear;
             }
@@ -141,7 +224,7 @@ public class SalaryChangeRequestService
                     UserId = request.UserId,
                     BaseSalary = request.RequestedBaseSalary,
                     Allowance = request.RequestedAllowance,
-                    DateEffective = DateTime.Today,
+                    DateEffective = finalEffectiveDate.Date, // Use the effective date from approval
                     IsActive = true,
                     SchoolYear = request.SchoolYear
                 };
@@ -354,23 +437,29 @@ public class SalaryChangeRequestService
     /// </summary>
     public async Task<List<SalaryChangeLogDto>> GetSalaryChangeLogAsync(int? userId = null)
     {
-        var logEntries = new List<SalaryChangeLogDto>();
+        try
+        {
+            _logger?.LogInformation("DEBUG: GetSalaryChangeLogAsync - Starting query, UserId={UserId}", userId);
+            var logEntries = new List<SalaryChangeLogDto>();
 
-        // Get all salary change requests
-        var requests = userId.HasValue
-            ? await _context.SalaryChangeRequests
-                .Include(r => r.User)
-                .Include(r => r.RequestedByUser)
-                .Include(r => r.ApprovedByUser)
-                .Where(r => r.UserId == userId.Value)
-                .OrderByDescending(r => r.RequestedAt)
-                .ToListAsync()
-            : await _context.SalaryChangeRequests
-                .Include(r => r.User)
-                .Include(r => r.RequestedByUser)
-                .Include(r => r.ApprovedByUser)
-                .OrderByDescending(r => r.RequestedAt)
-                .ToListAsync();
+            // Get all salary change requests
+            _logger?.LogInformation("DEBUG: GetSalaryChangeLogAsync - Querying SalaryChangeRequests table...");
+            var requests = userId.HasValue
+                ? await _context.SalaryChangeRequests
+                    .Include(r => r.User)
+                    .Include(r => r.RequestedByUser)
+                    .Include(r => r.ApprovedByUser)
+                    .Where(r => r.UserId == userId.Value)
+                    .OrderByDescending(r => r.RequestedAt)
+                    .ToListAsync()
+                : await _context.SalaryChangeRequests
+                    .Include(r => r.User)
+                    .Include(r => r.RequestedByUser)
+                    .Include(r => r.ApprovedByUser)
+                    .OrderByDescending(r => r.RequestedAt)
+                    .ToListAsync();
+            
+            _logger?.LogInformation("DEBUG: GetSalaryChangeLogAsync - Query completed, found {Count} requests", requests.Count);
 
         // For each employee, get their original base salary (first approved salary or initial salary)
         var employeeOriginalSalaries = new Dictionary<int, decimal>();
@@ -410,11 +499,10 @@ public class SalaryChangeRequestService
                 ? ((request.RequestedBaseSalary - originalBase) / originalBase) * 100 
                 : 0;
 
-            var effectiveDate = request.ApprovedAt?.Date ?? request.RequestedAt.Date;
-            if (request.Status == "Approved" && request.ApprovedAt.HasValue)
-            {
-                effectiveDate = request.ApprovedAt.Value.Date;
-            }
+            // Use stored effective date if available, otherwise fall back to approval date or request date
+            var effectiveDate = request.EffectiveDate?.Date 
+                ?? request.ApprovedAt?.Date 
+                ?? request.RequestedAt.Date;
 
             logEntries.Add(new SalaryChangeLogDto
             {
@@ -447,7 +535,62 @@ public class SalaryChangeRequestService
             });
         }
 
-        return logEntries.OrderByDescending(e => e.EffectiveDate).ThenByDescending(e => e.RequestedAt).ToList();
+            var result = logEntries.OrderByDescending(e => e.EffectiveDate).ThenByDescending(e => e.RequestedAt).ToList();
+            _logger?.LogInformation("DEBUG: GetSalaryChangeLogAsync - Processing completed, returning {Count} log entries", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "DEBUG: ERROR in GetSalaryChangeLogAsync - Type: {Type}, Message: {Message}, StackTrace: {StackTrace}", 
+                ex.GetType().Name, ex.Message, ex.StackTrace);
+            
+            if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx)
+            {
+                _logger?.LogError("DEBUG: SQL Exception Details in GetSalaryChangeLogAsync:");
+                _logger?.LogError("  - Error Number: {ErrorNumber}", sqlEx.Number);
+                _logger?.LogError("  - Error State: {State}", sqlEx.State);
+                _logger?.LogError("  - Error Class: {Class}", sqlEx.Class);
+                _logger?.LogError("  - Error Message: {Message}", sqlEx.Message);
+                
+                if (sqlEx.Number == 207) // Invalid column name
+                {
+                    _logger?.LogError("DEBUG: CRITICAL - Invalid column name 'effective_date' in GetSalaryChangeLogAsync");
+                    var columnExists = await CheckColumnExistsAsync("tbl_salary_change_requests", "effective_date");
+                    _logger?.LogError("DEBUG: Column 'effective_date' exists check result: {Exists}", columnExists);
+                }
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Debug method to check if a column exists in a table
+    /// </summary>
+    private async Task<bool> CheckColumnExistsAsync(string tableName, string columnName)
+    {
+        try
+        {
+            var sql = @"
+                SELECT COUNT(*) AS ColumnCount
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = @p0 
+                AND COLUMN_NAME = @p1";
+            
+            var result = await _context.Database
+                .SqlQueryRaw<int>(sql, tableName, columnName)
+                .FirstOrDefaultAsync();
+            
+            _logger?.LogInformation("DEBUG: Column check - Table: {Table}, Column: {Column}, Exists: {Exists}", 
+                tableName, columnName, result > 0);
+            
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "DEBUG: Error checking if column exists: Table={Table}, Column={Column}, Error: {Error}", 
+                tableName, columnName, ex.Message);
+            return false;
+        }
     }
 }
 

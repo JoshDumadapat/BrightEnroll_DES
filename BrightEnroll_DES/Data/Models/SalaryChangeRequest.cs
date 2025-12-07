@@ -61,6 +61,9 @@ public class SalaryChangeRequest
     [Column("approved_at", TypeName = "datetime")]
     public DateTime? ApprovedAt { get; set; }
 
+    [Column("effective_date", TypeName = "date")]
+    public DateTime? EffectiveDate { get; set; } // Date when the approved salary change takes effect
+
     [Required]
     [MaxLength(20)]
     [Column("school_year")]

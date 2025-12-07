@@ -909,6 +909,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [approved_by] INT NULL,
                         [requested_at] DATETIME NOT NULL DEFAULT GETDATE(),
                         [approved_at] DATETIME NULL,
+                        [effective_date] DATE NULL,
                         [school_year] VARCHAR(20) NOT NULL,
                         [is_initial_registration] BIT NOT NULL DEFAULT 0,
                         CONSTRAINT FK_tbl_salary_change_requests_tbl_Users FOREIGN KEY ([user_id]) 

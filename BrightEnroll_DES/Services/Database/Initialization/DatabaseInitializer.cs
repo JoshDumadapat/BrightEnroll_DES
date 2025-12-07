@@ -1098,6 +1098,67 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Adds effective_date column to tbl_salary_change_requests if it doesn't exist (for existing databases)
+        public async Task<bool> AddEffectiveDateColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // First check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_salary_change_requests' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
+
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_salary_change_requests') 
+                    AND name = 'effective_date'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_salary_change_requests]
+                        ADD [effective_date] DATE NULL";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Added effective_date column to tbl_salary_change_requests table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding effective_date column: {ex.Message}");
+                return false;
+            }
+        }
+
         public async Task<bool> AddPayrollAuditTrailAndCompanyContributionsAsync()
         {
             try
@@ -1344,6 +1405,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await AddThresholdPercentageColumnIfNotExistsAsync(); // Add missing column
                 await AddBatchTimestampColumnIfNotExistsAsync(); // Add batch_timestamp column for payroll
                 await AddPayrollAuditTrailAndCompanyContributionsAsync(); // Add audit trail and company contributions
+                await AddEffectiveDateColumnIfNotExistsAsync(); // Add effective_date column to salary change requests
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();

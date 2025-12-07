@@ -89,7 +89,7 @@
                                 Previous Salary
                             </th>
                             <th scope="col" class="px-3 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
-                                New / Proposed Salary
+                                Requested Salary
                             </th>
                             <th scope="col" class="px-3 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-[8%]">
                                 Change %
@@ -104,7 +104,7 @@
                                 Approver
                             </th>
                             <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[12%]">
-                                Notes / Reason
+                                Reason
                             </th>
                             <th scope="col" class="px-3 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[2%]">
                                 Actions
@@ -160,35 +160,27 @@
                                     </td>
                                     <td class="px-3 py-4 text-right">
                                         <div class="text-sm font-medium text-gray-900">₱@entry.PreviousTotalSalary.ToString("N2")</div>
-                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.PreviousBaseSalary.ToString("N2")</div>
                                     </td>
                                     <td class="px-3 py-4 text-right">
                                         <div class="text-sm font-semibold text-blue-600">₱@entry.NewTotalSalary.ToString("N2")</div>
-                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.NewBaseSalary.ToString("N2")</div>
                                     </td>
                                     <td class="px-3 py-4 text-right">
-                                        <div class="flex flex-col items-end">
-                                            @if (entry.ChangePercentage > 0)
-                                            {
-                                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
-                                                    +@entry.ChangePercentage.ToString("F2")%
-                                                </span>
-                                            }
-                                            else if (entry.ChangePercentage < 0)
-                                            {
-                                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-red-700 bg-red-100">
-                                                    @entry.ChangePercentage.ToString("F2")%
-                                                </span>
-                                            }
-                                            else
-                                            {
-                                                <span class="text-xs text-gray-500">0%</span>
-                                            }
-                                            @if (entry.CumulativeIncreasePercentage != entry.ChangePercentage)
-                                            {
-                                                <div class="text-xs text-gray-500 mt-1">Cum: @entry.CumulativeIncreasePercentage.ToString("F2")%</div>
-                                            }
-                                        </div>
+                                        @if (entry.ChangePercentage > 0)
+                                        {
+                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
+                                                +@entry.ChangePercentage.ToString("F2")%
+                                            </span>
+                                        }
+                                        else if (entry.ChangePercentage < 0)
+                                        {
+                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-red-700 bg-red-100">
+                                                @entry.ChangePercentage.ToString("F2")%
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-xs text-gray-500">0%</span>
+                                        }
                                     </td>
                                     <td class="px-3 py-4">
                                         @if (entry.Status == "Pending")
@@ -400,11 +392,11 @@
 @if (showEmployeeHistoryModal && selectedEmployeeHistory != null)
 {
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEmployeeHistoryModal">
-        <div class="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+        <div class="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-3xl bg-white shadow-2xl" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between border-b border-gray-200 bg-blue-600 px-6 py-4">
-                <h3 class="text-lg font-semibold text-white">Salary History - @selectedEmployeeHistory.EmployeeName</h3>
-                <button @onclick="CloseEmployeeHistoryModal" class="text-white hover:text-gray-200">
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3">
+                <h3 class="text-xl font-semibold text-gray-900">Salary History - @selectedEmployeeHistory.EmployeeName</h3>
+                <button @onclick="CloseEmployeeHistoryModal" class="text-gray-400 hover:text-gray-600 transition-colors">
                     <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
@@ -412,17 +404,20 @@
             </div>
 
             <!-- Modal Body -->
-            <div class="max-h-[calc(90vh-140px)] overflow-y-auto p-6">
+            <div class="max-h-[calc(90vh-140px)] overflow-y-auto p-4">
+                @{
+                    var today = DateTime.Today;
+                }
                 <!-- Employee Info -->
-                <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
-                    <div class="grid grid-cols-2 gap-4 text-sm">
+                <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <div class="grid grid-cols-2 gap-4">
                         <div>
-                            <span class="font-semibold text-gray-700">Employee ID:</span>
-                            <span class="ml-2 text-gray-900">@selectedEmployeeHistory.EmployeeId</span>
+                            <span class="text-sm font-medium text-gray-600">Employee ID:</span>
+                            <span class="ml-2 text-base font-semibold text-gray-900">@selectedEmployeeHistory.EmployeeId</span>
                         </div>
                         <div>
-                            <span class="font-semibold text-gray-700">Position:</span>
-                            <span class="ml-2 text-gray-900">@selectedEmployeeHistory.Role</span>
+                            <span class="text-sm font-medium text-gray-600">Position:</span>
+                            <span class="ml-2 text-base font-semibold text-gray-900">@selectedEmployeeHistory.Role</span>
                         </div>
                     </div>
                 </div>
@@ -433,114 +428,175 @@
                     var orderedHistory = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).ToList();
                     var firstSalary = orderedHistory.First();
                     var latestSalary = orderedHistory.Last();
-                    var totalIncrease = latestSalary.NewTotalSalary - firstSalary.PreviousTotalSalary;
-                    var totalIncreasePercent = firstSalary.PreviousTotalSalary > 0 
-                        ? ((latestSalary.NewTotalSalary - firstSalary.PreviousTotalSalary) / firstSalary.PreviousTotalSalary) * 100 
+                    
+                    // Calculate starting salary (use initial salary if available, otherwise first previous salary)
+                    var startingSalary = firstSalary.IsInitialRegistration ? firstSalary.NewTotalSalary : firstSalary.PreviousTotalSalary;
+                    var startingDate = employeeDateHired ?? firstSalary.EffectiveDate;
+                    
+                    // Determine current vs upcoming salary
+                    var isLatestEffectiveDateFuture = latestSalary.EffectiveDate.Date > today;
+                    var currentSalary = isLatestEffectiveDateFuture ? latestSalary.PreviousTotalSalary : latestSalary.NewTotalSalary;
+                    var currentEffectiveDate = isLatestEffectiveDateFuture ? (employeeDateHired ?? firstSalary.EffectiveDate) : latestSalary.EffectiveDate;
+                    
+                    var totalIncrease = latestSalary.NewTotalSalary - startingSalary;
+                    var totalIncreasePercent = startingSalary > 0 
+                        ? ((latestSalary.NewTotalSalary - startingSalary) / startingSalary) * 100 
                         : 0;
                     
-                    <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
-                        <h4 class="mb-3 text-sm font-semibold text-green-800">Salary Progression Summary</h4>
-                        <div class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
-                            <div>
-                                <span class="text-gray-600">Starting Salary:</span>
-                                <div class="mt-1 text-base font-semibold text-gray-900">
-                                    ₱@firstSalary.PreviousTotalSalary.ToString("N2")
+                    <div class="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <h4 class="mb-3 text-base font-bold text-gray-800">Salary Progression Summary</h4>
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                            <div class="rounded-lg border-2 border-purple-300 bg-gradient-to-br from-purple-50 to-purple-100 p-2.5 shadow-sm">
+                                <span class="text-xs font-medium text-purple-700 uppercase tracking-wide">Starting Salary</span>
+                                <div class="mt-1.5 text-lg font-bold text-purple-900">
+                                    ₱@startingSalary.ToString("N2")
                                 </div>
-                                <div class="text-xs text-gray-500">@firstSalary.EffectiveDate.ToString("MMM dd, yyyy") (@firstSalary.SchoolYear)</div>
+                                <div class="mt-0.5 text-xs text-purple-600">@startingDate.ToString("MMM dd, yyyy")</div>
                             </div>
-                            <div>
-                                <span class="text-gray-600">Current Salary:</span>
-                                <div class="mt-1 text-base font-semibold text-green-700">
-                                    ₱@latestSalary.NewTotalSalary.ToString("N2")
+                            <div class="rounded-lg border-2 @(isLatestEffectiveDateFuture ? "border-blue-400 bg-gradient-to-br from-blue-50 to-blue-100" : "border-green-400 bg-gradient-to-br from-green-50 to-green-100") p-2.5 shadow-sm">
+                                <span class="text-xs font-medium @(isLatestEffectiveDateFuture ? "text-blue-700" : "text-green-700") uppercase tracking-wide">Current Salary</span>
+                                <div class="mt-1.5 text-lg font-bold @(isLatestEffectiveDateFuture ? "text-blue-900" : "text-green-900")">
+                                    ₱@currentSalary.ToString("N2")
                                 </div>
-                                <div class="text-xs text-gray-500">@latestSalary.EffectiveDate.ToString("MMM dd, yyyy") (@latestSalary.SchoolYear)</div>
+                                <div class="mt-0.5 text-xs @(isLatestEffectiveDateFuture ? "text-blue-600" : "text-green-600")">@currentEffectiveDate.ToString("MMM dd, yyyy")</div>
                             </div>
-                            <div>
-                                <span class="text-gray-600">Total Increase:</span>
-                                <div class="mt-1 text-base font-semibold text-blue-700">
-                                    ₱@totalIncrease.ToString("N2") (@totalIncreasePercent.ToString("F2")%)
+                            @if (isLatestEffectiveDateFuture)
+                            {
+                                <div class="rounded-lg border-2 border-indigo-400 bg-gradient-to-br from-indigo-50 to-indigo-100 p-2.5 shadow-sm">
+                                    <span class="text-xs font-medium text-indigo-700 uppercase tracking-wide">Upcoming Salary</span>
+                                    <div class="mt-1.5 text-lg font-bold text-indigo-900">
+                                        ₱@latestSalary.NewTotalSalary.ToString("N2")
+                                    </div>
+                                    <div class="mt-0.5 text-xs text-indigo-600">@latestSalary.EffectiveDate.ToString("MMM dd, yyyy")</div>
                                 </div>
-                                <div class="text-xs text-gray-500">@orderedHistory.Count() salary change(s)</div>
+                            }
+                            else
+                            {
+                                <div class="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                                    <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Upcoming Salary</span>
+                                    <div class="mt-1.5 text-lg font-bold text-gray-400">
+                                        —
+                                    </div>
+                                    <div class="mt-0.5 text-xs text-gray-400">No upcoming changes</div>
+                                </div>
+                            }
+                            <div class="rounded-lg border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 p-2.5 shadow-sm">
+                                <span class="text-xs font-medium text-amber-700 uppercase tracking-wide">Total Increase</span>
+                                <div class="mt-1.5 text-lg font-bold text-amber-900">
+                                    ₱@totalIncrease.ToString("N2")
+                                </div>
+                                <div class="mt-0.5 text-xs text-amber-600">@totalIncreasePercent.ToString("F2")% • @orderedHistory.Count() change(s)</div>
                             </div>
                         </div>
                     </div>
                 }
 
                 <!-- History Table - Chronological Order (First to Latest) -->
-                <div class="mb-4">
-                    <h4 class="text-sm font-semibold text-gray-800">Complete Salary History (Chronological Order)</h4>
-                    <p class="text-xs text-gray-500">Showing all salary changes from first to latest</p>
+                <div class="mb-3">
+                    <h4 class="text-base font-bold text-gray-900">Complete Salary History (Chronological Order)</h4>
+                    <p class="text-sm text-gray-500 mt-0.5">Showing all salary changes from first to latest</p>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <table class="min-w-full divide-y divide-gray-200 bg-white">
                         <thead class="bg-gray-100">
                             <tr>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">#</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Effective Date / School Year</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Previous Salary</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">New Salary</th>
-                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Change %</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Requested By</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Approved By</th>
-                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reason</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Salary Period / School Year</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Salary Amount</th>
+                                <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Change %</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Requested By</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Approved By</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Reason</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-gray-200 bg-white">
                             @{
                                 var chronologicalHistory = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).ToList();
                                 int index = 1;
+                                DateTime? periodStartDate = employeeDateHired;
                             }
                             @foreach (var entry in chronologicalHistory)
                             {
-                                <tr class="hover:bg-gray-50 @(index == chronologicalHistory.Count ? "bg-blue-50" : "")">
+                                var periodStart = periodStartDate ?? entry.EffectiveDate;
+                                var periodEnd = index < chronologicalHistory.Count 
+                                    ? chronologicalHistory[index].EffectiveDate 
+                                    : (DateTime?)null;
+                                
+                                // Check if this entry's effective date is in the future
+                                var isEffectiveDateFuture = entry.EffectiveDate.Date > today;
+                                var isCurrentPeriod = !isEffectiveDateFuture && (periodEnd == null || periodEnd.Value.Date > today);
+                                var isUpcoming = isEffectiveDateFuture;
+                                
+                                // Determine which salary to show
+                                var salaryToShow = isEffectiveDateFuture ? entry.PreviousTotalSalary : entry.NewTotalSalary;
+                                
+                                <tr class="hover:bg-gray-50 transition-colors @(isCurrentPeriod ? "bg-blue-50" : isUpcoming ? "bg-yellow-50" : "")">
                                     <td class="px-4 py-3 whitespace-nowrap">
-                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold @(index == chronologicalHistory.Count ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700")">
+                                        <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-medium @(isCurrentPeriod ? "bg-blue-600 text-white shadow-md" : isUpcoming ? "bg-yellow-500 text-white shadow-md" : "bg-gray-300 text-gray-700")">
                                             @index
                                         </span>
                                     </td>
-                                    <td class="px-4 py-3 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-gray-900">@entry.EffectiveDate.ToString("MMM dd, yyyy")</div>
-                                        <div class="text-xs text-gray-500">@entry.SchoolYear</div>
+                                    <td class="px-4 py-3">
+                                        <div class="text-sm font-medium text-gray-900">
+                                            @if (isEffectiveDateFuture)
+                                            {
+                                                <div class="space-y-1">
+                                                    <div>From @periodStart.ToString("MMM dd, yyyy")</div>
+                                                    <div>to @entry.EffectiveDate.AddDays(-1).ToString("MMM dd, yyyy")</div>
+                                                    <div class="text-xs font-medium text-yellow-700">(Current Period)</div>
+                                                </div>
+                                            }
+                                            else if (periodEnd.HasValue)
+                                            {
+                                                <div class="space-y-1">
+                                                    <div>From @periodStart.ToString("MMM dd, yyyy")</div>
+                                                    <div>to @periodEnd.Value.ToString("MMM dd, yyyy")</div>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="space-y-1">
+                                                    <div>From @periodStart.ToString("MMM dd, yyyy")</div>
+                                                    <div class="text-green-600 font-medium">to Present (Current)</div>
+                                                </div>
+                                            }
+                                        </div>
+                                        <div class="mt-1.5 text-xs text-gray-500">@entry.SchoolYear</div>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <div class="text-sm font-medium text-gray-900">₱@entry.PreviousTotalSalary.ToString("N2")</div>
-                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.PreviousBaseSalary.ToString("N2")</div>
-                                    </td>
-                                    <td class="px-4 py-3 whitespace-nowrap text-right">
-                                        <div class="text-sm font-semibold @(index == chronologicalHistory.Count ? "text-blue-700" : "text-blue-600")">₱@entry.NewTotalSalary.ToString("N2")</div>
-                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.NewBaseSalary.ToString("N2")</div>
+                                        <div class="text-base font-medium @(isCurrentPeriod ? "text-blue-700" : isUpcoming ? "text-yellow-700" : "text-gray-900")">₱@salaryToShow.ToString("N2")</div>
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap text-right">
                                         @if (entry.ChangePercentage > 0)
                                         {
-                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium text-green-700 bg-green-100">
                                                 +@entry.ChangePercentage.ToString("F2")%
                                             </span>
                                         }
                                         else if (entry.ChangePercentage < 0)
                                         {
-                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-red-700 bg-red-100">
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium text-red-700 bg-red-100">
                                                 @entry.ChangePercentage.ToString("F2")%
                                             </span>
                                         }
                                         else
                                         {
-                                            <span class="text-xs text-gray-500">0%</span>
+                                            <span class="text-sm text-gray-400">—</span>
                                         }
                                     </td>
                                     <td class="px-4 py-3 whitespace-nowrap">
                                         @if (entry.Status == "Pending")
                                         {
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-yellow-700 bg-yellow-100">Pending</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-yellow-700 bg-yellow-100">Pending</span>
                                         }
                                         else if (entry.Status == "Approved")
                                         {
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-green-700 bg-green-100">Approved</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-green-700 bg-green-100">Approved</span>
                                         }
                                         else
                                         {
-                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-red-700 bg-red-100">Rejected</span>
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-red-700 bg-red-100">Rejected</span>
                                         }
                                     </td>
                                     <td class="px-4 py-3">
@@ -567,7 +623,92 @@
                                         </div>
                                     </td>
                                 </tr>
-                                index++;
+                                
+                                // If effective date is in the future, add a separate row for the upcoming salary
+                                @if (isEffectiveDateFuture)
+                                {
+                                    index++;
+                                    <tr class="hover:bg-gray-50 transition-colors bg-yellow-50">
+                                        <td class="px-4 py-3 whitespace-nowrap">
+                                            <span class="inline-flex items-center justify-center w-7 h-7 rounded-full text-sm font-medium bg-yellow-500 text-white shadow-md">
+                                                @index
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-sm font-medium text-gray-900">
+                                                <div class="space-y-1">
+                                                    <div>From @entry.EffectiveDate.ToString("MMM dd, yyyy")</div>
+                                                    <div class="text-yellow-700 font-medium">to Present (Upcoming)</div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-1.5 text-xs text-gray-500">@entry.SchoolYear</div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                                            <div class="text-base font-medium text-yellow-700">₱@entry.NewTotalSalary.ToString("N2")</div>
+                                        </td>
+                                        <td class="px-4 py-3 whitespace-nowrap text-right">
+                                            @if (entry.ChangePercentage > 0)
+                                            {
+                                                <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium text-green-700 bg-green-100">
+                                                    +@entry.ChangePercentage.ToString("F2")%
+                                                </span>
+                                            }
+                                            else if (entry.ChangePercentage < 0)
+                                            {
+                                                <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium text-red-700 bg-red-100">
+                                                    @entry.ChangePercentage.ToString("F2")%
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-sm text-gray-400">—</span>
+                                            }
+                                        </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        @if (entry.Status == "Pending")
+                                        {
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-yellow-700 bg-yellow-100">Pending</span>
+                                        }
+                                        else if (entry.Status == "Approved")
+                                        {
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-green-700 bg-green-100">Approved</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-semibold text-red-700 bg-red-100">Rejected</span>
+                                        }
+                                    </td>
+                                        <td class="px-4 py-3">
+                                            <div class="text-sm text-gray-900">@entry.RequestedByName</div>
+                                            <div class="text-xs text-gray-500">@entry.RequestedAt.ToString("MMM dd, yyyy")</div>
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            @if (!string.IsNullOrWhiteSpace(entry.ApproverName))
+                                            {
+                                                <div class="text-sm text-gray-900">@entry.ApproverName</div>
+                                                @if (entry.ApprovalDate.HasValue)
+                                                {
+                                                    <div class="text-xs text-gray-500">@entry.ApprovalDate.Value.ToString("MMM dd, yyyy")</div>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span class="text-sm text-gray-400">—</span>
+                                            }
+                                        </td>
+                                        <td class="px-4 py-3">
+                                            <div class="max-w-xs truncate text-sm text-gray-900" title="@(entry.Reason ?? entry.RejectionReason ?? "N/A")">
+                                                @(string.IsNullOrWhiteSpace(entry.Reason) ? (string.IsNullOrWhiteSpace(entry.RejectionReason) ? "N/A" : $"Rejected: {entry.RejectionReason}") : entry.Reason)
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    index++;
+                                }
+                                
+                                periodStartDate = entry.EffectiveDate;
                             }
                         </tbody>
                     </table>
@@ -575,7 +716,7 @@
             </div>
 
             <!-- Modal Footer -->
-            <div class="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-3 rounded-b-3xl">
                 <button @onclick="ExportEmployeeHistory" disabled="@isExporting" class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -743,6 +884,7 @@
     private bool showEmployeeHistoryModal = false;
     private SalaryChangeLogDto? selectedEmployeeHistory = null;
     private List<SalaryChangeLogDto> employeeHistoryList = new();
+    private DateTime? employeeDateHired = null;
 
     private void OpenExportModal()
     {
@@ -840,6 +982,10 @@
     {
         try
         {
+            // Get employee's date hired
+            var employee = await DbContext.Users.FindAsync(entry.UserId);
+            employeeDateHired = employee?.DateHired;
+            
             // Load all history for this employee
             employeeHistoryList = await SalaryChangeRequestService.GetSalaryChangeLogAsync(entry.UserId);
             
@@ -879,7 +1025,7 @@
                         ChangeAmount = initialTotal,
                         ChangePercentage = 0, // Initial salary has no percentage change
                         CumulativeIncreasePercentage = 0,
-                        EffectiveDate = initialSalaryInfo.DateEffective,
+                        EffectiveDate = employeeDateHired ?? initialSalaryInfo.DateEffective, // Use date_hired if available
                         SchoolYear = initialSalaryInfo.SchoolYear,
                         Status = "Approved", // Initial salary is considered approved
                         ApproverName = null,
@@ -891,6 +1037,47 @@
                         RequestedByName = "System",
                         IsInitialRegistration = true,
                         OriginalBaseSalary = initialSalaryInfo.BaseSalary
+                    };
+                    
+                    employeeHistoryList.Add(initialEntry);
+                }
+            }
+            // If no initial salary entry but we have history, create an entry for the period from date_hired to first change
+            else if (employeeHistoryList.Any() && employeeDateHired.HasValue)
+            {
+                var firstChange = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).First();
+                
+                // Only add if date_hired is before the first effective date
+                if (employeeDateHired.Value.Date < firstChange.EffectiveDate.Date)
+                {
+                    var initialEntry = new SalaryChangeLogDto
+                    {
+                        RecordId = 0,
+                        UserId = entry.UserId,
+                        EmployeeId = entry.EmployeeId,
+                        EmployeeName = entry.EmployeeName,
+                        Role = entry.Role,
+                        PreviousBaseSalary = 0,
+                        PreviousAllowance = 0,
+                        PreviousTotalSalary = 0,
+                        NewBaseSalary = firstChange.PreviousBaseSalary,
+                        NewAllowance = firstChange.PreviousAllowance,
+                        NewTotalSalary = firstChange.PreviousTotalSalary,
+                        ChangeAmount = firstChange.PreviousTotalSalary,
+                        ChangePercentage = 0,
+                        CumulativeIncreasePercentage = 0,
+                        EffectiveDate = employeeDateHired.Value,
+                        SchoolYear = firstChange.SchoolYear,
+                        Status = "Approved",
+                        ApproverName = null,
+                        ApproverRole = null,
+                        ApprovalDate = employeeDateHired.Value,
+                        Reason = "Initial Salary (Date Hired)",
+                        RejectionReason = null,
+                        RequestedAt = employeeDateHired.Value,
+                        RequestedByName = "System",
+                        IsInitialRegistration = true,
+                        OriginalBaseSalary = firstChange.PreviousBaseSalary
                     };
                     
                     employeeHistoryList.Add(initialEntry);
@@ -913,6 +1100,7 @@
         showEmployeeHistoryModal = false;
         selectedEmployeeHistory = null;
         employeeHistoryList.Clear();
+        employeeDateHired = null;
         StateHasChanged();
     }
 
@@ -933,7 +1121,8 @@
                 selectedEmployeeHistory,
                 employeeHistoryList,
                 generatedBy,
-                userRole
+                userRole,
+                employeeDateHired
             );
 
             var fileName = $"Employee_Salary_History_{selectedEmployeeHistory.EmployeeId}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
