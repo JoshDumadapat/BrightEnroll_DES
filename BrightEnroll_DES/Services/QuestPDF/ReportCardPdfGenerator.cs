@@ -99,6 +99,7 @@ public class ReportCardPdfGenerator
 
         // Calculate general average
         var generalAverage = await _gradeService.CalculateGeneralAverageAsync(studentId, sectionId, schoolYear);
+        // Use raw general average for display (matching grade records), but transmute for remarks calculation
         var transmutedGeneralAverage = generalAverage > 0 ? _gradeService.GetTransmutedGrade(generalAverage) : 0;
         var descriptiveRating = generalAverage > 0 ? _gradeService.GetDescriptiveRating(transmutedGeneralAverage) : "Incomplete";
 
@@ -182,7 +183,7 @@ public class ReportCardPdfGenerator
                             .FontSize(6.5f);
 
                         // ========== LEARNING PROGRESS TABLE ==========
-                        BuildCompactLearningProgressTable(column, gradeLevel, reportCardData, transmutedGeneralAverage, descriptiveRating);
+                        BuildCompactLearningProgressTable(column, gradeLevel, reportCardData, generalAverage, descriptiveRating);
 
                         // ========== GRADING SCALE / DESCRIPTORS TABLE ==========
                         BuildCompactGradingScaleTable(column);
@@ -366,7 +367,7 @@ public class ReportCardPdfGenerator
     #region Compact Learning Progress Table
 
     private void BuildCompactLearningProgressTable(ColumnDescriptor column, GradeLevel gradeLevel, 
-        List<SubjectGradeData> reportCardData, decimal transmutedGeneralAverage, string descriptiveRating)
+        List<SubjectGradeData> reportCardData, decimal generalAverage, string descriptiveRating)
     {
         column.Item().PaddingTop(4).Text($"GRADE {gradeLevel.GradeLevelName.ToUpper()}")
             .FontSize(8).Bold();
@@ -416,7 +417,7 @@ public class ReportCardPdfGenerator
             gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text("").FontSize(6.5f); // Q2 - empty
             gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text("").FontSize(6.5f); // Q3 - empty
             gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text("").FontSize(6.5f); // Q4 - empty
-            gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text(transmutedGeneralAverage > 0 ? transmutedGeneralAverage.ToString("F1") : "").FontSize(7).Bold().AlignCenter(); // Final
+            gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text(generalAverage > 0 ? generalAverage.ToString("F1") : "").FontSize(7).Bold().AlignCenter(); // Final - show raw general average
             gradesTable.Cell().Element(CompactGeneralAverageCellStyle).Text(descriptiveRating).FontSize(7).Bold().AlignCenter(); // Remarks
         });
     }
@@ -773,11 +774,11 @@ public class ReportCardPdfGenerator
         return new SubjectGradeData
         {
             SubjectName = subject.SubjectName,
-            Q1 = q1 > 0 ? _gradeService.GetTransmutedGrade(q1) : (decimal?)null,
-            Q2 = q2 > 0 ? _gradeService.GetTransmutedGrade(q2) : (decimal?)null,
-            Q3 = q3 > 0 ? _gradeService.GetTransmutedGrade(q3) : (decimal?)null,
-            Q4 = q4 > 0 ? _gradeService.GetTransmutedGrade(q4) : (decimal?)null,
-            FinalRating = finalRating > 0 ? _gradeService.GetTransmutedGrade(finalRating) : (decimal?)null,
+            Q1 = q1 > 0 ? q1 : (decimal?)null,
+            Q2 = q2 > 0 ? q2 : (decimal?)null,
+            Q3 = q3 > 0 ? q3 : (decimal?)null,
+            Q4 = q4 > 0 ? q4 : (decimal?)null,
+            FinalRating = finalRating > 0 ? finalRating : (decimal?)null,
             Remarks = remarks
         };
     }
@@ -828,11 +829,11 @@ public class ReportCardPdfGenerator
         return new SubjectGradeData
         {
             SubjectName = "MAPEH",
-            Q1 = q1Avg.HasValue ? _gradeService.GetTransmutedGrade(q1Avg.Value) : null,
-            Q2 = q2Avg.HasValue ? _gradeService.GetTransmutedGrade(q2Avg.Value) : null,
-            Q3 = q3Avg.HasValue ? _gradeService.GetTransmutedGrade(q3Avg.Value) : null,
-            Q4 = q4Avg.HasValue ? _gradeService.GetTransmutedGrade(q4Avg.Value) : null,
-            FinalRating = finalRating > 0 ? _gradeService.GetTransmutedGrade(finalRating) : null,
+            Q1 = q1Avg.HasValue ? q1Avg.Value : null,
+            Q2 = q2Avg.HasValue ? q2Avg.Value : null,
+            Q3 = q3Avg.HasValue ? q3Avg.Value : null,
+            Q4 = q4Avg.HasValue ? q4Avg.Value : null,
+            FinalRating = finalRating > 0 ? finalRating : null,
             Remarks = remarks
         };
     }

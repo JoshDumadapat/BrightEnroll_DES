@@ -1,6 +1,10 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Services.QuestPDF
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@inject Form137PdfGenerator Form137PdfGenerator
 @* Academic Record Tab Content *@
 
 <!-- Filters Card -->
@@ -45,13 +49,24 @@
                     <span class="tooltip-delay">Clear all filters</span>
                 </div>
                 <div class="group relative">
-                    <button @onclick="ExportPDF" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Export
+                    <button @onclick="ExportPDF" disabled="@isExporting" class="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto" style="font-size: 13px;">
+                        @if (isExporting)
+                        {
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Exporting...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Export Form 137</span>
+                        }
                     </button>
-                    <span class="tooltip-delay">Export academic records to file</span>
+                    <span class="tooltip-delay">Export Form 137 (Permanent Record)</span>
                 </div>
             </div>
         </div>
@@ -142,6 +157,9 @@
     public List<AcademicRecordData>? AcademicRecords { get; set; }
 
     [Parameter]
+    public StudentDetailData? StudentData { get; set; }
+
+    [Parameter]
     public int RowsPerPage { get; set; } = 5;
 
     // Filter properties
@@ -224,9 +242,50 @@
         StateHasChanged();
     }
 
-    private void ExportPDF()
+    private bool isExporting = false;
+
+    private async Task ExportPDF()
     {
-        // Export PDF logic will be implemented here
+        if (isExporting) return;
+        
+        if (StudentData == null || string.IsNullOrWhiteSpace(StudentData.Id))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Student information is not available. Please ensure you are viewing a student's record.");
+            return;
+        }
+
+        if (AcademicRecords == null || !AcademicRecords.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "No academic records available to export.");
+            return;
+        }
+
+        try
+        {
+            isExporting = true;
+            StateHasChanged();
+
+            // Generate Form 137 PDF
+            var pdfBytes = await Form137PdfGenerator.GenerateForm137Async(StudentData, AcademicRecords);
+
+            // Create filename
+            var fileName = $"Form137_{StudentData.FullName.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            // Convert to base64 for download
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            // Download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating Form 137 PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
     }
 }
 

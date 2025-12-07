@@ -114,6 +114,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PaymentSlipPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.ReportCardPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.GradeFormPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.Form137PdfGenerator>();
 
             // Inventory services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
