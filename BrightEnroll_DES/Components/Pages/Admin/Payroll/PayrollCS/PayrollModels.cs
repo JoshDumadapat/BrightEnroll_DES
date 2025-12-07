@@ -7,6 +7,7 @@ public class PayrollRoleData
     public string Role { get; set; } = string.Empty;
     public decimal BaseSalary { get; set; }
     public decimal Allowance { get; set; }
+    public decimal ThresholdPercentage { get; set; } = 0.00m;
     
     // Calculated values
     public decimal GrossPay => BaseSalary + Allowance;

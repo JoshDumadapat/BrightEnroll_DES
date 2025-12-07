@@ -92,6 +92,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<EnrollmentStatusService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Audit.AuditLogService>();
             builder.Services.AddScoped<EmployeeService>();
+            builder.Services.AddScoped<SalaryChangeRequestService>();
             builder.Services.AddScoped<FeeService>();
             builder.Services.AddScoped<ExpenseService>();
             builder.Services.AddScoped<PaymentService>();
@@ -111,6 +112,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PaymentReceiptPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PayslipPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PaymentSlipPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.SalaryChangeLogPdfGenerator>();
 
             // Inventory services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();

@@ -39,6 +39,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Payroll tables (standalone, no foreign keys)
                 GetRolesTableDefinition(),
                 GetDeductionsTableDefinition(),
+                GetSalaryChangeRequestsTableDefinition(),
+                GetPayrollTransactionsTableDefinition(),
                 // Finance - expenses
                 GetExpensesTableDefinition(),
                 GetExpenseAttachmentsTableDefinition(),
@@ -318,6 +320,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [allowance] DECIMAL(12,2) DEFAULT 0.00,
                         [date_effective] DATE DEFAULT GETDATE(),
                         [is_active] BIT DEFAULT 1,
+                        [school_year] VARCHAR(20) NOT NULL,
                         CONSTRAINT FK_tbl_salary_info_tbl_Users FOREIGN KEY ([user_ID]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE CASCADE
                     )",
                 CreateIndexesScripts = new List<string>
@@ -833,6 +836,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [role_name] VARCHAR(50) NOT NULL UNIQUE,
                         [base_salary] DECIMAL(12,2) NOT NULL,
                         [allowance] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [threshold_percentage] DECIMAL(5,2) NOT NULL DEFAULT 10.00,
                         [is_active] BIT NOT NULL DEFAULT 1,
                         [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
                         [updated_date] DATETIME NULL
@@ -878,6 +882,145 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_deductions_is_active' AND object_id = OBJECT_ID('dbo.tbl_deductions'))
                         CREATE INDEX IX_tbl_deductions_is_active ON [dbo].[tbl_deductions]([is_active])"
+                }
+            };
+        }
+
+        // Creates tbl_salary_change_requests table - tracks salary change requests from HR that require Payroll/Admin approval
+        // Must be created after tbl_Users (foreign key dependency)
+        public static TableDefinition GetSalaryChangeRequestsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_salary_change_requests",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_salary_change_requests](
+                        [request_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [user_id] INT NOT NULL,
+                        [current_base_salary] DECIMAL(12,2) NOT NULL,
+                        [current_allowance] DECIMAL(12,2) NOT NULL,
+                        [requested_base_salary] DECIMAL(12,2) NOT NULL,
+                        [requested_allowance] DECIMAL(12,2) NOT NULL,
+                        [reason] NVARCHAR(500) NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                        [rejection_reason] NVARCHAR(500) NULL,
+                        [requested_by] INT NOT NULL,
+                        [approved_by] INT NULL,
+                        [requested_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [approved_at] DATETIME NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [is_initial_registration] BIT NOT NULL DEFAULT 0,
+                        CONSTRAINT FK_tbl_salary_change_requests_tbl_Users FOREIGN KEY ([user_id]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_salary_change_requests_RequestedBy FOREIGN KEY ([requested_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_salary_change_requests_ApprovedBy FOREIGN KEY ([approved_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT CK_tbl_salary_change_requests_Status CHECK ([status] IN ('Pending', 'Approved', 'Rejected'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_salary_change_requests_user_id' AND object_id = OBJECT_ID('dbo.tbl_salary_change_requests'))
+                        CREATE INDEX IX_tbl_salary_change_requests_user_id ON [dbo].[tbl_salary_change_requests]([user_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_salary_change_requests_requested_by' AND object_id = OBJECT_ID('dbo.tbl_salary_change_requests'))
+                        CREATE INDEX IX_tbl_salary_change_requests_requested_by ON [dbo].[tbl_salary_change_requests]([requested_by])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_salary_change_requests_status' AND object_id = OBJECT_ID('dbo.tbl_salary_change_requests'))
+                        CREATE INDEX IX_tbl_salary_change_requests_status ON [dbo].[tbl_salary_change_requests]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_salary_change_requests_school_year' AND object_id = OBJECT_ID('dbo.tbl_salary_change_requests'))
+                        CREATE INDEX IX_tbl_salary_change_requests_school_year ON [dbo].[tbl_salary_change_requests]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_salary_change_requests_requested_at' AND object_id = OBJECT_ID('dbo.tbl_salary_change_requests'))
+                        CREATE INDEX IX_tbl_salary_change_requests_requested_at ON [dbo].[tbl_salary_change_requests]([requested_at])"
+                }
+            };
+        }
+
+        // Creates tbl_payroll_transactions table - tracks payroll payment transactions and history
+        // Must be created after tbl_Users (foreign key dependency)
+        public static TableDefinition GetPayrollTransactionsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_payroll_transactions",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_payroll_transactions](
+                        [transaction_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [user_id] INT NOT NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [pay_period] VARCHAR(20) NOT NULL,
+                        [base_salary] DECIMAL(12,2) NOT NULL,
+                        [allowance] DECIMAL(12,2) NOT NULL,
+                        [gross_salary] DECIMAL(12,2) NOT NULL,
+                        [sss_deduction] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [philhealth_deduction] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [pagibig_deduction] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [tax_deduction] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [other_deductions] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [total_deductions] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [net_salary] DECIMAL(12,2) NOT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                        [payment_date] DATE NULL,
+                        [payment_method] VARCHAR(50) NULL,
+                        [reference_number] VARCHAR(100) NULL,
+                        [processed_by] INT NOT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        [batch_timestamp] DATETIME NULL,
+                        [notes] NVARCHAR(500) NULL,
+                        [company_sss_contribution] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [company_philhealth_contribution] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [company_pagibig_contribution] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [total_company_contribution] DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+                        [created_by] INT NOT NULL,
+                        [approved_by] INT NULL,
+                        [approved_at] DATETIME NULL,
+                        [cancelled_by] INT NULL,
+                        [cancelled_at] DATETIME NULL,
+                        [cancellation_reason] NVARCHAR(500) NULL,
+                        CONSTRAINT FK_tbl_payroll_transactions_tbl_Users FOREIGN KEY ([user_id]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_payroll_transactions_ProcessedBy FOREIGN KEY ([processed_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_payroll_transactions_CreatedBy FOREIGN KEY ([created_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_payroll_transactions_ApprovedBy FOREIGN KEY ([approved_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_payroll_transactions_CancelledBy FOREIGN KEY ([cancelled_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT CK_tbl_payroll_transactions_Status CHECK ([status] IN ('Pending', 'Paid', 'Cancelled'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_user_id' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_user_id ON [dbo].[tbl_payroll_transactions]([user_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_school_year' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_school_year ON [dbo].[tbl_payroll_transactions]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_pay_period' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_pay_period ON [dbo].[tbl_payroll_transactions]([pay_period])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_status' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_status ON [dbo].[tbl_payroll_transactions]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_processed_by' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_processed_by ON [dbo].[tbl_payroll_transactions]([processed_by])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_created_at' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_created_at ON [dbo].[tbl_payroll_transactions]([created_at])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_user_schoolyear_payperiod' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_user_schoolyear_payperiod ON [dbo].[tbl_payroll_transactions]([user_id], [school_year], [pay_period])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_batch_timestamp' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_batch_timestamp ON [dbo].[tbl_payroll_transactions]([batch_timestamp])"
                 }
             };
         }

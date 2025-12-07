@@ -3,65 +3,85 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
 @using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
 @using BrightEnroll_DES.Components.Pages.Admin
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Components
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
 @using System.Linq
 @inject AppDbContext DbContext
+@inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
 
-<div class="overflow-hidden rounded-xl bg-white shadow">
-    <!-- Filters (Inside Container) -->
-    <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
-        <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div class="relative flex w-full items-center sm:w-auto">
-                    <span class="absolute left-3 flex items-center justify-center">
-                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
-                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="space-y-6">
+    <!-- Filters -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+            <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div class="relative flex w-full items-center sm:w-auto">
+                        <span class="absolute left-3 flex items-center justify-center">
+                            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </span>
+                        <input type="text" placeholder="Search employee..." @bind="searchText" @bind:after="OnSearchChanged"
+                               class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-600">Status</label>
+                        <select @bind="statusFilter" @bind:after="OnFilterChanged"
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                            <option value="">All Status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-600">Date From</label>
+                        <input type="date" 
+                               @bind="dateFrom" 
+                               @bind:after="OnFilterChanged"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto" />
+                    </div>
+                    <div>
+                        <label class="mb-1 block text-xs text-gray-600">Date To</label>
+                        <input type="date" 
+                               @bind="dateTo" 
+                               @bind:after="OnFilterChanged"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto" />
+                    </div>
+                </div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
                         </svg>
-                    </span>
-                    <input type="text" placeholder="Search here..." @bind="searchText" @bind:after="OnSearchChanged"
-                           class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+                        Clear
+                    </button>
                 </div>
-                <div>
-                    <label class="mb-1 block text-xs text-gray-600">Date From</label>
-                    <input type="date" 
-                           @bind="dateFrom" 
-                           @bind:after="OnFilterChanged"
-                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto" />
-                </div>
-                <div>
-                    <label class="mb-1 block text-xs text-gray-600">Date To</label>
-                    <input type="date" 
-                           @bind="dateTo" 
-                           @bind:after="OnFilterChanged"
-                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto" />
-                </div>
-            </div>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button @onclick="OnClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Clear
-                </button>
             </div>
         </div>
-    </div>
 
-    <!-- Records Table -->
-    <div class="overflow-x-auto w-full">
-        <table class="w-full border-collapse">
+        <!-- Records Table -->
+        <div class="overflow-x-auto w-full">
+            <table class="w-full border-collapse">
                 <thead>
                     <tr class="border-b border-gray-200 bg-gray-50">
                         <th class="py-3 pl-6 pr-4 text-left text-sm font-semibold text-gray-700">Date</th>
-                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Role</th>
-                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Monthly Salary</th>
-                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Allowance</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Type</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Employee/Details</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Pay Period</th>
                         <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Gross Pay</th>
-                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Total Deductions</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Deductions</th>
                         <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Net Pay</th>
-                        <th class="py-3 pr-6 pl-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Status</th>
+                        <th class="py-3 pr-6 pl-4 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -70,15 +90,70 @@
                         @foreach (var record in PaginatedRecords)
                         {
                             <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                <td class="py-3 pl-6 pr-4 text-sm text-gray-700">@record.Date.ToString("MMM dd, yyyy")</td>
-                                <td class="py-3 px-4 text-sm font-medium text-gray-800">@record.Role</td>
-                                <td class="py-3 px-4 text-sm text-gray-700">@Salary.FormatPeso(record.BaseSalary)</td>
-                                <td class="py-3 px-4 text-sm text-gray-700">@Salary.FormatPeso(record.Allowance)</td>
+                                <td class="py-3 pl-6 pr-4 text-sm text-gray-700">@record.Date.ToString("MMMM dd, yyyy HH:mm")</td>
+                                <td class="py-3 px-4 text-sm">
+                                    @if (record.IsBatch)
+                                    {
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">
+                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            </svg>
+                                            Batch
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                            Individual
+                                        </span>
+                                    }
+                                </td>
+                                <td class="py-3 px-4 text-sm">
+                                    @if (record.IsBatch)
+                                    {
+                                        <button @onclick="() => ViewBatchDetails(record.BatchTimestamp!.Value)" 
+                                                class="text-blue-600 hover:text-blue-800 font-medium">
+                                            @record.EmployeeCount employees
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <span class="font-medium text-gray-800">@record.EmployeeName</span>
+                                    }
+                                </td>
+                                <td class="py-3 px-4 text-sm text-gray-700">@record.PayPeriod</td>
                                 <td class="py-3 px-4 text-sm font-medium text-gray-800">@Salary.FormatPeso(record.GrossPay)</td>
                                 <td class="py-3 px-4 text-sm text-red-600">@Salary.FormatPeso(record.TotalDeductions)</td>
                                 <td class="py-3 px-4 text-sm font-bold text-green-600">@Salary.FormatPeso(record.NetPay)</td>
-                                <td class="py-3 pr-6 pl-4 text-sm">
-                                    <span class="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">@record.Status</span>
+                                <td class="py-3 px-4 text-sm">
+                                    <span class="@GetStatusBadgeClass(record.Status) rounded-full px-2 py-1 text-[10px] font-medium">@record.Status</span>
+                                </td>
+                                <td class="py-3 pr-6 pl-4 text-center">
+                                    @if (record.IsBatch)
+                                    {
+                                        <button @onclick="() => ViewBatchDetails(record.BatchTimestamp!.Value)" 
+                                                class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            <span class="hidden sm:inline">View</span>
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button @onclick="() => ViewIndividualDetails(record.TransactionId)" 
+                                                class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            <span class="hidden sm:inline">View</span>
+                                        </button>
+                                    }
                                 </td>
                             </tr>
                         }
@@ -86,7 +161,7 @@
                     else
                     {
                         <tr>
-                            <td colspan="8" class="py-12 text-center text-sm text-gray-500">
+                            <td colspan="9" class="py-12 text-center text-sm text-gray-500">
                                 <div class="flex flex-col items-center justify-center">
                                     <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -101,24 +176,258 @@
             </table>
         </div>
     
-    <!-- Footer with Pagination -->
-    <Pagination TotalItems="@(FilteredRecords?.Count ?? 0)" 
-                CurrentPage="@CurrentPage" 
-                RowsPerPage="@RowsPerPage"
-                ItemName="records"
-                OnPageChanged="HandlePageChanged"
-                OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+        <!-- Footer with Pagination -->
+        <Pagination TotalItems="@(FilteredRecords?.Count ?? 0)" 
+                    CurrentPage="@CurrentPage" 
+                    RowsPerPage="@RowsPerPage"
+                    ItemName="records"
+                    OnPageChanged="HandlePageChanged"
+                    OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+    </div>
 </div>
 
+<!-- Batch Details Modal -->
+@if (showBatchModal && selectedBatchTransactions.Any())
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="CloseBatchModal">
+        <div class="w-full max-w-5xl max-h-[95vh] overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">Batch Payroll Details</h3>
+                    <p class="mt-1 text-sm text-gray-600">Processed on: @selectedBatchTransactions.First().CreatedAt.ToString("MMMM dd, yyyy HH:mm")</p>
+                </div>
+                <button @onclick="CloseBatchModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto max-h-[calc(95vh-180px)] p-6">
+                <!-- Batch Summary -->
+                <div class="mb-6 rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+                    <h4 class="mb-3 text-sm font-semibold text-blue-800">Batch Summary</h4>
+                    <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+                        <div>
+                            <p class="text-xs text-gray-600">Total Employees</p>
+                            <p class="text-lg font-bold text-blue-700">@selectedBatchTransactions.Count</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Total Gross Pay</p>
+                            <p class="text-lg font-bold text-blue-700">@Salary.FormatPeso(selectedBatchTransactions.Sum(t => t.GrossSalary))</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Total Deductions</p>
+                            <p class="text-lg font-bold text-red-700">@Salary.FormatPeso(selectedBatchTransactions.Sum(t => t.TotalDeductions))</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600">Total Net Pay</p>
+                            <p class="text-lg font-bold text-green-700">@Salary.FormatPeso(selectedBatchTransactions.Sum(t => t.NetSalary))</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Batch Transactions Table -->
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200 bg-gray-50">
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Role</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-700">Monthly Salary</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-700">Allowance</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-700">Gross Pay</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-700">Deductions</th>
+                                <th class="px-4 py-2 text-right text-xs font-semibold text-gray-700">Net Pay</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var trans in selectedBatchTransactions.OrderBy(t => t.User != null ? t.User.LastName : ""))
+                            {
+                                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                    <td class="px-4 py-2 text-gray-800">
+                                        @(trans.User != null ? $"{trans.User.FirstName} {trans.User.LastName}" : $"User ID: {trans.UserId}")
+                                    </td>
+                                    <td class="px-4 py-2 text-gray-600">@(trans.User?.UserRole ?? "N/A")</td>
+                                    <td class="px-4 py-2 text-right text-gray-700">@Salary.FormatPeso(trans.BaseSalary)</td>
+                                    <td class="px-4 py-2 text-right text-gray-700">@Salary.FormatPeso(trans.Allowance)</td>
+                                    <td class="px-4 py-2 text-right font-medium text-gray-800">@Salary.FormatPeso(trans.GrossSalary)</td>
+                                    <td class="px-4 py-2 text-right text-red-600">@Salary.FormatPeso(trans.TotalDeductions)</td>
+                                    <td class="px-4 py-2 text-right font-bold text-green-600">@Salary.FormatPeso(trans.NetSalary)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                @if (selectedBatchTransactions.First().Status == "Pending")
+                {
+                    <button @onclick="ProcessBatch" 
+                            class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-medium text-white hover:bg-green-700">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Process Batch
+                    </button>
+                    <button @onclick="CancelBatch" 
+                            class="rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white hover:bg-red-700">
+                        Cancel Batch
+                    </button>
+                }
+                <button @onclick="CloseBatchModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Cancellation Reason Modal -->
+@if (showCancelReasonModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelReasonModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">@(pendingCancelTransactionId.HasValue ? "Cancel Transaction" : "Cancel Batch")</h3>
+                <button @onclick="CloseCancelReasonModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="mb-3 text-sm text-gray-700">Please provide a reason for cancelling @(pendingCancelTransactionId.HasValue ? "this transaction" : $"this batch ({selectedBatchTransactions.Count} transactions)")}:</p>
+                
+                <textarea @bind="cancellationReason" 
+                          placeholder="Enter cancellation reason (required)"
+                          class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-200"
+                          rows="4"
+                          maxlength="500"></textarea>
+                
+                <p class="mt-1 text-xs text-gray-500">@cancellationReason.Length / 500 characters</p>
+
+                <div class="mt-4 flex justify-end gap-2">
+                    <button type="button" @onclick="CloseCancelReasonModal"
+                            class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="@(pendingCancelTransactionId.HasValue ? ConfirmCancelWithReason : ConfirmCancelBatchWithReason)"
+                            disabled="@(string.IsNullOrWhiteSpace(cancellationReason))"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90 bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Confirm Cancellation
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    private List<PayrollRecord> records = new();
+    private List<PayrollRecordViewModel> records = new();
+    private List<PayrollTransaction> selectedBatchTransactions = new();
     private string searchText = "";
+    private string statusFilter = "";
     private DateTime? dateFrom = DateTime.Now.AddMonths(-1);
     private DateTime? dateTo = DateTime.Now;
+    private bool showBatchModal = false;
     
     // Pagination state
     private int CurrentPage { get; set; } = 1;
-    private int RowsPerPage { get; set; } = 5;
+    private int RowsPerPage { get; set; } = 10;
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // Confirmation modal state
+    private bool showConfirmModal = false;
+    private string confirmModalTitle = "";
+    private string confirmModalMessage = "";
+    private string confirmModalType = ""; // "cancel", "batch", "process"
+    private Func<Task>? pendingConfirmAction = null;
+    private int? pendingCancelTransactionId = null;
+    private int? pendingProcessTransactionId = null;
+    
+    // Cancellation reason modal state
+    private bool showCancelReasonModal = false;
+    private string cancellationReason = "";
+    
+    private void ShowToast(string message, ToastType type = ToastType.Success)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+    
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+    
+    private void ShowConfirmModal(string title, string message, string type, Func<Task> onConfirm)
+    {
+        confirmModalTitle = title;
+        confirmModalMessage = message;
+        confirmModalType = type;
+        pendingConfirmAction = onConfirm;
+        showConfirmModal = true;
+        StateHasChanged();
+    }
+    
+    private void CloseConfirmModal()
+    {
+        showConfirmModal = false;
+        confirmModalTitle = "";
+        confirmModalMessage = "";
+        confirmModalType = "";
+        pendingConfirmAction = null;
+        // DON'T clear pendingCancelTransactionId and pendingProcessTransactionId here
+        // They will be cleared by the confirmed methods after processing
+        StateHasChanged();
+    }
+    
+    private async Task ConfirmAction()
+    {
+        try
+        {
+            if (pendingConfirmAction != null)
+            {
+                // Store the action and IDs before closing the modal
+                var actionToExecute = pendingConfirmAction;
+                var cancelId = pendingCancelTransactionId;
+                var processId = pendingProcessTransactionId;
+                
+                CloseConfirmModal();
+                
+                // Restore the IDs if they were cleared
+                if (cancelId.HasValue && !pendingCancelTransactionId.HasValue)
+                {
+                    pendingCancelTransactionId = cancelId;
+                }
+                if (processId.HasValue && !pendingProcessTransactionId.HasValue)
+                {
+                    pendingProcessTransactionId = processId;
+                }
+                
+                await actionToExecute();
+            }
+            else
+            {
+                ShowToast("Error: No action to execute. Please try again.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error executing action: {ex.Message}", ToastType.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -129,74 +438,533 @@
     {
         try
         {
-            // Load roles and create sample records
-            // In a real implementation, this would load from a payroll_transactions table
-            var roles = await DbContext.Roles
-                .Where(r => r.IsActive)
-                .OrderBy(r => r.RoleName)
-                .ToListAsync();
+            var query = DbContext.PayrollTransactions
+                .Include(t => t.User)
+                .AsQueryable();
 
-            records = roles.Select(role =>
+            // Apply filters
+            if (!string.IsNullOrWhiteSpace(statusFilter))
             {
-                var payrollCalc = new PayrollRoleData
-                {
-                    Role = role.RoleName,
-                    BaseSalary = role.BaseSalary,
-                    Allowance = role.Allowance,
-                    IsActive = true
-                };
-                payrollCalc.Recalculate();
+                query = query.Where(t => t.Status == statusFilter);
+            }
 
-                return new PayrollRecord
+            if (dateFrom.HasValue)
+            {
+                query = query.Where(t => t.CreatedAt >= dateFrom.Value);
+            }
+
+            if (dateTo.HasValue)
+            {
+                query = query.Where(t => t.CreatedAt <= dateTo.Value.AddDays(1));
+            }
+
+            var transactions = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+
+            // Group by batch_timestamp
+            var batchGroups = transactions
+                .Where(t => t.BatchTimestamp.HasValue)
+                .GroupBy(t => t.BatchTimestamp!.Value)
+                .ToList();
+
+            var recordList = new List<PayrollRecordViewModel>();
+
+            // Add batch records (one per batch)
+            foreach (var batch in batchGroups)
+            {
+                var batchTrans = batch.ToList();
+                recordList.Add(new PayrollRecordViewModel
                 {
-                    Date = role.UpdatedDate ?? role.CreatedDate,
-                    Role = role.RoleName,
-                    BaseSalary = role.BaseSalary,
-                    Allowance = role.Allowance,
-                    GrossPay = payrollCalc.GrossPay,
-                    TotalDeductions = payrollCalc.TotalDeductions,
-                    NetPay = payrollCalc.NetPay,
-                    Status = role.IsActive ? "Active" : "Inactive"
-                };
-            }).ToList();
+                    TransactionId = batchTrans.First().TransactionId,
+                    Date = batch.Key,
+                    IsBatch = true,
+                    BatchTimestamp = batch.Key,
+                    EmployeeCount = batchTrans.Count,
+                    EmployeeName = $"{batchTrans.Count} employees",
+                    PayPeriod = batchTrans.First().PayPeriod,
+                    GrossPay = batchTrans.Sum(t => t.GrossSalary),
+                    TotalDeductions = batchTrans.Sum(t => t.TotalDeductions),
+                    NetPay = batchTrans.Sum(t => t.NetSalary),
+                    Status = batchTrans.First().Status // All should have same status
+                });
+            }
+
+            // Add individual records (no batch_timestamp)
+            var individualTrans = transactions.Where(t => !t.BatchTimestamp.HasValue).ToList();
+            foreach (var trans in individualTrans)
+            {
+                recordList.Add(new PayrollRecordViewModel
+                {
+                    TransactionId = trans.TransactionId,
+                    Date = trans.CreatedAt,
+                    IsBatch = false,
+                    BatchTimestamp = null,
+                    EmployeeCount = 1,
+                    EmployeeName = trans.User != null ? $"{trans.User.FirstName} {trans.User.LastName}" : $"User ID: {trans.UserId}",
+                    PayPeriod = trans.PayPeriod,
+                    GrossPay = trans.GrossSalary,
+                    TotalDeductions = trans.TotalDeductions,
+                    NetPay = trans.NetSalary,
+                    Status = trans.Status
+                });
+            }
+
+            // Apply search filter
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                recordList = recordList.Where(r => 
+                    r.EmployeeName.Contains(searchText, StringComparison.OrdinalIgnoreCase) ||
+                    r.PayPeriod.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+                ).ToList();
+            }
+
+            records = recordList.OrderByDescending(r => r.Date).ToList();
         }
-        catch
+        catch (Exception)
         {
-            records = new List<PayrollRecord>();
+            records = new List<PayrollRecordViewModel>();
         }
     }
 
-    private List<PayrollRecord>? FilteredRecords
+    private async Task ViewBatchDetails(DateTime batchTimestamp)
+    {
+        try
+        {
+            selectedBatchTransactions = await DbContext.PayrollTransactions
+                .Include(t => t.User)
+                .Where(t => t.BatchTimestamp == batchTimestamp)
+                .OrderBy(t => t.User != null ? t.User.LastName : "")
+                .ToListAsync();
+            
+            if (!selectedBatchTransactions.Any())
+            {
+                ShowToast("No transactions found for this batch.", ToastType.Error);
+                return;
+            }
+            
+            showBatchModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error loading batch details: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private void CloseBatchModal()
+    {
+        showBatchModal = false;
+        selectedBatchTransactions.Clear();
+        StateHasChanged();
+    }
+
+    private Task CancelTransaction(int transactionId)
+    {
+        pendingCancelTransactionId = transactionId;
+        cancellationReason = "";
+        showCancelReasonModal = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+    
+    private void CloseCancelReasonModal()
+    {
+        showCancelReasonModal = false;
+        cancellationReason = "";
+        // Don't clear pendingCancelTransactionId here - let the confirmation method handle it
+        StateHasChanged();
+    }
+    
+    private async Task ConfirmCancelWithReason()
+    {
+        if (string.IsNullOrWhiteSpace(cancellationReason))
+        {
+            ShowToast("Please provide a cancellation reason.", ToastType.Error);
+            return;
+        }
+        
+        // Store transaction ID before closing modal
+        var transactionIdToCancel = pendingCancelTransactionId;
+        
+        // Close modal but don't clear the transaction ID yet
+        showCancelReasonModal = false;
+        StateHasChanged();
+        
+        // Restore transaction ID if it was cleared
+        if (!pendingCancelTransactionId.HasValue && transactionIdToCancel.HasValue)
+        {
+            pendingCancelTransactionId = transactionIdToCancel;
+        }
+        
+        await CancelTransactionConfirmed();
+    }
+    
+    private async Task CancelTransactionConfirmed()
+    {
+        if (!pendingCancelTransactionId.HasValue)
+        {
+            ShowToast("Error: No transaction ID to cancel.", ToastType.Error);
+            return;
+        }
+        
+        var transactionId = pendingCancelTransactionId.Value;
+        pendingCancelTransactionId = null;
+
+        try
+        {
+            // Clear any tracked entities for this transaction
+            var trackedEntries = DbContext.ChangeTracker.Entries<PayrollTransaction>()
+                .Where(e => e.Entity.TransactionId == transactionId)
+                .ToList();
+            foreach (var entry in trackedEntries)
+            {
+                entry.State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            }
+            
+            // Load the transaction fresh
+            var transaction = await DbContext.PayrollTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+            
+            if (transaction == null)
+            {
+                ShowToast($"Error: Transaction {transactionId} not found in database.", ToastType.Error);
+                return;
+            }
+                
+            if (transaction.Status == "Pending")
+            {
+                var currentUser = AuthService.CurrentUser;
+                var currentUserId = currentUser?.user_ID ?? 1;
+                
+                // Update the transaction
+                transaction.Status = "Cancelled";
+                transaction.UpdatedAt = DateTime.Now;
+                transaction.CancelledBy = currentUserId;
+                transaction.CancelledAt = DateTime.Now;
+                transaction.CancellationReason = cancellationReason;
+                
+                // Attach and mark as modified
+                DbContext.PayrollTransactions.Attach(transaction);
+                DbContext.Entry(transaction).Property(t => t.Status).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.UpdatedAt).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.CancelledBy).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.CancelledAt).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.CancellationReason).IsModified = true;
+                
+                await DbContext.SaveChangesAsync();
+                
+                // Clear cancellation reason after saving
+                cancellationReason = "";
+                
+                ShowToast("The record was cancelled.", ToastType.Success);
+                StateHasChanged();
+                
+                // Close individual modal if open and matches this transaction
+                if (showIndividualModal && selectedIndividualTransaction?.TransactionId == transactionId)
+                {
+                    CloseIndividualModal();
+                }
+                
+                // Reload records
+                await LoadRecords();
+            }
+            else
+            {
+                ShowToast($"Error: Transaction status is '{transaction.Status}'. Only Pending transactions can be cancelled.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMsg = $"Error cancelling transaction: {ex.Message}";
+            if (ex.InnerException != null)
+            {
+                errorMsg += $" ({ex.InnerException.Message})";
+            }
+            ShowToast(errorMsg, ToastType.Error);
+        }
+    }
+
+    private Task CancelBatch()
+    {
+        if (!selectedBatchTransactions.Any()) return Task.CompletedTask;
+        
+        cancellationReason = "";
+        showCancelReasonModal = true;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+    
+    private async Task ConfirmCancelBatchWithReason()
+    {
+        if (string.IsNullOrWhiteSpace(cancellationReason))
+        {
+            ShowToast("Please provide a cancellation reason.", ToastType.Error);
+            return;
+        }
+        
+        CloseCancelReasonModal();
+        await CancelBatchConfirmed();
+    }
+    
+    private async Task CancelBatchConfirmed()
+    {
+        try
+        {
+            if (!selectedBatchTransactions.Any())
+            {
+                ShowToast("No batch transactions selected.", ToastType.Error);
+                return;
+            }
+            
+            var batchTimestamp = selectedBatchTransactions.First().BatchTimestamp;
+            if (!batchTimestamp.HasValue)
+            {
+                ShowToast("Invalid batch timestamp.", ToastType.Error);
+                return;
+            }
+            
+            var currentUser = AuthService.CurrentUser;
+            var currentUserId = currentUser?.user_ID ?? 1;
+            
+            var transactions = await DbContext.PayrollTransactions
+                .Where(t => t.BatchTimestamp == batchTimestamp.Value && t.Status == "Pending")
+                .ToListAsync();
+
+            if (!transactions.Any())
+            {
+                ShowToast("No pending transactions found in this batch.", ToastType.Error);
+                return;
+            }
+
+            foreach (var trans in transactions)
+            {
+                trans.Status = "Cancelled";
+                trans.UpdatedAt = DateTime.Now;
+                trans.CancelledBy = currentUserId;
+                trans.CancelledAt = DateTime.Now;
+                trans.CancellationReason = cancellationReason;
+            }
+
+            await DbContext.SaveChangesAsync();
+            
+            // Clear cancellation reason after saving
+            cancellationReason = "";
+            
+            ShowToast($"Batch cancelled successfully. {transactions.Count} transaction(s) cancelled.", ToastType.Success);
+            CloseBatchModal();
+            await LoadRecords();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error cancelling batch: {ex.Message}", ToastType.Error);
+        }
+    }
+    
+    private PayrollTransaction? selectedIndividualTransaction = null;
+    private bool showIndividualModal = false;
+    
+    private async Task ViewIndividualDetails(int transactionId)
+    {
+        try
+        {
+            selectedIndividualTransaction = await DbContext.PayrollTransactions
+                .Include(t => t.User)
+                .Include(t => t.CreatedByUser)
+                .Include(t => t.ApprovedByUser)
+                .Include(t => t.CancelledByUser)
+                .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+            
+            if (selectedIndividualTransaction != null)
+            {
+                showIndividualModal = true;
+                StateHasChanged();
+            }
+            else
+            {
+                ShowToast("Transaction not found.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error loading transaction details: {ex.Message}", ToastType.Error);
+        }
+    }
+    
+    private void CloseIndividualModal()
+    {
+        showIndividualModal = false;
+        selectedIndividualTransaction = null;
+        StateHasChanged();
+    }
+    
+    private Task ProcessTransaction(int transactionId)
+    {
+        pendingProcessTransactionId = transactionId;
+        ShowConfirmModal(
+            "Process Payment",
+            "Are you sure you want to mark this transaction as Paid? This action will update the payment status.",
+            "process",
+            ProcessTransactionConfirmed
+        );
+        return Task.CompletedTask;
+    }
+    
+    private async Task ProcessTransactionConfirmed()
+    {
+        if (!pendingProcessTransactionId.HasValue)
+        {
+            ShowToast("Error: No transaction ID to process.", ToastType.Error);
+            return;
+        }
+        
+        var transactionId = pendingProcessTransactionId.Value;
+        pendingProcessTransactionId = null;
+
+        try
+        {
+            // Clear any tracked entities for this transaction
+            var trackedEntries = DbContext.ChangeTracker.Entries<PayrollTransaction>()
+                .Where(e => e.Entity.TransactionId == transactionId)
+                .ToList();
+            foreach (var entry in trackedEntries)
+            {
+                entry.State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            }
+            
+            // Load the transaction fresh
+            var transaction = await DbContext.PayrollTransactions
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.TransactionId == transactionId);
+            
+            if (transaction == null)
+            {
+                ShowToast($"Error: Transaction {transactionId} not found in database.", ToastType.Error);
+                return;
+            }
+                
+            if (transaction.Status == "Pending")
+            {
+                var currentUser = AuthService.CurrentUser;
+                var currentUserId = currentUser?.user_ID ?? 1;
+                
+                // Update the transaction
+                transaction.Status = "Paid";
+                transaction.UpdatedAt = DateTime.Now;
+                transaction.PaymentDate = DateTime.Now;
+                transaction.ApprovedBy = currentUserId;
+                transaction.ApprovedAt = DateTime.Now;
+                
+                // Attach and mark as modified
+                DbContext.PayrollTransactions.Attach(transaction);
+                DbContext.Entry(transaction).Property(t => t.Status).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.UpdatedAt).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.PaymentDate).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.ApprovedBy).IsModified = true;
+                DbContext.Entry(transaction).Property(t => t.ApprovedAt).IsModified = true;
+                
+                await DbContext.SaveChangesAsync();
+                
+                ShowToast("The record was processed and marked as Paid.", ToastType.Success);
+                StateHasChanged();
+                
+                // Close individual modal if open and matches this transaction
+                if (showIndividualModal && selectedIndividualTransaction?.TransactionId == transactionId)
+                {
+                    CloseIndividualModal();
+                }
+                
+                // Reload records
+                await LoadRecords();
+            }
+            else
+            {
+                ShowToast($"Error: Transaction status is '{transaction.Status}'. Only Pending transactions can be processed.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMsg = $"Error processing transaction: {ex.Message}";
+            if (ex.InnerException != null)
+            {
+                errorMsg += $" ({ex.InnerException.Message})";
+            }
+            ShowToast(errorMsg, ToastType.Error);
+        }
+    }
+    
+    private Task ProcessBatch()
+    {
+        if (!selectedBatchTransactions.Any()) return Task.CompletedTask;
+        
+        var batchTimestamp = selectedBatchTransactions.First().BatchTimestamp;
+        if (!batchTimestamp.HasValue) return Task.CompletedTask;
+        
+        ShowConfirmModal(
+            "Process Batch Payment",
+            $"Are you sure you want to mark this batch ({selectedBatchTransactions.Count} transactions) as Paid? This action will update all payment statuses.",
+            "process",
+            ProcessBatchConfirmed
+        );
+        return Task.CompletedTask;
+    }
+    
+    private async Task ProcessBatchConfirmed()
+    {
+        try
+        {
+            if (!selectedBatchTransactions.Any())
+            {
+                ShowToast("No batch transactions selected.", ToastType.Error);
+                return;
+            }
+            
+            var batchTimestamp = selectedBatchTransactions.First().BatchTimestamp;
+            if (!batchTimestamp.HasValue)
+            {
+                ShowToast("Invalid batch timestamp.", ToastType.Error);
+                return;
+            }
+            
+            var transactions = await DbContext.PayrollTransactions
+                .Where(t => t.BatchTimestamp == batchTimestamp.Value && t.Status == "Pending")
+                .ToListAsync();
+
+            if (!transactions.Any())
+            {
+                ShowToast("No pending transactions found in this batch.", ToastType.Error);
+                return;
+            }
+
+            foreach (var trans in transactions)
+            {
+                trans.Status = "Paid";
+                trans.UpdatedAt = DateTime.Now;
+                trans.PaymentDate = DateTime.Now;
+            }
+
+            await DbContext.SaveChangesAsync();
+            
+            ShowToast($"Batch processed successfully. {transactions.Count} transaction(s) marked as Paid.", ToastType.Success);
+            CloseBatchModal();
+            await LoadRecords();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error processing batch: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private List<PayrollRecordViewModel>? FilteredRecords
     {
         get
         {
             if (records == null || !records.Any())
                 return null;
-                
-            var filtered = records.AsEnumerable();
-
-            if (!string.IsNullOrWhiteSpace(searchText))
-            {
-                filtered = filtered.Where(r => 
-                    r.Role.Contains(searchText, StringComparison.OrdinalIgnoreCase));
-            }
-
-            if (dateFrom.HasValue)
-            {
-                filtered = filtered.Where(r => r.Date >= dateFrom.Value);
-            }
-
-            if (dateTo.HasValue)
-            {
-                filtered = filtered.Where(r => r.Date <= dateTo.Value);
-            }
-
-            return filtered.OrderByDescending(r => r.Date).ToList();
+            return records.ToList();
         }
     }
     
-    // Computed property for paginated records
-    private List<PayrollRecord>? PaginatedRecords
+    private List<PayrollRecordViewModel>? PaginatedRecords
     {
         get
         {
@@ -208,29 +976,28 @@
         }
     }
     
-    // Filter methods
     private void OnSearchChanged()
     {
-        CurrentPage = 1; // Reset to first page when search changes
-        StateHasChanged();
-    }
-    
-    private void OnFilterChanged()
-    {
-        CurrentPage = 1; // Reset to first page when filter changes
-        StateHasChanged();
-    }
-    
-    private void OnClearFilters()
-    {
-        searchText = "";
-        dateFrom = DateTime.Now.AddMonths(-1);
-        dateTo = DateTime.Now;
         CurrentPage = 1;
         StateHasChanged();
     }
     
-    // Pagination methods
+    private async Task OnFilterChanged()
+    {
+        CurrentPage = 1;
+        await LoadRecords();
+    }
+    
+    private async Task OnClearFilters()
+    {
+        searchText = "";
+        statusFilter = "";
+        dateFrom = DateTime.Now.AddMonths(-1);
+        dateTo = DateTime.Now;
+        CurrentPage = 1;
+        await LoadRecords();
+    }
+    
     private void HandlePageChanged(int page)
     {
         CurrentPage = page;
@@ -240,16 +1007,30 @@
     private void HandleRowsPerPageChanged(int rowsPerPage)
     {
         RowsPerPage = rowsPerPage;
-        CurrentPage = 1; // Reset to first page when rows per page changes
+        CurrentPage = 1;
         StateHasChanged();
     }
 
-    private class PayrollRecord
+    private string GetStatusBadgeClass(string status)
     {
+        return status switch
+        {
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            "Paid" => "bg-green-100 text-green-800",
+            "Cancelled" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+    private class PayrollRecordViewModel
+    {
+        public int TransactionId { get; set; }
         public DateTime Date { get; set; }
-        public string Role { get; set; } = string.Empty;
-        public decimal BaseSalary { get; set; }
-        public decimal Allowance { get; set; }
+        public bool IsBatch { get; set; }
+        public DateTime? BatchTimestamp { get; set; }
+        public int EmployeeCount { get; set; }
+        public string EmployeeName { get; set; } = string.Empty;
+        public string PayPeriod { get; set; } = string.Empty;
         public decimal GrossPay { get; set; }
         public decimal TotalDeductions { get; set; }
         public decimal NetPay { get; set; }
@@ -257,3 +1038,249 @@
     }
 }
 
+<!-- Confirmation Modal -->
+@if (showConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseConfirmModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold @(confirmModalType == "cancel" ? "text-red-500" : confirmModalType == "process" ? "text-green-600" : "text-blue-600")">@confirmModalTitle</h3>
+                <button @onclick="CloseConfirmModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700 whitespace-pre-line">@confirmModalMessage</p>
+
+                <div class="flex justify-end gap-2">
+                    <button type="button" @onclick="CloseConfirmModal"
+                            class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="ConfirmAction"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90 @(confirmModalType == "cancel" ? "bg-red-600" : confirmModalType == "process" ? "bg-green-600" : "bg-blue-600")">
+                        Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Individual Transaction Details Modal -->
+@if (showIndividualModal && selectedIndividualTransaction != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseIndividualModal">
+        <div class="w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">Payroll Transaction Details</h3>
+                    <p class="mt-1 text-sm text-gray-600">Transaction ID: @selectedIndividualTransaction.TransactionId</p>
+                </div>
+                <button @onclick="CloseIndividualModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="overflow-y-auto max-h-[calc(90vh-200px)] p-6">
+                <div class="space-y-6">
+                    <!-- Employee Information -->
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <h4 class="mb-3 text-sm font-semibold text-gray-800">Employee Information</h4>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-gray-600">Name:</span>
+                                <span class="ml-2 font-medium text-gray-800">
+                                    @(selectedIndividualTransaction.User != null ? $"{selectedIndividualTransaction.User.FirstName} {selectedIndividualTransaction.User.LastName}" : $"User ID: {selectedIndividualTransaction.UserId}")
+                                </span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Role:</span>
+                                <span class="ml-2 font-medium text-gray-800">@(selectedIndividualTransaction.User?.UserRole ?? "N/A")</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Pay Period:</span>
+                                <span class="ml-2 font-medium text-gray-800">@selectedIndividualTransaction.PayPeriod</span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Status:</span>
+                                <span class="ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-medium @GetStatusBadgeClass(selectedIndividualTransaction.Status)">
+                                    @selectedIndividualTransaction.Status
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Earnings and Deductions -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Earnings -->
+                        <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                            <h4 class="mb-3 text-sm font-semibold text-green-800">EARNINGS</h4>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Monthly Salary:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.BaseSalary)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Allowance:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.Allowance)</span>
+                                </div>
+                                <div class="mt-3 flex justify-between border-t border-green-200 pt-2">
+                                    <span class="font-semibold text-green-800">Gross Pay:</span>
+                                    <span class="font-bold text-green-600">@Salary.FormatPeso(selectedIndividualTransaction.GrossSalary)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deductions -->
+                        <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                            <h4 class="mb-3 text-sm font-semibold text-red-800">DEDUCTIONS</h4>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">SSS:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.SssDeduction)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">PhilHealth:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.PhilHealthDeduction)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Pag-IBIG:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.PagIbigDeduction)</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Withholding Tax:</span>
+                                    <span class="font-medium text-gray-800">@Salary.FormatPeso(selectedIndividualTransaction.TaxDeduction)</span>
+                                </div>
+                                <div class="mt-3 flex justify-between border-t border-red-200 pt-2">
+                                    <span class="font-semibold text-red-800">Total Deductions:</span>
+                                    <span class="font-bold text-red-600">@Salary.FormatPeso(selectedIndividualTransaction.TotalDeductions)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Net Pay -->
+                    <div class="rounded-lg border-2 border-green-500 bg-green-100 p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-base font-semibold text-green-800">NET PAY</h4>
+                                <p class="mt-1 text-xs text-green-700">Amount to be paid</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-2xl font-bold text-green-600">@Salary.FormatPeso(selectedIndividualTransaction.NetSalary)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Details -->
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <h4 class="mb-3 text-sm font-semibold text-gray-800">Transaction Details</h4>
+                        <div class="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                                <span class="text-gray-600">Created:</span>
+                                <span class="ml-2 font-medium text-gray-800">@selectedIndividualTransaction.CreatedAt.ToString("MMMM dd, yyyy HH:mm")</span>
+                            </div>
+                            @if (selectedIndividualTransaction.UpdatedAt.HasValue)
+                            {
+                                <div>
+                                    <span class="text-gray-600">Updated:</span>
+                                    <span class="ml-2 font-medium text-gray-800">@selectedIndividualTransaction.UpdatedAt.Value.ToString("MMMM dd, yyyy HH:mm")</span>
+                                </div>
+                            }
+                            @if (selectedIndividualTransaction.PaymentDate.HasValue)
+                            {
+                                <div>
+                                    <span class="text-gray-600">Payment Date:</span>
+                                    <span class="ml-2 font-medium text-gray-800">@selectedIndividualTransaction.PaymentDate.Value.ToString("MMMM dd, yyyy")</span>
+                                </div>
+                            }
+                            <div>
+                                <span class="text-gray-600">School Year:</span>
+                                <span class="ml-2 font-medium text-gray-800">@selectedIndividualTransaction.SchoolYear</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Audit Trail -->
+                    <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                        <h4 class="mb-3 text-sm font-semibold text-blue-800">Audit Trail</h4>
+                        <div class="space-y-2 text-sm">
+                            <!-- Created By - Always shown -->
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 font-medium">Created By:</span>
+                                <span class="font-medium text-gray-800">
+                                    @(selectedIndividualTransaction.CreatedByUser != null 
+                                        ? $"{selectedIndividualTransaction.CreatedByUser.FirstName} {selectedIndividualTransaction.CreatedByUser.LastName}" 
+                                        : $"User ID: {selectedIndividualTransaction.CreatedBy}")
+                                    <span class="text-gray-500 ml-2">(@selectedIndividualTransaction.CreatedAt.ToString("MMMM dd, yyyy HH:mm"))</span>
+                                </span>
+                            </div>
+                            
+                            <!-- Approved By - Show if status is Paid -->
+                            @if (selectedIndividualTransaction.Status == "Paid" && selectedIndividualTransaction.ApprovedBy.HasValue && selectedIndividualTransaction.ApprovedAt.HasValue)
+                            {
+                                <div class="flex justify-between">
+                                    <span class="text-green-600 font-medium">Approved By:</span>
+                                    <span class="font-medium text-green-800">
+                                        @(selectedIndividualTransaction.ApprovedByUser != null 
+                                            ? $"{selectedIndividualTransaction.ApprovedByUser.FirstName} {selectedIndividualTransaction.ApprovedByUser.LastName}" 
+                                            : $"User ID: {selectedIndividualTransaction.ApprovedBy}")
+                                        <span class="text-gray-500 ml-2">(@selectedIndividualTransaction.ApprovedAt.Value.ToString("MMMM dd, yyyy HH:mm"))</span>
+                                    </span>
+                                </div>
+                            }
+                            
+                            <!-- Cancelled By - Show if status is Cancelled -->
+                            @if (selectedIndividualTransaction.Status == "Cancelled" && selectedIndividualTransaction.CancelledBy.HasValue && selectedIndividualTransaction.CancelledAt.HasValue)
+                            {
+                                <div class="flex justify-between">
+                                    <span class="text-red-600 font-medium">Cancelled By:</span>
+                                    <span class="font-medium text-red-800">
+                                        @(selectedIndividualTransaction.CancelledByUser != null 
+                                            ? $"{selectedIndividualTransaction.CancelledByUser.FirstName} {selectedIndividualTransaction.CancelledByUser.LastName}" 
+                                            : $"User ID: {selectedIndividualTransaction.CancelledBy}")
+                                        <span class="text-gray-500 ml-2">(@selectedIndividualTransaction.CancelledAt.Value.ToString("MMMM dd, yyyy HH:mm"))</span>
+                                    </span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(selectedIndividualTransaction.CancellationReason))
+                                {
+                                    <div class="mt-2 rounded border border-red-200 bg-red-100 p-2">
+                                        <span class="text-xs font-semibold text-red-800">Cancellation Reason:</span>
+                                        <p class="mt-1 text-xs text-red-700">@selectedIndividualTransaction.CancellationReason</p>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                @if (selectedIndividualTransaction.Status == "Pending")
+                {
+                    <button @onclick="() => CancelTransaction(selectedIndividualTransaction.TransactionId)" 
+                            class="rounded-lg bg-red-600 px-6 py-2 text-sm font-medium text-white hover:bg-red-700">
+                        Cancel
+                    </button>
+                    <button @onclick="() => ProcessTransaction(selectedIndividualTransaction.TransactionId)" 
+                            class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-medium text-white hover:bg-green-700">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Process Payment
+                    </button>
+                }
+                <button @onclick="CloseIndividualModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}

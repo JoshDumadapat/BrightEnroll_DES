@@ -2,17 +2,23 @@
 @using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services.Business.HR
+@using BrightEnroll_DES.Services.Authentication
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using System.Linq
+@using Microsoft.EntityFrameworkCore
+@using BrightEnroll_DES.Components
 @inject EmployeeService EmployeeService
 @inject ILoadingService LoadingService
+@inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject BrightEnroll_DES.Data.AppDbContext DbContext
+@inject BrightEnroll_DES.Services.Business.HR.SalaryChangeRequestService SalaryChangeRequestService
+@inject NavigationManager NavigationManager
 @* Employee Info Tab Content *@
 
 <!-- Toast Notification -->
-@if (!string.IsNullOrEmpty(toastMessage))
-{
-    <div class="mb-4 rounded-lg @(toastType == "success" ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200") p-4">
-        <p class="text-sm @(toastType == "success" ? "text-green-700" : "text-red-700")">@toastMessage</p>
-    </div>
-}
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastTypeEnum" OnClose="CloseToast" Duration="4000" />
 
 <!-- All Information in One Card -->
 <div class="overflow-hidden rounded-xl bg-white shadow">
@@ -466,38 +472,117 @@
 
         <hr class="my-6 sm:my-8 border-gray-200" />
 
-        <!-- Salary Information Section (Read-only) -->
+        <!-- Salary Information Section -->
         <div>
             <h2 class="text-lg sm:text-xl font-bold text-blue-600 mb-4 sm:mb-6">Salary Information</h2>
             
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">
-                        Base Salary <span class="text-red-500">*</span>
+                        Monthly Salary <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
-                        ₱@(EmployeeData?.BaseSalary?.ToString("N2") ?? "0.00")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                            <input type="text" 
+                                   value="@GetBaseSalaryDisplayValue()" 
+                                   @oninput="@(async (ChangeEventArgs e) => await HandleSalaryInput(e, "BaseSalary"))"
+                                   @onfocus="HandleBaseSalaryFocus"
+                                   @onblur="HandleBaseSalaryBlur"
+                                   onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                   @onpaste="@((ClipboardEventArgs e) => HandleSalaryPaste(e, "BaseSalary"))"
+                                   pattern="[0-9.]*"
+                                   inputmode="decimal"
+                                   placeholder="0.00"
+                                   disabled="@(pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")"
+                                   class="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:px-4 sm:py-2.5 sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
+                        </div>
+                        @if (pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")
+                        {
+                            <p class="mt-1 text-xs text-red-600">Cannot edit: Pending approval request</p>
+                        }
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 text-right">
+                            ₱@(EmployeeData?.BaseSalary?.ToString("N2") ?? "0.00")
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Allowance</label>
-                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
-                        ₱@(EmployeeData?.Allowance?.ToString("N2") ?? "0.00")
-                    </div>
+                    @if (isEditMode)
+                    {
+                        <div class="relative">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
+                            <input type="text" 
+                                   value="@GetAllowanceDisplayValue()" 
+                                   @oninput="@(async (ChangeEventArgs e) => await HandleSalaryInput(e, "Allowance"))"
+                                   @onfocus="HandleAllowanceFocus"
+                                   @onblur="HandleAllowanceBlur"
+                                   onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                   @onpaste="@((ClipboardEventArgs e) => HandleSalaryPaste(e, "Allowance"))"
+                                   pattern="[0-9.]*"
+                                   inputmode="decimal"
+                                   placeholder="0.00"
+                                   disabled="@(pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")"
+                                   class="w-full rounded-lg border border-gray-300 bg-white pl-8 pr-3 py-2 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200 sm:px-4 sm:py-2.5 sm:text-base disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
+                        </div>
+                        @if (pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")
+                        {
+                            <p class="mt-1 text-xs text-red-600">Cannot edit: Pending approval request</p>
+                        }
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800 text-right">
+                            ₱@(EmployeeData?.Allowance?.ToString("N2") ?? "0.00")
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Total Salary</label>
-                    <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base font-semibold text-gray-800">
-                        ₱@(EmployeeData?.TotalSalary?.ToString("N2") ?? "0.00")
+                    <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base font-semibold text-gray-800 text-right">
+                        @if (isEditMode)
+                        {
+                            <span>₱@(((editData.BaseSalary ?? 0) + (editData.Allowance ?? 0)).ToString("N2"))</span>
+                        }
+                        else
+                        {
+                            <span>₱@(EmployeeData?.TotalSalary?.ToString("N2") ?? "0.00")</span>
+                        }
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-800 mb-1 sm:mb-2">Date Effective</label>
                     <div class="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-800">
-                        @(EmployeeData?.SalaryDateEffective?.ToString("M / d / yyyy") ?? "N/A")
+                        @(EmployeeData?.SalaryDateEffective != null ? EmployeeData.SalaryDateEffective.Value.ToString("MMMM d, yyyy") : "N/A")
                     </div>
                 </div>
             </div>
+            
+            @if (pendingSalaryRequest != null)
+            {
+                <div class="mt-4 rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-yellow-800">Pending Salary Approval</p>
+                            <p class="mt-1 text-xs text-yellow-700">
+                                A salary change request is pending approval. Requested salary: 
+                                <strong>₱@pendingSalaryRequest.RequestedBaseSalary.ToString("N2")</strong> monthly + 
+                                <strong>₱@pendingSalaryRequest.RequestedAllowance.ToString("N2")</strong> allowance.
+                                The displayed salary will be updated once approved by Payroll.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            }
         </div>
 
         <!-- Edit buttons at the bottom (shown when in edit mode) -->
@@ -532,6 +617,92 @@
     </div>
 </div>
 
+<!-- Salary Approval Modal (for threshold exceeded) -->
+@if (showSalaryApprovalModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm transition-opacity" @onclick="CloseSalaryApprovalModal">
+        <div class="w-full max-w-lg rounded-2xl bg-white shadow-2xl transform transition-all max-h-[90vh] overflow-y-auto" @onclick:stopPropagation="true">
+            <!-- Header -->
+            <div class="rounded-t-2xl border-b border-yellow-200 bg-gradient-to-r from-yellow-50 to-amber-50 px-5 py-3">
+                <div class="flex items-center gap-2.5">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100">
+                        <svg class="h-5 w-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-semibold text-yellow-900">Salary Approval Required</h3>
+                </div>
+            </div>
+            
+            <!-- Content -->
+            <div class="px-5 py-4">
+                <p class="text-sm text-gray-700 mb-4 leading-relaxed">
+                    The requested salary exceeds the role's monthly salary by more than <strong class="text-yellow-700">@roleThresholdPercentage.ToString("F1")%</strong> (threshold set in Payroll module). 
+                    This requires approval from Payroll/Admin.
+                </p>
+                
+                <!-- Salary Comparison Card -->
+                <div class="mb-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 p-3 border border-gray-200 shadow-sm">
+                    <div class="space-y-2.5">
+                        <div class="flex items-center justify-between rounded-lg bg-white px-3 py-2 border border-gray-200">
+                            <span class="text-xs font-medium text-gray-600 uppercase tracking-wide">Role Monthly Salary</span>
+                            <span class="text-sm font-bold text-gray-900">₱@roleBaseSalary.ToString("N2")</span>
+                        </div>
+                        <div class="flex items-center justify-between rounded-lg bg-blue-50 px-3 py-2 border border-blue-200">
+                            <span class="text-xs font-medium text-blue-700 uppercase tracking-wide">Requested Monthly Salary</span>
+                            <span class="text-sm font-bold text-blue-700">₱@(editData.BaseSalary?.ToString("N2") ?? "0.00")</span>
+                        </div>
+                        <div class="flex items-center justify-between rounded-lg bg-red-50 px-3 py-2 border border-red-200">
+                            <span class="text-xs font-medium text-red-700 uppercase tracking-wide">Difference</span>
+                            <div class="text-right">
+                                <div class="text-sm font-bold text-red-700">
+                                    ₱@(((editData.BaseSalary ?? 0) - roleBaseSalary).ToString("N2"))
+                                </div>
+                                <div class="text-xs font-semibold text-red-600 mt-0.5">
+                                    (@((roleBaseSalary > 0 ? (((editData.BaseSalary ?? 0) - roleBaseSalary) / roleBaseSalary * 100) : 0).ToString("F1"))% above monthly salary)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Reason Input -->
+                <div class="mb-3">
+                    <label class="mb-1.5 block text-sm font-medium text-gray-800">
+                        Reason for Salary Adjustment <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="salaryApprovalReason" 
+                              class="w-full rounded-xl border-2 border-gray-300 px-3 py-2.5 text-sm text-gray-700 placeholder-gray-400 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-200 transition-all" 
+                              rows="3" 
+                              placeholder="Please provide a reason for the salary adjustment (e.g., experience, qualifications, market rate, etc.)"></textarea>
+                    @if (string.IsNullOrWhiteSpace(salaryApprovalReason))
+                    {
+                        <p class="mt-1.5 text-xs font-medium text-red-600 flex items-center gap-1">
+                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Reason is required for salary approval.
+                        </p>
+                    }
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-end gap-2.5 rounded-b-2xl border-t border-gray-200 bg-gray-50 px-5 py-3">
+                <button @onclick="CloseSalaryApprovalModal" 
+                        class="rounded-xl border-2 border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 hover:border-gray-400 hover:shadow-sm active:scale-95">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmSalaryApprovalRequest" 
+                        disabled="@(string.IsNullOrWhiteSpace(salaryApprovalReason))"
+                        class="rounded-xl bg-gradient-to-r from-yellow-600 to-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:from-yellow-700 hover:to-amber-700 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-sm active:scale-95">
+                    Submit for Approval
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter]
     public EmployeeDataView? EmployeeData { get; set; }
@@ -548,9 +719,24 @@
     public bool isEditMode { get; private set; } = false;
     private bool isSaving = false;
     private EmployeeUpdateData editData = new();
+    private bool showToast = false;
     private string toastMessage = "";
-    private string toastType = "success";
+    private ToastType toastTypeEnum = ToastType.Success;
     private string? _displayInactiveReason;
+    
+    // Money input fields - same as Payroll
+    private string? baseSalaryRawInput = null;
+    private string? allowanceRawInput = null;
+    private bool isEditingBaseSalary = false;
+    private bool isEditingAllowance = false;
+    
+    // Salary approval modal
+    private bool showSalaryApprovalModal = false;
+    private string salaryApprovalReason = "";
+    private decimal roleBaseSalary = 0;
+    private decimal roleAllowance = 0;
+    private decimal roleThresholdPercentage = 0.00m; // Dynamic threshold from Payroll module
+    private SalaryChangeRequest? pendingSalaryRequest = null;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -568,6 +754,30 @@
         else
         {
             _displayInactiveReason = null;
+        }
+        
+        // Load pending salary request
+        if (EmployeeData != null)
+        {
+            await LoadPendingSalaryRequest();
+        }
+    }
+    
+    private async Task LoadPendingSalaryRequest()
+    {
+        if (EmployeeData == null) return;
+        
+        try
+        {
+            pendingSalaryRequest = await DbContext.SalaryChangeRequests
+                .Where(r => r.UserId == EmployeeData.UserId && r.Status == "Pending")
+                .OrderByDescending(r => r.RequestedAt)
+                .FirstOrDefaultAsync();
+        }
+        catch
+        {
+            // Ignore errors
+            pendingSalaryRequest = null;
         }
     }
 
@@ -600,14 +810,267 @@
             EmergencyContactSuffix = EmployeeData.EmergencyContactSuffix ?? "",
             EmergencyContactRelationship = EmployeeData.EmergencyContactRelationship ?? "",
             EmergencyContactNumber = EmployeeData.EmergencyContactNumber ?? "",
-            EmergencyContactAddress = EmployeeData.EmergencyContactAddress ?? ""
+            EmergencyContactAddress = EmployeeData.EmergencyContactAddress ?? "",
+            BaseSalary = EmployeeData.BaseSalary,
+            Allowance = EmployeeData.Allowance
         };
+    }
+
+    private void CalculateTotalSalary()
+    {
+        // Total is calculated automatically, just trigger state update
+        StateHasChanged();
+    }
+
+    // Money input methods - same as Payroll
+    private string GetBaseSalaryDisplayValue()
+    {
+        if (isEditingBaseSalary && !string.IsNullOrWhiteSpace(baseSalaryRawInput))
+        {
+            return FormatNumberWithCommas(baseSalaryRawInput);
+        }
+        
+        if (editData.BaseSalary.HasValue && editData.BaseSalary.Value > 0)
+        {
+            return editData.BaseSalary.Value.ToString("N2");
+        }
+        return "";
+    }
+    
+    private string GetAllowanceDisplayValue()
+    {
+        if (isEditingAllowance && !string.IsNullOrWhiteSpace(allowanceRawInput))
+        {
+            return FormatNumberWithCommas(allowanceRawInput);
+        }
+        
+        if (editData.Allowance.HasValue && editData.Allowance.Value > 0)
+        {
+            return editData.Allowance.Value.ToString("N2");
+        }
+        return "";
+    }
+    
+    private string FormatNumberWithCommas(string numberString)
+    {
+        if (string.IsNullOrWhiteSpace(numberString) || numberString == ".")
+            return numberString;
+
+        string cleaned = numberString.Replace(",", "");
+        
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            string integerPart = parts[0];
+            string decimalPart = parts.Length > 1 ? parts[1] : "";
+            
+            if (!string.IsNullOrWhiteSpace(integerPart) && long.TryParse(integerPart, out long intValue))
+            {
+                string formattedInteger = intValue.ToString("N0").Replace(".", ",");
+                return formattedInteger + (parts.Length > 1 ? "." + decimalPart : "");
+            }
+        }
+        else if (long.TryParse(cleaned, out long value))
+        {
+            return value.ToString("N0").Replace(".", ",");
+        }
+        
+        return numberString;
+    }
+    
+    private async Task HandleSalaryInput(ChangeEventArgs e, string fieldName)
+    {
+        // Check if there's a pending request before allowing edits
+        await LoadPendingSalaryRequest();
+        if (pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")
+        {
+            toastMessage = "This employee has a pending salary approval request. Cannot edit salary until the request is approved or rejected.";
+            toastTypeEnum = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+            return;
+        }
+        
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        if (fieldName == "BaseSalary")
+        {
+            baseSalaryRawInput = cleaned;
+        }
+        else if (fieldName == "Allowance")
+        {
+            allowanceRawInput = cleaned;
+        }
+        
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            if (fieldName == "BaseSalary")
+            {
+                editData.BaseSalary = parsedValue;
+            }
+            else if (fieldName == "Allowance")
+            {
+                editData.Allowance = parsedValue;
+            }
+            CalculateTotalSalary();
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            if (fieldName == "BaseSalary")
+            {
+                editData.BaseSalary = 0;
+            }
+            else if (fieldName == "Allowance")
+            {
+                editData.Allowance = 0;
+            }
+            CalculateTotalSalary();
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void HandleBaseSalaryFocus()
+    {
+        isEditingBaseSalary = true;
+        if (baseSalaryRawInput == null)
+        {
+            if (editData.BaseSalary.HasValue && editData.BaseSalary.Value > 0)
+            {
+                baseSalaryRawInput = editData.BaseSalary.Value == Math.Floor(editData.BaseSalary.Value) 
+                    ? ((int)editData.BaseSalary.Value).ToString() 
+                    : editData.BaseSalary.Value.ToString("0.##");
+            }
+            else
+            {
+                baseSalaryRawInput = "";
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private void HandleAllowanceFocus()
+    {
+        isEditingAllowance = true;
+        if (allowanceRawInput == null)
+        {
+            if (editData.Allowance.HasValue && editData.Allowance.Value > 0)
+            {
+                allowanceRawInput = editData.Allowance.Value == Math.Floor(editData.Allowance.Value) 
+                    ? ((int)editData.Allowance.Value).ToString() 
+                    : editData.Allowance.Value.ToString("0.##");
+            }
+            else
+            {
+                allowanceRawInput = "";
+            }
+        }
+        StateHasChanged();
+    }
+    
+    private void HandleBaseSalaryBlur()
+    {
+        isEditingBaseSalary = false;
+        
+        if (baseSalaryRawInput != null)
+        {
+            string rawValue = baseSalaryRawInput;
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                editData.BaseSalary = parsedValue;
+            }
+            else
+            {
+                editData.BaseSalary = 0;
+            }
+            baseSalaryRawInput = null;
+        }
+        CalculateTotalSalary();
+        StateHasChanged();
+    }
+    
+    private void HandleAllowanceBlur()
+    {
+        isEditingAllowance = false;
+        
+        if (allowanceRawInput != null)
+        {
+            string rawValue = allowanceRawInput;
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                editData.Allowance = parsedValue;
+            }
+            else
+            {
+                editData.Allowance = 0;
+            }
+            allowanceRawInput = null;
+        }
+        CalculateTotalSalary();
+        StateHasChanged();
+    }
+    
+    private async Task HandleSalaryPaste(ClipboardEventArgs e, string fieldName)
+    {
+        try
+        {
+            var pastedText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+            if (!string.IsNullOrWhiteSpace(pastedText))
+            {
+                var validChars = pastedText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+                string cleaned = new string(validChars);
+                
+                var changeEvent = new ChangeEventArgs { Value = cleaned };
+                await HandleSalaryInput(changeEvent, fieldName);
+            }
+        }
+        catch
+        {
+            // Ignore paste errors
+        }
     }
 
     public void EnableEditMode()
     {
         isEditMode = true;
         LoadDataToEditForm();
+        showToast = false;
         toastMessage = "";
         OnEditModeChanged.InvokeAsync(true);
         StateHasChanged();
@@ -617,8 +1080,16 @@
     {
         isEditMode = false;
         LoadDataToEditForm();
+        showToast = false;
         toastMessage = "";
         OnEditModeChanged.InvokeAsync(false);
+        StateHasChanged();
+    }
+    
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
         StateHasChanged();
     }
 
@@ -631,29 +1102,264 @@
             isSaving = true;
             StateHasChanged();
 
-            var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, editData);
+            // Check if there's a pending salary request - prevent editing if exists
+            await LoadPendingSalaryRequest();
+            if (pendingSalaryRequest != null && pendingSalaryRequest.Status == "Pending")
+            {
+                toastMessage = "This employee has a pending salary approval request. Cannot edit salary until the request is approved or rejected.";
+                toastTypeEnum = ToastType.Error;
+                showToast = true;
+                isSaving = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Check if salary was changed
+            bool hasSalaryChange = false;
+            
+            if (editData.BaseSalary.HasValue || editData.Allowance.HasValue)
+            {
+                // Get current salary
+                var currentSalary = await DbContext.SalaryInfos
+                    .FirstOrDefaultAsync(s => s.UserId == EmployeeData.UserId && s.IsActive);
+
+                if (currentSalary != null)
+                {
+                    var newBaseSalary = editData.BaseSalary ?? currentSalary.BaseSalary;
+                    var newAllowance = editData.Allowance ?? currentSalary.Allowance;
+
+                    // Check if salary actually changed
+                    hasSalaryChange = (newBaseSalary != currentSalary.BaseSalary) || 
+                                     (newAllowance != currentSalary.Allowance);
+
+                    if (hasSalaryChange)
+                    {
+                        // Get role base salary and threshold from database (dynamic from Payroll module)
+                        var role = await DbContext.Roles
+                            .FirstOrDefaultAsync(r => r.RoleName == editData.Role);
+                        
+                        if (role != null)
+                        {
+                            roleBaseSalary = role.BaseSalary;
+                            roleAllowance = role.Allowance;
+                            roleThresholdPercentage = role.ThresholdPercentage; // Store for display in modal
+                            
+                            // If threshold is 0%, no approval needed - allow any salary increase
+                            if (role.ThresholdPercentage == 0.00m)
+                            {
+                                System.Diagnostics.Debug.WriteLine(
+                                    $"Salary threshold check for {editData.Role}: " +
+                                    $"Threshold is 0% - No approval required. Allowing direct update.");
+                                // Continue with save (no approval modal)
+                            }
+                            else
+                            {
+                                // Threshold > 0% - check if exceeds threshold using CUMULATIVE approach
+                                // Compare new salary to role base * (1 + threshold%)
+                                decimal salaryThresholdPercentage = (role.ThresholdPercentage / 100m); // Convert percentage to decimal
+
+                                // Calculate threshold amounts (CUMULATIVE: always based on role base, not current salary)
+                                var thresholdBaseSalary = roleBaseSalary * (1 + salaryThresholdPercentage);
+                                var thresholdAllowance = roleAllowance * (1 + salaryThresholdPercentage);
+
+                                // CUMULATIVE CHECK: Compare new salary to role base + threshold
+                                // This ensures threshold doesn't restart - if previous increase used 7% of 10%,
+                                // remaining threshold is still 3% (new salary must be <= role base * 1.10)
+                                bool baseSalaryExceeds = newBaseSalary > thresholdBaseSalary;
+                                bool allowanceExceeds = newAllowance > thresholdAllowance;
+                                
+                                if (baseSalaryExceeds || allowanceExceeds)
+                                {
+                                    // Log threshold check for debugging
+                                    System.Diagnostics.Debug.WriteLine(
+                                        $"Salary threshold check for {editData.Role}: " +
+                                        $"Base Salary: {newBaseSalary:N2} > {thresholdBaseSalary:N2} (role base: {roleBaseSalary:N2} + {role.ThresholdPercentage}% threshold) = {baseSalaryExceeds}, " +
+                                        $"Allowance: {newAllowance:N2} > {thresholdAllowance:N2} (role base: {roleAllowance:N2} + {role.ThresholdPercentage}% threshold) = {allowanceExceeds}");
+                                    
+                                    // Show approval modal
+                                    showSalaryApprovalModal = true;
+                                    salaryApprovalReason = "";
+                                    isSaving = false;
+                                    StateHasChanged();
+                                    return; // Don't proceed with save yet
+                                }
+                                else
+                                {
+                                    // Within threshold - no approval needed, continue with save
+                                    System.Diagnostics.Debug.WriteLine(
+                                        $"Salary threshold check for {editData.Role}: " +
+                                        $"Within threshold ({role.ThresholdPercentage}%) - No approval required.");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Role not found in database - log warning but allow save (will use default threshold of 0%)
+                            System.Diagnostics.Debug.WriteLine($"WARNING: Role '{editData.Role}' not found in database. Threshold check skipped - allowing save.");
+                        }
+                    }
+                }
+            }
+
+            // Get current logged-in user ID for salary change requests
+            int? currentUserId = null;
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser != null)
+            {
+                currentUserId = currentUser.user_ID;
+            }
+
+            var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, editData, currentUserId);
 
             if (success)
             {
-                toastMessage = "Employee information updated successfully!";
-                toastType = "success";
-                isEditMode = false;
-                
-                // Notify parent to refresh data
-                await OnDataUpdated.InvokeAsync();
-                await OnEditModeChanged.InvokeAsync(false);
-                StateHasChanged();
+                // If only non-salary fields were changed, redirect to HR page
+                if (!hasSalaryChange)
+                {
+                    // Redirect to HR employee table with success toast
+                    await Task.Delay(100); // Small delay to ensure state is saved
+                    NavigationManager.NavigateTo("/human-resource?toast=employee_updated", forceLoad: true);
+                    return;
+                }
+                else
+                {
+                    // Salary was updated (within threshold), still redirect
+                    await Task.Delay(100);
+                    NavigationManager.NavigateTo("/human-resource?toast=employee_updated", forceLoad: true);
+                    return;
+                }
             }
             else
             {
                 toastMessage = "Failed to update employee information. Please try again.";
-                toastType = "error";
+                toastTypeEnum = ToastType.Error;
+                showToast = true;
             }
         }
         catch (Exception ex)
         {
             toastMessage = $"Error updating employee information: {ex.Message}";
-            toastType = "error";
+            toastTypeEnum = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            isSaving = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void CloseSalaryApprovalModal()
+    {
+        showSalaryApprovalModal = false;
+        salaryApprovalReason = "";
+        StateHasChanged();
+    }
+    
+    private async Task ConfirmSalaryApprovalRequest()
+    {
+        if (string.IsNullOrWhiteSpace(salaryApprovalReason))
+        {
+            return;
+        }
+
+        if (EmployeeData == null) return;
+
+        try
+        {
+            isSaving = true;
+            StateHasChanged();
+
+            // Get current logged-in user ID
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser == null)
+            {
+                toastMessage = "Error: Unable to identify current user. Please log in again.";
+                toastTypeEnum = ToastType.Error;
+                showToast = true;
+                CloseSalaryApprovalModal();
+                isSaving = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Get current salary
+            var currentSalary = await DbContext.SalaryInfos
+                .FirstOrDefaultAsync(s => s.UserId == EmployeeData.UserId && s.IsActive);
+
+            if (currentSalary != null && (editData.BaseSalary.HasValue || editData.Allowance.HasValue))
+            {
+                var newBaseSalary = editData.BaseSalary ?? currentSalary.BaseSalary;
+                var newAllowance = editData.Allowance ?? currentSalary.Allowance;
+
+                // Create salary change request
+                await SalaryChangeRequestService.CreateRequestAsync(
+                    userId: EmployeeData.UserId,
+                    currentBaseSalary: currentSalary.BaseSalary,
+                    currentAllowance: currentSalary.Allowance,
+                    requestedBaseSalary: newBaseSalary,
+                    requestedAllowance: newAllowance,
+                    reason: salaryApprovalReason,
+                    requestedBy: currentUser.user_ID,
+                    isInitialRegistration: false
+                );
+
+                // Update other employee info (without salary)
+                var updateDataWithoutSalary = new EmployeeUpdateData
+                {
+                    FirstName = editData.FirstName,
+                    MiddleName = editData.MiddleName,
+                    LastName = editData.LastName,
+                    Suffix = editData.Suffix,
+                    BirthDate = editData.BirthDate,
+                    Age = editData.Age,
+                    Sex = editData.Sex,
+                    ContactNumber = editData.ContactNumber,
+                    Email = editData.Email,
+                    Role = editData.Role,
+                    HouseNo = editData.HouseNo,
+                    StreetName = editData.StreetName,
+                    Barangay = editData.Barangay,
+                    City = editData.City,
+                    Province = editData.Province,
+                    Country = editData.Country,
+                    ZipCode = editData.ZipCode,
+                    EmergencyContactFirstName = editData.EmergencyContactFirstName,
+                    EmergencyContactMiddleName = editData.EmergencyContactMiddleName,
+                    EmergencyContactLastName = editData.EmergencyContactLastName,
+                    EmergencyContactSuffix = editData.EmergencyContactSuffix,
+                    EmergencyContactRelationship = editData.EmergencyContactRelationship,
+                    EmergencyContactNumber = editData.EmergencyContactNumber,
+                    EmergencyContactAddress = editData.EmergencyContactAddress,
+                    BaseSalary = null, // Don't update salary - it's pending approval
+                    Allowance = null
+                };
+
+                var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, updateDataWithoutSalary, currentUser.user_ID);
+
+                if (success)
+                {
+                    CloseSalaryApprovalModal();
+                    // Reload pending request to show updated status
+                    await LoadPendingSalaryRequest();
+                    // Redirect to HR employee table with success toast
+                    await Task.Delay(100); // Small delay to ensure state is saved
+                    NavigationManager.NavigateTo("/human-resource?toast=employee_updated_salary_pending", forceLoad: true);
+                    return;
+                }
+                else
+                {
+                    toastMessage = "Failed to update employee information. Please try again.";
+                    toastTypeEnum = ToastType.Error;
+                    showToast = true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            toastMessage = $"Error: {ex.Message}";
+            toastTypeEnum = ToastType.Error;
+            showToast = true;
         }
         finally
         {

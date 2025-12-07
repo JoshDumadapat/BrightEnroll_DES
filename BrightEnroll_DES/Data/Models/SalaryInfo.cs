@@ -28,5 +28,14 @@ public class SalaryInfo
 
     [Column("is_active")]
     public bool IsActive { get; set; } = true;
+
+    [Required]
+    [MaxLength(20)]
+    [Column("school_year")]
+    public string SchoolYear { get; set; } = string.Empty;
+
+    // Navigation property
+    [ForeignKey("UserId")]
+    public virtual UserEntity? User { get; set; }
 }
 

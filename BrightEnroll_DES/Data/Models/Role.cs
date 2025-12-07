@@ -24,6 +24,9 @@ public class Role
     [Column("allowance", TypeName = "decimal(12,2)")]
     public decimal Allowance { get; set; } = 0.00m;
 
+    [Column("threshold_percentage", TypeName = "decimal(5,2)")]
+    public decimal ThresholdPercentage { get; set; } = 0.00m; // Default 0%
+
     [Column("is_active")]
     public bool IsActive { get; set; } = true;
 

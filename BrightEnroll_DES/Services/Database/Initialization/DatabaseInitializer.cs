@@ -968,6 +968,365 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Adds threshold_percentage column to tbl_roles if it doesn't exist (for existing databases)
+        public async Task<bool> AddThresholdPercentageColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // First check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_roles' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
+
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_roles') 
+                    AND name = 'threshold_percentage'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_roles]
+                        ADD [threshold_percentage] DECIMAL(5,2) NOT NULL DEFAULT 10.00";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Added threshold_percentage column to tbl_roles table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding threshold_percentage column: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> AddBatchTimestampColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // First check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_payroll_transactions' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
+
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                    AND name = 'batch_timestamp'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    // Add the column
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                        ADD [batch_timestamp] DATETIME NULL";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    
+                    // Create index for batch_timestamp
+                    string createIndexQuery = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_batch_timestamp' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_batch_timestamp ON [dbo].[tbl_payroll_transactions]([batch_timestamp])";
+
+                    using var indexCommand = new SqlCommand(createIndexQuery, connection);
+                    await indexCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Added batch_timestamp column and index to tbl_payroll_transactions table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding batch_timestamp column: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> AddPayrollAuditTrailAndCompanyContributionsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_payroll_transactions' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    return false;
+                }
+
+                bool anyAdded = false;
+
+                // Add company contribution columns
+                string[] companyColumns = new[]
+                {
+                    "company_sss_contribution", "company_philhealth_contribution", 
+                    "company_pagibig_contribution", "total_company_contribution"
+                };
+
+                foreach (var colName in companyColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = $@"
+                            ALTER TABLE [dbo].[tbl_payroll_transactions]
+                            ADD [{colName}] DECIMAL(12,2) NOT NULL DEFAULT 0.00";
+
+                        using var addCommand = new SqlCommand(addColQuery, connection);
+                        await addCommand.ExecuteNonQueryAsync();
+                        anyAdded = true;
+                    }
+                }
+
+                // Add created_by column
+                string checkCreatedByQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                    AND name = 'created_by'";
+
+                using var checkCreatedByCommand = new SqlCommand(checkCreatedByQuery, connection);
+                var createdByResult = await checkCreatedByCommand.ExecuteScalarAsync();
+                var createdByExists = createdByResult != null ? (int)createdByResult : 0;
+
+                if (createdByExists == 0)
+                {
+                    string addCreatedByQuery = @"
+                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                        ADD [created_by] INT NOT NULL DEFAULT 1";
+
+                    using var addCreatedByCommand = new SqlCommand(addCreatedByQuery, connection);
+                    await addCreatedByCommand.ExecuteNonQueryAsync();
+
+                    // Update existing records
+                    string updateCreatedByQuery = @"
+                        UPDATE [dbo].[tbl_payroll_transactions]
+                        SET [created_by] = [processed_by]
+                        WHERE [created_by] = 1";
+
+                    using var updateCommand = new SqlCommand(updateCreatedByQuery, connection);
+                    await updateCommand.ExecuteNonQueryAsync();
+
+                    // Add foreign key if it doesn't exist
+                    string checkFkQuery = @"
+                        SELECT COUNT(*) 
+                        FROM sys.foreign_keys 
+                        WHERE name = 'FK_tbl_payroll_transactions_CreatedBy'";
+
+                    using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                    var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                    if (fkExists != null && (int)fkExists == 0)
+                    {
+                        string addFkQuery = @"
+                            ALTER TABLE [dbo].[tbl_payroll_transactions]
+                            ADD CONSTRAINT FK_tbl_payroll_transactions_CreatedBy 
+                            FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                        using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                        await addFkCommand.ExecuteNonQueryAsync();
+                    }
+
+                    anyAdded = true;
+                }
+
+                // Add approved_by, approved_at
+                string[] approvalColumns = new[] { "approved_by", "approved_at" };
+                foreach (var colName in approvalColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = colName == "approved_by"
+                            ? @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [approved_by] INT NULL"
+                            : @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [approved_at] DATETIME NULL";
+
+                        using var addCommand = new SqlCommand(addColQuery, connection);
+                        await addCommand.ExecuteNonQueryAsync();
+
+                        if (colName == "approved_by")
+                        {
+                            // Add foreign key
+                            string checkFkQuery = @"
+                                SELECT COUNT(*) 
+                                FROM sys.foreign_keys 
+                                WHERE name = 'FK_tbl_payroll_transactions_ApprovedBy'";
+
+                            using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                            var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                            if (fkExists != null && (int)fkExists == 0)
+                            {
+                                string addFkQuery = @"
+                                    ALTER TABLE [dbo].[tbl_payroll_transactions]
+                                    ADD CONSTRAINT FK_tbl_payroll_transactions_ApprovedBy 
+                                    FOREIGN KEY ([approved_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                                using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                                await addFkCommand.ExecuteNonQueryAsync();
+                            }
+                        }
+
+                        anyAdded = true;
+                    }
+                }
+
+                // Add cancelled_by, cancelled_at, cancellation_reason
+                string[] cancelColumns = new[] { "cancelled_by", "cancelled_at", "cancellation_reason" };
+                foreach (var colName in cancelColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = colName switch
+                        {
+                            "cancelled_by" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancelled_by] INT NULL",
+                            "cancelled_at" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancelled_at] DATETIME NULL",
+                            "cancellation_reason" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancellation_reason] NVARCHAR(500) NULL",
+                            _ => ""
+                        };
+
+                        if (!string.IsNullOrEmpty(addColQuery))
+                        {
+                            using var addCommand = new SqlCommand(addColQuery, connection);
+                            await addCommand.ExecuteNonQueryAsync();
+
+                            if (colName == "cancelled_by")
+                            {
+                                // Add foreign key
+                                string checkFkQuery = @"
+                                    SELECT COUNT(*) 
+                                    FROM sys.foreign_keys 
+                                    WHERE name = 'FK_tbl_payroll_transactions_CancelledBy'";
+
+                                using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                                var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                                if (fkExists != null && (int)fkExists == 0)
+                                {
+                                    string addFkQuery = @"
+                                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                                        ADD CONSTRAINT FK_tbl_payroll_transactions_CancelledBy 
+                                        FOREIGN KEY ([cancelled_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                                    using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                                    await addFkCommand.ExecuteNonQueryAsync();
+                                }
+                            }
+
+                            anyAdded = true;
+                        }
+                    }
+                }
+
+                if (anyAdded)
+                {
+                    System.Diagnostics.Debug.WriteLine("Added audit trail and company contribution columns to tbl_payroll_transactions table.");
+                }
+
+                return anyAdded;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding audit trail and company contribution columns: {ex.Message}");
+                return false;
+            }
+        }
+
         // Initializes everything - creates database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
@@ -982,6 +1341,9 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await AddSubjectColumnsIfNotExistAsync();
                 await AddSectionAdviserColumnIfNotExistsAsync();
                 await AddTeacherAssignmentArchiveColumnIfNotExistsAsync();
+                await AddThresholdPercentageColumnIfNotExistsAsync(); // Add missing column
+                await AddBatchTimestampColumnIfNotExistsAsync(); // Add batch_timestamp column for payroll
+                await AddPayrollAuditTrailAndCompanyContributionsAsync(); // Add audit trail and company contributions
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();

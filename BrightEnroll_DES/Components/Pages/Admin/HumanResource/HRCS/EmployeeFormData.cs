@@ -58,8 +58,8 @@ public class EmployeeFormData
     public string EmergencyContactAddress { get; set; } = string.Empty;
     
     // Salary fields
-    [Required(ErrorMessage = "Base salary is required")]
-    [Range(0, double.MaxValue, ErrorMessage = "Base salary must be greater than or equal to 0")]
+    [Required(ErrorMessage = "Monthly salary is required")]
+    [Range(0, double.MaxValue, ErrorMessage = "Monthly salary must be greater than or equal to 0")]
     public decimal BaseSalary { get; set; } = 0;
     [Range(0, double.MaxValue, ErrorMessage = "Allowance must be greater than or equal to 0")]
     public decimal Allowance { get; set; } = 0;

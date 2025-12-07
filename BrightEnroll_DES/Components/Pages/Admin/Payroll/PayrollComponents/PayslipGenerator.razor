@@ -787,22 +787,51 @@
             // Set role immediately
             selectedEmployeeRole = employee.Role ?? "";
             
-            // Get salary information from Role table based on employee's role
-            var role = await DbContext.Roles
-                .Where(r => r.RoleName == employee.Role && r.IsActive)
+            decimal baseSalary = 0;
+            decimal allowance = 0;
+            bool salaryFound = false;
+            
+            // PRIORITY 1: Get salary from SalaryInfo (employee-specific, respects approved salary changes)
+            // Only use SalaryInfo if it's active and effective date has passed
+            var salaryInfo = await DbContext.SalaryInfos
+                .Where(s => s.UserId == selectedEmployeeId && s.IsActive && s.DateEffective <= DateTime.Today)
+                .OrderByDescending(s => s.DateEffective)
+                .ThenByDescending(s => s.SalaryId)
                 .FirstOrDefaultAsync();
 
-            if (role != null)
+            if (salaryInfo != null)
+            {
+                // Use SalaryInfo (approved salary changes)
+                baseSalary = salaryInfo.BaseSalary;
+                allowance = salaryInfo.Allowance;
+                salaryFound = true;
+            }
+            else
+            {
+                // PRIORITY 2: Fallback to Role table (default salary for the role)
+                var role = await DbContext.Roles
+                    .Where(r => r.RoleName == employee.Role && r.IsActive)
+                    .FirstOrDefaultAsync();
+
+                if (role != null)
+                {
+                    baseSalary = role.BaseSalary;
+                    allowance = role.Allowance;
+                    salaryFound = true;
+                }
+            }
+
+            if (salaryFound && baseSalary > 0)
             {
                 // Set base salary and allowance for display
-                selectedBaseSalary = role.BaseSalary;
-                selectedAllowance = role.Allowance;
+                selectedBaseSalary = baseSalary;
+                selectedAllowance = allowance;
                 
                 var payrollCalc = new PayrollRoleData
                 {
                     Role = employee.Role ?? "",
-                    BaseSalary = role.BaseSalary,
-                    Allowance = role.Allowance,
+                    BaseSalary = baseSalary,
+                    Allowance = allowance,
                     IsActive = true
                 };
                 payrollCalc.Recalculate();
@@ -812,8 +841,8 @@
                     EmployeeId = employee.SystemId ?? "",
                     EmployeeName = employee.FullName ?? "",
                     Position = employee.Role ?? "",
-                    BaseSalary = role.BaseSalary,
-                    Allowance = role.Allowance,
+                    BaseSalary = baseSalary,
+                    Allowance = allowance,
                     GrossPay = payrollCalc.GrossPay,
                     SSS = payrollCalc.SSS,
                     PhilHealth = payrollCalc.PhilHealth,
@@ -829,7 +858,7 @@
             {
                 selectedBaseSalary = 0;
                 selectedAllowance = 0;
-                await JSRuntime.InvokeVoidAsync("alert", "No active role found for this employee. Please ensure the role exists and is active.");
+                await JSRuntime.InvokeVoidAsync("alert", "No active salary information found for this employee. Please ensure the employee has an active role or salary record.");
             }
         }
         catch (Exception ex)

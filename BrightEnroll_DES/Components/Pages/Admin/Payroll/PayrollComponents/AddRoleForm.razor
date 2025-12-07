@@ -89,6 +89,26 @@
                                 </div>
                             </div>
 
+                            <!-- Threshold Percentage -->
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Salary Threshold Percentage (%)</label>
+                                <div class="relative">
+                                    <input type="text" 
+                                           value="@GetThresholdPercentageDisplayValue()" 
+                                           @oninput="@((ChangeEventArgs e) => HandleThresholdPercentageInput(e))"
+                                           @onfocus="HandleThresholdPercentageFocus"
+                                           @onblur="HandleThresholdPercentageBlur"
+                                           onkeypress="return (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                           pattern="[0-9.]*"
+                                           inputmode="decimal"
+                                           placeholder="0.00"
+                                           maxlength="5"
+                                           class="w-full rounded-lg border border-gray-300 bg-white pr-12 pl-3 py-2 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-600 pointer-events-none whitespace-nowrap">%</span>
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">Maximum allowed increase above monthly salary before requiring approval (0-100%)</p>
+                            </div>
+
                             <!-- Status Toggle -->
                             <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
                                 <div>
@@ -168,6 +188,26 @@
                                             <span class="font-semibold text-green-800">Gross Pay:</span>
                                             <span class="text-base font-bold text-green-600">@Salary.FormatPeso(previewData.GrossPay)</span>
                                         </div>
+                                    </div>
+                                </div>
+
+                                <!-- Threshold Information -->
+                                <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                                    <h4 class="mb-3 text-sm font-semibold text-yellow-800">Salary Threshold</h4>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Monthly Salary:</span>
+                                            <span class="font-medium text-gray-800">@Salary.FormatPeso(newRole.BaseSalary)</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600">Threshold:</span>
+                                            <span class="font-medium text-gray-800">@newRole.ThresholdPercentage.ToString("F2")%</span>
+                                        </div>
+                                        <div class="mt-2 flex justify-between border-t border-yellow-200 pt-2">
+                                            <span class="font-semibold text-yellow-800">Max Salary (No Approval):</span>
+                                            <span class="text-base font-bold text-yellow-600">@Salary.FormatPeso(newRole.BaseSalary * (1 + (newRole.ThresholdPercentage / 100m)))</span>
+                                        </div>
+                                        <p class="mt-2 text-xs text-gray-600">Salary increases above this amount will require approval.</p>
                                     </div>
                                 </div>
 
@@ -293,6 +333,7 @@
                         <th class="py-3 pl-6 pr-4 text-left text-sm font-semibold text-gray-700">Role Name</th>
                         <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Monthly Salary (₱)</th>
                         <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Allowance (₱)</th>
+                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-700">Threshold (%)</th>
                         <th class="py-3 pr-6 pl-4 text-center text-sm font-semibold text-gray-700">Actions</th>
                     </tr>
                 </thead>
@@ -307,13 +348,20 @@
                                 <td class="py-3 px-4">
                                     @if (editingRoles.ContainsKey(role.Role))
                                     {
-                                        <input type="number" 
-                                               @bind="editingRole.BaseSalary" 
-                                               @bind:event="oninput"
-                                               @bind:after="() => UpdateRoleInTable(editingRole)"
-                                               min="0" 
-                                               step="0.01"
-                                               class="w-full rounded-lg border border-blue-300 px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                        <div class="relative">
+                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600">₱</span>
+                                            <input type="text" 
+                                                   value="@GetTableBaseSalaryDisplayValue(role.Role)" 
+                                                   @oninput="@((ChangeEventArgs e) => HandleTableSalaryInput(e, "BaseSalary", role.Role))"
+                                                   @onfocus="@(() => HandleTableBaseSalaryFocus(role.Role))"
+                                                   @onblur="@(() => HandleTableBaseSalaryBlur(role.Role))"
+                                                   @onpaste="@((ClipboardEventArgs e) => HandleTableSalaryPaste(e, "BaseSalary", role.Role))"
+                                                   onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                                   pattern="[0-9.]*"
+                                                   inputmode="decimal"
+                                                   placeholder="0.00"
+                                                   class="w-full rounded-lg border border-blue-300 pl-6 pr-2 py-1 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                        </div>
                                     }
                                     else
                                     {
@@ -323,17 +371,51 @@
                                 <td class="py-3 px-4">
                                     @if (editingRoles.ContainsKey(role.Role))
                                     {
-                                        <input type="number" 
-                                               @bind="editingRole.Allowance" 
-                                               @bind:event="oninput"
-                                               @bind:after="() => UpdateRoleInTable(editingRole)"
-                                               min="0" 
-                                               step="0.01"
-                                               class="w-full rounded-lg border border-blue-300 px-2 py-1 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                        <div class="relative">
+                                            <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600">₱</span>
+                                            <input type="text" 
+                                                   value="@GetTableAllowanceDisplayValue(role.Role)" 
+                                                   @oninput="@((ChangeEventArgs e) => HandleTableSalaryInput(e, "Allowance", role.Role))"
+                                                   @onfocus="@(() => HandleTableAllowanceFocus(role.Role))"
+                                                   @onblur="@(() => HandleTableAllowanceBlur(role.Role))"
+                                                   @onpaste="@((ClipboardEventArgs e) => HandleTableSalaryPaste(e, "Allowance", role.Role))"
+                                                   onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
+                                                   pattern="[0-9.]*"
+                                                   inputmode="decimal"
+                                                   placeholder="0.00"
+                                                   class="w-full rounded-lg border border-blue-300 pl-6 pr-2 py-1 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                        </div>
                                     }
                                     else
                                     {
                                         <span class="text-sm text-gray-700">@Salary.FormatPeso(role.Allowance)</span>
+                                    }
+                                </td>
+                                <td class="py-3 px-4">
+                                    @if (editingRoles.ContainsKey(role.Role))
+                                    {
+                                        <div class="flex items-center gap-2 w-full">
+                                            <input
+                                                type="text"
+                                                value="@GetTableThresholdPercentageDisplayValue(role.Role)"
+                                                @oninput="@((ChangeEventArgs e) => HandleTableThresholdPercentageInput(e, role.Role))"
+                                                @onfocus="@(() => HandleTableThresholdPercentageFocus(role.Role))"
+                                                @onblur="@(() => HandleTableThresholdPercentageBlur(role.Role))"
+                                                onkeypress="return (/[0-9.]/i.test(event.key))"
+                                                placeholder="0.00"
+                                                maxlength="5"
+                                                class="flex-1 rounded-lg border border-blue-300 px-3 py-1 text-sm text-right text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                            />
+                                            <span class="text-sm text-gray-600 select-none">%</span>
+                                        </div>
+
+                                    }
+                                    else
+                                    {
+                                        <div class="flex items-center gap-1">
+                                            <span class="text-sm text-gray-700 text-right">@role.ThresholdPercentage.ToString("F2")</span>
+                                            <span class="text-sm text-gray-500">%</span>
+                                        </div>
                                     }
                                 </td>
                                 <td class="py-3 pr-6 pl-4 text-center">

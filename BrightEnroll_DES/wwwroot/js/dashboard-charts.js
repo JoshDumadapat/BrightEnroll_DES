@@ -234,6 +234,12 @@ window.dashboardCharts = {
         Object.keys(this.charts).forEach(canvasId => {
             this.destroyChart(canvasId);
         });
+    },
+
+    // Check if all canvas elements exist
+    checkCanvasesExist: function () {
+        const canvasIds = ['incomeChart', 'studentTypeChart', 'enrollmentByGradeChart', 'paymentStatusChart'];
+        return canvasIds.every(id => document.getElementById(id) !== null);
     }
 };
 

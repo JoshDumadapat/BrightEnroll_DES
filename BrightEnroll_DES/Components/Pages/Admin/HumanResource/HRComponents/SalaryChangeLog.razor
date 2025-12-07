@@ -1,0 +1,955 @@
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Services.Business.HR
+@using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Components
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject SalaryChangeRequestService SalaryChangeRequestService
+@inject AppDbContext DbContext
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
+@inject SalaryChangeLogPdfGenerator PdfGenerator
+
+<div class="overflow-hidden rounded-xl bg-white shadow-lg">
+    <!-- Filters -->
+    <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
+        <label class="mb-3 block text-sm font-bold text-gray-700">Filter:</label>
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="group relative flex items-center w-full sm:w-auto">
+                    <span class="absolute left-3 flex items-center justify-center z-10">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                           class="w-full sm:w-60 rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                    <span class="tooltip-delay">Search by employee name, ID, or role</span>
+                </div>
+
+                <div class="group relative">
+                    <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="w-full sm:w-auto rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                    <span class="tooltip-delay">Filter by request status</span>
+                </div>
+
+                <div class="group relative">
+                    <select @bind="SchoolYearFilter" @bind:after="OnFilterChanged" class="w-full sm:w-auto rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
+                        <option value="">School Year</option>
+                        @foreach (var sy in AvailableSchoolYears)
+                        {
+                            <option value="@sy">@sy</option>
+                        }
+                    </select>
+                    <span class="tooltip-delay">Filter by school year</span>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg whitespace-nowrap sm:w-auto">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <button @onclick="OpenExportModal" class="w-full rounded-lg bg-blue-600 px-4 py-2 text-xs sm:text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg whitespace-nowrap sm:w-auto flex items-center justify-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto -mx-1 sm:mx-0">
+        <div class="inline-block min-w-full align-middle">
+            <div class="overflow-hidden">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[12%]">
+                                Employee Name
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[8%]">
+                                Role
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
+                                Effective Date
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
+                                Previous Salary
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
+                                New / Proposed Salary
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider w-[8%]">
+                                Change %
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[8%]">
+                                Status
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
+                                Requested By
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">
+                                Approver
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider w-[12%]">
+                                Notes / Reason
+                            </th>
+                            <th scope="col" class="px-3 py-4 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[2%]">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @if (isLoading)
+                        {
+                            <tr>
+                                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <svg class="animate-spin h-8 w-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        <span>Loading salary change log...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else if (!FilteredLogEntries.Any())
+                        {
+                            <tr>
+                                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
+                                    <div class="flex flex-col items-center justify-center">
+                                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <p class="text-base font-medium text-gray-600">No Records Available</p>
+                                        <p class="text-sm text-gray-500 mt-1">There are no salary change records to display at this time.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var entry in PaginatedLogEntries)
+                            {
+                                <tr class="transition-colors duration-150 hover:bg-gray-50">
+                                    <td class="px-3 py-4 max-w-0">
+                                        <div class="text-sm text-gray-900">
+                                            <div class="font-medium truncate max-w-full" title="@entry.EmployeeName">@entry.EmployeeName</div>
+                                            <div class="text-xs text-gray-500 truncate max-w-full" title="@entry.EmployeeId">@entry.EmployeeId</div>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-4 max-w-0">
+                                        <div class="text-sm text-gray-900 truncate max-w-full" title="@entry.Role">@entry.Role</div>
+                                    </td>
+                                    <td class="px-3 py-4 max-w-0">
+                                        <div class="text-sm text-gray-900">@entry.EffectiveDate.ToString("MMM dd, yyyy")</div>
+                                        <div class="text-xs text-gray-500 truncate max-w-full" title="@entry.SchoolYear">@entry.SchoolYear</div>
+                                    </td>
+                                    <td class="px-3 py-4 text-right">
+                                        <div class="text-sm font-medium text-gray-900">₱@entry.PreviousTotalSalary.ToString("N2")</div>
+                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.PreviousBaseSalary.ToString("N2")</div>
+                                    </td>
+                                    <td class="px-3 py-4 text-right">
+                                        <div class="text-sm font-semibold text-blue-600">₱@entry.NewTotalSalary.ToString("N2")</div>
+                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.NewBaseSalary.ToString("N2")</div>
+                                    </td>
+                                    <td class="px-3 py-4 text-right">
+                                        <div class="flex flex-col items-end">
+                                            @if (entry.ChangePercentage > 0)
+                                            {
+                                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
+                                                    +@entry.ChangePercentage.ToString("F2")%
+                                                </span>
+                                            }
+                                            else if (entry.ChangePercentage < 0)
+                                            {
+                                                <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-red-700 bg-red-100">
+                                                    @entry.ChangePercentage.ToString("F2")%
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-xs text-gray-500">0%</span>
+                                            }
+                                            @if (entry.CumulativeIncreasePercentage != entry.ChangePercentage)
+                                            {
+                                                <div class="text-xs text-gray-500 mt-1">Cum: @entry.CumulativeIncreasePercentage.ToString("F2")%</div>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-4">
+                                        @if (entry.Status == "Pending")
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-yellow-700 bg-yellow-100">
+                                                Pending
+                                            </span>
+                                        }
+                                        else if (entry.Status == "Approved")
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-green-700 bg-green-100">
+                                                Approved
+                                            </span>
+                                        }
+                                        else if (entry.Status == "Rejected")
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-red-700 bg-red-100">
+                                                Rejected
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="px-3 py-4 max-w-0">
+                                        @if (!string.IsNullOrWhiteSpace(entry.RequestedByName))
+                                        {
+                                            <div class="text-sm text-gray-900 truncate max-w-full" title="@entry.RequestedByName">@entry.RequestedByName</div>
+                                            <div class="text-xs text-gray-500">@entry.RequestedAt.ToString("MMM dd, yyyy")</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-sm text-gray-400">—</span>
+                                        }
+                                    </td>
+                                    <td class="px-3 py-4 max-w-0">
+                                        @if (!string.IsNullOrWhiteSpace(entry.ApproverName))
+                                        {
+                                            <div class="text-sm text-gray-900 truncate max-w-full" title="@entry.ApproverName">@entry.ApproverName</div>
+                                            @if (!string.IsNullOrWhiteSpace(entry.ApproverRole))
+                                            {
+                                                <div class="text-xs text-gray-500 truncate max-w-full" title="@entry.ApproverRole">@entry.ApproverRole</div>
+                                            }
+                                            @if (entry.ApprovalDate.HasValue)
+                                            {
+                                                <div class="text-xs text-gray-500">@entry.ApprovalDate.Value.ToString("MMM dd, yyyy")</div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-sm text-gray-400">—</span>
+                                        }
+                                    </td>
+                                    <td class="px-3 py-4 max-w-0">
+                                        <div class="text-sm text-gray-900">
+                                            @if (!string.IsNullOrWhiteSpace(entry.Reason))
+                                            {
+                                                <div class="truncate max-w-full" title="@entry.Reason">@entry.Reason</div>
+                                            }
+                                            else if (!string.IsNullOrWhiteSpace(entry.RejectionReason))
+                                            {
+                                                <div class="truncate max-w-full text-red-600" title="@entry.RejectionReason">Rejected: @entry.RejectionReason</div>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-gray-400">N/A</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-4 text-center">
+                                        <div class="flex items-center justify-center">
+                                            <div class="group relative">
+                                                <button @onclick="() => ViewLogDetails(entry)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                    <span class="hidden sm:inline">View</span>
+                                                </button>
+                                                <span class="tooltip-delay">View details</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer with Pagination -->
+    <Pagination TotalItems="@FilteredLogEntries.Count" 
+                CurrentPage="@CurrentPage" 
+                RowsPerPage="@RowsPerPage"
+                ItemName="salary change records"
+                OnPageChanged="HandlePageChanged"
+                OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+</div>
+
+<!-- Export Report Modal -->
+@if (showExportModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseExportModal">
+        <div class="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-gray-200 bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Export Salary Change Log Report</h3>
+                <button @onclick="CloseExportModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6">
+                <div class="mb-6">
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Select Report Type:</label>
+                    <div class="space-y-3">
+                        <label class="flex cursor-pointer items-start rounded-lg border-2 p-4 transition-colors @(selectedReportType == "Audit" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="reportType" checked="@(selectedReportType == "Audit")" @onchange="@(() => selectedReportType = "Audit")" class="mt-1 mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">Comprehensive Audit Report</div>
+                                <div class="mt-1 text-sm text-gray-600">Complete audit trail of all salary changes with full details, including all statuses (Pending/Approved/Rejected)</div>
+                            </div>
+                        </label>
+                        <label class="flex cursor-pointer items-start rounded-lg border-2 p-4 transition-colors @(selectedReportType == "Statistical" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="reportType" checked="@(selectedReportType == "Statistical")" @onchange="@(() => selectedReportType = "Statistical")" class="mt-1 mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">Statistical Analysis Report</div>
+                                <div class="mt-1 text-sm text-gray-600">Statistical analysis with department breakdown, school year comparison, and actionable recommendations</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Filter by Status:</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex cursor-pointer items-center rounded-lg border-2 p-3 transition-colors @(exportStatusFilter == "All" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="exportStatus" checked="@(exportStatusFilter == "All")" @onchange="@(() => exportStatusFilter = "All")" class="mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">All Statuses</div>
+                                <div class="mt-1 text-xs text-gray-600">Include all records</div>
+                            </div>
+                        </label>
+                        <label class="flex cursor-pointer items-center rounded-lg border-2 p-3 transition-colors @(exportStatusFilter == "Approved" ? "border-green-500 bg-green-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="exportStatus" checked="@(exportStatusFilter == "Approved")" @onchange="@(() => exportStatusFilter = "Approved")" class="mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">Approved</div>
+                                <div class="mt-1 text-xs text-gray-600">Only approved changes</div>
+                            </div>
+                        </label>
+                        <label class="flex cursor-pointer items-center rounded-lg border-2 p-3 transition-colors @(exportStatusFilter == "Rejected" ? "border-red-500 bg-red-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="exportStatus" checked="@(exportStatusFilter == "Rejected")" @onchange="@(() => exportStatusFilter = "Rejected")" class="mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">Rejected</div>
+                                <div class="mt-1 text-xs text-gray-600">Only rejected changes</div>
+                            </div>
+                        </label>
+                        <label class="flex cursor-pointer items-center rounded-lg border-2 p-3 transition-colors @(exportStatusFilter == "Pending" ? "border-yellow-500 bg-yellow-50" : "border-gray-200 hover:border-gray-300")">
+                            <input type="radio" name="exportStatus" checked="@(exportStatusFilter == "Pending")" @onchange="@(() => exportStatusFilter = "Pending")" class="mr-3" />
+                            <div class="flex-1">
+                                <div class="font-semibold text-gray-900">Pending</div>
+                                <div class="mt-1 text-xs text-gray-600">Only pending approvals</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="text-sm font-semibold text-gray-700 mb-2">Report Summary:</div>
+                    <div class="space-y-1 text-sm text-gray-600">
+                        <div>• Total Records (Filtered): <span class="font-semibold">@GetFilteredExportData().Count</span></div>
+                        <div>• Status Filter: <span class="font-semibold">@exportStatusFilter</span></div>
+                        <div>• School Year: <span class="font-semibold">@(string.IsNullOrWhiteSpace(SchoolYearFilter) ? "All" : SchoolYearFilter)</span></div>
+                        <div>• Report Type: <span class="font-semibold">@(selectedReportType == "Audit" ? "Comprehensive Audit" : "Statistical Analysis")</span></div>
+                        <div>• Format: <span class="font-semibold">PDF</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                <button @onclick="CloseExportModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ExportReport" disabled="@isExporting" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                    @if (isExporting)
+                    {
+                        <span class="flex items-center gap-2">
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Generating...
+                        </span>
+                    }
+                    else
+                    {
+                        <span>Generate & Download PDF</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Employee Salary History Modal -->
+@if (showEmployeeHistoryModal && selectedEmployeeHistory != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEmployeeHistoryModal">
+        <div class="w-full max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-gray-200 bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Salary History - @selectedEmployeeHistory.EmployeeName</h3>
+                <button @onclick="CloseEmployeeHistoryModal" class="text-white hover:text-gray-200">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="max-h-[calc(90vh-140px)] overflow-y-auto p-6">
+                <!-- Employee Info -->
+                <div class="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <div class="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="font-semibold text-gray-700">Employee ID:</span>
+                            <span class="ml-2 text-gray-900">@selectedEmployeeHistory.EmployeeId</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold text-gray-700">Position:</span>
+                            <span class="ml-2 text-gray-900">@selectedEmployeeHistory.Role</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Salary Progression Summary -->
+                @if (employeeHistoryList.Any())
+                {
+                    var orderedHistory = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).ToList();
+                    var firstSalary = orderedHistory.First();
+                    var latestSalary = orderedHistory.Last();
+                    var totalIncrease = latestSalary.NewTotalSalary - firstSalary.PreviousTotalSalary;
+                    var totalIncreasePercent = firstSalary.PreviousTotalSalary > 0 
+                        ? ((latestSalary.NewTotalSalary - firstSalary.PreviousTotalSalary) / firstSalary.PreviousTotalSalary) * 100 
+                        : 0;
+                    
+                    <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
+                        <h4 class="mb-3 text-sm font-semibold text-green-800">Salary Progression Summary</h4>
+                        <div class="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+                            <div>
+                                <span class="text-gray-600">Starting Salary:</span>
+                                <div class="mt-1 text-base font-semibold text-gray-900">
+                                    ₱@firstSalary.PreviousTotalSalary.ToString("N2")
+                                </div>
+                                <div class="text-xs text-gray-500">@firstSalary.EffectiveDate.ToString("MMM dd, yyyy") (@firstSalary.SchoolYear)</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Current Salary:</span>
+                                <div class="mt-1 text-base font-semibold text-green-700">
+                                    ₱@latestSalary.NewTotalSalary.ToString("N2")
+                                </div>
+                                <div class="text-xs text-gray-500">@latestSalary.EffectiveDate.ToString("MMM dd, yyyy") (@latestSalary.SchoolYear)</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Total Increase:</span>
+                                <div class="mt-1 text-base font-semibold text-blue-700">
+                                    ₱@totalIncrease.ToString("N2") (@totalIncreasePercent.ToString("F2")%)
+                                </div>
+                                <div class="text-xs text-gray-500">@orderedHistory.Count() salary change(s)</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- History Table - Chronological Order (First to Latest) -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-semibold text-gray-800">Complete Salary History (Chronological Order)</h4>
+                    <p class="text-xs text-gray-500">Showing all salary changes from first to latest</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">#</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Effective Date / School Year</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Previous Salary</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">New Salary</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase">Change %</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Requested By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Approved By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200 bg-white">
+                            @{
+                                var chronologicalHistory = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).ToList();
+                                int index = 1;
+                            }
+                            @foreach (var entry in chronologicalHistory)
+                            {
+                                <tr class="hover:bg-gray-50 @(index == chronologicalHistory.Count ? "bg-blue-50" : "")">
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <span class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold @(index == chronologicalHistory.Count ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700")">
+                                            @index
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-gray-900">@entry.EffectiveDate.ToString("MMM dd, yyyy")</div>
+                                        <div class="text-xs text-gray-500">@entry.SchoolYear</div>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                                        <div class="text-sm font-medium text-gray-900">₱@entry.PreviousTotalSalary.ToString("N2")</div>
+                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.PreviousBaseSalary.ToString("N2")</div>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                                        <div class="text-sm font-semibold @(index == chronologicalHistory.Count ? "text-blue-700" : "text-blue-600")">₱@entry.NewTotalSalary.ToString("N2")</div>
+                                        <div class="text-xs text-gray-500">Monthly: ₱@entry.NewBaseSalary.ToString("N2")</div>
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap text-right">
+                                        @if (entry.ChangePercentage > 0)
+                                        {
+                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-green-700 bg-green-100">
+                                                +@entry.ChangePercentage.ToString("F2")%
+                                            </span>
+                                        }
+                                        else if (entry.ChangePercentage < 0)
+                                        {
+                                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium text-red-700 bg-red-100">
+                                                @entry.ChangePercentage.ToString("F2")%
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-xs text-gray-500">0%</span>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3 whitespace-nowrap">
+                                        @if (entry.Status == "Pending")
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-yellow-700 bg-yellow-100">Pending</span>
+                                        }
+                                        else if (entry.Status == "Approved")
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-green-700 bg-green-100">Approved</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium text-red-700 bg-red-100">Rejected</span>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="text-sm text-gray-900">@entry.RequestedByName</div>
+                                        <div class="text-xs text-gray-500">@entry.RequestedAt.ToString("MMM dd, yyyy")</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        @if (!string.IsNullOrWhiteSpace(entry.ApproverName))
+                                        {
+                                            <div class="text-sm text-gray-900">@entry.ApproverName</div>
+                                            @if (entry.ApprovalDate.HasValue)
+                                            {
+                                                <div class="text-xs text-gray-500">@entry.ApprovalDate.Value.ToString("MMM dd, yyyy")</div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-sm text-gray-400">—</span>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="max-w-xs truncate text-sm text-gray-900" title="@(entry.Reason ?? entry.RejectionReason ?? "N/A")">
+                                            @(string.IsNullOrWhiteSpace(entry.Reason) ? (string.IsNullOrWhiteSpace(entry.RejectionReason) ? "N/A" : $"Rejected: {entry.RejectionReason}") : entry.Reason)
+                                        </div>
+                                    </td>
+                                </tr>
+                                index++;
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex items-center justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
+                <button @onclick="ExportEmployeeHistory" disabled="@isExporting" class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 flex items-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    @if (isExporting)
+                    {
+                        <span>Generating PDF...</span>
+                    }
+                    else
+                    {
+                        <span>Export as PDF</span>
+                    }
+                </button>
+                <button @onclick="CloseEmployeeHistoryModal" class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<SalaryChangeLogDto> allLogEntries = new();
+    private bool isLoading = true;
+    
+    // Filter variables
+    private string SearchText { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+    private string SchoolYearFilter { get; set; } = "";
+    
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 10;
+    
+    // Available school years
+    private List<string> AvailableSchoolYears { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLog();
+        await LoadSchoolYears();
+    }
+
+    private async Task LoadLog()
+    {
+        isLoading = true;
+        try
+        {
+            allLogEntries = await SalaryChangeRequestService.GetSalaryChangeLogAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading salary change log: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSchoolYears()
+    {
+        try
+        {
+            var schoolYearsList = await DbContext.SalaryChangeRequests
+                .Select(r => r.SchoolYear)
+                .Distinct()
+                .ToListAsync();
+            
+            AvailableSchoolYears = schoolYearsList.OrderByDescending(sy => sy).ToList();
+        }
+        catch
+        {
+            AvailableSchoolYears = new List<string>();
+        }
+    }
+
+    private List<SalaryChangeLogDto> FilteredLogEntries
+    {
+        get
+        {
+            var filtered = allLogEntries.AsEnumerable();
+
+            // Search filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                var searchLower = SearchText.ToLower();
+                filtered = filtered.Where(e => 
+                    e.EmployeeName.ToLower().Contains(searchLower) ||
+                    e.EmployeeId.ToLower().Contains(searchLower) ||
+                    e.Role.ToLower().Contains(searchLower)
+                );
+            }
+
+            // Status filter
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                filtered = filtered.Where(e => e.Status == StatusFilter);
+            }
+
+            // School year filter
+            if (!string.IsNullOrWhiteSpace(SchoolYearFilter))
+            {
+                filtered = filtered.Where(e => e.SchoolYear == SchoolYearFilter);
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    private List<SalaryChangeLogDto> PaginatedLogEntries
+    {
+        get
+        {
+            var filtered = FilteredLogEntries;
+            return filtered
+                .Skip((CurrentPage - 1) * RowsPerPage)
+                .Take(RowsPerPage)
+                .ToList();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        StatusFilter = "";
+        SchoolYearFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    // Export Modal State
+    private bool showExportModal = false;
+    private string selectedReportType = "Audit";
+    private string exportStatusFilter = "All";
+    private bool isExporting = false;
+
+    // Employee History Modal State
+    private bool showEmployeeHistoryModal = false;
+    private SalaryChangeLogDto? selectedEmployeeHistory = null;
+    private List<SalaryChangeLogDto> employeeHistoryList = new();
+
+    private void OpenExportModal()
+    {
+        showExportModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseExportModal()
+    {
+        showExportModal = false;
+        exportStatusFilter = "All"; // Reset to default
+        StateHasChanged();
+    }
+
+    private List<SalaryChangeLogDto> GetFilteredExportData()
+    {
+        // Start with all log entries, not the table-filtered ones
+        var data = allLogEntries.AsEnumerable();
+        
+        // Apply school year filter if set
+        if (!string.IsNullOrWhiteSpace(SchoolYearFilter))
+        {
+            data = data.Where(e => e.SchoolYear == SchoolYearFilter);
+        }
+        
+        // Apply export status filter
+        if (exportStatusFilter != "All")
+        {
+            data = data.Where(d => d.Status == exportStatusFilter);
+        }
+        
+        return data.ToList();
+    }
+
+    private async Task ExportReport()
+    {
+        if (isExporting) return;
+
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+            var userRole = currentUser?.user_role ?? "Unknown";
+
+            byte[] pdfBytes;
+            string fileName;
+
+            var dataToExport = GetFilteredExportData();
+            var statusFilterForReport = exportStatusFilter == "All" ? null : exportStatusFilter;
+
+            if (selectedReportType == "Audit")
+            {
+                pdfBytes = PdfGenerator.GenerateComprehensiveAuditReport(
+                    dataToExport,
+                    generatedBy,
+                    userRole,
+                    statusFilterForReport,
+                    string.IsNullOrWhiteSpace(SchoolYearFilter) ? null : SchoolYearFilter
+                );
+                fileName = $"Salary_Change_Log_Audit_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            }
+            else
+            {
+                pdfBytes = PdfGenerator.GenerateStatisticalReport(
+                    dataToExport,
+                    generatedBy,
+                    userRole,
+                    statusFilterForReport,
+                    string.IsNullOrWhiteSpace(SchoolYearFilter) ? null : SchoolYearFilter
+                );
+                fileName = $"Salary_Change_Log_Statistical_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            }
+
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+
+            CloseExportModal();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating PDF: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewLogDetails(SalaryChangeLogDto entry)
+    {
+        try
+        {
+            // Load all history for this employee
+            employeeHistoryList = await SalaryChangeRequestService.GetSalaryChangeLogAsync(entry.UserId);
+            
+            // Get initial salary from SalaryInfo if available (for employees registered before salary change requests)
+            var initialSalaryInfo = await DbContext.SalaryInfos
+                .Where(s => s.UserId == entry.UserId)
+                .OrderBy(s => s.DateEffective)
+                .ThenBy(s => s.SalaryId)
+                .FirstOrDefaultAsync();
+            
+            // If we have an initial salary that's earlier than the first change log entry, add it
+            if (initialSalaryInfo != null && employeeHistoryList.Any())
+            {
+                var firstChange = employeeHistoryList.OrderBy(h => h.EffectiveDate).ThenBy(h => h.RequestedAt).First();
+                
+                // Check if initial salary is different from the first change's previous salary
+                // This means there was an initial salary set before any change requests
+                if (initialSalaryInfo.DateEffective < firstChange.EffectiveDate && 
+                    (initialSalaryInfo.BaseSalary != firstChange.PreviousBaseSalary || 
+                     initialSalaryInfo.Allowance != firstChange.PreviousAllowance))
+                {
+                    // Create a synthetic entry for the initial salary
+                    var initialTotal = initialSalaryInfo.BaseSalary + initialSalaryInfo.Allowance;
+                    var initialEntry = new SalaryChangeLogDto
+                    {
+                        RecordId = 0, // No request ID for initial salary
+                        UserId = entry.UserId,
+                        EmployeeId = entry.EmployeeId,
+                        EmployeeName = entry.EmployeeName,
+                        Role = entry.Role,
+                        PreviousBaseSalary = 0,
+                        PreviousAllowance = 0,
+                        PreviousTotalSalary = 0,
+                        NewBaseSalary = initialSalaryInfo.BaseSalary,
+                        NewAllowance = initialSalaryInfo.Allowance,
+                        NewTotalSalary = initialTotal,
+                        ChangeAmount = initialTotal,
+                        ChangePercentage = 0, // Initial salary has no percentage change
+                        CumulativeIncreasePercentage = 0,
+                        EffectiveDate = initialSalaryInfo.DateEffective,
+                        SchoolYear = initialSalaryInfo.SchoolYear,
+                        Status = "Approved", // Initial salary is considered approved
+                        ApproverName = null,
+                        ApproverRole = null,
+                        ApprovalDate = initialSalaryInfo.DateEffective,
+                        Reason = "Initial Salary Assignment",
+                        RejectionReason = null,
+                        RequestedAt = initialSalaryInfo.DateEffective,
+                        RequestedByName = "System",
+                        IsInitialRegistration = true,
+                        OriginalBaseSalary = initialSalaryInfo.BaseSalary
+                    };
+                    
+                    employeeHistoryList.Add(initialEntry);
+                }
+            }
+            
+            selectedEmployeeHistory = entry;
+            showEmployeeHistoryModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading employee history: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading employee history: {ex.Message}");
+        }
+    }
+
+    private void CloseEmployeeHistoryModal()
+    {
+        showEmployeeHistoryModal = false;
+        selectedEmployeeHistory = null;
+        employeeHistoryList.Clear();
+        StateHasChanged();
+    }
+
+    private async Task ExportEmployeeHistory()
+    {
+        if (isExporting || selectedEmployeeHistory == null) return;
+
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+            var userRole = currentUser?.user_role ?? "Unknown";
+
+            var pdfBytes = PdfGenerator.GenerateEmployeeHistoryReport(
+                selectedEmployeeHistory,
+                employeeHistoryList,
+                generatedBy,
+                userRole
+            );
+
+            var fileName = $"Employee_Salary_History_{selectedEmployeeHistory.EmployeeId}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating employee history PDF: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+}
+
