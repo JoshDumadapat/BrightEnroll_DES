@@ -351,6 +351,28 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                     anyColumnAdded = true;
                 }
 
+                // Check and add updated_at column
+                string checkUpdatedAtQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Students') 
+                    AND name = 'updated_at'";
+
+                using var checkUpdatedAtCommand = new SqlCommand(checkUpdatedAtQuery, connection);
+                var updatedAtResult = await checkUpdatedAtCommand.ExecuteScalarAsync();
+                var updatedAtColumnExists = updatedAtResult != null ? (int)updatedAtResult : 0;
+
+                if (updatedAtColumnExists == 0)
+                {
+                    string addUpdatedAtColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Students]
+                        ADD [updated_at] DATETIME NULL";
+
+                    using var addUpdatedAtCommand = new SqlCommand(addUpdatedAtColumnQuery, connection);
+                    await addUpdatedAtCommand.ExecuteNonQueryAsync();
+                    anyColumnAdded = true;
+                }
+
                 return anyColumnAdded;
             }
             catch (Exception)

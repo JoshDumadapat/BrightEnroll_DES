@@ -163,6 +163,9 @@ public class Student
     [Column("payment_status")]
     public string? PaymentStatus { get; set; }
 
+    [Column("updated_at", TypeName = "datetime")]
+    public DateTime? UpdatedAt { get; set; }
+
     [ForeignKey("GuardianId")]
     public virtual Guardian Guardian { get; set; } = null!;
 

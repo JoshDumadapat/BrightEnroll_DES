@@ -90,6 +90,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<StudentService>();
             builder.Services.AddScoped<ArchiveService>();
             builder.Services.AddScoped<EnrollmentStatusService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Students.ReEnrollmentService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Audit.AuditLogService>();
             builder.Services.AddScoped<EmployeeService>();
             builder.Services.AddScoped<FeeService>();

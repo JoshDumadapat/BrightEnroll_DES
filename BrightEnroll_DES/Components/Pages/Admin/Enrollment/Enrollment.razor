@@ -11,6 +11,8 @@
 @using Microsoft.Extensions.Logging
 @inject StudentService StudentService
 @inject EnrollmentStatusService EnrollmentStatusService
+@inject ReEnrollmentService ReEnrollmentService
+@inject PaymentService PaymentService
 @inject ArchiveService ArchiveService
 @inject ILoadingService LoadingService
 @inject ILogger<Enrollment> Logger
@@ -79,7 +81,11 @@
         }
         else if (SelectedTab == TabType.ReEnrollment)
         {
-            <ReEnrollment Students="ReEnrollmentStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" />
+            <ReEnrollment Students="ReEnrollmentStudents" 
+                         RowsPerPage="RowsPerPage" 
+                         IsLoading="isLoading"
+                         OnReEnroll="HandleReEnrollmentRefresh"
+                         OnRefresh="HandleReEnrollmentRefreshAll" />
         }
         else if (SelectedTab == TabType.EnrolledStudent)
         {
@@ -1026,22 +1032,36 @@
             // Get students with Eligible status
             var students = await EnrollmentStatusService.GetStudentsByStatusAsync("Eligible");
             
-            ReEnrollmentStudents = students.Select(s => new ReEnrollmentStudent
+            var reEnrollmentList = new List<ReEnrollmentStudent>();
+            
+            foreach (var s in students)
             {
-                Id = s.StudentId,
-                Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
-                LRN = s.Lrn ?? "N/A",
-                Date = FormatDate(s.DateRegistered),
-                Type = "Eligible", // All in re-enrollment are eligible
-                GradeLevel = s.GradeLevel ?? "N/A",
-                Documents = s.Requirements != null && 
-                           s.Requirements.Any() && 
-                           s.Requirements.All(r => r.IsVerified || 
-                               (!string.IsNullOrWhiteSpace(r.Status) && 
-                                r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
-                           ? "Verified" : "Not verified",
-                Status = s.Status
-            }).ToList();
+                // Get payment information for each student
+                var paymentInfo = await PaymentService.GetStudentPaymentInfoAsync(s.StudentId);
+                
+                reEnrollmentList.Add(new ReEnrollmentStudent
+                {
+                    Id = s.StudentId,
+                    Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                    LRN = s.Lrn ?? "N/A",
+                    Date = FormatDate(s.DateRegistered),
+                    Type = "Eligible", // All in re-enrollment are eligible
+                    GradeLevel = s.GradeLevel ?? "N/A",
+                    Documents = s.Requirements != null && 
+                               s.Requirements.Any() && 
+                               s.Requirements.All(r => r.IsVerified || 
+                                   (!string.IsNullOrWhiteSpace(r.Status) && 
+                                    r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
+                               ? "Verified" : "Not verified",
+                    Status = s.Status,
+                    TotalFee = paymentInfo?.TotalFee ?? 0,
+                    AmountPaid = paymentInfo?.AmountPaid ?? 0,
+                    Balance = paymentInfo?.Balance ?? 0,
+                    PaymentStatus = paymentInfo?.PaymentStatus ?? "Unpaid"
+                });
+            }
+            
+            ReEnrollmentStudents = reEnrollmentList;
         }
         catch (Exception ex)
         {
@@ -1081,6 +1101,21 @@
 
         // If all parsing fails, return original string
         return dateString;
+    }
+
+    private async Task HandleReEnrollmentRefresh(string studentId)
+    {
+        // Refresh the re-enrollment list after a student is re-enrolled
+        await LoadReEnrollmentStudentsAsync();
+        await LoadEnrolledStudentsAsync();
+        ShowToast($"Student {studentId} has been successfully re-enrolled.", ToastType.Success);
+    }
+
+    private async Task HandleReEnrollmentRefreshAll()
+    {
+        // Refresh all lists after marking students eligible
+        await LoadReEnrollmentStudentsAsync();
+        await LoadEnrolledStudentsAsync();
     }
 }
 </RoleAuthorizeView>

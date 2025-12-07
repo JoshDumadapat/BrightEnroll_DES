@@ -10,5 +10,12 @@ public class ReEnrollmentStudent
     public string GradeLevel { get; set; } = string.Empty;
     public string Documents { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    
+    // Payment information
+    public decimal TotalFee { get; set; }
+    public decimal AmountPaid { get; set; }
+    public decimal Balance { get; set; }
+    public string PaymentStatus { get; set; } = "Unpaid";
+    public bool IsFullyPaid => Balance <= 0 && (PaymentStatus == "Fully Paid" || AmountPaid >= TotalFee);
 }
 

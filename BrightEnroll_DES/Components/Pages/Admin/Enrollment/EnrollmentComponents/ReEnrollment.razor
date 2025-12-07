@@ -2,10 +2,62 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
 @using BrightEnroll_DES.Components.Pages.Admin
 @using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Services.Business.Students
+@using BrightEnroll_DES.Services.Business.Academic
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
 @inject EnrollmentPdfGenerator PdfGenerator
 @inject IJSRuntime JSRuntime
+@inject ReEnrollmentService ReEnrollmentService
+@inject SchoolYearService SchoolYearService
+@inject ILogger<ReEnrollment> Logger
 @* Re-enrollment Component with Filters *@
+
+<!-- Action Bar with Mark Eligible Button -->
+<div class="border-b border-gray-200 bg-blue-50 px-3 py-3 sm:px-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div class="flex items-center gap-2">
+            <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-sm font-medium text-blue-800">End of School Year Process</span>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <select @bind="selectedSchoolYear" class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">Select School Year</option>
+                @foreach (var sy in availableSchoolYears)
+                {
+                    <option value="@sy">@sy</option>
+                }
+            </select>
+            <button @onclick="HandleMarkEligible" 
+                    disabled="@(isMarkingEligible || string.IsNullOrWhiteSpace(selectedSchoolYear))"
+                    class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                @if (isMarkingEligible)
+                {
+                    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Processing...</span>
+                }
+                else
+                {
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Mark Students Eligible</span>
+                }
+            </button>
+        </div>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(markEligibleResult))
+    {
+        <div class="mt-2 rounded-lg bg-blue-100 px-3 py-2 text-sm text-blue-800">
+            @markEligibleResult
+        </div>
+    }
+</div>
 
 <!-- Filters -->
 <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
@@ -91,6 +143,8 @@
             <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Type</th>
             <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Grade Level</th>
             <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Documents</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Payment Status</th>
+            <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Balance</th>
             <th class="py-3 px-4 text-left text-xs font-semibold text-gray-700">Status</th>
             <th class="py-3 pr-6 pl-4 text-center text-xs font-semibold text-gray-700">Actions</th>
         </tr>
@@ -99,7 +153,7 @@
         @if (IsLoading)
         {
             <tr>
-                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
                     <div class="flex flex-col items-center justify-center">
                         <svg class="animate-spin h-8 w-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -143,16 +197,63 @@
                         }
                     </td>
                     <td class="py-3 px-4 text-sm text-gray-700">
+                        @if (student.IsFullyPaid)
+                        {
+                            <span class="rounded-full bg-green-50 px-2.5 py-1 text-[11px] font-medium text-green-600">Fully Paid</span>
+                        }
+                        else if (student.AmountPaid > 0)
+                        {
+                            <span class="rounded-full bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-600">Partially Paid</span>
+                        }
+                        else
+                        {
+                            <span class="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-medium text-red-600">Unpaid</span>
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
+                        @if (student.Balance > 0)
+                        {
+                            <span class="text-xs font-semibold text-red-600">Php @student.Balance.ToString("N2")</span>
+                        }
+                        else
+                        {
+                            <span class="text-xs font-semibold text-green-600">Php 0.00</span>
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-sm text-gray-700">
                         <span class="rounded-full bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-600">@student.Status</span>
                     </td>
                     <td class="py-3 pr-6 pl-4 text-center">
-                        <!-- Edit Button -->
-                        <button class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                            </svg>
-                            <span class="hidden sm:inline">Edit</span>
-                        </button>
+                        <div class="flex items-center justify-center gap-2">
+                            <!-- Re-Enroll Button -->
+                            <button @onclick="() => HandleReEnroll(student.Id)" 
+                                    disabled="@(isReEnrolling.Contains(student.Id) || !student.IsFullyPaid)"
+                                    class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed @(student.IsFullyPaid ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed")"
+                                    title="@(!student.IsFullyPaid ? $"Cannot re-enroll: Outstanding balance of Php {student.Balance:N2}" : "Re-enroll student")">
+                                @if (isReEnrolling.Contains(student.Id))
+                                {
+                                    <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span class="hidden sm:inline">Re-enrolling...</span>
+                                }
+                                else if (!student.IsFullyPaid)
+                                {
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Outstanding Balance</span>
+                                }
+                                else
+                                {
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Re-Enroll</span>
+                                }
+                            </button>
+                        </div>
                     </td>
                 </tr>
             }
@@ -160,7 +261,7 @@
         else
         {
             <tr>
-                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                <td colspan="11" class="px-4 py-12 text-center text-gray-500">
                     <div class="flex flex-col items-center justify-center">
                         <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -192,6 +293,21 @@
 
     [Parameter]
     public bool IsLoading { get; set; } = false;
+
+    [Parameter]
+    public EventCallback<string> OnReEnroll { get; set; }
+
+    [Parameter]
+    public EventCallback OnRefresh { get; set; }
+
+    // Re-enrollment state
+    private HashSet<string> isReEnrolling = new();
+
+    // Mark Eligible state
+    private bool isMarkingEligible = false;
+    private string selectedSchoolYear = string.Empty;
+    private List<string> availableSchoolYears = new();
+    private string markEligibleResult = string.Empty;
 
     // Filter properties
     private string SearchText { get; set; } = "";
@@ -302,6 +418,106 @@
         finally
         {
             isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleReEnroll(string studentId)
+    {
+        if (isReEnrolling.Contains(studentId))
+            return;
+
+        isReEnrolling.Add(studentId);
+        StateHasChanged();
+
+        try
+        {
+            var result = await ReEnrollmentService.ReEnrollStudentAsync(studentId);
+
+            if (result.Success)
+            {
+                Logger?.LogInformation(
+                    "Student {StudentId} successfully re-enrolled: {PreviousGrade} → {NewGrade}, {PreviousSY} → {NewSY}",
+                    studentId, result.PreviousGradeLevel, result.NewGradeLevel, result.PreviousSchoolYear, result.NewSchoolYear);
+
+                // Notify parent component to refresh data
+                await OnReEnroll.InvokeAsync(studentId);
+            }
+            else
+            {
+                Logger?.LogError("Failed to re-enroll student {StudentId}: {ErrorMessage}", studentId, result.ErrorMessage);
+                // Show error message - could be payment-related or other issue
+                await JSRuntime.InvokeVoidAsync("alert", $"Cannot re-enroll student {studentId}: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error re-enrolling student {StudentId}: {Message}", studentId, ex.Message);
+            await JSRuntime.InvokeVoidAsync("alert", $"Error re-enrolling student: {ex.Message}");
+        }
+        finally
+        {
+            isReEnrolling.Remove(studentId);
+            StateHasChanged();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        // Load available school years
+        availableSchoolYears = SchoolYearService.GetAvailableSchoolYears();
+        if (availableSchoolYears.Any())
+        {
+            // Default to the most recent school year
+            selectedSchoolYear = availableSchoolYears.OrderByDescending(sy => sy).First();
+        }
+    }
+
+    private async Task HandleMarkEligible()
+    {
+        if (string.IsNullOrWhiteSpace(selectedSchoolYear) || isMarkingEligible)
+            return;
+
+        isMarkingEligible = true;
+        markEligibleResult = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            Logger?.LogInformation("Starting mark eligible process for school year: {SchoolYear}", selectedSchoolYear);
+            
+            var result = await ReEnrollmentService.MarkStudentsEligibleForReEnrollmentAsync(selectedSchoolYear);
+
+            if (result.Success)
+            {
+                markEligibleResult = $"✓ Process completed! " +
+                    $"Eligible: {result.MarkedEligible}, " +
+                    $"Already Eligible: {result.AlreadyEligible}, " +
+                    $"Failed: {result.FailedStudents}, " +
+                    $"Incomplete Grades: {result.IncompleteGrades}, " +
+                    $"Errors: {result.Errors}";
+
+                Logger?.LogInformation(
+                    "Mark eligible completed: Eligible={Eligible}, Failed={Failed}, Incomplete={Incomplete}",
+                    result.MarkedEligible, result.FailedStudents, result.IncompleteGrades);
+
+                // Refresh the student list
+                await OnRefresh.InvokeAsync();
+            }
+            else
+            {
+                markEligibleResult = $"✗ Error: {result.ErrorMessage ?? "Unknown error occurred"}";
+                Logger?.LogError("Mark eligible failed: {ErrorMessage}", result.ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            markEligibleResult = $"✗ Error: {ex.Message}";
+            Logger?.LogError(ex, "Error marking students eligible: {Message}", ex.Message);
+        }
+        finally
+        {
+            isMarkingEligible = false;
             StateHasChanged();
         }
     }

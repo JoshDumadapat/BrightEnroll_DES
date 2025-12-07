@@ -192,6 +192,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [archive_reason] NVARCHAR(MAX) NULL,
                         [amount_paid] DECIMAL(18,2) NOT NULL DEFAULT 0,
                         [payment_status] VARCHAR(20) NULL DEFAULT 'Unpaid',
+                        [updated_at] DATETIME NULL,
                         CONSTRAINT FK_tbl_Students_tbl_Guardians FOREIGN KEY ([guardian_id]) REFERENCES [dbo].[tbl_Guardians]([guardian_id])
                     )",
                 CreateIndexesScripts = new List<string>
