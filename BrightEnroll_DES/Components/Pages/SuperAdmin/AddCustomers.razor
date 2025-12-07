@@ -243,11 +243,13 @@
             @if (!string.IsNullOrWhiteSpace(SuccessMessage))
             {
                 <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
-                    <div class="flex items-center gap-2">
-                        <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="flex items-start gap-2">
+                        <svg class="h-5 w-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                         </svg>
-                        <p class="text-sm font-medium text-green-800">@SuccessMessage</p>
+                        <div class="flex-1">
+                            <pre class="text-sm font-medium text-green-800 whitespace-pre-wrap font-sans">@SuccessMessage</pre>
+                        </div>
                     </div>
                 </div>
             }
@@ -393,13 +395,33 @@
             // Verify the customer was actually saved by checking if it has an ID
             if (createdCustomer.CustomerId > 0)
             {
-                SuccessMessage = $"Customer '{createdCustomer.SchoolName}' (Code: {createdCustomer.CustomerCode}) has been saved successfully!";
+                var successDetails = new System.Text.StringBuilder();
+                successDetails.AppendLine($"Customer '{createdCustomer.SchoolName}' (Code: {createdCustomer.CustomerCode}) has been saved successfully!");
+                
+                // Add database information if available
+                if (!string.IsNullOrEmpty(createdCustomer.DatabaseName))
+                {
+                    successDetails.AppendLine($"\n📊 Database: {createdCustomer.DatabaseName}");
+                }
+                
+                // Add admin account information if available
+                if (!string.IsNullOrEmpty(createdCustomer.AdminUsername))
+                {
+                    successDetails.AppendLine($"\n👤 Admin Account Created:");
+                    successDetails.AppendLine($"   Email: {createdCustomer.AdminUsername}");
+                    successDetails.AppendLine($"   Password: {createdCustomer.AdminPassword ?? "Admin123456"}");
+                    successDetails.AppendLine($"\n⚠️ Please save these credentials securely!");
+                }
+                
+                SuccessMessage = successDetails.ToString();
                 System.Diagnostics.Debug.WriteLine($"[AddCustomer] ✅ VERIFIED: Customer saved with ID: {createdCustomer.CustomerId}");
+                System.Diagnostics.Debug.WriteLine($"[AddCustomer] Database: {createdCustomer.DatabaseName}");
+                System.Diagnostics.Debug.WriteLine($"[AddCustomer] Admin: {createdCustomer.AdminUsername}");
                 
                 LoadingService.HideLoading();
                 
-                // Wait a moment to show success message, then navigate
-                await Task.Delay(1500);
+                // Wait longer to show database/admin info, then navigate
+                await Task.Delay(5000);
                 Navigation.NavigateTo("/system-admin/customers?toast=customer_added");
             }
             else

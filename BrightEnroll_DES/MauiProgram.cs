@@ -51,9 +51,8 @@ namespace BrightEnroll_DES
 
             // SuperAdmin services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
-
-            // SuperAdmin services
-            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolDatabaseService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolAdminSeeder>();
 
             // Role-based access control services
             builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();

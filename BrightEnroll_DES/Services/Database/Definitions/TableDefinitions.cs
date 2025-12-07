@@ -1169,6 +1169,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [date_registered] DATETIME NOT NULL DEFAULT GETDATE(),
                         [created_by] INT NULL,
                         [updated_at] DATETIME NULL,
+                        [database_name] NVARCHAR(200) NULL,
+                        [database_connection_string] NVARCHAR(MAX) NULL,
+                        [admin_username] NVARCHAR(100) NULL,
+                        [admin_password] NVARCHAR(255) NULL,
                         CONSTRAINT FK_Customers_CreatedBy FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID])
                     )",
                 CreateIndexesScripts = new List<string>

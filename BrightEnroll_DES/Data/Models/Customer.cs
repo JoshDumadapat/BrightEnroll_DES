@@ -88,6 +88,18 @@ public class Customer
     [Column("updated_at", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
+    [Column("database_name", TypeName = "nvarchar(200)")]
+    public string? DatabaseName { get; set; }
+
+    [Column("database_connection_string", TypeName = "nvarchar(max)")]
+    public string? DatabaseConnectionString { get; set; }
+
+    [Column("admin_username", TypeName = "nvarchar(100)")]
+    public string? AdminUsername { get; set; }
+
+    [Column("admin_password", TypeName = "nvarchar(255)")]
+    public string? AdminPassword { get; set; }
+
     // Navigation properties
     [ForeignKey("CreatedBy")]
     public virtual UserEntity? CreatedByUser { get; set; }

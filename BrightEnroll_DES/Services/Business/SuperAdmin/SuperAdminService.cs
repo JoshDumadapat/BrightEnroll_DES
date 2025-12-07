@@ -3,6 +3,7 @@ using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 using BrightEnroll_DES.Services.Database.Definitions;
 
 namespace BrightEnroll_DES.Services.Business.SuperAdmin;
@@ -11,11 +12,20 @@ public class SuperAdminService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<SuperAdminService>? _logger;
+    private readonly SchoolDatabaseService? _databaseService;
+    private readonly SchoolAdminSeeder? _adminSeeder;
 
-    public SuperAdminService(AppDbContext context, ILogger<SuperAdminService>? logger = null)
+    public SuperAdminService(
+        AppDbContext context, 
+        ILogger<SuperAdminService>? logger = null,
+        SchoolDatabaseService? databaseService = null,
+        SchoolAdminSeeder? adminSeeder = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _databaseService = databaseService;
+        _adminSeeder = adminSeeder;
+        
         // Note: We don't check _context.Database here because it might not be initialized yet
         // during service injection. We'll check it lazily in each method instead.
     }
@@ -112,6 +122,60 @@ public class SuperAdminService
 
             _logger?.LogInformation("Creating customer: {SchoolName}, Code: {CustomerCode}", customer.SchoolName, customer.CustomerCode);
 
+            // Provision database and create admin account if services are available
+            if (_databaseService != null && _adminSeeder != null)
+            {
+                try
+                {
+                    _logger?.LogInformation("Provisioning database for school: {SchoolName}", customer.SchoolName);
+                    
+                    // Step 1: Provision the database
+                    var dbInfo = await _databaseService.ProvisionSchoolDatabaseAsync(
+                        customer.SchoolName, 
+                        customer.CustomerCode);
+
+                    if (dbInfo.Success && !string.IsNullOrEmpty(dbInfo.ConnectionString))
+                    {
+                        customer.DatabaseName = dbInfo.DatabaseName;
+                        customer.DatabaseConnectionString = dbInfo.ConnectionString;
+                        
+                        _logger?.LogInformation("Database provisioned successfully: {DatabaseName}", dbInfo.DatabaseName);
+
+                        // Step 2: Seed admin account in the school's database
+                        var adminInfo = await _adminSeeder.SeedAdminAccountAsync(
+                            dbInfo.ConnectionString,
+                            customer);
+
+                        if (adminInfo.Success)
+                        {
+                            customer.AdminUsername = adminInfo.Email;
+                            customer.AdminPassword = adminInfo.Password; // Store plain password for initial setup
+                            
+                            _logger?.LogInformation("Admin account created: {Email}, SystemID: {SystemId}", 
+                                adminInfo.Email, adminInfo.SystemId);
+                        }
+                        else
+                        {
+                            _logger?.LogWarning("Failed to create admin account: {Error}", adminInfo.ErrorMessage);
+                        }
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("Database provisioning failed: {Error}", dbInfo.ErrorMessage);
+                        // Continue with customer creation even if database provisioning fails
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Error during database provisioning or admin seeding: {Message}", ex.Message);
+                    // Continue with customer creation even if provisioning fails
+                }
+            }
+            else
+            {
+                _logger?.LogWarning("Database service or admin seeder not available. Skipping database provisioning.");
+            }
+
             _context.Customers.Add(customer);
             var result = await _context.SaveChangesAsync();
 
@@ -185,6 +249,12 @@ public class SuperAdminService
                 
                 _logger?.LogInformation("tbl_Customers table created successfully");
             }
+            else
+            {
+                // Table exists, check if new columns need to be added
+                _logger?.LogInformation("tbl_Customers table exists. Checking for new columns...");
+                await EnsureNewColumnsExistAsync(connection);
+            }
             
             await connection.CloseAsync();
         }
@@ -197,6 +267,124 @@ public class SuperAdminService
         {
             _logger?.LogWarning(ex, "Error ensuring Customers table exists: {Message}", ex.Message);
             // Don't throw - let the actual save operation handle the error
+        }
+    }
+
+    private async Task EnsureNewColumnsExistAsync(System.Data.Common.DbConnection connection)
+    {
+        try
+        {
+            // Check and add database_name column
+            var checkDbNameQuery = @"
+                SELECT COUNT(*) 
+                FROM sys.columns 
+                WHERE object_id = OBJECT_ID('dbo.tbl_Customers') 
+                AND name = 'database_name'";
+
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = checkDbNameQuery;
+                var result = await checkCmd.ExecuteScalarAsync();
+                var columnExists = result != null && Convert.ToInt32(result) > 0;
+
+                if (!columnExists)
+                {
+                    var addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Customers]
+                        ADD [database_name] NVARCHAR(200) NULL";
+                    using (var addCmd = connection.CreateCommand())
+                    {
+                        addCmd.CommandText = addColumnQuery;
+                        await addCmd.ExecuteNonQueryAsync();
+                        _logger?.LogInformation("Added database_name column to tbl_Customers");
+                    }
+                }
+            }
+
+            // Check and add database_connection_string column
+            var checkConnStringQuery = @"
+                SELECT COUNT(*) 
+                FROM sys.columns 
+                WHERE object_id = OBJECT_ID('dbo.tbl_Customers') 
+                AND name = 'database_connection_string'";
+
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = checkConnStringQuery;
+                var result = await checkCmd.ExecuteScalarAsync();
+                var columnExists = result != null && Convert.ToInt32(result) > 0;
+
+                if (!columnExists)
+                {
+                    var addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Customers]
+                        ADD [database_connection_string] NVARCHAR(MAX) NULL";
+                    using (var addCmd = connection.CreateCommand())
+                    {
+                        addCmd.CommandText = addColumnQuery;
+                        await addCmd.ExecuteNonQueryAsync();
+                        _logger?.LogInformation("Added database_connection_string column to tbl_Customers");
+                    }
+                }
+            }
+
+            // Check and add admin_username column
+            var checkAdminUserQuery = @"
+                SELECT COUNT(*) 
+                FROM sys.columns 
+                WHERE object_id = OBJECT_ID('dbo.tbl_Customers') 
+                AND name = 'admin_username'";
+
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = checkAdminUserQuery;
+                var result = await checkCmd.ExecuteScalarAsync();
+                var columnExists = result != null && Convert.ToInt32(result) > 0;
+
+                if (!columnExists)
+                {
+                    var addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Customers]
+                        ADD [admin_username] NVARCHAR(100) NULL";
+                    using (var addCmd = connection.CreateCommand())
+                    {
+                        addCmd.CommandText = addColumnQuery;
+                        await addCmd.ExecuteNonQueryAsync();
+                        _logger?.LogInformation("Added admin_username column to tbl_Customers");
+                    }
+                }
+            }
+
+            // Check and add admin_password column
+            var checkAdminPassQuery = @"
+                SELECT COUNT(*) 
+                FROM sys.columns 
+                WHERE object_id = OBJECT_ID('dbo.tbl_Customers') 
+                AND name = 'admin_password'";
+
+            using (var checkCmd = connection.CreateCommand())
+            {
+                checkCmd.CommandText = checkAdminPassQuery;
+                var result = await checkCmd.ExecuteScalarAsync();
+                var columnExists = result != null && Convert.ToInt32(result) > 0;
+
+                if (!columnExists)
+                {
+                    var addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_Customers]
+                        ADD [admin_password] NVARCHAR(255) NULL";
+                    using (var addCmd = connection.CreateCommand())
+                    {
+                        addCmd.CommandText = addColumnQuery;
+                        await addCmd.ExecuteNonQueryAsync();
+                        _logger?.LogInformation("Added admin_password column to tbl_Customers");
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Error ensuring new columns exist: {Message}", ex.Message);
         }
     }
 
