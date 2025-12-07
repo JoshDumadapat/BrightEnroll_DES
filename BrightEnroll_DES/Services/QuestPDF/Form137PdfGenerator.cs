@@ -99,23 +99,6 @@ public class Form137PdfGenerator
                         .FontSize(8)
                         .AlignCenter();
 
-                    col.Item().PaddingTop(3).Height(55).Width(55)
-                        .AlignCenter()
-                        .Border(0.8f)
-                        .BorderColor(QuestPdfColors.Black)
-                        .Padding(3)
-                        .Column(seal =>
-                        {
-                            seal.Item().Text("KAGAWARAN")
-                                .FontSize(5)
-                                .Bold()
-                                .AlignCenter();
-
-                            seal.Item().Text("NG EDUKASYON")
-                                .FontSize(5)
-                                .Bold()
-                                .AlignCenter();
-                        });
                 });
             });
 
