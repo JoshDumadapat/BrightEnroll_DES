@@ -2,10 +2,14 @@
 @using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.QuestPDF
 @using Microsoft.AspNetCore.Components.Web
+@using Microsoft.JSInterop
 @inject GradeService GradeService
 @inject TeacherService TeacherService
 @inject IAuthService AuthService
+@inject IJSRuntime JSRuntime
+@inject GradeFormPdfGenerator PdfGenerator
 
 <div class="p-6">
     @if (!string.IsNullOrEmpty(errorMessage))
@@ -16,7 +20,7 @@
     }
 
     <!-- Filters -->
-    <div class="mb-6 border-b border-gray-200 px-3 py-4 sm:px-6">
+    <div class="mb-6 border-b border-gray-200 px-3 py-4 sm:px-6 no-print">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                 <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
@@ -54,11 +58,21 @@
                     }
                 </select>
             </div>
+            <div class="flex items-center gap-2">
+                <button @onclick="PrintPreview" 
+                        disabled="@(isLoading || !IsPrintEnabled())"
+                        class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    <span>Print Preview</span>
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- Table -->
-    <div class="overflow-x-auto">
+    <div class="overflow-x-auto" id="grade-records-table">
         <table class="min-w-full text-sm">
             <thead class="bg-gray-100 font-semibold text-gray-600">
                 <tr>
@@ -127,7 +141,7 @@
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
+    <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600 no-print">
         <span>Showing @gradeRecords.Count record(s)</span>
     </div>
 </div>
@@ -241,6 +255,58 @@
         if (e.Key == "Enter")
         {
             await LoadGradeRecordsAsync();
+        }
+    }
+
+    private bool IsPrintEnabled()
+    {
+        // Print is enabled only when all filters are selected: School Year, Section, and Subject
+        return !string.IsNullOrWhiteSpace(selectedSchoolYear) 
+            && selectedSectionId > 0 
+            && selectedSubjectId > 0
+            && gradeRecords.Any();
+    }
+
+    private async Task PrintPreview()
+    {
+        if (!IsPrintEnabled())
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please select School Year, Section, and Subject before printing.");
+            return;
+        }
+
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            // Generate PDF
+            var pdfBytes = await PdfGenerator.GenerateGradeFormAsync(
+                selectedSectionId,
+                selectedSubjectId,
+                selectedSchoolYear,
+                teacherId
+            );
+
+            // Create filename
+            var sectionName = availableSections.FirstOrDefault(s => s.SectionId == selectedSectionId)?.SectionName ?? "Section";
+            var subjectName = availableSubjects.FirstOrDefault(s => s.SubjectId == selectedSubjectId)?.SubjectName ?? "Subject";
+            var fileName = $"GradeForm_{sectionName}_{subjectName}_{selectedSchoolYear.Replace("-", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            // Convert to base64 for download
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            
+            // Download the file
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating grade form PDF: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
         }
     }
 }

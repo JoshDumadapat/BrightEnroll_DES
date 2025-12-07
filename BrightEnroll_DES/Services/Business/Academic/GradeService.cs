@@ -436,6 +436,155 @@ public class GradeService
     }
 
     /// <summary>
+    /// Saves quarterly grades directly (Q1-Q4 as FinalGrade) without component breakdown
+    /// </summary>
+    public async Task<bool> SaveQuarterlyGradesAsync(List<GradeInputDto> gradeInputs, int teacherId)
+    {
+        try
+        {
+            if (gradeInputs == null || !gradeInputs.Any())
+            {
+                throw new ArgumentException("Grade inputs cannot be empty.");
+            }
+
+            // Validate teacher is assigned to all section-subject combinations
+            var sectionSubjectPairs = gradeInputs
+                .Select(g => new { g.SectionId, g.SubjectId })
+                .Distinct()
+                .ToList();
+
+            foreach (var pair in sectionSubjectPairs)
+            {
+                var isAssigned = await _context.TeacherSectionAssignments
+                    .AnyAsync(a => a.TeacherId == teacherId
+                                && a.SectionId == pair.SectionId
+                                && a.SubjectId == pair.SubjectId
+                                && !a.IsArchived);
+
+                if (!isAssigned)
+                {
+                    _logger?.LogWarning("Teacher {TeacherId} attempted to save grades for unauthorized section {SectionId}, subject {SubjectId}", 
+                        teacherId, pair.SectionId, pair.SubjectId);
+                    throw new UnauthorizedAccessException($"You are not assigned to teach this subject in this section.");
+                }
+            }
+
+            // Validate grade ranges
+            foreach (var input in gradeInputs)
+            {
+                if (input.FinalGrade.HasValue && (input.FinalGrade < 0 || input.FinalGrade > 100))
+                {
+                    throw new ArgumentException($"Grade must be between 0 and 100. Student: {input.StudentId}, Quarter: {input.GradingPeriod}");
+                }
+            }
+
+            // Ensure table exists
+            try
+            {
+                await EnsureGradesTableExistsAsync();
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger?.LogError(ex, "Cannot save grades: tbl_Grades table does not exist and could not be created.");
+                throw new InvalidOperationException("Cannot save grades. The grades table is missing and could not be created automatically. Please contact your system administrator.", ex);
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                foreach (var input in gradeInputs)
+                {
+                    if (!input.FinalGrade.HasValue)
+                        continue; // Skip if no grade provided
+
+                    // Check if grade already exists
+                    var existingGrade = await _context.Grades
+                        .FirstOrDefaultAsync(g => g.StudentId == input.StudentId
+                                                && g.SubjectId == input.SubjectId
+                                                && g.SectionId == input.SectionId
+                                                && g.SchoolYear == input.SchoolYear
+                                                && g.GradingPeriod == input.GradingPeriod);
+
+                    if (existingGrade != null)
+                    {
+                        // Create history record before updating
+                        await CreateGradeHistoryAsync(existingGrade, input, teacherId, "Grade updated");
+
+                        // Update existing grade - save FinalGrade directly, clear components
+                        existingGrade.FinalGrade = input.FinalGrade;
+                        existingGrade.WrittenWork = null;
+                        existingGrade.PerformanceTasks = null;
+                        existingGrade.QuarterlyAssessment = null;
+                        existingGrade.TeacherId = teacherId;
+                        existingGrade.UpdatedAt = DateTime.Now;
+
+                        _context.Grades.Update(existingGrade);
+                    }
+                    else
+                    {
+                        // Create new grade - save FinalGrade directly
+                        var grade = new Grade
+                        {
+                            StudentId = input.StudentId,
+                            SubjectId = input.SubjectId,
+                            SectionId = input.SectionId,
+                            SchoolYear = input.SchoolYear,
+                            GradingPeriod = input.GradingPeriod,
+                            FinalGrade = input.FinalGrade,
+                            WrittenWork = null,
+                            PerformanceTasks = null,
+                            QuarterlyAssessment = null,
+                            TeacherId = teacherId,
+                            CreatedAt = DateTime.Now
+                        };
+
+                        _context.Grades.Add(grade);
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Create history records after saving (to get GradeIds)
+                foreach (var input in gradeInputs)
+                {
+                    if (!input.FinalGrade.HasValue)
+                        continue;
+
+                    var grade = await _context.Grades
+                        .FirstOrDefaultAsync(g => g.StudentId == input.StudentId
+                                              && g.SubjectId == input.SubjectId
+                                              && g.SectionId == input.SectionId
+                                              && g.SchoolYear == input.SchoolYear
+                                              && g.GradingPeriod == input.GradingPeriod);
+
+                    if (grade != null)
+                    {
+                        await CreateGradeHistoryAsync(grade, input, teacherId, 
+                            grade.CreatedAt == grade.UpdatedAt ? "Grade created" : "Grade updated");
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger?.LogInformation("Successfully saved {Count} quarterly grades", gradeInputs.Count);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger?.LogError(ex, "Error saving quarterly grades: {Message}", ex.Message);
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error in SaveQuarterlyGradesAsync: {Message}", ex.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Gets all grades for a specific student
     /// </summary>
     public async Task<List<Grade>> GetStudentGradesAsync(string studentId, string schoolYear)
@@ -479,6 +628,28 @@ public class GradeService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error getting grade by ID: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets all grades for a section (all subjects, all quarters)
+    /// </summary>
+    public async Task<List<Grade>> GetAllGradesForSectionAsync(int sectionId, string schoolYear)
+    {
+        try
+        {
+            await EnsureGradesTableExistsAsync();
+
+            return await _context.Grades
+                .Where(g => g.SectionId == sectionId && g.SchoolYear == schoolYear)
+                .Include(g => g.Subject)
+                .Include(g => g.Student)
+                .ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting all grades for section: {Message}", ex.Message);
             throw;
         }
     }

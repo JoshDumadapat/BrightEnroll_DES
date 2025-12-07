@@ -14,7 +14,7 @@
 <div class="p-6">
 
     <!-- Class Selection -->
-    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">School Year:</label>
             <select @bind="selectedSchoolYear" @bind:after="OnSchoolYearChanged"
@@ -41,26 +41,16 @@
             <select @bind="selectedSubjectId" @bind:after="OnSelectionChanged"
                     disabled="@(selectedSectionId == 0)"
                     class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
-                <option value="0">Select Subject</option>
+                <option value="0">All Subjects</option>
                 @foreach (var subj in availableSubjects)
                 {
                     <option value="@subj.SubjectId">@subj.SubjectName</option>
                 }
             </select>
         </div>
-        <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Grading Period:</label>
-            <select @bind="selectedPeriod" @bind:after="OnSelectionChanged"
-                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                <option value="Q1">Quarter 1</option>
-                <option value="Q2">Quarter 2</option>
-                <option value="Q3">Quarter 3</option>
-                <option value="Q4">Quarter 4</option>
-            </select>
-        </div>
     </div>
 
-    @if (selectedSectionId > 0 && selectedSubjectId > 0)
+    @if (selectedSectionId > 0)
     {
         <!-- Grade Entry Table -->
         <div class="mb-4 overflow-x-auto">
@@ -69,10 +59,13 @@
                     <tr>
                         <th class="px-4 py-3 text-left">Student ID</th>
                         <th class="px-4 py-3 text-left">Name</th>
-                        <th class="px-4 py-3 text-center">Written Work (@(GetWrittenWorkWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Performance Tasks (@(GetPerformanceTasksWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Quarterly Assessment (@(GetQuarterlyAssessmentWeightDisplay()))</th>
-                        <th class="px-4 py-3 text-center">Quarterly Grade</th>
+                        <th class="px-4 py-3 text-left">Subject</th>
+                        <th class="px-4 py-3 text-center">Q1</th>
+                        <th class="px-4 py-3 text-center">Q2</th>
+                        <th class="px-4 py-3 text-center">Q3</th>
+                        <th class="px-4 py-3 text-center">Q4</th>
+                        <th class="px-4 py-3 text-center">Gen Ave</th>
+                        <th class="px-4 py-3 text-center">Remarks</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y">
@@ -81,31 +74,51 @@
                         <tr class="transition hover:bg-gray-50">
                             <td class="px-4 py-3">@student.StudentId</td>
                             <td class="px-4 py-3">@student.Name</td>
+                            <td class="px-4 py-3">@student.SubjectName</td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.WrittenWork?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.WrittenWork), e))"
-                                       min="0" max="100" step="0.01" required
+                                       value="@(student.Q1?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q1", e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.PerformanceTasks?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.PerformanceTasks), e))"
-                                       min="0" max="100" step="0.01" required
+                                       value="@(student.Q2?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q2", e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
-                                       value="@(student.QuarterlyAssessment?.ToString() ?? "")"
-                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, nameof(student.QuarterlyAssessment), e))"
-                                       min="0" max="100" step="0.01" required
+                                       value="@(student.Q3?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q3", e))"
+                                       min="0" max="100" step="0.01"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
                             </td>
-                            <td class="px-4 py-3 text-center font-semibold">
-                                @if (student.WrittenWork.HasValue && student.PerformanceTasks.HasValue && student.QuarterlyAssessment.HasValue)
+                            <td class="px-4 py-3">
+                                <input type="number" 
+                                       value="@(student.Q4?.ToString() ?? "")"
+                                       @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q4", e))"
+                                       min="0" max="100" step="0.01"
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                            </td>
+                            <td class="px-4 py-3 text-center font-semibold text-blue-600">
+                                @if (student.GeneralAverage > 0)
                                 {
-                                    @student.QuarterlyGrade.ToString("F2")
+                                    @student.GeneralAverage.ToString("F2")
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">-</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3 text-center">
+                                @if (!string.IsNullOrEmpty(student.Remarks))
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium @GetRemarksBadgeClass(student.Remarks)">
+                                        @student.Remarks
+                                    </span>
                                 }
                                 else
                                 {
@@ -137,7 +150,7 @@
     else
     {
         <div class="py-12 text-center">
-            <p class="text-gray-500">Please select a section and subject to enter grades.</p>
+            <p class="text-gray-500">Please select a section to enter grades.</p>
         </div>
     }
 </div>
@@ -146,7 +159,6 @@
     private string selectedSchoolYear = "";
     private int selectedSectionId = 0;
     private int selectedSubjectId = 0;
-    private string selectedPeriod = "Q1";
     private List<GradeStudent> students = new();
     private List<Section> availableSections = new();
     private List<Subject> availableSubjects = new();
@@ -161,20 +173,28 @@
     {
         public string StudentId { get; set; } = "";
         public string Name { get; set; } = "";
-        public decimal? WrittenWork { get; set; }
-        public decimal? PerformanceTasks { get; set; }
-        public decimal? QuarterlyAssessment { get; set; }
+        public int SubjectId { get; set; }
+        public string SubjectName { get; set; } = "";
+        public decimal? Q1 { get; set; }
+        public decimal? Q2 { get; set; }
+        public decimal? Q3 { get; set; }
+        public decimal? Q4 { get; set; }
         
-        // DepEd standard weights: WW 20%, PT 60%, QA 20%
-        public decimal WrittenWorkWeight { get; set; } = 0.20m;
-        public decimal PerformanceTasksWeight { get; set; } = 0.60m;
-        public decimal QuarterlyAssessmentWeight { get; set; } = 0.20m;
+        // General Average = Average of Q1, Q2, Q3, Q4 (only if all 4 quarters are complete)
+        public decimal GeneralAverage
+        {
+            get
+            {
+                if (Q1.HasValue && Q2.HasValue && Q3.HasValue && Q4.HasValue &&
+                    Q1.Value > 0 && Q2.Value > 0 && Q3.Value > 0 && Q4.Value > 0)
+                {
+                    return (Q1.Value + Q2.Value + Q3.Value + Q4.Value) / 4.0m;
+                }
+                return 0;
+            }
+        }
         
-        // DepEd Formula: Quarterly Grade = (WW × 20%) + (PT × 60%) + (QA × 20%)
-        public decimal QuarterlyGrade => 
-            (WrittenWork ?? 0) * WrittenWorkWeight + 
-            (PerformanceTasks ?? 0) * PerformanceTasksWeight + 
-            (QuarterlyAssessment ?? 0) * QuarterlyAssessmentWeight;
+        public string Remarks { get; set; } = "";
     }
 
     protected override async Task OnInitializedAsync()
@@ -265,7 +285,7 @@
             students.Clear();
         }
 
-        if (selectedSectionId > 0 && selectedSubjectId > 0)
+        if (selectedSectionId > 0)
         {
             await LoadStudentsAsync();
         }
@@ -292,7 +312,7 @@
 
     private async Task LoadStudentsAsync()
     {
-        if (selectedSectionId <= 0 || selectedSubjectId <= 0)
+        if (selectedSectionId <= 0)
             return;
 
         try
@@ -300,35 +320,78 @@
             isLoading = true;
             StateHasChanged();
 
-            // Get grade weights for this subject
-            var weights = await GradeService.GetGradeWeightsAsync(selectedSubjectId);
-
+            // Get subjects assigned to this teacher for the selected section
+            var assignedSubjects = await TeacherService.GetAssignedSubjectsForGradeEntryAsync(teacherId, selectedSectionId);
+            
+            // Filter by selected subject if one is selected
+            if (selectedSubjectId > 0)
+            {
+                assignedSubjects = assignedSubjects.Where(s => s.SubjectId == selectedSubjectId).ToList();
+            }
+            
             // Get students enrolled in the section
             var studentDtos = await GradeService.GetStudentsForGradeEntryAsync(selectedSectionId, selectedSchoolYear);
             
-            // Get existing grades if any
-            var existingGrades = await GradeService.GetExistingGradesAsync(
-                selectedSectionId, 
-                selectedSubjectId, 
-                selectedSchoolYear, 
-                selectedPeriod);
+            // Get all existing grades for all subjects and all quarters
+            var allGrades = await GradeService.GetAllGradesForSectionAsync(selectedSectionId, selectedSchoolYear);
 
-            // Map to GradeStudent objects with weights
-            students = studentDtos.Select(s => 
+            // Create a list of student-subject combinations
+            var studentSubjectList = new List<GradeStudent>();
+            
+            foreach (var student in studentDtos)
             {
-                var existingGrade = existingGrades.ContainsKey(s.StudentId) ? existingGrades[s.StudentId] : null;
-                return new GradeStudent
+                foreach (var subject in assignedSubjects)
                 {
-                    StudentId = s.StudentId,
-                    Name = s.Name,
-                    WrittenWork = existingGrade?.WrittenWork,
-                    PerformanceTasks = existingGrade?.PerformanceTasks,
-                    QuarterlyAssessment = existingGrade?.QuarterlyAssessment,
-                    WrittenWorkWeight = weights.WrittenWorkWeight,
-                    PerformanceTasksWeight = weights.PerformanceTasksWeight,
-                    QuarterlyAssessmentWeight = weights.QuarterlyAssessmentWeight
-                };
-            }).ToList();
+                    var q1Grade = allGrades.FirstOrDefault(g => 
+                        g.StudentId == student.StudentId && 
+                        g.SubjectId == subject.SubjectId && 
+                        g.GradingPeriod == "Q1");
+                    var q2Grade = allGrades.FirstOrDefault(g => 
+                        g.StudentId == student.StudentId && 
+                        g.SubjectId == subject.SubjectId && 
+                        g.GradingPeriod == "Q2");
+                    var q3Grade = allGrades.FirstOrDefault(g => 
+                        g.StudentId == student.StudentId && 
+                        g.SubjectId == subject.SubjectId && 
+                        g.GradingPeriod == "Q3");
+                    var q4Grade = allGrades.FirstOrDefault(g => 
+                        g.StudentId == student.StudentId && 
+                        g.SubjectId == subject.SubjectId && 
+                        g.GradingPeriod == "Q4");
+
+                    var gradeStudent = new GradeStudent
+                    {
+                        StudentId = student.StudentId,
+                        Name = student.Name,
+                        SubjectId = subject.SubjectId,
+                        SubjectName = subject.SubjectName,
+                        Q1 = q1Grade?.FinalGrade,
+                        Q2 = q2Grade?.FinalGrade,
+                        Q3 = q3Grade?.FinalGrade,
+                        Q4 = q4Grade?.FinalGrade
+                    };
+
+                    // Calculate remarks based on general average
+                    if (gradeStudent.GeneralAverage > 0)
+                    {
+                        var transmutedGrade = GradeService.GetTransmutedGrade(gradeStudent.GeneralAverage);
+                        gradeStudent.Remarks = GradeService.GetDescriptiveRating(transmutedGrade);
+                    }
+                    else if (gradeStudent.Q1.HasValue || gradeStudent.Q2.HasValue || 
+                             gradeStudent.Q3.HasValue || gradeStudent.Q4.HasValue)
+                    {
+                        gradeStudent.Remarks = "Incomplete";
+                    }
+                    else
+                    {
+                        gradeStudent.Remarks = "No Grade";
+                    }
+
+                    studentSubjectList.Add(gradeStudent);
+                }
+            }
+
+            students = studentSubjectList.OrderBy(s => s.Name).ThenBy(s => s.SubjectName).ToList();
         }
         catch (Exception ex)
         {
@@ -342,7 +405,7 @@
         }
     }
 
-    private void OnGradeChanged(GradeStudent student, string propertyName, ChangeEventArgs e)
+    private void OnGradeChanged(GradeStudent student, string quarter, ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
         decimal? parsedValue = null;
@@ -350,19 +413,41 @@
         if (!string.IsNullOrWhiteSpace(value) && decimal.TryParse(value, out var num))
         {
             parsedValue = num;
+            // Validate range
+            if (parsedValue < 0) parsedValue = 0;
+            if (parsedValue > 100) parsedValue = 100;
         }
 
-        switch (propertyName)
+        switch (quarter)
         {
-            case nameof(GradeStudent.WrittenWork):
-                student.WrittenWork = parsedValue;
+            case "Q1":
+                student.Q1 = parsedValue;
                 break;
-            case nameof(GradeStudent.PerformanceTasks):
-                student.PerformanceTasks = parsedValue;
+            case "Q2":
+                student.Q2 = parsedValue;
                 break;
-            case nameof(GradeStudent.QuarterlyAssessment):
-                student.QuarterlyAssessment = parsedValue;
+            case "Q3":
+                student.Q3 = parsedValue;
                 break;
+            case "Q4":
+                student.Q4 = parsedValue;
+                break;
+        }
+
+        // Update remarks based on general average
+        if (student.GeneralAverage > 0)
+        {
+            var transmutedGrade = GradeService.GetTransmutedGrade(student.GeneralAverage);
+            student.Remarks = GradeService.GetDescriptiveRating(transmutedGrade);
+        }
+        else if (student.Q1.HasValue || student.Q2.HasValue || 
+                 student.Q3.HasValue || student.Q4.HasValue)
+        {
+            student.Remarks = "Incomplete";
+        }
+        else
+        {
+            student.Remarks = "No Grade";
         }
 
         StateHasChanged();
@@ -370,9 +455,9 @@
 
     private async Task SaveGrades()
     {
-        if (selectedSectionId <= 0 || selectedSubjectId <= 0)
+        if (selectedSectionId <= 0)
         {
-            ShowToast("Please select a section and subject.", ToastType.Error);
+            ShowToast("Please select a section.", ToastType.Error);
             return;
         }
 
@@ -388,26 +473,76 @@
             isLoading = true;
             StateHasChanged();
 
-            // Prepare grade inputs
-            var gradeInputs = students.Select(s => new GradeInputDto
+            // Prepare grade inputs for all quarters
+            var gradeInputs = new List<GradeInputDto>();
+            
+            foreach (var student in students)
             {
-                StudentId = s.StudentId,
-                SubjectId = selectedSubjectId,
-                SectionId = selectedSectionId,
-                SchoolYear = selectedSchoolYear,
-                GradingPeriod = selectedPeriod,
-                WrittenWork = s.WrittenWork,
-                PerformanceTasks = s.PerformanceTasks,
-                QuarterlyAssessment = s.QuarterlyAssessment,
-                FinalGrade = s.QuarterlyGrade > 0 ? s.QuarterlyGrade : null
-            }).ToList();
+                // Q1
+                if (student.Q1.HasValue)
+                {
+                    gradeInputs.Add(new GradeInputDto
+                    {
+                        StudentId = student.StudentId,
+                        SubjectId = student.SubjectId,
+                        SectionId = selectedSectionId,
+                        SchoolYear = selectedSchoolYear,
+                        GradingPeriod = "Q1",
+                        FinalGrade = student.Q1.Value
+                    });
+                }
+                
+                // Q2
+                if (student.Q2.HasValue)
+                {
+                    gradeInputs.Add(new GradeInputDto
+                    {
+                        StudentId = student.StudentId,
+                        SubjectId = student.SubjectId,
+                        SectionId = selectedSectionId,
+                        SchoolYear = selectedSchoolYear,
+                        GradingPeriod = "Q2",
+                        FinalGrade = student.Q2.Value
+                    });
+                }
+                
+                // Q3
+                if (student.Q3.HasValue)
+                {
+                    gradeInputs.Add(new GradeInputDto
+                    {
+                        StudentId = student.StudentId,
+                        SubjectId = student.SubjectId,
+                        SectionId = selectedSectionId,
+                        SchoolYear = selectedSchoolYear,
+                        GradingPeriod = "Q3",
+                        FinalGrade = student.Q3.Value
+                    });
+                }
+                
+                // Q4
+                if (student.Q4.HasValue)
+                {
+                    gradeInputs.Add(new GradeInputDto
+                    {
+                        StudentId = student.StudentId,
+                        SubjectId = student.SubjectId,
+                        SectionId = selectedSectionId,
+                        SchoolYear = selectedSchoolYear,
+                        GradingPeriod = "Q4",
+                        FinalGrade = student.Q4.Value
+                    });
+                }
+            }
 
             // Save grades
-            var result = await GradeService.SaveGradesAsync(gradeInputs, currentUser.user_ID);
+            var result = await GradeService.SaveQuarterlyGradesAsync(gradeInputs, currentUser.user_ID);
 
             if (result)
             {
-                ShowToast($"Successfully saved grades for {students.Count} student(s).", ToastType.Success);
+                ShowToast($"Successfully saved grades for {students.Count} record(s).", ToastType.Success);
+                // Reload to refresh general averages and remarks
+                await LoadStudentsAsync();
             }
             else
             {
@@ -439,19 +574,18 @@
         StateHasChanged();
     }
 
-    private string GetWrittenWorkWeightDisplay()
+    private string GetRemarksBadgeClass(string remarks)
     {
-        return students.FirstOrDefault()?.WrittenWorkWeight.ToString("P0") ?? "20%";
-    }
-
-    private string GetPerformanceTasksWeightDisplay()
-    {
-        return students.FirstOrDefault()?.PerformanceTasksWeight.ToString("P0") ?? "60%";
-    }
-
-    private string GetQuarterlyAssessmentWeightDisplay()
-    {
-        return students.FirstOrDefault()?.QuarterlyAssessmentWeight.ToString("P0") ?? "20%";
+        return remarks switch
+        {
+            "Outstanding" => "bg-green-100 text-green-800",
+            "Very Satisfactory" => "bg-blue-100 text-blue-800",
+            "Satisfactory" => "bg-yellow-100 text-yellow-800",
+            "Fairly Satisfactory" => "bg-orange-100 text-orange-800",
+            "Did Not Meet Expectations" => "bg-red-100 text-red-800",
+            "Incomplete" => "bg-gray-100 text-gray-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
     }
 }
 
