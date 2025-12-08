@@ -5,6 +5,7 @@
 @using BrightEnroll_DES.Services.DataAccess.Repositories
 @using BrightEnroll_DES.Components
 @using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Rendering
 @inject NavigationManager NavigationManager
 @inject IAuthService AuthService
 @inject IUserRepository UserRepository
@@ -496,6 +497,34 @@
         </div>
     }
 
+    <!-- School Policy & Government Laws -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="px-6 py-6">
+            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                        <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h5 class="text-lg font-bold text-gray-800">School Policy & Government Laws</h5>
+                        <p class="text-xs text-gray-500">Comprehensive guide to school policies and Philippine education laws</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="space-y-2">
+                <button @onclick="OpenPolicyDocumentation" class="w-full rounded-lg border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-all hover:bg-blue-700 flex items-center justify-center gap-2">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View Policy & Laws Documentation
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Help & Support -->
     <div class="overflow-hidden rounded-xl bg-white shadow">
         <div class="px-6 py-6">
@@ -516,6 +545,41 @@
     </div>
     </div>
 </div>
+
+<!-- Policy & Laws Documentation Modal -->
+@if (showPolicyModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="ClosePolicyModal">
+        <div class="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-white bg-opacity-20">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">School Policy & Government Laws</h3>
+                        <p class="text-sm text-blue-100">Comprehensive Documentation</p>
+                    </div>
+                </div>
+                <button @onclick="ClosePolicyModal" class="rounded-lg p-2 text-white transition-colors hover:bg-white hover:bg-opacity-20">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="overflow-y-auto" style="max-height: calc(90vh - 80px);">
+                <div class="px-6 py-6">
+                    @RenderPolicyContent()
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private bool notificationEnabled { get; set; } = true;
@@ -544,6 +608,9 @@
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+
+    // Policy Documentation Modal
+    private bool showPolicyModal = false;
 
     // School Information (Admin Only)
     private bool isEditingSchoolInfo = false;
@@ -1106,6 +1173,303 @@
     private void GoToDocumentation()
     {
         NavigationManager.NavigateTo("/documentation");
+    }
+
+    private void OpenPolicyDocumentation()
+    {
+        showPolicyModal = true;
+        StateHasChanged();
+    }
+
+    private void ClosePolicyModal()
+    {
+        showPolicyModal = false;
+        StateHasChanged();
+    }
+
+    private RenderFragment RenderPolicyContent() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-8");
+
+        // Introduction
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "rounded-lg border border-blue-100 bg-blue-50 p-6");
+        builder.OpenElement(4, "h4");
+        builder.AddAttribute(5, "class", "mb-3 text-lg font-bold text-blue-900");
+        builder.AddContent(6, "Introduction");
+        builder.CloseElement();
+        builder.OpenElement(7, "p");
+        builder.AddAttribute(8, "class", "text-sm leading-relaxed text-gray-700");
+        builder.AddContent(9, "This document outlines the school policies and government laws that govern our educational institution. All staff, students, and stakeholders are expected to comply with these policies and laws to ensure a safe, respectful, and legally compliant learning environment.");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        // School Policies Section
+        builder.OpenElement(10, "div");
+        builder.AddAttribute(11, "class", "space-y-6");
+        builder.OpenElement(12, "h3");
+        builder.AddAttribute(13, "class", "mb-4 text-2xl font-bold text-gray-800 border-b-2 border-gray-300 pb-2");
+        builder.AddContent(14, "School Policies");
+        builder.CloseElement();
+
+        // Policy 1: Student Protection
+        RenderPolicyCard(builder, 15, 
+            "Student Protection & Anti-Abuse Policy",
+            "The safety and well-being of all students is our highest priority. This policy strictly prohibits any form of abuse, harassment, or mistreatment of students.",
+            new List<string>
+            {
+                "Physical abuse, including corporal punishment, is strictly prohibited",
+                "Verbal abuse, threats, or intimidation of students is not tolerated",
+                "Emotional abuse, including humiliation, isolation, or rejection, is forbidden",
+                "Sexual harassment or any inappropriate conduct with students is grounds for immediate dismissal and legal action",
+                "All staff must report any suspected abuse immediately to the administration",
+                "Students have the right to report any form of abuse without fear of retaliation",
+                "All reports will be investigated promptly and confidentially",
+                "Violations will result in disciplinary action, up to and including termination and criminal prosecution"
+            });
+
+        // Policy 2: Code of Conduct
+        RenderPolicyCard(builder, 25,
+            "Code of Conduct for Staff",
+            "All staff members are expected to maintain the highest standards of professional conduct.",
+            new List<string>
+            {
+                "Maintain professional boundaries with students at all times",
+                "Treat all students, parents, and colleagues with respect and dignity",
+                "Maintain confidentiality of student and school information",
+                "Avoid conflicts of interest and maintain impartiality",
+                "Attend all required training and professional development sessions",
+                "Follow all school procedures and administrative directives",
+                "Report any violations of school policies or laws immediately",
+                "Maintain appropriate dress code and professional appearance"
+            });
+
+        // Policy 3: Academic Integrity
+        RenderPolicyCard(builder, 35,
+            "Academic Integrity Policy",
+            "Academic honesty is fundamental to the educational mission of our school.",
+            new List<string>
+            {
+                "Plagiarism, cheating, or academic dishonesty is strictly prohibited",
+                "All academic work must be original and properly cited",
+                "Students found guilty of academic dishonesty will face disciplinary action",
+                "Staff must maintain fairness and integrity in grading and assessment",
+                "All assessments must be conducted in a secure and fair manner"
+            });
+
+        // Policy 4: Non-Discrimination
+        RenderPolicyCard(builder, 45,
+            "Non-Discrimination & Equal Opportunity Policy",
+            "Our school is committed to providing equal opportunities for all students and staff.",
+            new List<string>
+            {
+                "No discrimination based on race, religion, gender, sexual orientation, disability, or socioeconomic status",
+                "Equal access to educational programs and activities for all students",
+                "Reasonable accommodations for students with disabilities",
+                "Respect for cultural and religious diversity",
+                "Inclusive environment that celebrates differences"
+            });
+
+        builder.CloseElement(); // End School Policies Section
+
+        // Philippine Government Laws Section
+        builder.OpenElement(50, "div");
+        builder.AddAttribute(51, "class", "mt-8 space-y-6");
+        builder.OpenElement(52, "h3");
+        builder.AddAttribute(53, "class", "mb-4 text-2xl font-bold text-gray-800 border-b-2 border-gray-300 pb-2");
+        builder.AddContent(54, "Philippine Government Laws");
+        builder.CloseElement();
+
+        // DepEd Laws
+        RenderLawCard(builder, 55,
+            "Department of Education (DepEd) Policies",
+            "Republic Act No. 9155 - Governance of Basic Education Act of 2001",
+            new List<string>
+            {
+                "All educational institutions must comply with DepEd standards and regulations",
+                "Schools must maintain proper accreditation and permits",
+                "Curriculum must align with DepEd's K-12 Basic Education Program",
+                "Teachers must be licensed and meet DepEd qualification requirements",
+                "Schools must submit required reports and documentation to DepEd",
+                "Student records must be maintained according to DepEd guidelines",
+                "Schools must ensure safe and conducive learning environments"
+            });
+
+        // Child Protection Law
+        RenderLawCard(builder, 65,
+            "Republic Act No. 7610 - Special Protection of Children Against Abuse, Exploitation and Discrimination Act",
+            "This law provides special protection to children from all forms of abuse, neglect, cruelty, exploitation, and discrimination.",
+            new List<string>
+            {
+                "Any person who commits child abuse shall suffer the penalty of prision mayor in its minimum period",
+                "Child abuse includes physical, psychological, sexual abuse, and neglect",
+                "Schools are mandated to report suspected child abuse to proper authorities",
+                "Protection of child victims during investigation and prosecution",
+                "Establishment of child protection committees in schools",
+                "Mandatory reporting of child abuse cases",
+                "Protection of child's identity and privacy"
+            });
+
+        // Anti-Bullying Law
+        RenderLawCard(builder, 75,
+            "Republic Act No. 10627 - Anti-Bullying Act of 2013",
+            "This act requires all elementary and secondary schools to adopt policies to prevent and address acts of bullying.",
+            new List<string>
+            {
+                "All schools must adopt anti-bullying policies",
+                "Schools must establish procedures for reporting and investigating bullying",
+                "Schools must provide intervention programs for both victims and bullies",
+                "Protection of students who report bullying incidents",
+                "Regular monitoring and evaluation of anti-bullying programs",
+                "Coordination with parents and guardians in addressing bullying",
+                "Documentation and reporting of bullying incidents"
+            });
+
+        // Data Privacy Law
+        RenderLawCard(builder, 85,
+            "Republic Act No. 10173 - Data Privacy Act of 2012",
+            "This law protects individual personal information in information and communications systems.",
+            new List<string>
+            {
+                "Schools must protect student and staff personal information",
+                "Consent must be obtained before collecting personal data",
+                "Personal data must be used only for legitimate educational purposes",
+                "Schools must implement security measures to protect data",
+                "Students and parents have the right to access their personal data",
+                "Data breach notification requirements",
+                "Appointment of Data Protection Officer (DPO) for large institutions"
+            });
+
+        // Magna Carta for Public School Teachers
+        RenderLawCard(builder, 95,
+            "Republic Act No. 4670 - Magna Carta for Public School Teachers",
+            "This act promotes and improves the social and economic status of public school teachers.",
+            new List<string>
+            {
+                "Teachers' rights to academic freedom",
+                "Protection of teachers from discrimination",
+                "Right to organize and join professional organizations",
+                "Tenure and security of employment",
+                "Compensation and benefits",
+                "Health and safety protection",
+                "Professional development opportunities"
+            });
+
+        // Safe Spaces Act
+        RenderLawCard(builder, 105,
+            "Republic Act No. 11313 - Safe Spaces Act (Bawal Bastos Law)",
+            "This act addresses gender-based sexual harassment in public spaces, including educational institutions.",
+            new List<string>
+            {
+                "Prohibition of gender-based sexual harassment in schools",
+                "Schools must establish internal mechanisms to address complaints",
+                "Protection of complainants from retaliation",
+                "Mandatory training on gender sensitivity",
+                "Clear procedures for reporting and investigation",
+                "Appropriate sanctions for violators",
+                "Coordination with local government units and law enforcement"
+            });
+
+        builder.CloseElement(); // End Government Laws Section
+
+        // Compliance Section
+        builder.OpenElement(110, "div");
+        builder.AddAttribute(111, "class", "mt-8 rounded-lg border-2 border-green-200 bg-green-50 p-6");
+        builder.OpenElement(112, "h4");
+        builder.AddAttribute(113, "class", "mb-3 text-lg font-bold text-green-900");
+        builder.AddContent(114, "Compliance & Reporting");
+        builder.CloseElement();
+        builder.OpenElement(115, "p");
+        builder.AddAttribute(116, "class", "mb-4 text-sm leading-relaxed text-gray-700");
+        builder.AddContent(117, "All members of the school community are responsible for understanding and complying with these policies and laws. Violations should be reported immediately through the proper channels.");
+        builder.CloseElement();
+        builder.OpenElement(118, "div");
+        builder.AddAttribute(119, "class", "space-y-2 text-sm text-gray-700");
+        builder.OpenElement(120, "p");
+        builder.AddAttribute(121, "class", "font-semibold");
+        builder.AddContent(122, "Reporting Channels:");
+        builder.CloseElement();
+        builder.OpenElement(123, "ul");
+        builder.AddAttribute(124, "class", "ml-6 list-disc space-y-1");
+        builder.OpenElement(125, "li");
+        builder.AddContent(126, "School Administration Office");
+        builder.CloseElement();
+        builder.OpenElement(127, "li");
+        builder.AddContent(128, "Child Protection Committee");
+        builder.CloseElement();
+        builder.OpenElement(129, "li");
+        builder.AddContent(130, "DepEd Regional Office");
+        builder.CloseElement();
+        builder.OpenElement(131, "li");
+        builder.AddContent(132, "Local Social Welfare and Development Office");
+        builder.CloseElement();
+        builder.OpenElement(133, "li");
+        builder.AddContent(134, "Philippine National Police (PNP) - Women and Children Protection Desk");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement(); // End main div
+    };
+
+    private void RenderPolicyCard(RenderTreeBuilder builder, int sequence, string title, string description, List<string> points)
+    {
+        builder.OpenElement(sequence, "div");
+        builder.AddAttribute(sequence + 1, "class", "rounded-lg border border-gray-200 bg-white p-6 shadow-sm");
+        builder.OpenElement(sequence + 2, "h4");
+        builder.AddAttribute(sequence + 3, "class", "mb-2 text-lg font-bold text-gray-800");
+        builder.AddContent(sequence + 4, title);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 5, "p");
+        builder.AddAttribute(sequence + 6, "class", "mb-4 text-sm text-gray-600");
+        builder.AddContent(sequence + 7, description);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 8, "ul");
+        builder.AddAttribute(sequence + 9, "class", "ml-6 space-y-2 text-sm text-gray-700");
+        foreach (var point in points)
+        {
+            builder.OpenElement(sequence + 10, "li");
+            builder.AddAttribute(sequence + 11, "class", "flex items-start gap-2");
+            builder.OpenElement(sequence + 12, "span");
+            builder.AddAttribute(sequence + 13, "class", "mt-1.5 flex-shrink-0 text-blue-600");
+            builder.AddContent(sequence + 14, "•");
+            builder.CloseElement();
+            builder.AddContent(sequence + 15, point);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    private void RenderLawCard(RenderTreeBuilder builder, int sequence, string title, string subtitle, List<string> points)
+    {
+        builder.OpenElement(sequence, "div");
+        builder.AddAttribute(sequence + 1, "class", "rounded-lg border-2 border-blue-200 bg-blue-50 p-6");
+        builder.OpenElement(sequence + 2, "h4");
+        builder.AddAttribute(sequence + 3, "class", "mb-1 text-lg font-bold text-blue-900");
+        builder.AddContent(sequence + 4, title);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 5, "p");
+        builder.AddAttribute(sequence + 6, "class", "mb-4 text-sm italic text-blue-800");
+        builder.AddContent(sequence + 7, subtitle);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 8, "ul");
+        builder.AddAttribute(sequence + 9, "class", "ml-6 space-y-2 text-sm text-gray-700");
+        foreach (var point in points)
+        {
+            builder.OpenElement(sequence + 10, "li");
+            builder.AddAttribute(sequence + 11, "class", "flex items-start gap-2");
+            builder.OpenElement(sequence + 12, "span");
+            builder.AddAttribute(sequence + 13, "class", "mt-1.5 flex-shrink-0 text-blue-600 font-bold");
+            builder.AddContent(sequence + 14, "→");
+            builder.CloseElement();
+            builder.AddContent(sequence + 15, point);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
     }
 
     // School Information Model

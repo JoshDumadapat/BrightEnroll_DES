@@ -1125,5 +1125,62 @@ namespace BrightEnroll_DES.Services.Seeders
                 throw new Exception($"Failed to ensure finance tables exist: {ex.Message}", ex);
             }
         }
+
+        /// <summary>
+        /// Seeds the Chart of Accounts with standard accounts for double-entry bookkeeping
+        /// </summary>
+        public async Task SeedChartOfAccountsAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("=== SEEDING CHART OF ACCOUNTS ===");
+
+                // Check if accounts already exist
+                if (await _context.ChartOfAccounts.AnyAsync())
+                {
+                    System.Diagnostics.Debug.WriteLine("Chart of Accounts already seeded, skipping.");
+                    return;
+                }
+
+                var accounts = new List<ChartOfAccount>
+                {
+                    // ASSETS (1000-1999)
+                    new ChartOfAccount { AccountCode = "1000", AccountName = "Cash", AccountType = "Asset", NormalBalance = "Debit", Description = "Cash on hand and in bank" },
+                    new ChartOfAccount { AccountCode = "1100", AccountName = "Accounts Receivable", AccountType = "Asset", NormalBalance = "Debit", Description = "Amounts owed by students" },
+                    
+                    // LIABILITIES (2000-2999)
+                    new ChartOfAccount { AccountCode = "2000", AccountName = "Accounts Payable", AccountType = "Liability", NormalBalance = "Credit", Description = "Amounts owed to vendors" },
+                    new ChartOfAccount { AccountCode = "2100", AccountName = "Accrued Payroll Taxes", AccountType = "Liability", NormalBalance = "Credit", Description = "SSS, PhilHealth, Pag-IBIG contributions" },
+                    
+                    // EQUITY (3000-3999)
+                    new ChartOfAccount { AccountCode = "3000", AccountName = "Capital", AccountType = "Equity", NormalBalance = "Credit", Description = "Owner's capital" },
+                    new ChartOfAccount { AccountCode = "3100", AccountName = "Retained Earnings", AccountType = "Equity", NormalBalance = "Credit", Description = "Accumulated profits" },
+                    
+                    // REVENUE (4000-4999)
+                    new ChartOfAccount { AccountCode = "4000", AccountName = "Tuition Revenue", AccountType = "Revenue", NormalBalance = "Credit", Description = "Revenue from student tuition fees" },
+                    new ChartOfAccount { AccountCode = "4100", AccountName = "Other Income", AccountType = "Revenue", NormalBalance = "Credit", Description = "Other sources of income" },
+                    
+                    // EXPENSES (5000-5999)
+                    new ChartOfAccount { AccountCode = "5000", AccountName = "Salaries Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "Employee salaries and wages" },
+                    new ChartOfAccount { AccountCode = "5100", AccountName = "Other Expenses", AccountType = "Expense", NormalBalance = "Debit", Description = "General operating expenses" },
+                    new ChartOfAccount { AccountCode = "5200", AccountName = "Utilities Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "Electricity, water, internet, etc." },
+                    new ChartOfAccount { AccountCode = "5300", AccountName = "Supplies Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "Office and school supplies" },
+                    new ChartOfAccount { AccountCode = "5400", AccountName = "Rent Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "Rental payments" },
+                    new ChartOfAccount { AccountCode = "5500", AccountName = "Maintenance Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "Repairs and maintenance" },
+                    new ChartOfAccount { AccountCode = "5600", AccountName = "Office Expense", AccountType = "Expense", NormalBalance = "Debit", Description = "General office expenses" }
+                };
+
+                _context.ChartOfAccounts.AddRange(accounts);
+                await _context.SaveChangesAsync();
+
+                System.Diagnostics.Debug.WriteLine($"=== CHART OF ACCOUNTS SEEDED SUCCESSFULLY ({accounts.Count} accounts) ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR: Failed to seed Chart of Accounts: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                throw new Exception($"Failed to seed Chart of Accounts: {ex.Message}", ex);
+            }
+        }
     }
 }

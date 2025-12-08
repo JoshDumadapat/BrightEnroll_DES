@@ -80,11 +80,77 @@ document.addEventListener('DOMContentLoaded', function() {
                 tooltipTimeout = null;
             }
             
-            // Hide tooltip immediately
+            // Hide tooltip immediately and ensure it's not visible
             tooltipText.classList.remove('show');
+            tooltipText.style.display = 'none';
+            tooltipText.style.visibility = 'hidden';
             isTooltipVisible = false;
         });
+        
+        // Hide tooltip on click
+        group.addEventListener('click', function() {
+            // Clear timeout immediately
+            if (tooltipTimeout) {
+                clearTimeout(tooltipTimeout);
+                tooltipTimeout = null;
+            }
+            
+            // Hide tooltip immediately and ensure it's not visible
+            tooltipText.classList.remove('show');
+            tooltipText.style.display = 'none';
+            tooltipText.style.visibility = 'hidden';
+            isTooltipVisible = false;
+        });
+        
+        // Hide tooltip on focus (for keyboard navigation)
+        const button = group.querySelector('button, a, [tabindex]');
+        if (button) {
+            button.addEventListener('focus', function() {
+                if (tooltipTimeout) {
+                    clearTimeout(tooltipTimeout);
+                    tooltipTimeout = null;
+                }
+                tooltipText.classList.remove('show');
+                isTooltipVisible = false;
+            });
+        }
     }
+    
+    // Hide all tooltips when clicking anywhere on the document
+    document.addEventListener('click', function(event) {
+        // Check if the click is not on a tooltip element itself or its parent group
+        if (!event.target.closest('.tooltip-delay') && !event.target.closest('.group')) {
+            document.querySelectorAll('.tooltip-delay.show').forEach(function(tooltip) {
+                tooltip.classList.remove('show');
+                tooltip.style.display = 'none';
+                tooltip.style.visibility = 'hidden';
+            });
+        }
+    });
+    
+    // Hide all tooltips when pressing any key
+    document.addEventListener('keydown', function() {
+        document.querySelectorAll('.tooltip-delay.show').forEach(function(tooltip) {
+            tooltip.classList.remove('show');
+            tooltip.style.display = 'none';
+            tooltip.style.visibility = 'hidden';
+        });
+    });
+    
+    // Hide all tooltips when mouse moves outside of any group
+    document.addEventListener('mousemove', function(event) {
+        // Check if mouse is not over any group element
+        if (!event.target.closest('.group')) {
+            document.querySelectorAll('.tooltip-delay.show').forEach(function(tooltip) {
+                const group = tooltip.closest('.group');
+                if (!group || !group.contains(event.target)) {
+                    tooltip.classList.remove('show');
+                    tooltip.style.display = 'none';
+                    tooltip.style.visibility = 'hidden';
+                }
+            });
+        }
+    });
     
     // Initialize all existing tooltips
     document.querySelectorAll('.group').forEach(initTooltip);

@@ -135,14 +135,10 @@
                     
                     <!-- Status -->
                     <td class="py-3 pr-6 pl-4 text-center" @onclick:stopPropagation="true">
-                        <label class="relative inline-flex cursor-pointer items-center">
-                            <input type="checkbox" 
-                                   @bind="item.IsActive" 
-                                   @bind:after="() => HandleChange(item)"
-                                   @onfocus="() => SelectRole(item.Role)"
-                                   class="peer sr-only" />
-                            <div class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-green-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300"></div>
-                        </label>
+                        <button @onclick="() => ToggleStatus(item)" 
+                                class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150 whitespace-nowrap @(item.IsActive ? "text-green-700 bg-green-100 hover:bg-green-200" : "text-red-700 bg-red-100 hover:bg-red-200")">
+                            @(item.IsActive ? "Active" : "Inactive")
+                        </button>
                     </td>
                 </tr>
                 }
@@ -281,9 +277,10 @@
         StateHasChanged();
     }
 
-    private void HandleChange(PayrollRoleData item)
+    private void ToggleStatus(PayrollRoleData item)
     {
-        item.Recalculate();
+        // Only toggle status, do NOT trigger calculation
+        item.IsActive = !item.IsActive;
         OnSalaryUpdated.InvokeAsync(item);
     }
 

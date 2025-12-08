@@ -196,6 +196,13 @@
             </div>
             <div class="flex-1 flex flex-col">
                 <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Total Enrolled</p>
+                @{
+                    var enrolledSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(enrolledSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @enrolledSchoolYear</p>
+                }
                 <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">@TotalEnrolled.ToString("N0")</h3>
             </div>
         </div>
@@ -234,6 +241,13 @@
             </div>
             <div class="flex-1 flex flex-col">
                 <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Pending Applications</p>
+                @{
+                    var pendingSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(pendingSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @pendingSchoolYear</p>
+                }
                 <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">@PendingApplications.ToString("N0")</h3>
             </div>
         </div>
@@ -253,6 +267,13 @@
             </div>
             <div class="flex-1 flex flex-col">
                 <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Revenue</p>
+                @{
+                    var revenueSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(revenueSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @revenueSchoolYear</p>
+                }
                 <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">₱@TotalTuitionCollected.ToString("N0")</h3>
             </div>
         </div>
@@ -270,10 +291,17 @@
         <div class="mb-3 md:mb-4">
             <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
             <h3 class="mb-1 text-base font-bold text-gray-800 md:mb-1.5 md:text-lg">Total income</h3>
-            @if (!string.IsNullOrEmpty(SelectedSchoolYear) || !string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                <p class="mb-2 text-xs text-gray-500 md:mb-3 md:text-sm">School Year: @(SelectedSchoolYear ?? CurrentSchoolYear)</p>
-            }
+            <div class="mb-2 md:mb-3">
+                @{
+                    var displaySchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                    var displayYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int y) ? y : DateTime.Now.Year;
+                }
+                @if (!string.IsNullOrEmpty(displaySchoolYear))
+                {
+                    <p class="text-xs text-gray-500 md:text-sm">S.Y. @displaySchoolYear</p>
+                }
+                <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @displayYear</p>
+            </div>
             <div class="flex flex-wrap gap-3 md:gap-4">
                 <div class="flex items-center gap-1.5">
                     <div class="h-2 w-2 rounded-full bg-green-500 md:h-2.5 md:w-2.5"></div>
@@ -297,6 +325,15 @@
         <div class="mb-3 md:mb-4">
             <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Total student each type</h3>
+            <div class="mt-1">
+                @{
+                    var studentTypeSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(studentTypeSchoolYear))
+                {
+                    <p class="text-xs text-gray-500 md:text-sm">S.Y. @studentTypeSchoolYear</p>
+                }
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Doughnut Chart -->
@@ -374,6 +411,12 @@
         <div class="mb-3 md:mb-4">
             <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Payment Status</h3>
+            <div class="mt-1">
+                @{
+                    var paymentStatusSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                }
+                <p class="text-xs text-gray-500 md:text-sm">S.Y. @paymentStatusSchoolYear</p>
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Pie Chart -->
@@ -387,6 +430,12 @@
         <div class="mb-3 md:mb-4">
             <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Enrollment by Grade</h3>
+            <div class="mt-1">
+                @{
+                    var enrollmentSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                }
+                <p class="text-xs text-gray-500 md:text-sm">S.Y. @enrollmentSchoolYear</p>
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Bar Chart -->
@@ -547,21 +596,29 @@
     {
         try
         {
-            // Determine period based on date range
+            // For the income chart, always use monthly period and ensure full year coverage
             string period = "monthly";
-            if (FromDate.HasValue && ToDate.HasValue)
+            
+            // Determine date range for the chart - default to current year if no filters
+            DateTime? chartFromDate = FromDate;
+            DateTime? chartToDate = ToDate;
+            
+            // If year filter is selected, use that year
+            if (!string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int year))
             {
-                var daysDiff = (ToDate.Value - FromDate.Value).TotalDays;
-                if (daysDiff <= 31)
-                    period = "daily";
-                else if (daysDiff <= 365)
-                    period = "monthly";
-                else
-                    period = "yearly";
+                chartFromDate = new DateTime(year, 1, 1);
+                chartToDate = new DateTime(year, 12, 31);
+            }
+            // If no date filters, default to current year
+            else if (!FromDate.HasValue || !ToDate.HasValue)
+            {
+                var currentYear = DateTime.Now.Year;
+                chartFromDate = new DateTime(currentYear, 1, 1);
+                chartToDate = new DateTime(currentYear, 12, 31);
             }
 
             // Load financial time series data
-            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(FromDate, ToDate, period);
+            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(chartFromDate, chartToDate, period);
             
             // Load enrollment by grade for bar chart
             var enrollmentByGrade = await EnrollmentReportService.GetEnrollmentByGradeAsync();
@@ -619,22 +676,82 @@
                 System.Diagnostics.Debug.WriteLine("Warning: Some canvas elements not found after retries");
             }
 
-            // Prepare income line chart data - periods are already formatted as month abbreviations (Jan, Feb, Mar, etc.)
-            var incomeLabels = financialData.Select(d => d.Period).ToArray();
-            var incomeCollections = financialData.Select(d => (double)d.Collections).ToArray();
-            var incomeExpenses = financialData.Select(d => (double)d.Expenses).ToArray();
+            // Prepare income line chart data - School Year format: June to March
+            // School year months: Jun, Jul, Aug, Sep, Oct, Nov, Dec (year 1), Jan, Feb, Mar (year 2)
+            var schoolYearMonthAbbreviations = new[] { "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar" };
+            var schoolYearMonthNumbers = new[] { 6, 7, 8, 9, 10, 11, 12, 1, 2, 3 }; // Corresponding month numbers
+            
+            // Determine school year start and end years from filter
+            int startYear = DateTime.Now.Year;
+            int endYear = DateTime.Now.Year + 1;
+            
+            // Parse school year if available (format: "2025-2026")
+            var schoolYearLabel = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+            if (!string.IsNullOrEmpty(schoolYearLabel))
+            {
+                var parts = schoolYearLabel.Split('-');
+                if (parts.Length == 2 && int.TryParse(parts[0], out int syStart) && int.TryParse(parts[1], out int syEnd))
+                {
+                    startYear = syStart;
+                    endYear = syEnd;
+                }
+            }
+            // If year filter is selected, use that year as start year
+            else if (!string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int parsedYear))
+            {
+                startYear = parsedYear;
+                endYear = parsedYear + 1;
+            }
+            
+            // Create a dictionary from financial data for quick lookup by year and month
+            var financialDataDict = financialData.ToDictionary(
+                d => new { Year = d.PeriodKey.Year, Month = d.PeriodKey.Month }, 
+                d => d);
+            
+            // Build complete school year dataset (June to March)
+            var incomeLabels = new List<string>();
+            var incomeCollections = new List<double>();
+            var incomeExpenses = new List<double>();
+            
+            for (int i = 0; i < schoolYearMonthAbbreviations.Length; i++)
+            {
+                var monthAbbr = schoolYearMonthAbbreviations[i];
+                var monthNumber = schoolYearMonthNumbers[i];
+                incomeLabels.Add(monthAbbr);
+                
+                // Determine which year this month belongs to
+                // Months 6-12 (Jun-Dec) belong to startYear
+                // Months 1-3 (Jan-Mar) belong to endYear
+                int targetYearForMonth = monthNumber >= 6 ? startYear : endYear;
+                
+                // Get data for this month and year if it exists, otherwise use 0
+                var key = new { Year = targetYearForMonth, Month = monthNumber };
+                if (financialDataDict.TryGetValue(key, out var monthData))
+                {
+                    incomeCollections.Add((double)monthData.Collections);
+                    incomeExpenses.Add((double)monthData.Expenses);
+                }
+                else
+                {
+                    incomeCollections.Add(0);
+                    incomeExpenses.Add(0);
+                }
+            }
 
             var incomeDatasets = new object[]
             {
-                new { label = "Collections", data = incomeCollections, borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 },
-                new { label = "Expenses", data = incomeExpenses, borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 }
+                new { label = "Collections", data = incomeCollections.ToArray(), borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 },
+                new { label = "Expenses", data = incomeExpenses.ToArray(), borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 }
             };
 
+            // Get school year for label (already determined above)
+            var yearLabel = $"{startYear}-{endYear}";
+            
             await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart", 
                 "incomeChart", 
-                incomeLabels, 
+                incomeLabels.ToArray(), 
                 incomeDatasets, 
-                new { showLegend = true, isCurrency = true });
+                new { showLegend = true, isCurrency = true, minY = 400000, schoolYear = schoolYearLabel, year = yearLabel });
 
             // Prepare student type doughnut chart data
             var studentTypeLabels = new[] { "New", "Transferee", "Returnee" };

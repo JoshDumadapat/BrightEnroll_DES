@@ -33,10 +33,24 @@ window.dashboardCharts = {
                 },
                 scales: {
                     y: {
-                        beginAtZero: true,
+                        beginAtZero: options?.minY == null, // Only begin at zero if minY is not specified
+                        min: options?.minY ?? 0, // Start from 400K if specified, otherwise 0
+                        max: options?.minY != null ? 2000000 : undefined, // Max 2M when minY is set (for income chart)
                         ticks: {
+                            stepSize: options?.minY != null ? 400000 : undefined, // 400K increments when minY is set
                             callback: function (value) {
                                 if (options?.isCurrency) {
+                                    // Format large numbers with K and M suffixes
+                                    if (value >= 1000000) {
+                                        const millions = value / 1000000;
+                                        // Show whole numbers without decimal (e.g., 2M instead of 2.0M)
+                                        if (millions % 1 === 0) {
+                                            return '₱' + millions.toFixed(0) + 'M';
+                                        }
+                                        return '₱' + millions.toFixed(1) + 'M';
+                                    } else if (value >= 1000) {
+                                        return '₱' + (value / 1000).toFixed(0) + 'K';
+                                    }
                                     return '₱' + value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
                                 }
                                 return value.toLocaleString();
@@ -77,11 +91,25 @@ window.dashboardCharts = {
 
             const mergedOptions = { ...defaultOptions, ...(options || {}) };
 
+            // Ensure datasets have proper structure for Chart.js
+            const formattedDatasets = (datasets || []).map(ds => ({
+                label: ds.label || '',
+                data: ds.data || [],
+                borderColor: ds.borderColor || '#3b82f6',
+                backgroundColor: ds.backgroundColor || 'rgba(59, 130, 246, 0.1)',
+                tension: ds.tension !== undefined ? ds.tension : 0.4,
+                fill: ds.fill !== undefined ? ds.fill : false,
+                pointRadius: ds.pointRadius !== undefined ? ds.pointRadius : 4,
+                pointHoverRadius: ds.pointHoverRadius !== undefined ? ds.pointHoverRadius : 6,
+                borderWidth: ds.borderWidth !== undefined ? ds.borderWidth : 2,
+                showLine: true // Explicitly enable line rendering
+            }));
+
             this.charts[canvasId] = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels || [],
-                    datasets: datasets || []
+                    datasets: formattedDatasets
                 },
                 options: mergedOptions
             });

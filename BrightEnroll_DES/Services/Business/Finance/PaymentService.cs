@@ -9,12 +9,14 @@ public class PaymentService
 {
     private readonly AppDbContext _context;
     private readonly FeeService _feeService;
+    private readonly JournalEntryService _journalEntryService;
     private readonly ILogger<PaymentService>? _logger;
 
-    public PaymentService(AppDbContext context, FeeService feeService, ILogger<PaymentService>? logger = null)
+    public PaymentService(AppDbContext context, FeeService feeService, JournalEntryService journalEntryService, ILogger<PaymentService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _feeService = feeService ?? throw new ArgumentNullException(nameof(feeService));
+        _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
         _logger = logger;
     }
 
@@ -191,6 +193,27 @@ public class PaymentService
             }
 
             await _context.SaveChangesAsync();
+
+            // Create journal entry for double-entry bookkeeping
+            try
+            {
+                // Get user ID if processedBy is provided
+                int? createdBy = null;
+                if (!string.IsNullOrWhiteSpace(processedBy))
+                {
+                    var user = await _context.Users
+                        .FirstOrDefaultAsync(u => u.Email == processedBy || u.SystemId == processedBy);
+                    createdBy = user?.UserId;
+                }
+
+                await _journalEntryService.CreatePaymentJournalEntryAsync(payment, createdBy);
+                _logger?.LogInformation("Journal entry created for payment {PaymentId}", payment.PaymentId);
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail the payment if journal entry creation fails
+                _logger?.LogWarning(ex, "Failed to create journal entry for payment {PaymentId}: {Message}", payment.PaymentId, ex.Message);
+            }
 
             _logger?.LogInformation("Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}", 
                 studentId, paymentAmount, paymentMethod, orNumber);

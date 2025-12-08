@@ -9,9 +9,11 @@
 @using BrightEnroll_DES.Data.Models
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
 @inject AppDbContext DbContext
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Services.Business.HR.SalaryChangeRequestService SalaryChangeRequestService
+@inject ILogger<Payroll> Logger
 
 <PageTitle>Payroll</PageTitle>
 
@@ -565,6 +567,7 @@
         try
         {
             // Fetch ALL roles from database (both active and inactive)
+            // Ensure we're on the UI thread for DbContext operations
             var roles = await DbContext.Roles
                 .OrderBy(r => r.RoleName)
                 .ToListAsync();
@@ -590,6 +593,45 @@
             }
             
             StateHasChanged();
+        }
+        catch (InvalidOperationException dbEx) when (dbEx.Message.Contains("Connection") || dbEx.Message.Contains("context"))
+        {
+            // DbContext concurrency issue - retry once after a short delay
+            await Task.Delay(200);
+            try
+            {
+                var roles = await DbContext.Roles
+                    .OrderBy(r => r.RoleName)
+                    .ToListAsync();
+
+                payrollData = roles.Select(role =>
+                {
+                    var data = new PayrollRoleData
+                    {
+                        Role = role.RoleName,
+                        BaseSalary = role.BaseSalary,
+                        Allowance = role.Allowance,
+                        ThresholdPercentage = role.ThresholdPercentage,
+                        IsActive = role.IsActive
+                    };
+                    data.Recalculate();
+                    return data;
+                }).ToList();
+
+                if (!payrollData.Any())
+                {
+                    payrollData = new List<PayrollRoleData>();
+                }
+                
+                StateHasChanged();
+            }
+            catch (Exception retryEx)
+            {
+                // Log and show empty list on retry failure
+                Logger?.LogWarning(retryEx, "Error loading payroll data on retry");
+                payrollData = new List<PayrollRoleData>();
+                StateHasChanged();
+            }
         }
         catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 207) // Invalid column name
         {
@@ -683,7 +725,8 @@
             }
         }
         
-        selectedRole = updatedData.Role;
+        // Do NOT set selectedRole here - status toggle should not trigger calculation display
+        // Only row clicks (other columns) should trigger calculation display
         StateHasChanged();
     }
 

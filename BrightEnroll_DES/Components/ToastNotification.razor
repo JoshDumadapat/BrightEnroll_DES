@@ -146,49 +146,83 @@
 
     private System.Threading.Timer? _timer;
     private bool isClosing = false;
+    private bool _previousShowState = false;
 
     protected override void OnParametersSet()
     {
-        // Loading toasts should not auto-close (Duration <= 0 means no auto-close)
-        if (Show && Duration > 0 && Type != ToastType.Loading)
+        // Only start timer when Show changes from false to true
+        if (Show && !_previousShowState && !isClosing)
         {
+            _previousShowState = true;
+            StartTimer();
+        }
+        else if (!Show)
+        {
+            _previousShowState = false;
             isClosing = false;
-            _timer?.Dispose();
+            StopTimer();
+        }
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Start timer after first render if Show is true
+        if (firstRender && Show && !isClosing)
+        {
+            StartTimer();
+        }
+        return Task.CompletedTask;
+    }
+
+    private void StartTimer()
+    {
+        // Loading toasts should not auto-close (Duration <= 0 means no auto-close)
+        if (Duration > 0 && Type != ToastType.Loading)
+        {
+            StopTimer();
             _timer = new System.Threading.Timer(async _ =>
             {
                 await InvokeAsync(async () =>
                 {
-                    await Close();
+                    if (Show && !isClosing)
+                    {
+                        await Close();
+                    }
                 });
             }, null, Duration, Timeout.Infinite);
         }
-        else if (!Show)
-        {
-            _timer?.Dispose();
-            _timer = null;
-            isClosing = false;
-        }
+    }
+
+    private void StopTimer()
+    {
+        _timer?.Dispose();
+        _timer = null;
     }
 
     private async Task Close()
     {
+        if (isClosing) return; // Prevent multiple close calls
+        
         isClosing = true;
+        StopTimer();
         StateHasChanged();
         
         // Wait for slide-out animation
         await Task.Delay(300);
         
-        _timer?.Dispose();
-        _timer = null;
-        Show = false;
         isClosing = false;
-        await OnClose.InvokeAsync();
-        StateHasChanged();
+        _previousShowState = false;
+        
+        // Call OnClose callback to update parent state - this is critical!
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
     }
 
     public void Dispose()
     {
-        _timer?.Dispose();
+        StopTimer();
     }
 }
 

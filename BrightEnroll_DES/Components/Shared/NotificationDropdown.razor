@@ -1,0 +1,391 @@
+@namespace BrightEnroll_DES.Components.Shared
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.Business.Notifications
+@using System.Linq
+@implements IDisposable
+@inject NotificationService NotificationService
+@inject NavigationManager Navigation
+
+<div class="relative">
+    @if (isOpen)
+    {
+        <div class="fixed inset-0 z-[98]" @onclick="CloseDropdown"></div>
+    }
+    
+    <div class="relative">
+        @if (isOpen)
+        {
+            <div class="absolute right-0 top-full mt-2 w-96 rounded-lg border border-gray-300 bg-white shadow-xl z-[100]" @onclick:stopPropagation="true">
+                <!-- Header -->
+                <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 bg-gray-50 rounded-t-lg">
+                    <h3 class="text-sm font-semibold text-gray-800">Notifications</h3>
+                    <div class="flex items-center gap-2">
+                        @if (unreadCount > 0 && hasDataLoaded && !isLoading)
+                        {
+                            <button @onclick="MarkAllAsRead" 
+                                    class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                Mark all read
+                            </button>
+                        }
+                        <button @onclick="CloseDropdown" class="text-gray-400 hover:text-gray-600">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notifications List -->
+                <div class="max-h-96 overflow-y-auto">
+                    @if (isLoading || !hasDataLoaded)
+                    {
+                        <!-- ALWAYS show loading when loading or before data loads - NO GLITCHES -->
+                        <div class="px-4 py-8 text-center">
+                            <svg class="animate-spin mx-auto h-8 w-8 text-blue-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-500">Loading notifications...</p>
+                        </div>
+                    }
+                    else if (hasDataLoaded && !isLoading)
+                    {
+                        @if (HasNotifications)
+                        {
+                            <!-- Show data when loaded and has notifications -->
+                            @foreach (var notification in notifications)
+                            {
+                                string bgColor = notification.IsRead ? "bg-white" : 
+                                    notification.NotificationType == "Expense" ? "bg-orange-50" : "bg-blue-50";
+                                
+                                string indicatorColor = notification.IsRead ? "" : 
+                                    notification.NotificationType == "Expense" ? "bg-orange-500" : "bg-blue-600";
+                                
+                                <div class="border-b border-gray-100 hover:bg-gray-50 transition-colors @bgColor">
+                                    <button @onclick="() => HandleNotificationClick(notification)" 
+                                            class="w-full text-left px-4 py-3">
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex-shrink-0 mt-0.5">
+                                                @if (!string.IsNullOrEmpty(indicatorColor))
+                                                {
+                                                    <div class="h-2 w-2 rounded-full @indicatorColor"></div>
+                                                }
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <p class="text-sm font-medium text-gray-900 @(notification.IsRead ? "" : "font-semibold")">
+                                                    @notification.Title
+                                                </p>
+                                                @if (!string.IsNullOrWhiteSpace(notification.Message))
+                                                {
+                                                    <p class="mt-1 text-xs text-gray-600 line-clamp-2">
+                                                        @notification.Message
+                                                    </p>
+                                                }
+                                                <p class="mt-1 text-xs text-gray-400">
+                                                    @GetTimeAgo(notification.CreatedAt)
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <!-- Show placeholder when loaded but no notifications -->
+                            <div class="px-4 py-8 text-center">
+                                <svg class="mx-auto h-12 w-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                                <p class="text-sm text-gray-500">No notifications</p>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <!-- Footer -->
+                @if (hasDataLoaded && !isLoading && HasNotifications)
+                {
+                    <div class="border-t border-gray-200 px-4 py-2 bg-gray-50 rounded-b-lg">
+                        <button @onclick="ViewAllNotifications" 
+                                class="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-800">
+                            View All Notifications
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool isOpen { get; set; }
+    [Parameter] public EventCallback<bool> isOpenChanged { get; set; }
+    [Parameter] public int unreadCount { get; set; }
+    [Parameter] public EventCallback OnNotificationRead { get; set; }
+
+    private List<Notification> notifications = new();
+    private bool isLoading = true; // ALWAYS start with loading true
+    private bool hasDataLoaded = false; // Track if data has been successfully loaded
+    
+    // Helper property to check if we have data
+    private bool HasNotifications => notifications != null && notifications.Count > 0;
+    private bool _wasOpen = false;
+    private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+    private bool _isDisposed = false;
+    private readonly SemaphoreSlim _loadSemaphore = new SemaphoreSlim(1, 1);
+    private bool _isLoadingInProgress = false; // Prevent concurrent loads
+
+    protected override Task OnInitializedAsync()
+    {
+        _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+        
+        // Background refresh only when dropdown is open and data is loaded
+        _ = Task.Run(async () =>
+        {
+            while (!_cancellationTokenSource.Token.IsCancellationRequested && !_isDisposed)
+            {
+                await Task.Delay(3000, _cancellationTokenSource.Token);
+                
+                if (isOpen && hasDataLoaded && !isLoading && !_isLoadingInProgress && !_isDisposed)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!_isDisposed && isOpen && hasDataLoaded && !isLoading && !_isLoadingInProgress)
+                        {
+                            await LoadNotificationsInternal(silent: true);
+                        }
+                    });
+                }
+            }
+        }, _cancellationTokenSource.Token);
+        
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        // When dropdown opens - ALWAYS reset and show loading
+        if (isOpen && !_wasOpen)
+        {
+            _wasOpen = true;
+            ResetAndLoad();
+        }
+        else if (!isOpen && _wasOpen)
+        {
+            _wasOpen = false;
+            // Reset state when dropdown closes
+            isLoading = true;
+            hasDataLoaded = false;
+            notifications.Clear();
+        }
+        // CRITICAL: If dropdown is open but not loading and no data loaded, reset and load
+        else if (isOpen && (!isLoading || !hasDataLoaded))
+        {
+            // This handles navigation cases where state might be stale
+            ResetAndLoad();
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    private void ResetAndLoad()
+    {
+        // CRITICAL: ALWAYS reset state synchronously
+        isLoading = true;
+        hasDataLoaded = false;
+        notifications.Clear();
+        
+        // Force immediate synchronous UI update to show loading
+        StateHasChanged();
+        
+        // Load data asynchronously
+        _ = Task.Run(async () =>
+        {
+            await Task.Yield(); // Yield to allow UI thread to render loading state
+            await InvokeAsync(async () =>
+            {
+                if (!_isDisposed && isOpen)
+                {
+                    await LoadNotificationsInternal(silent: false);
+                }
+            });
+        });
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
+        
+        try
+        {
+            _loadSemaphore?.Dispose();
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task LoadNotificationsInternal(bool silent = false)
+    {
+        // Prevent concurrent loads
+        if (_isDisposed || _isLoadingInProgress)
+            return;
+
+        if (!await _loadSemaphore.WaitAsync(0))
+            return;
+
+        _isLoadingInProgress = true;
+        bool acquired = true;
+
+        try
+        {
+            if (_isDisposed)
+                return;
+
+            // Set loading state if not silent
+            if (!silent)
+            {
+                isLoading = true;
+                hasDataLoaded = false;
+                notifications.Clear(); // Clear any stale data
+                await InvokeAsync(StateHasChanged);
+            }
+
+            // Load notifications - optimized query
+            var allNotifications = await NotificationService.GetAllNotificationsAsync(limit: 5);
+            
+            if (!_isDisposed)
+            {
+                // Prepare data first
+                var notificationList = allNotifications?.ToList() ?? new List<Notification>();
+                
+                // CRITICAL: Set ALL state together atomically BEFORE StateHasChanged
+                // This prevents any glitch/flicker between states
+                notifications = notificationList;
+                hasDataLoaded = true;
+                isLoading = false;
+                
+                // Single StateHasChanged after all state is set
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception)
+        {
+            if (!_isDisposed)
+            {
+                // Set all state together atomically on error too
+                notifications = new List<Notification>();
+                hasDataLoaded = true;
+                isLoading = false;
+                
+                // Single StateHasChanged after all state is set
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            if (!_isDisposed)
+            {
+                // Only release semaphore, don't modify state here
+                // State is already set in try/catch blocks
+            }
+            
+            _isLoadingInProgress = false;
+            
+            if (acquired)
+            {
+                try
+                {
+                    if (_loadSemaphore != null && !_isDisposed)
+                    {
+                        _loadSemaphore.Release();
+                    }
+                }
+                catch (ObjectDisposedException) { }
+            }
+        }
+    }
+
+    // Legacy method name for compatibility
+    private Task LoadNotifications(bool silent = false) => LoadNotificationsInternal(silent);
+
+    private async Task HandleNotificationClick(Notification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(notification.NotificationId);
+            notification.IsRead = true;
+            unreadCount = Math.Max(0, unreadCount - 1);
+            
+            if (OnNotificationRead.HasDelegate)
+            {
+                await OnNotificationRead.InvokeAsync();
+            }
+        }
+
+        var actionUrl = !string.IsNullOrWhiteSpace(notification.ActionUrl) 
+            ? notification.ActionUrl 
+            : "/finance?tab=Approvals";
+
+        if (notification.NotificationType == "Expense" && actionUrl.Contains("tab=Approvals"))
+        {
+            actionUrl = "/finance?tab=Approvals&expense=true";
+        }
+
+        await CloseDropdown();
+        Navigation.NavigateTo(actionUrl, forceLoad: true);
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        await NotificationService.MarkAllAsReadAsync();
+        
+        foreach (var notification in notifications)
+        {
+            notification.IsRead = true;
+        }
+        
+        unreadCount = 0;
+        
+        if (OnNotificationRead.HasDelegate)
+        {
+            await OnNotificationRead.InvokeAsync();
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ViewAllNotifications()
+    {
+        await CloseDropdown();
+        Navigation.NavigateTo("/notifications");
+    }
+
+    private async Task CloseDropdown()
+    {
+        isOpen = false;
+        await isOpenChanged.InvokeAsync(false);
+        
+        if (OnNotificationRead.HasDelegate)
+        {
+            await OnNotificationRead.InvokeAsync();
+        }
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.Now - dateTime;
+        
+        if (timeSpan.TotalMinutes < 1)
+            return "Just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} minute{(timeSpan.TotalMinutes >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        
+        return dateTime.ToString("MMM dd, yyyy");
+    }
+}

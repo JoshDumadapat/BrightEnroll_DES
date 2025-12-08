@@ -32,6 +32,12 @@ public class AppDbContext : DbContext
     public DbSet<Expense> Expenses { get; set; }
     public DbSet<ExpenseAttachment> ExpenseAttachments { get; set; }
     public DbSet<StudentPayment> StudentPayments { get; set; }
+    
+    // Chart of Accounts and Double-Entry Bookkeeping
+    public DbSet<ChartOfAccount> ChartOfAccounts { get; set; }
+    public DbSet<JournalEntry> JournalEntries { get; set; }
+    public DbSet<JournalEntryLine> JournalEntryLines { get; set; }
+    public DbSet<AccountingPeriod> AccountingPeriods { get; set; }
 
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
@@ -41,6 +47,9 @@ public class AppDbContext : DbContext
     
     // Audit logging
     public DbSet<AuditLog> AuditLogs { get; set; }
+
+    // Notifications
+    public DbSet<Notification> Notifications { get; set; }
 
     // Curriculum tables
     public DbSet<Classroom> Classrooms { get; set; }
@@ -57,6 +66,7 @@ public class AppDbContext : DbContext
     public DbSet<Deduction> Deductions { get; set; }
     public DbSet<SalaryChangeRequest> SalaryChangeRequests { get; set; }
     public DbSet<PayrollTransaction> PayrollTransactions { get; set; }
+    public DbSet<TimeRecord> TimeRecords { get; set; }
 
     // Inventory & Asset Management tables
     public DbSet<Asset> Assets { get; set; }
@@ -285,6 +295,76 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_FeeBreakdown");
             entity.HasIndex(e => e.FeeId);
             entity.HasIndex(e => e.BreakdownType);
+        });
+
+        // Configure Chart of Accounts entities
+        modelBuilder.Entity<ChartOfAccount>(entity =>
+        {
+            entity.HasKey(e => e.AccountId);
+            entity.ToTable("tbl_ChartOfAccounts");
+            entity.HasIndex(e => e.AccountCode).IsUnique();
+            entity.HasIndex(e => e.AccountType);
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.ParentAccountId);
+
+            entity.HasOne(a => a.ParentAccount)
+                  .WithMany(a => a.ChildAccounts)
+                  .HasForeignKey(a => a.ParentAccountId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<JournalEntry>(entity =>
+        {
+            entity.HasKey(e => e.JournalEntryId);
+            entity.ToTable("tbl_JournalEntries");
+            entity.HasIndex(e => e.EntryNumber).IsUnique();
+            entity.HasIndex(e => e.EntryDate);
+            entity.HasIndex(e => e.ReferenceType);
+            entity.HasIndex(e => e.ReferenceId);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedBy)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.ApprovedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.ApprovedBy)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(e => e.JournalEntryLines)
+                  .WithOne(l => l.JournalEntry)
+                  .HasForeignKey(l => l.JournalEntryId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<JournalEntryLine>(entity =>
+        {
+            entity.HasKey(e => e.LineId);
+            entity.ToTable("tbl_JournalEntryLines");
+            entity.HasIndex(e => e.JournalEntryId);
+            entity.HasIndex(e => e.AccountId);
+
+            entity.HasOne(l => l.Account)
+                  .WithMany(a => a.JournalEntryLines)
+                  .HasForeignKey(l => l.AccountId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AccountingPeriod>(entity =>
+        {
+            entity.HasKey(e => e.PeriodId);
+            entity.ToTable("tbl_AccountingPeriods");
+            entity.HasIndex(e => new { e.PeriodYear, e.PeriodMonth }).IsUnique();
+            entity.HasIndex(e => e.IsClosed);
+            entity.HasIndex(e => e.StartDate);
+            entity.HasIndex(e => e.EndDate);
+
+            entity.HasOne(p => p.ClosedByUser)
+                  .WithMany()
+                  .HasForeignKey(p => p.ClosedBy)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Expense>(entity =>
@@ -669,6 +749,20 @@ public class AppDbContext : DbContext
                   .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<TimeRecord>(entity =>
+        {
+            entity.HasKey(e => e.TimeRecordId);
+            entity.ToTable("tbl_TimeRecords");
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Period);
+            entity.HasIndex(e => new { e.UserId, e.Period }).IsUnique();
+
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PayrollTransaction>(entity =>
         {
             entity.HasKey(e => e.TransactionId);
@@ -729,6 +823,22 @@ public class AppDbContext : DbContext
         });
 
         // Configure Audit Log entity
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.HasKey(e => e.NotificationId);
+            entity.ToTable("tbl_Notifications");
+            entity.HasIndex(e => e.IsRead);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.NotificationType);
+            entity.HasIndex(e => e.ReferenceType);
+            entity.HasIndex(e => e.ReferenceId);
+
+            entity.HasOne(e => e.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(e => e.CreatedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
+        });
+
         modelBuilder.Entity<AuditLog>(entity =>
         {
             entity.HasKey(e => e.LogId);

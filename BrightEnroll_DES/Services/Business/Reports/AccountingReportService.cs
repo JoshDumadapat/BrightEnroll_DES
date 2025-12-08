@@ -124,27 +124,85 @@ public class AccountingReportService
 
     public async Task<IncomeStatement> GetIncomeStatementAsync(DateTime fromDate, DateTime toDate)
     {
-        // Revenue from student payments
-        var revenue = await _context.StudentPayments
-            .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
-            .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+        // Try to get revenue from General Ledger (Journal Entries) - ERP approach
+        // Fallback to direct payments if no journal entries exist yet
+        var revenueFromLedger = await _context.JournalEntryLines
+            .Include(l => l.Account)
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry.EntryDate >= fromDate && 
+                       l.JournalEntry.EntryDate <= toDate &&
+                       l.JournalEntry.Status == "Posted" &&
+                       l.Account.AccountType == "Revenue" &&
+                       l.CreditAmount > 0)
+            .SumAsync(l => (decimal?)l.CreditAmount) ?? 0m;
 
-        // Expenses (only approved)
-        var expenses = await _context.Expenses
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
-            .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+        // If no journal entries exist, use direct payments (backward compatibility)
+        decimal revenue = revenueFromLedger;
+        if (revenueFromLedger == 0)
+        {
+            revenue = await _context.StudentPayments
+                .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+        }
 
-        // Expenses by category
-        var expensesByCategory = await _context.Expenses
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
-            .GroupBy(e => e.Category ?? "Uncategorized")
+        // Try to get expenses from General Ledger (Journal Entries) - ERP approach
+        // Fallback to direct expenses if no journal entries exist yet
+        var expensesFromLedger = await _context.JournalEntryLines
+            .Include(l => l.Account)
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry.EntryDate >= fromDate && 
+                       l.JournalEntry.EntryDate <= toDate &&
+                       l.JournalEntry.Status == "Posted" &&
+                       l.Account.AccountType == "Expense" &&
+                       l.DebitAmount > 0)
+            .SumAsync(l => (decimal?)l.DebitAmount) ?? 0m;
+
+        // If no journal entries exist, use direct expenses (backward compatibility)
+        decimal expenses = expensesFromLedger;
+        if (expensesFromLedger == 0)
+        {
+            expenses = await _context.Expenses
+                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+        }
+
+        // Expenses by category - Try from General Ledger first, fallback to Expenses table
+        List<ExpenseCategorySummary> expensesByCategory;
+        
+        var expensesByAccount = await _context.JournalEntryLines
+            .Include(l => l.Account)
+            .Include(l => l.JournalEntry)
+            .Where(l => l.JournalEntry.EntryDate >= fromDate && 
+                       l.JournalEntry.EntryDate <= toDate &&
+                       l.JournalEntry.Status == "Posted" &&
+                       l.Account.AccountType == "Expense" &&
+                       l.DebitAmount > 0)
+            .GroupBy(l => l.Account.AccountName)
             .Select(g => new ExpenseCategorySummary
             {
                 Category = g.Key,
-                Amount = g.Sum(e => e.Amount)
+                Amount = g.Sum(l => l.DebitAmount)
             })
-            .OrderByDescending(e => e.Amount)
             .ToListAsync();
+
+        if (expensesByAccount.Any())
+        {
+            expensesByCategory = expensesByAccount.OrderByDescending(e => e.Amount).ToList();
+        }
+        else
+        {
+            // Fallback to direct expenses table
+            expensesByCategory = await _context.Expenses
+                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                .GroupBy(e => e.Category ?? "Uncategorized")
+                .Select(g => new ExpenseCategorySummary
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(e => e.Amount)
+                })
+                .OrderByDescending(e => e.Amount)
+                .ToListAsync();
+        }
 
         var netIncome = revenue - expenses;
 
@@ -204,20 +262,46 @@ public class AccountingReportService
 
     public async Task<ExpenseAnalysisReport> GetExpenseAnalysisAsync(DateTime? fromDate = null, DateTime? toDate = null)
     {
-        var query = _context.Expenses.AsQueryable();
+        var expenseQuery = _context.Expenses.AsQueryable();
 
         if (fromDate.HasValue)
-            query = query.Where(e => e.ExpenseDate >= fromDate.Value);
+            expenseQuery = expenseQuery.Where(e => e.ExpenseDate >= fromDate.Value);
 
         if (toDate.HasValue)
-            query = query.Where(e => e.ExpenseDate <= toDate.Value);
+            expenseQuery = expenseQuery.Where(e => e.ExpenseDate <= toDate.Value);
 
-        var expenses = await query.ToListAsync();
+        var expenses = await expenseQuery.ToListAsync();
 
-        // Group by category
-        var byCategory = expenses
+        // Get payroll transactions (treated as expenses)
+        var payrollQuery = _context.PayrollTransactions.AsQueryable();
+        
+        if (fromDate.HasValue)
+            payrollQuery = payrollQuery.Where(pt => (pt.PaymentDate ?? pt.CreatedAt) >= fromDate.Value);
+        
+        if (toDate.HasValue)
+            payrollQuery = payrollQuery.Where(pt => (pt.PaymentDate ?? pt.CreatedAt) <= toDate.Value);
+
+        var payrollTransactions = await payrollQuery
+            .Where(pt => pt.Status == "Paid")
+            .ToListAsync();
+
+        // Combine expenses and payroll for category grouping
+        var allExpenses = expenses
             .Where(e => e.Status == "Approved")
-            .GroupBy(e => e.Category ?? "Uncategorized")
+            .Select(e => new { Category = e.Category ?? "Uncategorized", Amount = e.Amount })
+            .ToList();
+
+        // Add payroll as "Payroll" category
+        // Use GrossSalary + TotalDeductions to match Income Statement (total company expense)
+        var payrollExpenses = payrollTransactions
+            .Select(pt => new { Category = "Payroll", Amount = pt.GrossSalary + pt.TotalDeductions })
+            .ToList();
+
+        var combinedExpenses = allExpenses.Concat(payrollExpenses).ToList();
+
+        // Group by category (including Payroll)
+        var byCategory = combinedExpenses
+            .GroupBy(e => e.Category)
             .Select(g => new ExpenseCategorySummary
             {
                 Category = g.Key,
@@ -227,8 +311,8 @@ public class AccountingReportService
             .OrderByDescending(e => e.Amount)
             .ToList();
 
-        // Group by status
-        var byStatus = expenses
+        // Group by status (expenses only, payroll is always "Paid")
+        var expenseStatusGroups = expenses
             .GroupBy(e => e.Status ?? "Pending")
             .Select(g => new ExpenseStatusSummary
             {
@@ -236,11 +320,26 @@ public class AccountingReportService
                 Amount = g.Sum(e => e.Amount),
                 Count = g.Count()
             })
+            .ToList();
+
+        // Add payroll status summary
+        // Use GrossSalary + TotalDeductions to match Income Statement (total company expense)
+        if (payrollTransactions.Any())
+        {
+            expenseStatusGroups.Add(new ExpenseStatusSummary
+            {
+                Status = "Payroll (Paid)",
+                Amount = payrollTransactions.Sum(pt => pt.GrossSalary + pt.TotalDeductions),
+                Count = payrollTransactions.Count
+            });
+        }
+
+        var byStatus = expenseStatusGroups
             .OrderByDescending(e => e.Amount)
             .ToList();
 
-        // Group by payment method
-        var byPaymentMethod = expenses
+        // Group by payment method (expenses only, payroll uses "Payroll" method)
+        var expensePaymentMethods = expenses
             .Where(e => e.Status == "Approved")
             .GroupBy(e => e.PaymentMethod ?? "Cash")
             .Select(g => new ExpensePaymentMethodSummary
@@ -249,11 +348,26 @@ public class AccountingReportService
                 Amount = g.Sum(e => e.Amount),
                 Count = g.Count()
             })
+            .ToList();
+
+        // Add payroll payment method
+        // Use GrossSalary + TotalDeductions to match Income Statement (total company expense)
+        if (payrollTransactions.Any())
+        {
+            expensePaymentMethods.Add(new ExpensePaymentMethodSummary
+            {
+                PaymentMethod = "Payroll",
+                Amount = payrollTransactions.Sum(pt => pt.GrossSalary + pt.TotalDeductions),
+                Count = payrollTransactions.Count
+            });
+        }
+
+        var byPaymentMethod = expensePaymentMethods
             .OrderByDescending(e => e.Amount)
             .ToList();
 
-        // Monthly trends
-        var monthlyTrends = expenses
+        // Monthly trends (combine expenses and payroll)
+        var expenseMonthlyTrends = expenses
             .Where(e => e.Status == "Approved")
             .GroupBy(e => new { Year = e.ExpenseDate.Year, Month = e.ExpenseDate.Month })
             .Select(g => new ExpenseMonthlyTrend
@@ -264,18 +378,51 @@ public class AccountingReportService
                 Amount = g.Sum(e => e.Amount),
                 Count = g.Count()
             })
+            .ToList();
+
+        var payrollMonthlyTrends = payrollTransactions
+            .GroupBy(pt => new { 
+                Year = (pt.PaymentDate ?? pt.CreatedAt).Year, 
+                Month = (pt.PaymentDate ?? pt.CreatedAt).Month 
+            })
+            .Select(g => new ExpenseMonthlyTrend
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                Amount = g.Sum(pt => pt.GrossSalary + pt.TotalDeductions), // Total company expense
+                Count = g.Count()
+            })
+            .ToList();
+
+        // Combine and merge monthly trends
+        var monthlyTrendsDict = expenseMonthlyTrends
+            .Concat(payrollMonthlyTrends)
+            .GroupBy(t => new { t.Year, t.Month })
+            .Select(g => new ExpenseMonthlyTrend
+            {
+                Year = g.Key.Year,
+                Month = g.Key.Month,
+                MonthName = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                Amount = g.Sum(t => t.Amount),
+                Count = g.Sum(t => t.Count)
+            })
             .OrderBy(e => e.Year)
             .ThenBy(e => e.Month)
             .ToList();
 
+        var totalExpenses = expenses.Where(e => e.Status == "Approved").Sum(e => e.Amount);
+        // Use GrossSalary + TotalDeductions to match Income Statement (total company expense)
+        var totalPayroll = payrollTransactions.Sum(pt => pt.GrossSalary + pt.TotalDeductions);
+
         return new ExpenseAnalysisReport
         {
-            TotalExpenses = expenses.Where(e => e.Status == "Approved").Sum(e => e.Amount),
-            TotalCount = expenses.Count,
+            TotalExpenses = totalExpenses + totalPayroll, // Include payroll in total
+            TotalCount = expenses.Count + payrollTransactions.Count,
             ByCategory = byCategory,
             ByStatus = byStatus,
             ByPaymentMethod = byPaymentMethod,
-            MonthlyTrends = monthlyTrends
+            MonthlyTrends = monthlyTrendsDict
         };
     }
 
@@ -285,29 +432,104 @@ public class AccountingReportService
 
     public async Task<CashFlowReport> GetCashFlowReportAsync(DateTime fromDate, DateTime toDate)
     {
-        // Cash Inflows (from student payments)
-        var cashInflows = await _context.StudentPayments
-            .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
-            .GroupBy(p => p.PaymentMethod)
-            .Select(g => new CashFlowItem
-            {
-                Category = g.Key,
-                Amount = g.Sum(p => p.Amount),
-                Type = "Inflow"
-            })
-            .ToListAsync();
+        // Get Cash account (1000)
+        var cashAccount = await _context.ChartOfAccounts
+            .FirstOrDefaultAsync(a => a.AccountCode == "1000" && a.IsActive);
 
-        // Cash Outflows (from expenses)
-        var cashOutflows = await _context.Expenses
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
-            .GroupBy(e => e.PaymentMethod ?? "Cash")
-            .Select(g => new CashFlowItem
+        List<CashFlowItem> cashInflows;
+        List<CashFlowItem> cashOutflows;
+
+        // Try to get from General Ledger (Journal Entries) - ERP approach
+        if (cashAccount != null)
+        {
+            var cashInflowsFromLedger = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == cashAccount.AccountId &&
+                           l.JournalEntry.EntryDate >= fromDate &&
+                           l.JournalEntry.EntryDate <= toDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.DebitAmount > 0)
+                .GroupBy(l => l.JournalEntry.ReferenceType)
+                .Select(g => new CashFlowItem
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(l => l.DebitAmount),
+                    Type = "Inflow"
+                })
+                .ToListAsync();
+
+            var cashOutflowsFromLedger = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == cashAccount.AccountId &&
+                           l.JournalEntry.EntryDate >= fromDate &&
+                           l.JournalEntry.EntryDate <= toDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.CreditAmount > 0)
+                .GroupBy(l => l.JournalEntry.ReferenceType)
+                .Select(g => new CashFlowItem
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(l => l.CreditAmount),
+                    Type = "Outflow"
+                })
+                .ToListAsync();
+
+            if (cashInflowsFromLedger.Any() || cashOutflowsFromLedger.Any())
             {
-                Category = g.Key,
-                Amount = g.Sum(e => e.Amount),
-                Type = "Outflow"
-            })
-            .ToListAsync();
+                cashInflows = cashInflowsFromLedger;
+                cashOutflows = cashOutflowsFromLedger;
+            }
+            else
+            {
+                // Fallback to direct tables (backward compatibility)
+                cashInflows = await _context.StudentPayments
+                    .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                    .GroupBy(p => p.PaymentMethod)
+                    .Select(g => new CashFlowItem
+                    {
+                        Category = g.Key,
+                        Amount = g.Sum(p => p.Amount),
+                        Type = "Inflow"
+                    })
+                    .ToListAsync();
+
+                cashOutflows = await _context.Expenses
+                    .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                    .GroupBy(e => e.PaymentMethod ?? "Cash")
+                    .Select(g => new CashFlowItem
+                    {
+                        Category = g.Key,
+                        Amount = g.Sum(e => e.Amount),
+                        Type = "Outflow"
+                    })
+                    .ToListAsync();
+            }
+        }
+        else
+        {
+            // Fallback if Cash account doesn't exist yet
+            cashInflows = await _context.StudentPayments
+                .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                .GroupBy(p => p.PaymentMethod)
+                .Select(g => new CashFlowItem
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(p => p.Amount),
+                    Type = "Inflow"
+                })
+                .ToListAsync();
+
+            cashOutflows = await _context.Expenses
+                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                .GroupBy(e => e.PaymentMethod ?? "Cash")
+                .Select(g => new CashFlowItem
+                {
+                    Category = g.Key,
+                    Amount = g.Sum(e => e.Amount),
+                    Type = "Outflow"
+                })
+                .ToListAsync();
+        }
 
         var totalInflow = cashInflows.Sum(i => i.Amount);
         var totalOutflow = cashOutflows.Sum(o => o.Amount);
@@ -326,13 +548,53 @@ public class AccountingReportService
             var monthStart = new DateTime(month.Year, month.Month, 1);
             var monthEnd = monthStart.AddMonths(1).AddDays(-1);
 
-            var monthInflow = await _context.StudentPayments
-                .Where(p => p.CreatedAt >= monthStart && p.CreatedAt <= monthEnd)
-                .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+            // Try to get from General Ledger first
+            decimal monthInflow = 0;
+            decimal monthOutflow = 0;
 
-            var monthOutflow = await _context.Expenses
-                .Where(e => e.ExpenseDate >= monthStart && e.ExpenseDate <= monthEnd && e.Status == "Approved")
-                .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+            if (cashAccount != null)
+            {
+                monthInflow = await _context.JournalEntryLines
+                    .Include(l => l.JournalEntry)
+                    .Where(l => l.AccountId == cashAccount.AccountId &&
+                               l.JournalEntry.EntryDate >= monthStart &&
+                               l.JournalEntry.EntryDate <= monthEnd &&
+                               l.JournalEntry.Status == "Posted" &&
+                               l.DebitAmount > 0)
+                    .SumAsync(l => (decimal?)l.DebitAmount) ?? 0m;
+
+                monthOutflow = await _context.JournalEntryLines
+                    .Include(l => l.JournalEntry)
+                    .Where(l => l.AccountId == cashAccount.AccountId &&
+                               l.JournalEntry.EntryDate >= monthStart &&
+                               l.JournalEntry.EntryDate <= monthEnd &&
+                               l.JournalEntry.Status == "Posted" &&
+                               l.CreditAmount > 0)
+                    .SumAsync(l => (decimal?)l.CreditAmount) ?? 0m;
+
+                // Fallback if no journal entries
+                if (monthInflow == 0 && monthOutflow == 0)
+                {
+                    monthInflow = await _context.StudentPayments
+                        .Where(p => p.CreatedAt >= monthStart && p.CreatedAt <= monthEnd)
+                        .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+                    monthOutflow = await _context.Expenses
+                        .Where(e => e.ExpenseDate >= monthStart && e.ExpenseDate <= monthEnd && e.Status == "Approved")
+                        .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+                }
+            }
+            else
+            {
+                // Fallback if Cash account doesn't exist
+                monthInflow = await _context.StudentPayments
+                    .Where(p => p.CreatedAt >= monthStart && p.CreatedAt <= monthEnd)
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+                monthOutflow = await _context.Expenses
+                    .Where(e => e.ExpenseDate >= monthStart && e.ExpenseDate <= monthEnd && e.Status == "Approved")
+                    .SumAsync(e => (decimal?)e.Amount) ?? 0m;
+            }
 
             monthlyCashFlow.Add(new MonthlyCashFlow
             {
@@ -355,6 +617,182 @@ public class AccountingReportService
             NetCashFlow = netCashFlow,
             MonthlyBreakdown = monthlyCashFlow
         };
+    }
+
+    #endregion
+
+    #region Trial Balance Report
+
+    public async Task<TrialBalanceReport> GetTrialBalanceAsync(DateTime asOfDate)
+    {
+        // Get all active accounts
+        var accounts = await _context.ChartOfAccounts
+            .Where(a => a.IsActive)
+            .OrderBy(a => a.AccountCode)
+            .ToListAsync();
+
+        var trialBalanceItems = new List<TrialBalanceItem>();
+
+        foreach (var account in accounts)
+        {
+            // Calculate account balance from journal entries up to asOfDate
+            var debitTotal = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == account.AccountId &&
+                           l.JournalEntry.EntryDate <= asOfDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.DebitAmount > 0)
+                .SumAsync(l => (decimal?)l.DebitAmount) ?? 0m;
+
+            var creditTotal = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == account.AccountId &&
+                           l.JournalEntry.EntryDate <= asOfDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.CreditAmount > 0)
+                .SumAsync(l => (decimal?)l.CreditAmount) ?? 0m;
+
+            // Calculate balance based on normal balance
+            decimal balance = 0;
+            if (account.NormalBalance == "Debit")
+            {
+                // Assets, Expenses: Debit increases, Credit decreases
+                balance = debitTotal - creditTotal;
+            }
+            else
+            {
+                // Liabilities, Equity, Revenue: Credit increases, Debit decreases
+                balance = creditTotal - debitTotal;
+            }
+
+            // Only include accounts with activity or non-zero balance
+            if (debitTotal > 0 || creditTotal > 0 || balance != 0)
+            {
+                trialBalanceItems.Add(new TrialBalanceItem
+                {
+                    AccountCode = account.AccountCode,
+                    AccountName = account.AccountName,
+                    AccountType = account.AccountType,
+                    DebitTotal = debitTotal,
+                    CreditTotal = creditTotal,
+                    Balance = balance,
+                    NormalBalance = account.NormalBalance
+                });
+            }
+        }
+
+        var totalDebits = trialBalanceItems.Sum(t => t.DebitTotal);
+        var totalCredits = trialBalanceItems.Sum(t => t.CreditTotal);
+        var isBalanced = Math.Abs(totalDebits - totalCredits) < 0.01m;
+
+        return new TrialBalanceReport
+        {
+            AsOfDate = asOfDate,
+            Items = trialBalanceItems,
+            TotalDebits = totalDebits,
+            TotalCredits = totalCredits,
+            IsBalanced = isBalanced,
+            Difference = totalDebits - totalCredits
+        };
+    }
+
+    #endregion
+
+    #region Balance Sheet Report
+
+    public async Task<BalanceSheetReport> GetBalanceSheetAsync(DateTime asOfDate)
+    {
+        // Get all accounts grouped by type
+        var assets = await GetAccountBalancesByTypeAsync("Asset", asOfDate);
+        var liabilities = await GetAccountBalancesByTypeAsync("Liability", asOfDate);
+        var equity = await GetAccountBalancesByTypeAsync("Equity", asOfDate);
+
+        // Calculate totals
+        var totalAssets = assets.Sum(a => a.Balance);
+        var totalLiabilities = liabilities.Sum(l => l.Balance);
+        var totalEquity = equity.Sum(e => e.Balance);
+
+        // Calculate retained earnings (if not explicitly tracked, calculate from Income Statement)
+        var retainedEarningsAccount = equity.FirstOrDefault(e => e.AccountCode == "3100");
+        if (retainedEarningsAccount == null)
+        {
+            // Calculate from beginning of year to asOfDate
+            var yearStart = new DateTime(asOfDate.Year, 1, 1);
+            var incomeStatement = await GetIncomeStatementAsync(yearStart, asOfDate);
+            var netIncome = incomeStatement.NetIncome;
+
+            // Add to equity
+            equity.Add(new BalanceSheetAccount
+            {
+                AccountCode = "3100",
+                AccountName = "Retained Earnings",
+                Balance = netIncome
+            });
+            totalEquity += netIncome;
+        }
+
+        var isBalanced = Math.Abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01m;
+
+        return new BalanceSheetReport
+        {
+            AsOfDate = asOfDate,
+            Assets = assets,
+            Liabilities = liabilities,
+            Equity = equity,
+            TotalAssets = totalAssets,
+            TotalLiabilities = totalLiabilities,
+            TotalEquity = totalEquity,
+            IsBalanced = isBalanced,
+            Difference = totalAssets - (totalLiabilities + totalEquity)
+        };
+    }
+
+    private async Task<List<BalanceSheetAccount>> GetAccountBalancesByTypeAsync(string accountType, DateTime asOfDate)
+    {
+        var accounts = await _context.ChartOfAccounts
+            .Where(a => a.IsActive && a.AccountType == accountType)
+            .OrderBy(a => a.AccountCode)
+            .ToListAsync();
+
+        var balances = new List<BalanceSheetAccount>();
+
+        foreach (var account in accounts)
+        {
+            var debitTotal = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == account.AccountId &&
+                           l.JournalEntry.EntryDate <= asOfDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.DebitAmount > 0)
+                .SumAsync(l => (decimal?)l.DebitAmount) ?? 0m;
+
+            var creditTotal = await _context.JournalEntryLines
+                .Include(l => l.JournalEntry)
+                .Where(l => l.AccountId == account.AccountId &&
+                           l.JournalEntry.EntryDate <= asOfDate &&
+                           l.JournalEntry.Status == "Posted" &&
+                           l.CreditAmount > 0)
+                .SumAsync(l => (decimal?)l.CreditAmount) ?? 0m;
+
+            decimal balance = 0;
+            if (account.NormalBalance == "Debit")
+            {
+                balance = debitTotal - creditTotal;
+            }
+            else
+            {
+                balance = creditTotal - debitTotal;
+            }
+
+            balances.Add(new BalanceSheetAccount
+            {
+                AccountCode = account.AccountCode,
+                AccountName = account.AccountName,
+                Balance = balance
+            });
+        }
+
+        return balances;
     }
 
     #endregion
@@ -464,6 +902,47 @@ public class MonthlyCashFlow
     public decimal CashIn { get; set; }
     public decimal CashOut { get; set; }
     public decimal NetCashFlow { get; set; }
+}
+
+public class TrialBalanceReport
+{
+    public DateTime AsOfDate { get; set; }
+    public List<TrialBalanceItem> Items { get; set; } = new();
+    public decimal TotalDebits { get; set; }
+    public decimal TotalCredits { get; set; }
+    public bool IsBalanced { get; set; }
+    public decimal Difference { get; set; }
+}
+
+public class TrialBalanceItem
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string AccountType { get; set; } = string.Empty;
+    public decimal DebitTotal { get; set; }
+    public decimal CreditTotal { get; set; }
+    public decimal Balance { get; set; }
+    public string NormalBalance { get; set; } = string.Empty;
+}
+
+public class BalanceSheetReport
+{
+    public DateTime AsOfDate { get; set; }
+    public List<BalanceSheetAccount> Assets { get; set; } = new();
+    public List<BalanceSheetAccount> Liabilities { get; set; } = new();
+    public List<BalanceSheetAccount> Equity { get; set; } = new();
+    public decimal TotalAssets { get; set; }
+    public decimal TotalLiabilities { get; set; }
+    public decimal TotalEquity { get; set; }
+    public bool IsBalanced { get; set; }
+    public decimal Difference { get; set; }
+}
+
+public class BalanceSheetAccount
+{
+    public string AccountCode { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public decimal Balance { get; set; }
 }
 
 #endregion

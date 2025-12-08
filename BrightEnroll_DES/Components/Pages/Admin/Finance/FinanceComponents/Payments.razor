@@ -3,12 +3,14 @@
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Services.QuestPDF
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.Authentication
 @using Microsoft.Extensions.Logging
 @using System.Linq
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
 @inject FeeService FeeService
 @inject PaymentReceiptPdfGenerator PdfGenerator
+@inject IAuthService AuthService
 @inject ILogger<Payments> Logger
 
 <div class="text-gray-800 p-4 sm:p-6">
@@ -1038,12 +1040,16 @@
             // Generate OR number before processing payment
             string orNumber = GenerateOrNumber();
 
-            // Process payment through service (now includes OR number)
+            // Get current user name for audit trail
+            string processedBy = GetCurrentUserName();
+
+            // Process payment through service (now includes OR number and processedBy)
             var updatedInfo = await PaymentService.ProcessPaymentAsync(
                 PaymentData.StudentId,
                 PaymentData.NewPaymentAmount,
                 PaymentData.PaymentMethod,
-                orNumber
+                orNumber,
+                processedBy
             );
 
             // Update payment data with latest info
@@ -1072,7 +1078,7 @@
                 PreviousPaid = previousPaid,
                 TotalPaid = updatedInfo.AmountPaid,
                 Balance = updatedInfo.Balance,
-                ProcessedBy = "System Administrator" // You can get this from auth service if needed
+                ProcessedBy = processedBy
             };
 
             // Notify parent component
@@ -1229,5 +1235,23 @@
         public decimal TotalPaid { get; set; }
         public decimal Balance { get; set; }
         public string ProcessedBy { get; set; } = string.Empty;
+    }
+
+    private string GetCurrentUserName()
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null) return "System";
+
+        var nameParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(user.first_name))
+            nameParts.Add(user.first_name);
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        if (!string.IsNullOrWhiteSpace(user.last_name))
+            nameParts.Add(user.last_name);
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+
+        return nameParts.Any() ? string.Join(" ", nameParts) : (user.system_ID ?? "System");
     }
 }

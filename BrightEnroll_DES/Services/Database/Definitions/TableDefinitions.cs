@@ -41,11 +41,20 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetDeductionsTableDefinition(),
                 GetSalaryChangeRequestsTableDefinition(),
                 GetPayrollTransactionsTableDefinition(),
+                // Time Records table (must be after tbl_Users)
+                GetTimeRecordsTableDefinition(),
                 // Finance - expenses
                 GetExpensesTableDefinition(),
                 GetExpenseAttachmentsTableDefinition(),
                 // Finance - student payments (must be after tbl_Students)
                 GetStudentPaymentsTableDefinition(),
+                // Chart of Accounts and Double-Entry Bookkeeping (must be after tbl_Users)
+                GetChartOfAccountsTableDefinition(),
+                GetJournalEntriesTableDefinition(),
+                GetJournalEntryLinesTableDefinition(),
+                GetAccountingPeriodsTableDefinition(),
+                // Notifications table (must be after tbl_Users)
+                GetNotificationsTableDefinition(),
                 // Inventory & Asset Management tables
                 GetAssetsTableDefinition(),
                 GetInventoryItemsTableDefinition(),
@@ -994,7 +1003,9 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                             REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
                         CONSTRAINT FK_tbl_payroll_transactions_CancelledBy FOREIGN KEY ([cancelled_by]) 
                             REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
-                        CONSTRAINT CK_tbl_payroll_transactions_Status CHECK ([status] IN ('Pending', 'Paid', 'Cancelled'))
+                        CONSTRAINT CK_tbl_payroll_transactions_Status CHECK ([status] IN ('Pending', 'Pending Approval', 'Paid', 'Cancelled', 'Rejected'))
+                        -- Note: Unique constraint for user_id + pay_period is created as a filtered index (excludes cancelled records)
+                        -- See CreateIndexesScripts below for UQ_tbl_payroll_transactions_UserPayPeriod_ActiveOnly
                     )",
                 CreateIndexesScripts = new List<string>
                 {
@@ -1021,7 +1032,54 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_payroll_transactions_user_schoolyear_payperiod ON [dbo].[tbl_payroll_transactions]([user_id], [school_year], [pay_period])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_batch_timestamp' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
-                        CREATE INDEX IX_tbl_payroll_transactions_batch_timestamp ON [dbo].[tbl_payroll_transactions]([batch_timestamp])"
+                        CREATE INDEX IX_tbl_payroll_transactions_batch_timestamp ON [dbo].[tbl_payroll_transactions]([batch_timestamp])",
+                    @"
+                        -- Filtered unique index: allows multiple cancelled records but only one active record per user_id + pay_period
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'UQ_tbl_payroll_transactions_UserPayPeriod_ActiveOnly' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE UNIQUE NONCLUSTERED INDEX UQ_tbl_payroll_transactions_UserPayPeriod_ActiveOnly
+                        ON [dbo].[tbl_payroll_transactions]([user_id], [pay_period])
+                        WHERE [status] IN ('Pending', 'Pending Approval', 'Paid')"
+                }
+            };
+        }
+
+        // Creates tbl_TimeRecords table - tracks employee attendance/time records
+        // Must be created after tbl_Users (foreign key dependency)
+        public static TableDefinition GetTimeRecordsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_TimeRecords",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_TimeRecords](
+                        [time_record_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [user_id] INT NOT NULL,
+                        [period] VARCHAR(20) NOT NULL, -- e.g., '2025-01' for January 2025
+                        [time_in] VARCHAR(10) NULL, -- HH:mm format
+                        [time_out] VARCHAR(10) NULL, -- HH:mm format
+                        [regular_hours] DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                        [overtime_hours] DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+                        [leave_days] DECIMAL(4,1) NOT NULL DEFAULT 0.0,
+                        [late_minutes] INT NOT NULL DEFAULT 0,
+                        [total_days_absent] INT NOT NULL DEFAULT 0,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_TimeRecords_tbl_Users FOREIGN KEY ([user_id]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE CASCADE,
+                        CONSTRAINT UQ_tbl_TimeRecords_user_period UNIQUE ([user_id], [period])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TimeRecords_user_id' AND object_id = OBJECT_ID('dbo.tbl_TimeRecords'))
+                        CREATE INDEX IX_tbl_TimeRecords_user_id ON [dbo].[tbl_TimeRecords]([user_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TimeRecords_period' AND object_id = OBJECT_ID('dbo.tbl_TimeRecords'))
+                        CREATE INDEX IX_tbl_TimeRecords_period ON [dbo].[tbl_TimeRecords]([period])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TimeRecords_user_period' AND object_id = OBJECT_ID('dbo.tbl_TimeRecords'))
+                        CREATE INDEX IX_tbl_TimeRecords_user_period ON [dbo].[tbl_TimeRecords]([user_id], [period])"
                 }
             };
         }
@@ -1330,6 +1388,217 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_audit_logs_Module_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_audit_logs'))
                         CREATE INDEX IX_tbl_audit_logs_Module_Timestamp ON [dbo].[tbl_audit_logs]([module], [timestamp] DESC)"
+                }
+            };
+        }
+
+        // Creates tbl_ChartOfAccounts table - Foundation of double-entry bookkeeping
+        public static TableDefinition GetChartOfAccountsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_ChartOfAccounts",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_ChartOfAccounts](
+                        [account_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [account_code] VARCHAR(20) NOT NULL UNIQUE,
+                        [account_name] VARCHAR(200) NOT NULL,
+                        [account_type] VARCHAR(50) NOT NULL,
+                        [parent_account_id] INT NULL,
+                        [normal_balance] VARCHAR(10) NOT NULL DEFAULT 'Debit',
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [description] VARCHAR(500) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_ChartOfAccounts_Parent FOREIGN KEY ([parent_account_id]) 
+                            REFERENCES [dbo].[tbl_ChartOfAccounts]([account_id]) ON DELETE NO ACTION,
+                        CONSTRAINT CK_tbl_ChartOfAccounts_AccountType CHECK ([account_type] IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')),
+                        CONSTRAINT CK_tbl_ChartOfAccounts_NormalBalance CHECK ([normal_balance] IN ('Debit', 'Credit'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ChartOfAccounts_AccountCode' AND object_id = OBJECT_ID('dbo.tbl_ChartOfAccounts'))
+                        CREATE UNIQUE INDEX IX_tbl_ChartOfAccounts_AccountCode ON [dbo].[tbl_ChartOfAccounts]([account_code])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ChartOfAccounts_AccountType' AND object_id = OBJECT_ID('dbo.tbl_ChartOfAccounts'))
+                        CREATE INDEX IX_tbl_ChartOfAccounts_AccountType ON [dbo].[tbl_ChartOfAccounts]([account_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ChartOfAccounts_IsActive' AND object_id = OBJECT_ID('dbo.tbl_ChartOfAccounts'))
+                        CREATE INDEX IX_tbl_ChartOfAccounts_IsActive ON [dbo].[tbl_ChartOfAccounts]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ChartOfAccounts_ParentAccountId' AND object_id = OBJECT_ID('dbo.tbl_ChartOfAccounts'))
+                        CREATE INDEX IX_tbl_ChartOfAccounts_ParentAccountId ON [dbo].[tbl_ChartOfAccounts]([parent_account_id])"
+                }
+            };
+        }
+
+        // Creates tbl_JournalEntries table - Journal entry headers
+        public static TableDefinition GetJournalEntriesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_JournalEntries",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_JournalEntries](
+                        [journal_entry_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [entry_number] VARCHAR(50) NOT NULL UNIQUE,
+                        [entry_date] DATE NOT NULL,
+                        [description] VARCHAR(500) NULL,
+                        [reference_type] VARCHAR(50) NOT NULL,
+                        [reference_id] INT NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Posted',
+                        [created_by] INT NULL,
+                        [approved_by] INT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_JournalEntries_CreatedBy FOREIGN KEY ([created_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT FK_tbl_JournalEntries_ApprovedBy FOREIGN KEY ([approved_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT CK_tbl_JournalEntries_Status CHECK ([status] IN ('Draft', 'Posted', 'Reversed'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntries_EntryNumber' AND object_id = OBJECT_ID('dbo.tbl_JournalEntries'))
+                        CREATE UNIQUE INDEX IX_tbl_JournalEntries_EntryNumber ON [dbo].[tbl_JournalEntries]([entry_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntries_EntryDate' AND object_id = OBJECT_ID('dbo.tbl_JournalEntries'))
+                        CREATE INDEX IX_tbl_JournalEntries_EntryDate ON [dbo].[tbl_JournalEntries]([entry_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntries_ReferenceType' AND object_id = OBJECT_ID('dbo.tbl_JournalEntries'))
+                        CREATE INDEX IX_tbl_JournalEntries_ReferenceType ON [dbo].[tbl_JournalEntries]([reference_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntries_ReferenceId' AND object_id = OBJECT_ID('dbo.tbl_JournalEntries'))
+                        CREATE INDEX IX_tbl_JournalEntries_ReferenceId ON [dbo].[tbl_JournalEntries]([reference_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntries_Status' AND object_id = OBJECT_ID('dbo.tbl_JournalEntries'))
+                        CREATE INDEX IX_tbl_JournalEntries_Status ON [dbo].[tbl_JournalEntries]([status])"
+                }
+            };
+        }
+
+        // Creates tbl_JournalEntryLines table - Individual debit/credit entries
+        public static TableDefinition GetJournalEntryLinesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_JournalEntryLines",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_JournalEntryLines](
+                        [line_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [journal_entry_id] INT NOT NULL,
+                        [account_id] INT NOT NULL,
+                        [line_number] INT NOT NULL,
+                        [debit_amount] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [credit_amount] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+                        [description] VARCHAR(500) NULL,
+                        CONSTRAINT FK_tbl_JournalEntryLines_JournalEntry FOREIGN KEY ([journal_entry_id]) 
+                            REFERENCES [dbo].[tbl_JournalEntries]([journal_entry_id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_JournalEntryLines_Account FOREIGN KEY ([account_id]) 
+                            REFERENCES [dbo].[tbl_ChartOfAccounts]([account_id]) ON DELETE NO ACTION
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntryLines_JournalEntryId' AND object_id = OBJECT_ID('dbo.tbl_JournalEntryLines'))
+                        CREATE INDEX IX_tbl_JournalEntryLines_JournalEntryId ON [dbo].[tbl_JournalEntryLines]([journal_entry_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_JournalEntryLines_AccountId' AND object_id = OBJECT_ID('dbo.tbl_JournalEntryLines'))
+                        CREATE INDEX IX_tbl_JournalEntryLines_AccountId ON [dbo].[tbl_JournalEntryLines]([account_id])"
+                }
+            };
+        }
+
+        // Creates tbl_AccountingPeriods table - Period closing management
+        public static TableDefinition GetAccountingPeriodsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_AccountingPeriods",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_AccountingPeriods](
+                        [period_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [period_year] INT NOT NULL,
+                        [period_month] INT NOT NULL,
+                        [period_name] VARCHAR(50) NOT NULL,
+                        [start_date] DATE NOT NULL,
+                        [end_date] DATE NOT NULL,
+                        [is_closed] BIT NOT NULL DEFAULT 0,
+                        [closed_by] INT NULL,
+                        [closed_at] DATETIME NULL,
+                        [closing_notes] VARCHAR(500) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_AccountingPeriods_ClosedBy FOREIGN KEY ([closed_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION,
+                        CONSTRAINT CK_tbl_AccountingPeriods_Month CHECK ([period_month] >= 1 AND [period_month] <= 12),
+                        CONSTRAINT CK_tbl_AccountingPeriods_Year CHECK ([period_year] >= 2000 AND [period_year] <= 2100)
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AccountingPeriods_YearMonth' AND object_id = OBJECT_ID('dbo.tbl_AccountingPeriods'))
+                        CREATE UNIQUE INDEX IX_tbl_AccountingPeriods_YearMonth ON [dbo].[tbl_AccountingPeriods]([period_year], [period_month])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AccountingPeriods_IsClosed' AND object_id = OBJECT_ID('dbo.tbl_AccountingPeriods'))
+                        CREATE INDEX IX_tbl_AccountingPeriods_IsClosed ON [dbo].[tbl_AccountingPeriods]([is_closed])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AccountingPeriods_StartDate' AND object_id = OBJECT_ID('dbo.tbl_AccountingPeriods'))
+                        CREATE INDEX IX_tbl_AccountingPeriods_StartDate ON [dbo].[tbl_AccountingPeriods]([start_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_AccountingPeriods_EndDate' AND object_id = OBJECT_ID('dbo.tbl_AccountingPeriods'))
+                        CREATE INDEX IX_tbl_AccountingPeriods_EndDate ON [dbo].[tbl_AccountingPeriods]([end_date])"
+                }
+            };
+        }
+
+        public static TableDefinition GetNotificationsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_Notifications",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_Notifications](
+                        [notification_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [notification_type] VARCHAR(50) NOT NULL,
+                        [title] VARCHAR(100) NOT NULL,
+                        [message] NVARCHAR(500) NULL,
+                        [reference_type] VARCHAR(50) NOT NULL,
+                        [reference_id] INT NULL,
+                        [is_read] BIT NOT NULL DEFAULT 0,
+                        [read_at] DATETIME NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [action_url] VARCHAR(100) NULL,
+                        [priority] VARCHAR(50) NOT NULL DEFAULT 'Normal',
+                        [created_by] INT NULL,
+                        CONSTRAINT FK_tbl_Notifications_CreatedBy FOREIGN KEY ([created_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
+                        CONSTRAINT CK_tbl_Notifications_Priority CHECK ([priority] IN ('Low', 'Normal', 'High', 'Urgent'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_IsRead' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
+                        CREATE INDEX IX_tbl_Notifications_IsRead ON [dbo].[tbl_Notifications]([is_read])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
+                        CREATE INDEX IX_tbl_Notifications_CreatedAt ON [dbo].[tbl_Notifications]([created_at])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_NotificationType' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
+                        CREATE INDEX IX_tbl_Notifications_NotificationType ON [dbo].[tbl_Notifications]([notification_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_ReferenceType' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
+                        CREATE INDEX IX_tbl_Notifications_ReferenceType ON [dbo].[tbl_Notifications]([reference_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_ReferenceId' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
+                        CREATE INDEX IX_tbl_Notifications_ReferenceId ON [dbo].[tbl_Notifications]([reference_id])"
                 }
             };
         }

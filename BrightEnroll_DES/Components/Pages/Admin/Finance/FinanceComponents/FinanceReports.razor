@@ -5,9 +5,12 @@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.JSInterop
 @using Microsoft.AspNetCore.Components.Rendering
+@using BrightEnroll_DES.Components
 @inject AccountingReportService AccountingReportService
 @inject AppDbContext DbContext
 @inject IJSRuntime JSRuntime
+
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
 <div class="p-6 space-y-6">
     <!-- Filter Bar -->
@@ -55,14 +58,52 @@
                     }
                 </button>
                 <button @onclick="ExportToPdf" 
-                        disabled="@isLoading || !reportGenerated"
+                        disabled="@isLoading || isExporting || !reportGenerated"
                         class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:bg-gray-200 disabled:cursor-not-allowed">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export PDF
+                    @if (isExporting)
+                    {
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Exporting...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Export PDF</span>
+                    }
                 </button>
             </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-gray-500 mr-1">Quick presets:</span>
+            <button @onclick='() => SetDatePreset("ThisMonth")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                This Month
+            </button>
+            <button @onclick='() => SetDatePreset("LastMonth")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last Month
+            </button>
+            <button @onclick='() => SetDatePreset("ThisYear")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                This Year
+            </button>
+            <button @onclick='() => SetDatePreset("LastYear")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last Year
+            </button>
+            <button @onclick='() => SetDatePreset("Last3Months")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last 3 Months
+            </button>
+            <button @onclick='() => SetDatePreset("Last6Months")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last 6 Months
+            </button>
         </div>
     </div>
 
@@ -179,8 +220,14 @@
     private DateTime toDate = DateTime.Now;
     private string selectedGradeLevel = "";
     private bool isLoading = false;
+    private bool isExporting = false;
     private bool reportGenerated = false;
     private List<string> gradeLevels = new();
+
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
 
     // Report Data
     private IncomeStatement? incomeStatement;
@@ -254,8 +301,49 @@
         };
     }
 
+    private void SetDatePreset(string preset)
+    {
+        var now = DateTime.Now;
+        switch (preset)
+        {
+            case "ThisMonth":
+                fromDate = new DateTime(now.Year, now.Month, 1);
+                toDate = now;
+                break;
+            case "LastMonth":
+                var lastMonth = now.AddMonths(-1);
+                fromDate = new DateTime(lastMonth.Year, lastMonth.Month, 1);
+                toDate = new DateTime(lastMonth.Year, lastMonth.Month, DateTime.DaysInMonth(lastMonth.Year, lastMonth.Month));
+                break;
+            case "ThisYear":
+                fromDate = new DateTime(now.Year, 1, 1);
+                toDate = now;
+                break;
+            case "LastYear":
+                fromDate = new DateTime(now.Year - 1, 1, 1);
+                toDate = new DateTime(now.Year - 1, 12, 31);
+                break;
+            case "Last3Months":
+                fromDate = now.AddMonths(-3);
+                toDate = now;
+                break;
+            case "Last6Months":
+                fromDate = now.AddMonths(-6);
+                toDate = now;
+                break;
+        }
+        StateHasChanged();
+    }
+
     private async Task GenerateReport()
     {
+        // Validate date range
+        if (toDate < fromDate)
+        {
+            ShowToast("Invalid date range. 'To Date' must be greater than or equal to 'From Date'.", ToastType.Error);
+            return;
+        }
+
         isLoading = true;
         reportGenerated = false;
         StateHasChanged();
@@ -278,7 +366,7 @@
                     paymentHistory = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
                     break;
                 case "ExpenseAnalysis":
-                    expenseAnalysis = await GetExpenseAnalysisAsync(fromDate, toDate);
+                            expenseAnalysis = await GetExpenseAnalysisAsync(fromDate, toDate);
                     break;
                 case "GeneralLedger":
                     generalLedger = await GetGeneralLedgerAsync(fromDate, toDate);
@@ -287,17 +375,41 @@
 
             reportGenerated = true;
             activeBreakdown = "Overview";
+            
+            // Show success message with record count
+            var recordCount = GetRecordCount();
+            if (recordCount > 0)
+            {
+                ShowToast($"Report generated successfully. Found {recordCount} record(s).", ToastType.Success);
+            }
+            else
+            {
+                ShowToast("Report generated, but no data found for the selected period.", ToastType.Edit);
+            }
         }
         catch (Exception ex)
         {
-            // Handle error - could show toast notification
-            Console.WriteLine($"Error generating report: {ex.Message}");
+            ShowToast($"Error generating report: {ex.Message}", ToastType.Error);
         }
         finally
         {
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private int GetRecordCount()
+    {
+        return activeReport switch
+        {
+            "IncomeStatement" => incomeStatement != null ? 1 : 0,
+            "CashFlow" => cashFlowReport != null ? 1 : 0,
+            "AccountsReceivable" => arRecords?.Count ?? 0,
+            "PaymentHistory" => paymentHistory?.Count ?? 0,
+            "ExpenseAnalysis" => expenseAnalysis?.TotalCount ?? 0,
+            "GeneralLedger" => generalLedger?.Entries.Count ?? 0,
+            _ => 0
+        };
     }
 
     private RenderFragment RenderKPICards()
@@ -317,6 +429,10 @@
                         RenderKPICard(builder, "Net Income", incomeStatement.NetIncome, incomeStatement.NetIncome >= 0 ? "text-blue-600" : "text-red-600", incomeStatement.NetIncome >= 0 ? "↑" : "↓");
                         RenderKPICard(builder, "Profit Margin", incomeStatement.Revenue > 0 ? (incomeStatement.NetIncome / incomeStatement.Revenue * 100) : 0, "text-purple-600", "%");
                     }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
+                    }
                     break;
 
                 case "CashFlow":
@@ -326,6 +442,10 @@
                         RenderKPICard(builder, "Cash Outflow", cashFlowReport.TotalOutflow, "text-red-600", "↓");
                         RenderKPICard(builder, "Net Cash Flow", cashFlowReport.NetCashFlow, cashFlowReport.NetCashFlow >= 0 ? "text-blue-600" : "text-red-600", cashFlowReport.NetCashFlow >= 0 ? "↑" : "↓");
                         RenderKPICard(builder, "Cash Balance", cashFlowReport.NetCashFlow, "text-indigo-600", "");
+                    }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
                     }
                     break;
 
@@ -340,6 +460,10 @@
                         RenderKPICard(builder, "Overdue", overdue, "text-red-600", "");
                         RenderKPICard(builder, "Total Accounts", arRecords.Count, "text-gray-600", "accounts");
                     }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
+                    }
                     break;
 
                 case "ExpenseAnalysis":
@@ -351,6 +475,10 @@
                         var pending = expenseAnalysis.ByStatus?.FirstOrDefault(s => s.Status == "Pending")?.Amount ?? 0;
                         RenderKPICard(builder, "Approved", approved, "text-green-600", "");
                         RenderKPICard(builder, "Pending", pending, "text-yellow-600", "");
+                    }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
                     }
                     break;
 
@@ -365,6 +493,10 @@
                         var cashPayments = paymentHistory.Where(p => p.PaymentMethod == "Cash").Sum(p => p.Amount);
                         RenderKPICard(builder, "Cash Payments", cashPayments, "text-indigo-600", "");
                     }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
+                    }
                     break;
 
                 case "GeneralLedger":
@@ -376,13 +508,35 @@
                         RenderKPICard(builder, "Total Credits", totalCredits, "text-green-600", "");
                         RenderKPICard(builder, "Total Debits", totalDebits, "text-red-600", "");
                         RenderKPICard(builder, "Net Balance", finalBalance, finalBalance >= 0 ? "text-blue-600" : "text-red-600", "");
-                        RenderKPICard(builder, "Transactions", generalLedger.Entries.Count, "text-gray-600", "");
+                        RenderKPICard(builder, "Transactions", generalLedger.Entries.Count, "text-gray-600", "transactions");
+                    }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
                     }
                     break;
             }
 
             builder.CloseElement();
         };
+    }
+
+    private void RenderEmptyKPICards(RenderTreeBuilder builder, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-sm");
+            builder.OpenElement(2, "p");
+            builder.AddAttribute(3, "class", "text-xs font-medium text-gray-400 mb-1");
+            builder.AddContent(4, "—");
+            builder.CloseElement();
+            builder.OpenElement(5, "p");
+            builder.AddAttribute(6, "class", "text-2xl font-bold text-gray-300");
+            builder.AddContent(7, "—");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
     }
 
     private void RenderKPICard(RenderTreeBuilder builder, string label, decimal value, string colorClass, string suffix)
@@ -585,35 +739,65 @@
                         }
                         builder.CloseElement();
                     }
+                    else
+                    {
+                        builder.OpenElement(39, "div");
+                        builder.AddAttribute(40, "class", "rounded bg-white p-4 text-center");
+                        builder.OpenElement(41, "p");
+                        builder.AddAttribute(42, "class", "text-sm text-gray-500");
+                        builder.AddContent(43, "No cash inflows for the selected period");
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
                     builder.CloseElement();
 
                     // Outflows
-                    builder.OpenElement(39, "div");
-                    builder.AddAttribute(40, "class", "rounded-lg border border-red-200 bg-red-50 p-4");
-                    builder.OpenElement(41, "h3");
-                    builder.AddAttribute(42, "class", "mb-4 text-lg font-semibold text-red-800");
-                    builder.AddContent(43, "Cash Outflows");
+                    builder.OpenElement(44, "div");
+                    builder.AddAttribute(45, "class", "rounded-lg border border-red-200 bg-red-50 p-4");
+                    builder.OpenElement(46, "h3");
+                    builder.AddAttribute(47, "class", "mb-4 text-lg font-semibold text-red-800");
+                    builder.AddContent(48, "Cash Outflows");
                     builder.CloseElement();
                     if (cashFlowReport.CashOutflows != null && cashFlowReport.CashOutflows.Any())
                     {
-                        builder.OpenElement(44, "div");
-                        builder.AddAttribute(45, "class", "space-y-2");
+                        builder.OpenElement(49, "div");
+                        builder.AddAttribute(50, "class", "space-y-2");
                         foreach (var outflow in cashFlowReport.CashOutflows)
                         {
-                            builder.OpenElement(46, "div");
-                            builder.AddAttribute(47, "class", "flex items-center justify-between");
-                            builder.OpenElement(48, "span");
-                            builder.AddAttribute(49, "class", "text-sm text-gray-700");
-                            builder.AddContent(50, outflow.Category);
+                            builder.OpenElement(51, "div");
+                            builder.AddAttribute(52, "class", "flex items-center justify-between");
+                            builder.OpenElement(53, "span");
+                            builder.AddAttribute(54, "class", "text-sm text-gray-700");
+                            builder.AddContent(55, outflow.Category);
                             builder.CloseElement();
-                            builder.OpenElement(51, "span");
-                            builder.AddAttribute(52, "class", "font-semibold text-red-700");
-                            builder.AddContent(53, FormatCurrency(outflow.Amount));
+                            builder.OpenElement(56, "span");
+                            builder.AddAttribute(57, "class", "font-semibold text-red-700");
+                            builder.AddContent(58, FormatCurrency(outflow.Amount));
                             builder.CloseElement();
                             builder.CloseElement();
                         }
                         builder.CloseElement();
                     }
+                    else
+                    {
+                        builder.OpenElement(59, "div");
+                        builder.AddAttribute(60, "class", "rounded bg-white p-4 text-center");
+                        builder.OpenElement(61, "p");
+                        builder.AddAttribute(62, "class", "text-sm text-gray-500");
+                        builder.AddContent(63, "No cash outflows for the selected period");
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(64, "div");
+                    builder.AddAttribute(65, "class", "rounded-lg border border-gray-200 bg-gray-50 p-8 text-center");
+                    builder.OpenElement(66, "p");
+                    builder.AddAttribute(67, "class", "text-sm font-medium text-gray-600");
+                    builder.AddContent(68, "No cash flow data available for the selected period");
                     builder.CloseElement();
                     builder.CloseElement();
                 }
@@ -650,6 +834,16 @@
                         builder.CloseElement();
                         builder.CloseElement();
                     }
+                    builder.CloseElement();
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(69, "div");
+                    builder.AddAttribute(70, "class", "rounded-lg border border-gray-200 bg-gray-50 p-8 text-center");
+                    builder.OpenElement(71, "p");
+                    builder.AddAttribute(72, "class", "text-sm font-medium text-gray-600");
+                    builder.AddContent(73, "No accounts receivable data available");
                     builder.CloseElement();
                     builder.CloseElement();
                 }
@@ -834,6 +1028,7 @@
                 {
                     var totalCredits = generalLedger.Entries.Sum(e => e.Credit);
                     var totalDebits = generalLedger.Entries.Sum(e => e.Debit);
+                    var isBalanced = Math.Abs(totalDebits - totalCredits) < 0.01m; // Allow for rounding
                     var finalBalance = generalLedger.Entries.LastOrDefault()?.Balance ?? 0;
 
                     builder.OpenElement(186, "div");
@@ -874,25 +1069,36 @@
                     builder.AddAttribute(212, "class", "flex items-center justify-between rounded bg-white p-3");
                     builder.OpenElement(213, "span");
                     builder.AddAttribute(214, "class", "font-medium text-gray-700");
-                    builder.AddContent(215, "Net Balance");
+                    builder.AddContent(215, "Balance Check");
                     builder.CloseElement();
                     builder.OpenElement(216, "span");
-                    builder.AddAttribute(217, "class", $"font-semibold {(finalBalance >= 0 ? "text-blue-600" : "text-red-600")}");
-                    builder.AddContent(218, FormatCurrency(finalBalance));
+                    builder.AddAttribute(217, "class", $"font-semibold {(isBalanced ? "text-green-600" : "text-red-600")}");
+                    builder.AddContent(218, isBalanced ? "✓ Balanced" : $"Out of Balance: {FormatCurrency(Math.Abs(totalDebits - totalCredits))}");
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.OpenElement(219, "div");
+                    builder.AddAttribute(220, "class", "flex items-center justify-between rounded bg-white p-3");
+                    builder.OpenElement(221, "span");
+                    builder.AddAttribute(222, "class", "font-medium text-gray-700");
+                    builder.AddContent(223, "Transaction Count");
+                    builder.CloseElement();
+                    builder.OpenElement(224, "span");
+                    builder.AddAttribute(225, "class", "font-semibold text-gray-800");
+                    builder.AddContent(226, generalLedger.Entries.Count.ToString("N0"));
                     builder.CloseElement();
                     builder.CloseElement();
                     builder.CloseElement();
                     builder.CloseElement();
 
                     // Balance Trend
-                    builder.OpenElement(219, "div");
-                    builder.AddAttribute(220, "class", "rounded-lg border border-gray-200 bg-gray-50 p-4");
-                    builder.OpenElement(221, "h3");
-                    builder.AddAttribute(222, "class", "mb-4 text-lg font-semibold text-gray-800");
-                    builder.AddContent(223, "Balance Trend");
+                    builder.OpenElement(225, "div");
+                    builder.AddAttribute(226, "class", "rounded-lg border border-gray-200 bg-gray-50 p-4");
+                    builder.OpenElement(227, "h3");
+                    builder.AddAttribute(228, "class", "mb-4 text-lg font-semibold text-gray-800");
+                    builder.AddContent(229, "Balance Trend");
                     builder.CloseElement();
-                    builder.OpenElement(224, "div");
-                    builder.AddAttribute(225, "class", "space-y-2");
+                    builder.OpenElement(230, "div");
+                    builder.AddAttribute(231, "class", "space-y-2");
                     var monthlyBalances = generalLedger.Entries
                         .GroupBy(e => new { e.Date.Year, e.Date.Month })
                         .Select(g => new { 
@@ -903,19 +1109,29 @@
                         .ToList();
                     foreach (var month in monthlyBalances)
                     {
-                        builder.OpenElement(226, "div");
-                        builder.AddAttribute(227, "class", "flex items-center justify-between rounded bg-white p-3");
-                        builder.OpenElement(228, "span");
-                        builder.AddAttribute(229, "class", "font-medium text-gray-700");
-                        builder.AddContent(230, month.Month);
+                        builder.OpenElement(232, "div");
+                        builder.AddAttribute(233, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(234, "span");
+                        builder.AddAttribute(235, "class", "font-medium text-gray-700");
+                        builder.AddContent(236, month.Month);
                         builder.CloseElement();
-                        builder.OpenElement(231, "span");
-                        builder.AddAttribute(232, "class", $"font-semibold {(month.Balance >= 0 ? "text-blue-600" : "text-red-600")}");
-                        builder.AddContent(233, FormatCurrency(month.Balance));
+                        builder.OpenElement(237, "span");
+                        builder.AddAttribute(238, "class", $"font-semibold {(month.Balance >= 0 ? "text-blue-600" : "text-red-600")}");
+                        builder.AddContent(239, FormatCurrency(month.Balance));
                         builder.CloseElement();
                         builder.CloseElement();
                     }
                     builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(250, "div");
+                    builder.AddAttribute(251, "class", "rounded-lg border border-gray-200 bg-gray-50 p-8 text-center");
+                    builder.OpenElement(252, "p");
+                    builder.AddAttribute(253, "class", "text-sm font-medium text-gray-600");
+                    builder.AddContent(254, "No general ledger data available for the selected period");
                     builder.CloseElement();
                     builder.CloseElement();
                 }
@@ -1096,23 +1312,31 @@
                     builder.CloseElement();
                     builder.OpenElement(12, "th");
                     builder.AddAttribute(13, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700");
-                    builder.AddContent(14, "Description");
+                    builder.AddContent(14, "Entry #");
                     builder.CloseElement();
                     builder.OpenElement(15, "th");
                     builder.AddAttribute(16, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700");
-                    builder.AddContent(17, "Type");
+                    builder.AddContent(17, "Account");
                     builder.CloseElement();
                     builder.OpenElement(18, "th");
-                    builder.AddAttribute(19, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700");
-                    builder.AddContent(20, "Debit");
+                    builder.AddAttribute(19, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700");
+                    builder.AddContent(20, "Description");
                     builder.CloseElement();
                     builder.OpenElement(21, "th");
-                    builder.AddAttribute(22, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700");
-                    builder.AddContent(23, "Credit");
+                    builder.AddAttribute(22, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700");
+                    builder.AddContent(23, "Type");
                     builder.CloseElement();
                     builder.OpenElement(24, "th");
                     builder.AddAttribute(25, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700");
-                    builder.AddContent(26, "Balance");
+                    builder.AddContent(26, "Debit");
+                    builder.CloseElement();
+                    builder.OpenElement(27, "th");
+                    builder.AddAttribute(28, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700");
+                    builder.AddContent(29, "Credit");
+                    builder.CloseElement();
+                    builder.OpenElement(30, "th");
+                    builder.AddAttribute(31, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700");
+                    builder.AddContent(32, "Balance");
                     builder.CloseElement();
                     builder.CloseElement();
                     builder.CloseElement();
@@ -1121,35 +1345,49 @@
                     {
                         builder.OpenElement(28, "tr");
                         builder.AddAttribute(29, "class", "border-b border-gray-100 hover:bg-gray-50");
-                        builder.OpenElement(30, "td");
-                        builder.AddAttribute(31, "class", "px-4 py-3 text-gray-700");
-                        builder.AddContent(32, entry.Date.ToString("MMM dd, yyyy"));
-                        builder.CloseElement();
                         builder.OpenElement(33, "td");
-                        builder.AddAttribute(34, "class", "px-4 py-3 text-gray-800");
-                        builder.AddContent(35, entry.Description);
+                        builder.AddAttribute(34, "class", "px-4 py-3 text-gray-700");
+                        builder.AddContent(35, entry.Date.ToString("MMM dd, yyyy"));
                         builder.CloseElement();
                         builder.OpenElement(36, "td");
-                        builder.AddAttribute(37, "class", "px-4 py-3");
-                        builder.OpenElement(38, "span");
-                        builder.AddAttribute(39, "class", $"inline-flex rounded-full px-2 py-1 text-xs font-medium {(entry.Type == "Payment" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800")}");
-                        builder.AddContent(40, entry.Type);
+                        builder.AddAttribute(37, "class", "px-4 py-3 text-xs font-mono text-gray-600");
+                        builder.AddContent(38, entry.EntryNumber);
+                        builder.CloseElement();
+                        builder.OpenElement(39, "td");
+                        builder.AddAttribute(40, "class", "px-4 py-3");
+                        builder.OpenElement(41, "div");
+                        builder.AddAttribute(42, "class", "flex flex-col");
+                        builder.OpenElement(43, "span");
+                        builder.AddAttribute(44, "class", "text-xs font-semibold text-gray-800");
+                        builder.AddContent(45, $"{entry.AccountCode} - {entry.AccountName}");
                         builder.CloseElement();
                         builder.CloseElement();
-                        builder.OpenElement(41, "td");
-                        builder.AddAttribute(42, "class", "px-4 py-3 text-right text-red-600");
-                        builder.AddContent(43, entry.Debit > 0 ? FormatCurrency(entry.Debit) : "—");
                         builder.CloseElement();
-                        builder.OpenElement(44, "td");
-                        builder.AddAttribute(45, "class", "px-4 py-3 text-right text-green-600");
-                        builder.AddContent(46, entry.Credit > 0 ? FormatCurrency(entry.Credit) : "—");
+                        builder.OpenElement(46, "td");
+                        builder.AddAttribute(47, "class", "px-4 py-3 text-gray-800");
+                        builder.AddContent(48, entry.Description);
                         builder.CloseElement();
-                        builder.OpenElement(47, "td");
-                        builder.AddAttribute(48, "class", $"px-4 py-3 text-right font-semibold {(entry.Balance >= 0 ? "text-blue-600" : "text-red-600")}");
-                        builder.AddContent(49, FormatCurrency(entry.Balance));
-        builder.CloseElement();
-        builder.CloseElement();
-    }
+                        builder.OpenElement(49, "td");
+                        builder.AddAttribute(50, "class", "px-4 py-3");
+                        builder.OpenElement(51, "span");
+                        builder.AddAttribute(52, "class", $"inline-flex rounded-full px-2 py-1 text-xs font-medium {(entry.Type == "Payment" ? "bg-green-100 text-green-800" : entry.Type == "Expense" ? "bg-red-100 text-red-800" : "bg-blue-100 text-blue-800")}");
+                        builder.AddContent(53, entry.Type);
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(54, "td");
+                        builder.AddAttribute(55, "class", "px-4 py-3 text-right text-red-600 font-medium");
+                        builder.AddContent(56, entry.Debit > 0 ? FormatCurrency(entry.Debit) : "—");
+                        builder.CloseElement();
+                        builder.OpenElement(57, "td");
+                        builder.AddAttribute(58, "class", "px-4 py-3 text-right text-green-600 font-medium");
+                        builder.AddContent(59, entry.Credit > 0 ? FormatCurrency(entry.Credit) : "—");
+                        builder.CloseElement();
+                        builder.OpenElement(60, "td");
+                        builder.AddAttribute(61, "class", $"px-4 py-3 text-right font-semibold {(entry.Balance >= 0 ? "text-blue-600" : "text-red-600")}");
+                        builder.AddContent(62, FormatCurrency(entry.Balance));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
                     builder.CloseElement();
                     builder.CloseElement();
                     builder.CloseElement();
@@ -1408,58 +1646,424 @@
     private async Task<GeneralLedgerData> GetGeneralLedgerAsync(DateTime fromDate, DateTime toDate)
     {
         var ledger = new GeneralLedgerData();
-        decimal runningBalance = 0;
-
-        // Get all payments (Credits - Revenue)
-        var payments = await DbContext.StudentPayments
-            .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
-            .OrderBy(p => p.CreatedAt)
+        
+        // Try to get from Journal Entries (ERP approach) - Double-entry bookkeeping
+        // Include all journal entries with Posted status within the date range
+        // Use date-only comparison to ensure we capture entries for the full day
+        var fromDateOnly = fromDate.Date;
+        var toDateOnly = toDate.Date.AddDays(1).AddTicks(-1); // End of day
+        
+        var journalEntryLines = await DbContext.JournalEntryLines
+            .Include(l => l.JournalEntry)
+                .ThenInclude(je => je.CreatedByUser)
+            .Include(l => l.Account)
+            .Where(l => l.JournalEntry.EntryDate >= fromDateOnly && 
+                       l.JournalEntry.EntryDate <= toDateOnly &&
+                       l.JournalEntry.Status == "Posted")
+            .OrderBy(l => l.JournalEntry.EntryDate)
+            .ThenBy(l => l.JournalEntry.EntryNumber)
+            .ThenBy(l => l.LineNumber)
             .ToListAsync();
 
-        foreach (var payment in payments)
-        {
-            runningBalance += payment.Amount;
-            ledger.Entries.Add(new LedgerEntry
-            {
-                Date = payment.CreatedAt,
-                Description = $"Payment from Student {payment.StudentId}",
-                Type = "Payment",
-                Credit = payment.Amount,
-                Debit = 0,
-                Balance = runningBalance
-            });
-        }
-
-        // Get all expenses (Debits - Expenses)
-        var expenses = await DbContext.Expenses
-            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
-            .OrderBy(e => e.ExpenseDate)
+        // Check if we have payroll transactions that might not have journal entries yet
+        // This can happen if journal entries weren't created during approval
+        // Use date-only comparison to ensure we capture transactions for the full day
+        var payrollInDateRange = await DbContext.PayrollTransactions
+            .Where(pt => pt.Status == "Paid" &&
+                       ((pt.PaymentDate.HasValue && pt.PaymentDate.Value.Date >= fromDateOnly && pt.PaymentDate.Value.Date <= toDateOnly) ||
+                        (!pt.PaymentDate.HasValue && pt.CreatedAt.Date >= fromDateOnly && pt.CreatedAt.Date <= toDateOnly)))
+            .Select(pt => pt.TransactionId)
             .ToListAsync();
 
-        foreach (var expense in expenses)
+        // Check if journal entries exist for these payroll transactions
+        // For batch payroll, the ReferenceId is set to the first transaction ID in the batch
+        // So we check if any transaction ID in our list has a corresponding journal entry
+        var payrollWithJournalEntries = new List<int>();
+        if (payrollInDateRange.Any())
         {
-            runningBalance -= expense.Amount;
-            ledger.Entries.Add(new LedgerEntry
+            // Get all payroll journal entries in the date range
+            var payrollJournalEntries = await DbContext.JournalEntries
+                .Where(je => je.ReferenceType == "Payroll" && 
+                            je.Status == "Posted" &&
+                            je.EntryDate >= fromDateOnly && 
+                            je.EntryDate <= toDateOnly)
+                .Select(je => je.ReferenceId ?? 0)
+                .ToListAsync();
+            
+            // For batch payroll, the journal entry uses the first transaction ID as ReferenceId
+            // So we need to check if the first transaction of each batch has a journal entry
+            // If it does, all transactions in that batch are covered by that single journal entry
+            var batchPayrollTransactions = await DbContext.PayrollTransactions
+                .Where(pt => payrollInDateRange.Contains(pt.TransactionId) && pt.BatchTimestamp.HasValue)
+                .ToListAsync();
+            
+            // Group by batch and check if the first transaction (which is used as ReferenceId) has a journal entry
+            var batchGroups = batchPayrollTransactions
+                .GroupBy(pt => pt.BatchTimestamp.Value)
+                .ToList();
+            
+            foreach (var batchGroup in batchGroups)
             {
-                Date = expense.ExpenseDate,
-                Description = $"{expense.Category}: {expense.Description}",
-                Type = "Expense",
-                Credit = 0,
-                Debit = expense.Amount,
-                Balance = runningBalance
-            });
+                var batchTransactionIds = batchGroup.Select(pt => pt.TransactionId).OrderBy(id => id).ToList();
+                var firstTransactionId = batchTransactionIds.First();
+                
+                // If the first transaction (used as ReferenceId) has a journal entry, all transactions in batch are covered
+                if (payrollJournalEntries.Contains(firstTransactionId))
+                {
+                    payrollWithJournalEntries.AddRange(batchTransactionIds);
+                }
+            }
+            
+            // For individual (non-batch) payroll, check directly
+            var individualPayrollIds = payrollInDateRange
+                .Except(batchPayrollTransactions.Select(pt => pt.TransactionId))
+                .ToList();
+            
+            foreach (var transId in individualPayrollIds)
+            {
+                if (payrollJournalEntries.Contains(transId))
+                {
+                    payrollWithJournalEntries.Add(transId);
+                }
+            }
         }
 
-        // Sort by date
-        ledger.Entries = ledger.Entries.OrderBy(e => e.Date).ToList();
+        // If we have payroll transactions without journal entries, we'll include them in fallback
+        var hasPayrollWithoutJournalEntries = payrollInDateRange.Any(ptId => !payrollWithJournalEntries.Contains(ptId));
+
+        // If we have journal entries OR if we have payroll without journal entries, use journal entries first
+        // Then supplement with payroll transactions that don't have journal entries
+        if (journalEntryLines.Any() || hasPayrollWithoutJournalEntries)
+        {
+            // Use journal entries - proper double-entry bookkeeping
+            var accountBalances = new Dictionary<int, decimal>(); // AccountId -> Running Balance
+
+            foreach (var line in journalEntryLines)
+            {
+                // Calculate running balance per account
+                if (!accountBalances.ContainsKey(line.AccountId))
+                {
+                    accountBalances[line.AccountId] = 0;
+                }
+
+                // Update balance based on account type and normal balance
+                if (line.Account != null)
+                {
+                    if (line.Account.NormalBalance == "Debit")
+                    {
+                        // Assets, Expenses: Debit increases, Credit decreases
+                        accountBalances[line.AccountId] += line.DebitAmount - line.CreditAmount;
+                    }
+                    else
+                    {
+                        // Liabilities, Equity, Revenue: Credit increases, Debit decreases
+                        accountBalances[line.AccountId] += line.CreditAmount - line.DebitAmount;
+                    }
+                }
+
+                // Determine transaction type from reference type
+                string transactionType = line.JournalEntry.ReferenceType switch
+                {
+                    "Payment" => "Payment",
+                    "Expense" => "Expense",
+                    "Payroll" => "Payroll",
+                    _ => "Journal Entry"
+                };
+
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = line.JournalEntry.EntryDate,
+                    EntryNumber = line.JournalEntry.EntryNumber,
+                    AccountCode = line.Account?.AccountCode ?? "N/A",
+                    AccountName = line.Account?.AccountName ?? "Unknown Account",
+                    Description = line.Description ?? line.JournalEntry.Description ?? "No description",
+                    Type = transactionType,
+                    Debit = line.DebitAmount,
+                    Credit = line.CreditAmount,
+                    Balance = accountBalances[line.AccountId]
+                });
+            }
+        }
+        else
+        {
+            // Fallback to old method (backward compatibility) - Single-entry
+            // This includes payroll transactions that may not have journal entries yet
+            decimal runningBalance = 0;
+
+            // Get all payments (Credits - Revenue)
+            var payments = await DbContext.StudentPayments
+                .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                .OrderBy(p => p.CreatedAt)
+                .ToListAsync();
+
+            foreach (var payment in payments)
+            {
+                runningBalance += payment.Amount;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = payment.CreatedAt,
+                    EntryNumber = $"PMT-{payment.PaymentId}",
+                    AccountCode = "4000",
+                    AccountName = "Tuition Fee Revenue",
+                    Description = $"Payment from Student {payment.StudentId}",
+                    Type = "Payment",
+                    Credit = payment.Amount,
+                    Debit = 0,
+                    Balance = runningBalance
+                });
+            }
+
+            // Get all expenses (Debits - Expenses)
+            var expenses = await DbContext.Expenses
+                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                .OrderBy(e => e.ExpenseDate)
+                .ToListAsync();
+
+            foreach (var expense in expenses)
+            {
+                runningBalance -= expense.Amount;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = expense.ExpenseDate,
+                    EntryNumber = $"EXP-{expense.ExpenseId}",
+                    AccountCode = "5100",
+                    AccountName = expense.Category ?? "Other Operating Expenses",
+                    Description = $"{expense.Category}: {expense.Description}",
+                    Type = "Expense",
+                    Credit = 0,
+                    Debit = expense.Amount,
+                    Balance = runningBalance
+                });
+            }
+
+            // Get all payroll transactions (Paid status) - Include in fallback
+            // Use PaymentDate if available, otherwise CreatedAt
+            var payrollTransactions = await DbContext.PayrollTransactions
+                .Include(pt => pt.User)
+                .Where(pt => pt.Status == "Paid" &&
+                           ((pt.PaymentDate.HasValue && pt.PaymentDate.Value >= fromDate && pt.PaymentDate.Value <= toDate) ||
+                            (!pt.PaymentDate.HasValue && pt.CreatedAt >= fromDate && pt.CreatedAt <= toDate)))
+                .OrderBy(pt => pt.PaymentDate ?? pt.CreatedAt)
+                .ToListAsync();
+
+            // Group payroll by batch (same BatchTimestamp) to create consolidated entries
+            var payrollBatches = payrollTransactions
+                .Where(pt => pt.BatchTimestamp.HasValue)
+                .GroupBy(pt => pt.BatchTimestamp.Value)
+                .ToList();
+
+            var individualPayroll = payrollTransactions
+                .Where(pt => !pt.BatchTimestamp.HasValue)
+                .ToList();
+
+            // Process batch payroll transactions
+            foreach (var batch in payrollBatches)
+            {
+                var batchTransactions = batch.ToList();
+                var firstTransaction = batchTransactions.First();
+                var transactionDate = firstTransaction.PaymentDate ?? firstTransaction.CreatedAt;
+                
+                // Aggregate batch totals
+                var totalGrossSalary = batchTransactions.Sum(pt => pt.GrossSalary);
+                var totalDeductions = batchTransactions.Sum(pt => pt.TotalDeductions);
+                var totalNetSalary = batchTransactions.Sum(pt => pt.NetSalary);
+                var totalCompanyContribution = batchTransactions.Sum(pt => pt.TotalCompanyContribution);
+                var employeeCount = batchTransactions.Count;
+
+                // Salaries Expense (Debit)
+                runningBalance -= totalGrossSalary;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = transactionDate,
+                    EntryNumber = $"PRL-BATCH-{firstTransaction.TransactionId}",
+                    AccountCode = "5000",
+                    AccountName = "Salaries Expense",
+                    Description = $"Batch Payroll - {employeeCount} employee(s) - {firstTransaction.PayPeriod}",
+                    Type = "Payroll",
+                    Credit = 0,
+                    Debit = totalGrossSalary,
+                    Balance = runningBalance
+                });
+
+                // Payroll Tax Expense (Debit) - if deductions exist
+                if (totalDeductions > 0)
+                {
+                    runningBalance -= totalDeductions;
+                    ledger.Entries.Add(new LedgerEntry
+                    {
+                        Date = transactionDate,
+                        EntryNumber = $"PRL-BATCH-{firstTransaction.TransactionId}",
+                        AccountCode = "5100",
+                        AccountName = "Other Expenses",
+                        Description = $"Payroll deductions (SSS, PhilHealth, Pag-IBIG, Tax) - {employeeCount} employee(s)",
+                        Type = "Payroll",
+                        Credit = 0,
+                        Debit = totalDeductions,
+                        Balance = runningBalance
+                    });
+                }
+
+                // Cash (Credit) - Net Pay
+                runningBalance += totalNetSalary;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = transactionDate,
+                    EntryNumber = $"PRL-BATCH-{firstTransaction.TransactionId}",
+                    AccountCode = "1000",
+                    AccountName = "Cash",
+                    Description = $"Net pay payment - {employeeCount} employee(s)",
+                    Type = "Payroll",
+                    Credit = totalNetSalary,
+                    Debit = 0,
+                    Balance = runningBalance
+                });
+
+                // Accrued Payroll Taxes (Credit) - Company Contributions + Employee Deductions
+                if (totalCompanyContribution > 0 || totalDeductions > 0)
+                {
+                    var totalAccrued = totalCompanyContribution + totalDeductions;
+                    runningBalance += totalAccrued;
+                    ledger.Entries.Add(new LedgerEntry
+                    {
+                        Date = transactionDate,
+                        EntryNumber = $"PRL-BATCH-{firstTransaction.TransactionId}",
+                        AccountCode = "2100",
+                        AccountName = "Accrued Payroll Taxes",
+                        Description = $"Company contributions and employee deductions - {employeeCount} employee(s)",
+                        Type = "Payroll",
+                        Credit = totalAccrued,
+                        Debit = 0,
+                        Balance = runningBalance
+                    });
+                }
+            }
+
+            // Process individual payroll transactions (not part of a batch)
+            foreach (var payroll in individualPayroll)
+            {
+                var transactionDate = payroll.PaymentDate ?? payroll.CreatedAt;
+
+                // Salaries Expense (Debit)
+                runningBalance -= payroll.GrossSalary;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = transactionDate,
+                    EntryNumber = $"PRL-{payroll.TransactionId}",
+                    AccountCode = "5000",
+                    AccountName = "Salaries Expense",
+                    Description = $"Gross salary for {payroll.PayPeriod}",
+                    Type = "Payroll",
+                    Credit = 0,
+                    Debit = payroll.GrossSalary,
+                    Balance = runningBalance
+                });
+
+                // Payroll Tax Expense (Debit) - if deductions exist
+                if (payroll.TotalDeductions > 0)
+                {
+                    runningBalance -= payroll.TotalDeductions;
+                    ledger.Entries.Add(new LedgerEntry
+                    {
+                        Date = transactionDate,
+                        EntryNumber = $"PRL-{payroll.TransactionId}",
+                        AccountCode = "5100",
+                        AccountName = "Other Expenses",
+                        Description = $"Payroll deductions (SSS, PhilHealth, Pag-IBIG, Tax)",
+                        Type = "Payroll",
+                        Credit = 0,
+                        Debit = payroll.TotalDeductions,
+                        Balance = runningBalance
+                    });
+                }
+
+                // Cash (Credit) - Net Pay
+                runningBalance += payroll.NetSalary;
+                ledger.Entries.Add(new LedgerEntry
+                {
+                    Date = transactionDate,
+                    EntryNumber = $"PRL-{payroll.TransactionId}",
+                    AccountCode = "1000",
+                    AccountName = "Cash",
+                    Description = $"Net pay payment",
+                    Type = "Payroll",
+                    Credit = payroll.NetSalary,
+                    Debit = 0,
+                    Balance = runningBalance
+                });
+
+                // Accrued Payroll Taxes (Credit) - Company Contributions + Employee Deductions
+                if (payroll.TotalCompanyContribution > 0 || payroll.TotalDeductions > 0)
+                {
+                    var totalAccrued = payroll.TotalCompanyContribution + payroll.TotalDeductions;
+                    runningBalance += totalAccrued;
+                    ledger.Entries.Add(new LedgerEntry
+                    {
+                        Date = transactionDate,
+                        EntryNumber = $"PRL-{payroll.TransactionId}",
+                        AccountCode = "2100",
+                        AccountName = "Accrued Payroll Taxes",
+                        Description = $"Company contributions and employee deductions",
+                        Type = "Payroll",
+                        Credit = totalAccrued,
+                        Debit = 0,
+                        Balance = runningBalance
+                    });
+                }
+            }
+        }
+
+        // Sort by date, then by entry number, then by line number
+        ledger.Entries = ledger.Entries
+            .OrderBy(e => e.Date)
+            .ThenBy(e => e.EntryNumber)
+            .ToList();
 
         return ledger;
     }
 
     private async Task ExportToPdf()
     {
-        // Implement PDF export
-        await Task.CompletedTask;
+        if (!reportGenerated)
+        {
+            ShowToast("Please generate a report first before exporting.", ToastType.Error);
+            return;
+        }
+
+        if (isExporting) return;
+
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            // TODO: Implement PDF export using QuestPDF
+            // For now, show a message that it's not yet implemented
+            await Task.Delay(500); // Simulate export process
+            ShowToast("PDF export feature is coming soon. Please use the print function in the meantime.", ToastType.Edit);
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error exporting to PDF: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
     }
 
     private string FormatCurrency(decimal amount)
@@ -1476,8 +2080,11 @@
     private class LedgerEntry
     {
         public DateTime Date { get; set; }
+        public string EntryNumber { get; set; } = string.Empty;
+        public string AccountCode { get; set; } = string.Empty;
+        public string AccountName { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty; // Payment, Expense
+        public string Type { get; set; } = string.Empty; // Payment, Expense, Payroll
         public decimal Debit { get; set; }
         public decimal Credit { get; set; }
         public decimal Balance { get; set; }
@@ -1490,4 +2097,5 @@
         public int Count { get; set; }
     }
 }
+
 

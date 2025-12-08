@@ -1,0 +1,1763 @@
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Services.Business.Reports
+@using BrightEnroll_DES.Services.Business.Notifications
+@using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Components
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Rendering
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject AppDbContext DbContext
+@inject ExpenseService ExpenseService
+@inject JournalEntryService JournalEntryService
+@inject NotificationService NotificationService
+@inject IAuthorizationService AuthorizationService
+@inject IAuthService AuthService
+@inject ILogger<Approvals> Logger
+
+<PageTitle>Approvals - Finance</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="p-6 space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">Pending Approvals</h2>
+            <p class="mt-1 text-sm text-gray-600">Review and approve expenses and payroll transactions</p>
+        </div>
+        <div class="flex items-center gap-4">
+            <button @onclick="RefreshApprovals" 
+                    class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="border-b border-gray-200">
+        <div class="flex gap-1">
+            <button @onclick='async () => await SetActiveTab("Expenses")' 
+                    disabled="@isLoading"
+                    class="@GetTabClasses("Expenses") @(isLoading ? "opacity-50 cursor-not-allowed" : "")">
+                Expenses
+                @if (pendingExpensesCount > 0)
+                {
+                    <span class="ml-2 inline-flex items-center rounded-full bg-orange-500 px-2 py-0.5 text-xs font-semibold text-white">@pendingExpensesCount</span>
+                }
+            </button>
+            <button @onclick='async () => await SetActiveTab("Payroll")' 
+                    disabled="@isLoading"
+                    class="@GetTabClasses("Payroll") @(isLoading ? "opacity-50 cursor-not-allowed" : "")">
+                Payroll
+                @if (pendingPayrollCount > 0)
+                {
+                    <span class="ml-2 inline-flex items-center rounded-full bg-orange-500 px-2 py-0.5 text-xs font-semibold text-white">@pendingPayrollCount</span>
+                }
+            </button>
+            <button @onclick='async () => await SetActiveTab("JournalEntries")' 
+                    disabled="@isLoading"
+                    class="@GetTabClasses("JournalEntries") @(isLoading ? "opacity-50 cursor-not-allowed" : "")">
+                Journal Entries
+                @if (pendingJournalEntriesCount > 0)
+                {
+                    <span class="ml-2 inline-flex items-center rounded-full bg-orange-500 px-2 py-0.5 text-xs font-semibold text-white">@pendingJournalEntriesCount</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- Content -->
+    <div class="space-y-4">
+        @if (activeTab == "Expenses")
+        {
+            @RenderExpensesTab()
+        }
+        else if (activeTab == "Payroll")
+        {
+            @RenderPayrollTab()
+        }
+        else if (activeTab == "JournalEntries")
+        {
+            @RenderJournalEntriesTab()
+        }
+    </div>
+</div>
+
+<!-- Approval Modal -->
+@if (showApprovalModal && selectedExpense != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseApprovalModal">
+        <div class="w-full max-w-2xl rounded-xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="border-b border-gray-200 px-6 py-4">
+                <h3 class="text-lg font-semibold text-gray-800">Approve Expense</h3>
+                <p class="mt-1 text-sm text-gray-600">ID: @selectedExpense.ExpenseCode</p>
+            </div>
+            <div class="max-h-[70vh] overflow-y-auto px-6 py-4">
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Category:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.Category</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Description:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.Description</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Amount:</label>
+                        <p class="mt-1 text-lg font-semibold text-gray-900">₱@selectedExpense.Amount.ToString("N2")</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Payee:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.Payee</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Payment Method:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.PaymentMethod</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Expense Date:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.ExpenseDate.ToString("MMM dd, yyyy")</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Created By:</label>
+                        <p class="mt-1 text-sm text-gray-900">@selectedExpense.RecordedBy</p>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Approval Notes:</label>
+                        <textarea @bind="approvalNotes" 
+                                  class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                                  rows="3"
+                                  placeholder="Optional: Add notes or comments..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+                <button @onclick="CloseApprovalModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="RejectExpense" 
+                        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                    Reject
+                </button>
+                <button @onclick="ApproveExpense" 
+                        class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+                    Approve
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Payroll Approval Modal -->
+@if (showPayrollApprovalModal && selectedPayrollTransaction != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="ClosePayrollApprovalModal">
+        <div class="w-full max-w-6xl max-h-[90vh] rounded-xl bg-white shadow-xl flex flex-col" @onclick:stopPropagation="true">
+            <!-- Header -->
+            <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 flex-shrink-0">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        @if (isBatchPayrollModal)
+                        {
+                            <text>Approve Batch Payroll</text>
+                        }
+                        else
+                        {
+                            <text>Approve Payroll Transaction</text>
+                        }
+                    </h3>
+                    <p class="mt-1 text-sm text-gray-600">
+                        @if (isBatchPayrollModal)
+                        {
+                            <text>Batch: @selectedBatchPayrollTransactions.Count Employee(s) | Pay Period: @selectedPayrollTransaction.PayPeriod</text>
+                        }
+                        else
+                        {
+                            <text>Transaction ID: @selectedPayrollTransaction.TransactionId | Pay Period: @selectedPayrollTransaction.PayPeriod</text>
+                        }
+                    </p>
+                </div>
+                <button @onclick="ClosePayrollApprovalModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Content -->
+            <div class="overflow-y-auto flex-1 p-6">
+                @if (isBatchPayrollModal && selectedBatchPayrollTransactions.Any())
+                {
+                    var firstBatchTrans = selectedBatchPayrollTransactions.First();
+                    var totalGrossPay = selectedBatchPayrollTransactions.Sum(t => t.GrossSalary);
+                    var totalDeductions = selectedBatchPayrollTransactions.Sum(t => t.TotalDeductions);
+                    var totalNetPay = selectedBatchPayrollTransactions.Sum(t => t.NetSalary);
+                    
+                    <!-- Batch Summary Card -->
+                    <div class="mb-6 rounded-lg border-2 border-blue-200 bg-blue-50 p-4">
+                        <h4 class="mb-3 text-sm font-semibold text-blue-800">Batch Summary</h4>
+                        <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+                            <div>
+                                <p class="text-xs text-gray-600">Total Employees</p>
+                                <p class="text-lg font-bold text-blue-700">@selectedBatchPayrollTransactions.Count</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Total Gross Pay</p>
+                                <p class="text-lg font-bold text-blue-700">₱@totalGrossPay.ToString("N2")</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Total Deductions</p>
+                                <p class="text-lg font-bold text-red-700">₱@totalDeductions.ToString("N2")</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600">Total Net Pay</p>
+                                <p class="text-lg font-bold text-green-700">₱@totalNetPay.ToString("N2")</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Audit Trail -->
+                        <div class="mt-4 border-t border-blue-300 pt-4">
+                            <h5 class="mb-3 text-xs font-semibold text-blue-800">AUDIT TRAIL</h5>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div>
+                                    <p class="text-xs text-gray-600">Created By</p>
+                                    <p class="text-sm font-medium text-gray-800">
+                                        @(firstBatchTrans.CreatedByUser != null 
+                                            ? $"{firstBatchTrans.CreatedByUser.FirstName} {firstBatchTrans.CreatedByUser.LastName}" 
+                                            : $"User ID: {firstBatchTrans.CreatedBy}")
+                                        <span class="text-gray-500 ml-2">(@firstBatchTrans.CreatedAt.ToString("MMM dd, yyyy HH:mm"))</span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600">Processed By</p>
+                                    <p class="text-sm font-medium text-gray-800">
+                                        @(firstBatchTrans.ProcessedByUser != null 
+                                            ? $"{firstBatchTrans.ProcessedByUser.FirstName} {firstBatchTrans.ProcessedByUser.LastName}" 
+                                            : $"User ID: {firstBatchTrans.ProcessedBy}")
+                                        <span class="text-gray-500 ml-2">(@firstBatchTrans.UpdatedAt?.ToString("MMM dd, yyyy HH:mm") ?? "N/A")</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Batch Transactions Table -->
+                    <div class="mb-6 overflow-x-auto rounded-lg border border-gray-200">
+                        <table class="w-full border-collapse text-sm">
+                            <thead>
+                                <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Role</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Base Salary</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Allowance</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Gross Pay</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Deductions</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Net Pay</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var trans in selectedBatchPayrollTransactions.OrderBy(t => t.User != null ? t.User.LastName : ""))
+                                {
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-gray-800">
+                                            @(trans.User != null ? $"{trans.User.FirstName} {trans.User.LastName}" : $"User ID: {trans.UserId}")
+                                        </td>
+                                        <td class="px-4 py-3 text-gray-600">@(trans.User?.UserRole ?? "N/A")</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">₱@trans.BaseSalary.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">₱@trans.Allowance.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-right font-medium text-gray-800">₱@trans.GrossSalary.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-right text-red-600">₱@trans.TotalDeductions.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-right font-bold text-green-600">₱@trans.NetSalary.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <!-- Individual Transaction Details -->
+                    <div class="space-y-4">
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <h4 class="mb-3 text-sm font-semibold text-gray-800">Employee Information</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs text-gray-600">Employee:</label>
+                                    <p class="mt-1 text-sm font-medium text-gray-900">
+                                        @(selectedPayrollTransaction.User != null 
+                                            ? $"{selectedPayrollTransaction.User.FirstName} {selectedPayrollTransaction.User.LastName}"
+                                            : $"User {selectedPayrollTransaction.UserId}")
+                                    </p>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Role:</label>
+                                    <p class="mt-1 text-sm font-medium text-gray-900">@(selectedPayrollTransaction.User?.UserRole ?? "N/A")</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <h4 class="mb-3 text-sm font-semibold text-gray-800">Payroll Details</h4>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="text-xs text-gray-600">Base Salary:</label>
+                                    <p class="mt-1 text-sm font-medium text-gray-900">₱@selectedPayrollTransaction.BaseSalary.ToString("N2")</p>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Allowance:</label>
+                                    <p class="mt-1 text-sm font-medium text-gray-900">₱@selectedPayrollTransaction.Allowance.ToString("N2")</p>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Gross Pay:</label>
+                                    <p class="mt-1 text-lg font-semibold text-gray-900">₱@selectedPayrollTransaction.GrossSalary.ToString("N2")</p>
+                                </div>
+                                <div>
+                                    <label class="text-xs text-gray-600">Total Deductions:</label>
+                                    <p class="mt-1 text-sm font-semibold text-red-600">₱@selectedPayrollTransaction.TotalDeductions.ToString("N2")</p>
+                                </div>
+                                <div class="col-span-2">
+                                    <label class="text-xs text-gray-600">Net Pay:</label>
+                                    <p class="mt-1 text-xl font-bold text-green-600">₱@selectedPayrollTransaction.NetSalary.ToString("N2")</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Audit Trail -->
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <h4 class="mb-3 text-sm font-semibold text-gray-800">AUDIT TRAIL</h4>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div>
+                                    <p class="text-xs text-gray-600">Created By</p>
+                                    <p class="text-sm font-medium text-gray-800">
+                                        @(selectedPayrollTransaction.CreatedByUser != null 
+                                            ? $"{selectedPayrollTransaction.CreatedByUser.FirstName} {selectedPayrollTransaction.CreatedByUser.LastName}" 
+                                            : $"User ID: {selectedPayrollTransaction.CreatedBy}")
+                                        <span class="text-gray-500 ml-2">(@selectedPayrollTransaction.CreatedAt.ToString("MMM dd, yyyy HH:mm"))</span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600">Processed By</p>
+                                    <p class="text-sm font-medium text-gray-800">
+                                        @(selectedPayrollTransaction.ProcessedByUser != null 
+                                            ? $"{selectedPayrollTransaction.ProcessedByUser.FirstName} {selectedPayrollTransaction.ProcessedByUser.LastName}" 
+                                            : $"User ID: {selectedPayrollTransaction.ProcessedBy}")
+                                        <span class="text-gray-500 ml-2">(@selectedPayrollTransaction.UpdatedAt?.ToString("MMM dd, yyyy HH:mm") ?? "N/A")</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+                
+                <!-- Approval Notes -->
+                <div class="mt-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Approval Notes:</label>
+                    <textarea @bind="approvalNotes" 
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                              rows="3"
+                              placeholder="Optional: Add notes or comments..."></textarea>
+                </div>
+            </div>
+            
+            <!-- Footer Actions -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 flex-shrink-0">
+                <button @onclick="ClosePayrollApprovalModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                @if (isBatchPayrollModal)
+                {
+                    <button @onclick="() => RejectPayrollBatch(selectedPayrollTransaction.BatchTimestamp!.Value)" 
+                            class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                        Reject Batch
+                    </button>
+                    <button @onclick="() => ApprovePayrollTransaction(selectedPayrollTransaction.TransactionId, true, selectedPayrollTransaction.BatchTimestamp)" 
+                            class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+                        Approve Batch
+                    </button>
+                }
+                else
+                {
+                    <button @onclick="() => RejectPayrollTransaction(selectedPayrollTransaction.TransactionId)" 
+                            class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                        Reject
+                    </button>
+                    <button @onclick="() => ApprovePayrollTransaction(selectedPayrollTransaction.TransactionId, false, null)" 
+                            class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+                        Approve
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public EventCallback OnApprovalProcessed { get; set; }
+    
+    private string activeTab = "Expenses";
+    private bool isLoading = true; // Start with loading true to prevent blank state on initial render
+    private bool hasLoadedOnce = false; // Track if data has been loaded at least once
+    private List<Expense> pendingExpenses = new();
+    private List<PendingJournalEntry> pendingJournalEntries = new();
+    private List<PayrollTransaction> pendingPayrollTransactions = new();
+    private Expense? selectedExpense = null;
+    private PayrollTransaction? selectedPayrollTransaction = null;
+    private List<PayrollTransaction> selectedBatchPayrollTransactions = new(); // For batch approval modal
+    private bool showApprovalModal = false;
+    private bool showPayrollApprovalModal = false;
+    private bool isBatchPayrollModal = false; // Track if showing batch or individual
+    private string approvalNotes = "";
+    private int? currentUserId = null;
+    private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+    private bool _isDisposed = false;
+    private readonly SemaphoreSlim _loadSemaphore = new SemaphoreSlim(1, 1); // Prevent concurrent loads
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    private int pendingExpensesCount => pendingExpenses.Count;
+    private int pendingPayrollCount => pendingPayrollTransactions.Count;
+    private int pendingJournalEntriesCount => pendingJournalEntries.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ensure loading state is set immediately (already set to true by default)
+        // This prevents blank state from showing before data loads
+        await GetCurrentUserId();
+        
+        // Set up automatic refresh every 3 seconds using proper async pattern
+        _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+        
+        _ = Task.Run(async () =>
+        {
+            while (!_cancellationTokenSource.Token.IsCancellationRequested && !_isDisposed)
+            {
+                await Task.Delay(3000, _cancellationTokenSource.Token);
+                
+                // Only refresh if not currently loading, has loaded once, and not disposed
+                if (!isLoading && hasLoadedOnce && !_isDisposed)
+                {
+                    // Use InvokeAsync to ensure we're on the UI thread for StateHasChanged
+                    await InvokeAsync(async () =>
+                    {
+                        // Double-check conditions after getting to UI thread
+                        if (!_isDisposed && !isLoading)
+                        {
+                            await LoadPendingApprovals(silent: true); // Silent refresh - don't show loading
+                        }
+                    });
+                }
+            }
+        }, _cancellationTokenSource.Token);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Load data after first render to ensure component is fully initialized
+        // This prevents blank state when navigating from another page
+        if (firstRender && !hasLoadedOnce && !_isDisposed)
+        {
+            // Force UI to show loading state immediately
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield(); // Allow UI to render
+            
+            // Now load the data
+            await LoadPendingApprovals(silent: false);
+        }
+    }
+    
+    public void Dispose()
+    {
+        _isDisposed = true;
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
+        
+        // Safely dispose semaphore
+        try
+        {
+            _loadSemaphore?.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed, ignore
+        }
+    }
+
+    private Task GetCurrentUserId()
+    {
+        if (AuthService?.CurrentUser != null)
+        {
+            currentUserId = AuthService.CurrentUser.user_ID;
+        }
+        else
+        {
+            currentUserId = null;
+        }
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadPendingApprovals(bool silent = false)
+    {
+        // Check if disposed or semaphore is null before proceeding
+        if (_isDisposed || _loadSemaphore == null)
+            return;
+
+        // Use semaphore to prevent concurrent loads
+        bool acquired = false;
+        try
+        {
+            acquired = await _loadSemaphore.WaitAsync(0);
+            if (!acquired)
+                return; // Already loading, skip
+        }
+        catch (ObjectDisposedException)
+        {
+            // Semaphore was disposed, component is being disposed
+            return;
+        }
+
+        try
+        {
+            if (_isDisposed)
+                return;
+
+            // Only show loading indicator on first load or if not silent
+            // Since isLoading starts as true, we only need to update UI if it was false
+            if (!silent && !hasLoadedOnce)
+            {
+                if (!isLoading)
+                {
+                    isLoading = true;
+                }
+                await InvokeAsync(StateHasChanged);
+                await Task.Yield(); // Allow UI to render loading state
+            }
+
+            try
+            {
+                // Load data directly without InvokeAsync - we're already on the UI thread
+                // DbContext is scoped per component, so we can use it directly
+                try
+                {
+                    // Optimize: Load pending expenses with AsNoTracking for faster queries
+                    pendingExpenses = await DbContext.Expenses
+                        .AsNoTracking() // Faster - no change tracking needed for read-only
+                        .Where(e => e.Status == "Pending")
+                        .OrderBy(e => e.ExpenseDate)
+                        .Take(100) // Limit for performance
+                        .ToListAsync();
+
+                    // Load pending journal entries (this should already be optimized in the service)
+                    pendingJournalEntries = await JournalEntryService.GetPendingJournalEntriesAsync();
+                    
+                    // Load pending payroll transactions
+                    // Materialize the query first to avoid concurrent access issues
+                    var payrollQuery = DbContext.PayrollTransactions
+                        .AsNoTracking()
+                        .Include(pt => pt.User)
+                        .Include(pt => pt.CreatedByUser)
+                        .Include(pt => pt.ProcessedByUser)
+                        .Where(pt => pt.Status == "Pending Approval")
+                        .OrderBy(pt => pt.CreatedAt)
+                        .Take(100); // Limit for performance
+                    
+                    // Force materialization to prevent concurrent access
+                    pendingPayrollTransactions = await payrollQuery.ToListAsync();
+                    
+                    // Force materialization of navigation properties to prevent lazy loading issues
+                    _ = pendingPayrollTransactions.Count;
+                    foreach (var pt in pendingPayrollTransactions)
+                    {
+                        _ = pt.User?.FirstName;
+                        _ = pt.CreatedByUser?.FirstName;
+                        _ = pt.ProcessedByUser?.FirstName;
+                    }
+                    
+                    hasLoadedOnce = true; // Mark that we've loaded data at least once
+                }
+                catch (InvalidOperationException dbEx) when (dbEx.Message.Contains("second operation") || dbEx.Message.Contains("context"))
+                {
+                    // DbContext concurrency issue - wait a bit and retry once
+                    Logger.LogWarning(dbEx, "DbContext concurrency issue detected, retrying after delay...");
+                    await Task.Delay(200); // Slightly longer delay for retry
+                    
+                    try
+                    {
+                        // Retry the operations
+                        pendingExpenses = await DbContext.Expenses
+                            .Where(e => e.Status == "Pending")
+                            .OrderBy(e => e.ExpenseDate)
+                            .Take(100)
+                            .ToListAsync();
+
+                        pendingJournalEntries = await JournalEntryService.GetPendingJournalEntriesAsync();
+                        
+                        pendingPayrollTransactions = await DbContext.PayrollTransactions
+                            .AsNoTracking()
+                            .Include(pt => pt.User)
+                            .Include(pt => pt.CreatedByUser)
+                            .Include(pt => pt.ProcessedByUser)
+                            .Where(pt => pt.Status == "Pending Approval")
+                            .OrderBy(pt => pt.CreatedAt)
+                            .Take(100)
+                            .ToListAsync();
+                        
+                        hasLoadedOnce = true; // Mark as loaded after retry
+                    }
+                    catch (Exception retryEx)
+                    {
+                        // If retry also fails, it might be because transaction is already processed
+                        Logger.LogWarning(retryEx, "Retry also failed, transaction may already be processed");
+                        if (!_isDisposed)
+                        {
+                            pendingExpenses = new List<Expense>();
+                            pendingJournalEntries = new List<PendingJournalEntry>();
+                            pendingPayrollTransactions = new List<PayrollTransaction>();
+                            hasLoadedOnce = true;
+                            
+                            // Show info toast instead of error - transaction likely already processed
+                            toastMessage = "This transaction has already been processed and is no longer available for approval.";
+                            toastType = ToastType.Edit; // Use Edit (yellow/info style) for informational messages
+                            showToast = true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error loading pending approvals");
+                if (!_isDisposed)
+                {
+                    pendingExpenses = new List<Expense>();
+                    pendingJournalEntries = new List<PendingJournalEntry>();
+                    pendingPayrollTransactions = new List<PayrollTransaction>();
+                    hasLoadedOnce = true; // Mark as loaded even on error to prevent infinite loading
+                    
+                    // Check if error is DbContext related - likely means transaction already processed
+                    var errorMsg = ex.Message.ToLowerInvariant();
+                    if (errorMsg.Contains("second operation") || 
+                        errorMsg.Contains("dbcontext") || 
+                        errorMsg.Contains("context") ||
+                        errorMsg.Contains("concurrently"))
+                    {
+                        // Show info toast instead of error
+                        toastMessage = "This transaction has already been processed and is no longer available for approval.";
+                        toastType = ToastType.Edit; // Use Edit (yellow/info style) for informational messages
+                        showToast = true;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            if (!_isDisposed)
+            {
+                isLoading = false;
+                await InvokeAsync(StateHasChanged); // Single UI update after all state changes
+            }
+            
+            // Safely release semaphore only if we acquired it
+            if (acquired)
+            {
+                try
+                {
+                    if (_loadSemaphore != null && !_isDisposed)
+                    {
+                        _loadSemaphore.Release();
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Semaphore was disposed, ignore - component is being disposed
+                }
+            }
+        }
+    }
+
+    private async Task RefreshApprovals()
+    {
+        await LoadPendingApprovals(silent: false); // Show loading on manual refresh
+    }
+
+    private async Task SetActiveTab(string tab)
+    {
+        // Prevent tab switching during loading to avoid concurrency issues
+        if (isLoading)
+        {
+            return;
+        }
+        
+        activeTab = tab;
+        
+        // Small delay to ensure any pending operations complete
+        await Task.Delay(50);
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        return activeTab == tab
+            ? "px-4 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600"
+            : "px-4 py-2 text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors";
+    }
+
+    private RenderFragment RenderExpensesTab() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        // Show loading when loading or before first load
+        if (isLoading || !hasLoadedOnce)
+        {
+            builder.OpenElement(2, "div");
+            builder.AddAttribute(3, "class", "flex flex-col items-center justify-center py-12");
+            builder.OpenElement(4, "svg");
+            builder.AddAttribute(5, "class", "animate-spin h-8 w-8 text-blue-600 mb-4");
+            builder.AddAttribute(6, "xmlns", "http://www.w3.org/2000/svg");
+            builder.AddAttribute(7, "fill", "none");
+            builder.AddAttribute(8, "viewBox", "0 0 24 24");
+            builder.OpenElement(9, "circle");
+            builder.AddAttribute(10, "class", "opacity-25");
+            builder.AddAttribute(11, "cx", "12");
+            builder.AddAttribute(12, "cy", "12");
+            builder.AddAttribute(13, "r", "10");
+            builder.AddAttribute(14, "stroke", "currentColor");
+            builder.AddAttribute(15, "stroke-width", "4");
+            builder.CloseElement();
+            builder.OpenElement(16, "path");
+            builder.AddAttribute(17, "class", "opacity-75");
+            builder.AddAttribute(18, "fill", "currentColor");
+            builder.AddAttribute(19, "d", "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(20, "p");
+            builder.AddAttribute(21, "class", "text-sm text-gray-500");
+            builder.AddContent(22, "Loading pending expenses...");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show placeholder when data has loaded but is empty
+        else if (hasLoadedOnce && !pendingExpenses.Any())
+        {
+            builder.OpenElement(5, "div");
+            builder.AddAttribute(6, "class", "rounded-lg border border-gray-200 bg-gray-50 p-12 text-center");
+            builder.OpenElement(7, "p");
+            builder.AddAttribute(8, "class", "text-sm font-medium text-gray-600");
+            builder.AddContent(9, "No pending expenses for approval");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show data only if it exists and has been loaded
+        else if (hasLoadedOnce && pendingExpenses.Any())
+        {
+            builder.OpenElement(10, "div");
+            builder.AddAttribute(11, "class", "overflow-x-auto rounded-lg border border-gray-200");
+            builder.OpenElement(12, "table");
+            builder.AddAttribute(13, "class", "w-full border-collapse text-sm");
+            
+            // Header
+            builder.OpenElement(14, "thead");
+            builder.OpenElement(15, "tr");
+            builder.AddAttribute(16, "class", "border-b-2 border-gray-300 bg-gray-50");
+            
+            AddTableHeader(builder, 17, "Date");
+            AddTableHeader(builder, 18, "ID");
+            AddTableHeader(builder, 19, "Category");
+            AddTableHeader(builder, 20, "Description");
+            AddTableHeader(builder, 21, "Amount", "text-right");
+            AddTableHeader(builder, 22, "Payee");
+            AddTableHeader(builder, 23, "Created By");
+            AddTableHeader(builder, 24, "Actions");
+            
+            builder.CloseElement(); // tr
+            builder.CloseElement(); // thead
+            
+            // Body
+            builder.OpenElement(25, "tbody");
+            foreach (var expense in pendingExpenses)
+            {
+                builder.OpenElement(26, "tr");
+                builder.AddAttribute(27, "class", "border-b border-gray-100 hover:bg-gray-50");
+                
+                AddTableCell(builder, 28, expense.ExpenseDate.ToString("MMM dd, yyyy"));
+                AddTableCell(builder, 29, expense.ExpenseCode);
+                AddTableCell(builder, 30, expense.Category);
+                AddTableCell(builder, 31, expense.Description ?? "N/A");
+                AddTableCell(builder, 32, $"₱{expense.Amount:N2}", "text-right font-semibold text-gray-900");
+                AddTableCell(builder, 33, expense.Payee ?? "N/A");
+                AddTableCell(builder, 34, expense.RecordedBy ?? "N/A");
+                
+                builder.OpenElement(35, "td");
+                builder.AddAttribute(36, "class", "px-4 py-3");
+                builder.OpenElement(37, "button");
+                builder.AddAttribute(38, "class", "rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700");
+                builder.AddAttribute(39, "onclick", EventCallback.Factory.Create(this, () => OpenApprovalModal(expense)));
+                builder.AddContent(40, "Review");
+                builder.CloseElement(); // button
+                builder.CloseElement(); // td
+                
+                builder.CloseElement(); // tr
+            }
+            builder.CloseElement(); // tbody
+            builder.CloseElement(); // table
+            builder.CloseElement(); // div
+        }
+
+        builder.CloseElement(); // div
+    };
+
+    private RenderFragment RenderPayrollTab() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        // Show loading when loading or before first load
+        if (isLoading || !hasLoadedOnce)
+        {
+            builder.OpenElement(2, "div");
+            builder.AddAttribute(3, "class", "flex flex-col items-center justify-center py-12");
+            builder.OpenElement(4, "svg");
+            builder.AddAttribute(5, "class", "animate-spin h-8 w-8 text-blue-600 mb-4");
+            builder.AddAttribute(6, "xmlns", "http://www.w3.org/2000/svg");
+            builder.AddAttribute(7, "fill", "none");
+            builder.AddAttribute(8, "viewBox", "0 0 24 24");
+            builder.OpenElement(9, "circle");
+            builder.AddAttribute(10, "class", "opacity-25");
+            builder.AddAttribute(11, "cx", "12");
+            builder.AddAttribute(12, "cy", "12");
+            builder.AddAttribute(13, "r", "10");
+            builder.AddAttribute(14, "stroke", "currentColor");
+            builder.AddAttribute(15, "stroke-width", "4");
+            builder.CloseElement();
+            builder.OpenElement(16, "path");
+            builder.AddAttribute(17, "class", "opacity-75");
+            builder.AddAttribute(18, "fill", "currentColor");
+            builder.AddAttribute(19, "d", "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(20, "p");
+            builder.AddAttribute(21, "class", "text-sm text-gray-500");
+            builder.AddContent(22, "Loading pending payroll...");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show placeholder when data has loaded but is empty
+        else if (hasLoadedOnce && !pendingPayrollTransactions.Any())
+        {
+            builder.OpenElement(5, "div");
+            builder.AddAttribute(6, "class", "rounded-lg border border-gray-200 bg-gray-50 p-12 text-center");
+            builder.OpenElement(7, "p");
+            builder.AddAttribute(8, "class", "text-sm font-medium text-gray-600");
+            builder.AddContent(9, "No pending payroll transactions for approval");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show data only if it exists and has been loaded
+        else if (hasLoadedOnce && pendingPayrollTransactions.Any())
+        {
+            // Group by batch timestamp for batch payrolls
+            var batchGroups = pendingPayrollTransactions
+                .Where(pt => pt.BatchTimestamp.HasValue)
+                .GroupBy(pt => pt.BatchTimestamp!.Value)
+                .ToList();
+            
+            var individualTransactions = pendingPayrollTransactions
+                .Where(pt => !pt.BatchTimestamp.HasValue)
+                .ToList();
+
+            // Show batch payrolls first - simple card design
+            int batchIndex = 0;
+            foreach (var batchGroup in batchGroups)
+            {
+                var batchTransactions = batchGroup.ToList();
+                var firstTransaction = batchTransactions.First();
+                var totalNetPay = batchTransactions.Sum(t => t.NetSalary);
+                var employeeCount = batchTransactions.Count;
+                var createdByName = firstTransaction.CreatedByUser != null 
+                    ? $"{firstTransaction.CreatedByUser.FirstName} {firstTransaction.CreatedByUser.LastName}"
+                    : "System";
+
+                int baseSeq = 100 + (batchIndex * 50);
+                
+                builder.OpenElement(baseSeq, "div");
+                builder.AddAttribute(baseSeq + 1, "class", "rounded-lg border border-gray-200 bg-white p-4 mb-4");
+                
+                builder.OpenElement(baseSeq + 2, "div");
+                builder.AddAttribute(baseSeq + 3, "class", "flex items-center justify-between mb-3");
+                builder.OpenElement(baseSeq + 4, "div");
+                builder.OpenElement(baseSeq + 5, "h3");
+                builder.AddAttribute(baseSeq + 6, "class", "text-sm font-semibold text-gray-800");
+                builder.AddContent(baseSeq + 7, $"Batch Payroll - {employeeCount} Employee(s)");
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 8, "p");
+                builder.AddAttribute(baseSeq + 9, "class", "text-xs text-gray-600");
+                builder.AddContent(baseSeq + 10, $"Pay Period: {firstTransaction.PayPeriod} | Created: {firstTransaction.CreatedAt:MMM dd, yyyy HH:mm}");
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 11, "p");
+                builder.AddAttribute(baseSeq + 12, "class", "text-xs text-gray-600");
+                builder.AddContent(baseSeq + 13, $"Created By: {createdByName}");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 14, "div");
+                builder.AddAttribute(baseSeq + 15, "class", "text-right");
+                builder.OpenElement(baseSeq + 16, "p");
+                builder.AddAttribute(baseSeq + 17, "class", "text-lg font-semibold text-gray-900");
+                builder.AddContent(baseSeq + 18, $"₱{totalNetPay:N2}");
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 19, "p");
+                builder.AddAttribute(baseSeq + 20, "class", "text-xs text-gray-500");
+                builder.AddContent(baseSeq + 21, "Total Net Pay");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.OpenElement(baseSeq + 22, "div");
+                builder.AddAttribute(baseSeq + 23, "class", "flex justify-end gap-2");
+                builder.OpenElement(baseSeq + 24, "button");
+                builder.AddAttribute(baseSeq + 25, "class", "rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50");
+                builder.AddAttribute(baseSeq + 26, "onclick", EventCallback.Factory.Create(this, () => RejectPayrollBatch(batchGroup.Key)));
+                builder.AddContent(baseSeq + 27, "Reject");
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 28, "button");
+                builder.AddAttribute(baseSeq + 29, "class", "rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700");
+                builder.AddAttribute(baseSeq + 30, "onclick", EventCallback.Factory.Create(this, () => OpenPayrollApprovalModal(firstTransaction.TransactionId, isBatch: true, batchTimestamp: batchGroup.Key)));
+                builder.AddContent(baseSeq + 31, "Review");
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.CloseElement();
+                batchIndex++;
+            }
+
+            // Show individual payrolls in a simple table
+            if (individualTransactions.Any())
+            {
+                builder.OpenElement(1000, "div");
+                builder.AddAttribute(1001, "class", "overflow-x-auto rounded-lg border border-gray-200");
+                builder.OpenElement(1002, "table");
+                builder.AddAttribute(1003, "class", "w-full border-collapse text-sm");
+                
+                builder.OpenElement(1004, "thead");
+                builder.OpenElement(1005, "tr");
+                builder.AddAttribute(1006, "class", "border-b-2 border-gray-300 bg-gray-50");
+                AddTableHeader(builder, 1007, "Date");
+                AddTableHeader(builder, 1008, "Employee");
+                AddTableHeader(builder, 1009, "Pay Period");
+                AddTableHeader(builder, 1010, "Gross Pay", "text-right");
+                AddTableHeader(builder, 1011, "Deductions", "text-right");
+                AddTableHeader(builder, 1012, "Net Pay", "text-right");
+                AddTableHeader(builder, 1013, "Created By");
+                AddTableHeader(builder, 1014, "Actions");
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.OpenElement(1015, "tbody");
+                int transIndex = 0;
+                foreach (var transaction in individualTransactions)
+                {
+                    var userName = transaction.User != null 
+                        ? $"{transaction.User.FirstName} {transaction.User.LastName}"
+                        : $"User {transaction.UserId}";
+                    var createdByName = transaction.CreatedByUser != null 
+                        ? $"{transaction.CreatedByUser.FirstName} {transaction.CreatedByUser.LastName}"
+                        : "System";
+
+                    int rowSeq = 2000 + (transIndex * 20);
+                    
+                    builder.OpenElement(rowSeq, "tr");
+                    builder.AddAttribute(rowSeq + 1, "class", "border-b border-gray-100 hover:bg-gray-50");
+                    
+                    AddTableCell(builder, rowSeq + 2, transaction.CreatedAt.ToString("MMM dd, yyyy"));
+                    AddTableCell(builder, rowSeq + 5, userName);
+                    AddTableCell(builder, rowSeq + 8, transaction.PayPeriod);
+                    AddTableCell(builder, rowSeq + 11, $"₱{transaction.GrossSalary:N2}", "text-right font-semibold text-gray-900");
+                    AddTableCell(builder, rowSeq + 14, $"₱{transaction.TotalDeductions:N2}", "text-right text-red-600");
+                    AddTableCell(builder, rowSeq + 17, $"₱{transaction.NetSalary:N2}", "text-right font-semibold text-green-600");
+                    AddTableCell(builder, rowSeq + 20, createdByName);
+                    
+                    builder.OpenElement(rowSeq + 23, "td");
+                    builder.AddAttribute(rowSeq + 24, "class", "px-4 py-3");
+                    builder.OpenElement(rowSeq + 25, "button");
+                    builder.AddAttribute(rowSeq + 26, "class", "rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700");
+                    builder.AddAttribute(rowSeq + 27, "onclick", EventCallback.Factory.Create(this, () => OpenPayrollApprovalModal(transaction.TransactionId, isBatch: false)));
+                    builder.AddContent(rowSeq + 28, "Review");
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    
+                    builder.CloseElement();
+                    transIndex++;
+                }
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+        }
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderJournalEntriesTab() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        // Show loading when loading or before first load
+        if (isLoading || !hasLoadedOnce)
+        {
+            builder.OpenElement(2, "div");
+            builder.AddAttribute(3, "class", "flex flex-col items-center justify-center py-12");
+            builder.OpenElement(4, "svg");
+            builder.AddAttribute(5, "class", "animate-spin h-8 w-8 text-blue-600 mb-4");
+            builder.AddAttribute(6, "xmlns", "http://www.w3.org/2000/svg");
+            builder.AddAttribute(7, "fill", "none");
+            builder.AddAttribute(8, "viewBox", "0 0 24 24");
+            builder.OpenElement(9, "circle");
+            builder.AddAttribute(10, "class", "opacity-25");
+            builder.AddAttribute(11, "cx", "12");
+            builder.AddAttribute(12, "cy", "12");
+            builder.AddAttribute(13, "r", "10");
+            builder.AddAttribute(14, "stroke", "currentColor");
+            builder.AddAttribute(15, "stroke-width", "4");
+            builder.CloseElement();
+            builder.OpenElement(16, "path");
+            builder.AddAttribute(17, "class", "opacity-75");
+            builder.AddAttribute(18, "fill", "currentColor");
+            builder.AddAttribute(19, "d", "M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(20, "p");
+            builder.AddAttribute(21, "class", "text-sm text-gray-500");
+            builder.AddContent(22, "Loading journal entries...");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show placeholder when data has loaded but is empty
+        else if (hasLoadedOnce && !pendingJournalEntries.Any())
+        {
+            builder.OpenElement(5, "div");
+            builder.AddAttribute(6, "class", "rounded-lg border border-gray-200 bg-gray-50 p-12 text-center");
+            builder.OpenElement(7, "p");
+            builder.AddAttribute(8, "class", "text-sm font-medium text-gray-600");
+            builder.AddContent(9, "No pending journal entries for approval");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+        // Show data only if it exists and has been loaded
+        else if (hasLoadedOnce && pendingJournalEntries.Any())
+        {
+            int entryIndex = 0;
+            foreach (var entry in pendingJournalEntries)
+            {
+                int baseSeq = 100 + (entryIndex * 200); // Use unique base sequence for each entry
+                
+                builder.OpenElement(baseSeq, "div");
+                builder.AddAttribute(baseSeq + 1, "class", "rounded-lg border border-gray-200 bg-white p-4");
+                
+                builder.OpenElement(baseSeq + 2, "div");
+                builder.AddAttribute(baseSeq + 3, "class", "flex items-center justify-between mb-3");
+                builder.OpenElement(baseSeq + 4, "div");
+                builder.OpenElement(baseSeq + 5, "h3");
+                builder.AddAttribute(baseSeq + 6, "class", "text-sm font-semibold text-gray-800");
+                builder.AddContent(baseSeq + 7, entry.EntryNumber);
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 8, "p");
+                builder.AddAttribute(baseSeq + 9, "class", "text-xs text-gray-600");
+                builder.AddContent(baseSeq + 10, $"Created by {entry.CreatedByName} on {entry.CreatedAt:MMM dd, yyyy}");
+                builder.CloseElement();
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.OpenElement(baseSeq + 11, "div");
+                builder.AddAttribute(baseSeq + 12, "class", "mb-3");
+                builder.OpenElement(baseSeq + 13, "p");
+                builder.AddAttribute(baseSeq + 14, "class", "text-sm text-gray-700");
+                builder.AddContent(baseSeq + 15, entry.Description);
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.OpenElement(baseSeq + 16, "div");
+                builder.AddAttribute(baseSeq + 17, "class", "mb-3 rounded-lg bg-gray-50 p-3");
+                builder.OpenElement(baseSeq + 18, "div");
+                builder.AddAttribute(baseSeq + 19, "class", "text-xs font-medium text-gray-600 mb-2");
+                builder.AddContent(baseSeq + 20, "Journal Entry Lines:");
+                builder.CloseElement();
+                
+                int lineIndex = 0;
+                foreach (var line in entry.Lines)
+                {
+                    int lineSeq = baseSeq + 30 + (lineIndex * 10);
+                    builder.OpenElement(lineSeq, "div");
+                    builder.AddAttribute(lineSeq + 1, "class", "flex items-center justify-between text-xs");
+                    builder.OpenElement(lineSeq + 2, "span");
+                    builder.AddAttribute(lineSeq + 3, "class", "text-gray-700");
+                    builder.AddContent(lineSeq + 4, $"{line.AccountCode} - {line.AccountName}");
+                    builder.CloseElement();
+                    builder.OpenElement(lineSeq + 5, "span");
+                    builder.AddAttribute(lineSeq + 6, "class", "text-gray-900 font-medium");
+                    if (line.DebitAmount > 0)
+                    {
+                        builder.AddContent(lineSeq + 7, $"DR: ₱{line.DebitAmount:N2}");
+                    }
+                    if (line.CreditAmount > 0)
+                    {
+                        builder.AddContent(lineSeq + 8, $"CR: ₱{line.CreditAmount:N2}");
+                    }
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    lineIndex++;
+                }
+                builder.CloseElement();
+                
+                builder.OpenElement(baseSeq + 40, "div");
+                builder.AddAttribute(baseSeq + 41, "class", "flex items-center justify-between mb-3");
+                builder.OpenElement(baseSeq + 42, "span");
+                builder.AddAttribute(baseSeq + 43, "class", "text-xs text-gray-600");
+                builder.AddContent(baseSeq + 44, "Total Debits: ₱" + entry.TotalDebits.ToString("N2"));
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 45, "span");
+                builder.AddAttribute(baseSeq + 46, "class", "text-xs text-gray-600");
+                builder.AddContent(baseSeq + 47, "Total Credits: ₱" + entry.TotalCredits.ToString("N2"));
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 48, "span");
+                builder.AddAttribute(baseSeq + 49, "class", entry.TotalDebits == entry.TotalCredits ? "text-xs font-semibold text-green-600" : "text-xs font-semibold text-red-600");
+                builder.AddContent(baseSeq + 50, entry.TotalDebits == entry.TotalCredits ? "✓ Balanced" : "✗ Not Balanced");
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.OpenElement(baseSeq + 51, "div");
+                builder.AddAttribute(baseSeq + 52, "class", "flex justify-end gap-2");
+                builder.OpenElement(baseSeq + 53, "button");
+                builder.AddAttribute(baseSeq + 54, "class", "rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50");
+                builder.AddAttribute(baseSeq + 55, "onclick", EventCallback.Factory.Create(this, () => RejectJournalEntry(entry.JournalEntryId)));
+                builder.AddContent(baseSeq + 56, "Reject");
+                builder.CloseElement();
+                builder.OpenElement(baseSeq + 57, "button");
+                builder.AddAttribute(baseSeq + 58, "class", "rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700");
+                builder.AddAttribute(baseSeq + 59, "onclick", EventCallback.Factory.Create(this, () => ApproveJournalEntry(entry.JournalEntryId)));
+                builder.AddContent(baseSeq + 60, "Approve");
+                builder.CloseElement();
+                builder.CloseElement();
+                
+                builder.CloseElement(); // div
+                entryIndex++;
+            }
+        }
+
+        builder.CloseElement(); // div
+    };
+
+    private void AddTableHeader(RenderTreeBuilder builder, int sequence, string text, string additionalClasses = "")
+    {
+        builder.OpenElement(sequence, "th");
+        builder.AddAttribute(sequence + 1, "class", $"px-4 py-3 text-left text-xs font-semibold text-gray-700 {additionalClasses}");
+        builder.AddContent(sequence + 2, text);
+        builder.CloseElement();
+    }
+
+    private void AddTableCell(RenderTreeBuilder builder, int sequence, string text, string additionalClasses = "")
+    {
+        builder.OpenElement(sequence, "td");
+        builder.AddAttribute(sequence + 1, "class", $"px-4 py-3 text-gray-700 {additionalClasses}");
+        builder.AddContent(sequence + 2, text);
+        builder.CloseElement();
+    }
+
+    private void OpenApprovalModal(Expense expense)
+    {
+        selectedExpense = expense;
+        approvalNotes = "";
+        showApprovalModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseApprovalModal()
+    {
+        showApprovalModal = false;
+        selectedExpense = null;
+        approvalNotes = "";
+        StateHasChanged();
+    }
+
+    private async Task ApproveExpense()
+    {
+        if (selectedExpense == null || currentUserId == null) return;
+
+        try
+        {
+            var request = new UpdateExpenseRequest
+            {
+                Category = selectedExpense.Category,
+                Description = selectedExpense.Description,
+                Amount = selectedExpense.Amount,
+                ExpenseDate = selectedExpense.ExpenseDate,
+                Payee = selectedExpense.Payee,
+                OrNumber = selectedExpense.OrNumber,
+                PaymentMethod = selectedExpense.PaymentMethod,
+                Status = "Approved",
+                ApprovedBy = GetCurrentUserName(), // Get current user name
+                RecordedBy = selectedExpense.RecordedBy
+            };
+
+            await ExpenseService.UpdateExpenseAsync(selectedExpense.ExpenseCode, request);
+            
+            // Mark related notification as read
+            try
+            {
+                await NotificationService.MarkNotificationsAsReadByReferenceAsync("Expense", selectedExpense.ExpenseId);
+            }
+            catch (Exception notifEx)
+            {
+                Logger.LogWarning(notifEx, "Failed to mark notification as read for expense {ExpenseCode}", selectedExpense.ExpenseCode);
+            }
+            
+            // Show success toast
+            toastMessage = $"Expense {selectedExpense.ExpenseCode} approved successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+            
+            CloseApprovalModal();
+            await LoadPendingApprovals();
+            
+            // Notify parent to refresh count and expense list
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error approving expense");
+            
+            // Show error toast
+            toastMessage = $"Failed to approve expense: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectExpense()
+    {
+        if (selectedExpense == null || currentUserId == null) return;
+
+        try
+        {
+            var request = new UpdateExpenseRequest
+            {
+                Category = selectedExpense.Category,
+                Description = selectedExpense.Description,
+                Amount = selectedExpense.Amount,
+                ExpenseDate = selectedExpense.ExpenseDate,
+                Payee = selectedExpense.Payee,
+                OrNumber = selectedExpense.OrNumber,
+                PaymentMethod = selectedExpense.PaymentMethod,
+                Status = "Rejected",
+                ApprovedBy = GetCurrentUserName(),
+                RecordedBy = selectedExpense.RecordedBy
+            };
+
+            await ExpenseService.UpdateExpenseAsync(selectedExpense.ExpenseCode, request);
+            
+            // Mark related notification as read immediately
+            try
+            {
+                await NotificationService.MarkNotificationsAsReadByReferenceAsync("Expense", selectedExpense.ExpenseId);
+            }
+            catch (Exception notifEx)
+            {
+                Logger.LogWarning(notifEx, "Failed to mark notification as read for expense {ExpenseCode}", selectedExpense.ExpenseCode);
+            }
+            
+            // Show success toast
+            toastMessage = $"Expense {selectedExpense.ExpenseCode} rejected successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+            
+            CloseApprovalModal();
+            
+            // Refresh pending approvals list immediately
+            await LoadPendingApprovals();
+            
+            // Notify parent to refresh count and expense list
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            // Force UI update
+            StateHasChanged();
+            
+            // Small delay then refresh again to ensure all data is synced
+            await Task.Delay(200);
+            await LoadPendingApprovals();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error rejecting expense");
+            
+            // Show error toast
+            toastMessage = $"Failed to reject expense: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenPayrollApprovalModal(int transactionId, bool isBatch = false, DateTime? batchTimestamp = null)
+    {
+        try
+        {
+            if (isBatch && batchTimestamp.HasValue)
+            {
+                // Load all transactions in the batch
+                var batchTransactions = await DbContext.PayrollTransactions
+                    .Include(pt => pt.User)
+                    .Include(pt => pt.CreatedByUser)
+                    .Include(pt => pt.ProcessedByUser)
+                    .Include(pt => pt.ApprovedByUser)
+                    .Include(pt => pt.CancelledByUser)
+                    .Where(pt => pt.BatchTimestamp == batchTimestamp.Value && pt.Status == "Pending Approval")
+                    .OrderBy(pt => pt.User != null ? pt.User.LastName : "")
+                    .ToListAsync();
+
+                if (!batchTransactions.Any())
+                {
+                    toastMessage = "No pending transactions found in this batch.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                    return;
+                }
+
+                selectedBatchPayrollTransactions = batchTransactions;
+                selectedPayrollTransaction = batchTransactions.First(); // Use first for reference
+                isBatchPayrollModal = true;
+            }
+            else
+            {
+                // Load individual transaction
+                var transaction = await DbContext.PayrollTransactions
+                    .Include(pt => pt.User)
+                    .Include(pt => pt.CreatedByUser)
+                    .Include(pt => pt.ProcessedByUser)
+                    .Include(pt => pt.ApprovedByUser)
+                    .Include(pt => pt.CancelledByUser)
+                    .FirstOrDefaultAsync(pt => pt.TransactionId == transactionId);
+
+                if (transaction == null)
+                {
+                    toastMessage = "Payroll transaction not found.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                    return;
+                }
+
+                selectedPayrollTransaction = transaction;
+                selectedBatchPayrollTransactions.Clear();
+                isBatchPayrollModal = false;
+            }
+
+            approvalNotes = "";
+            showPayrollApprovalModal = true;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error opening payroll approval modal");
+            toastMessage = $"Error: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private void ClosePayrollApprovalModal()
+    {
+        showPayrollApprovalModal = false;
+        selectedPayrollTransaction = null;
+        selectedBatchPayrollTransactions.Clear();
+        isBatchPayrollModal = false;
+        approvalNotes = "";
+        StateHasChanged();
+    }
+
+    private async Task ApprovePayrollTransaction(int transactionId, bool isBatch = false, DateTime? batchTimestamp = null)
+    {
+        if (currentUserId == null) return;
+
+        try
+        {
+            if (isBatch && batchTimestamp.HasValue)
+            {
+                // Approve entire batch
+                var transactions = await DbContext.PayrollTransactions
+                    .Where(pt => pt.BatchTimestamp == batchTimestamp.Value && pt.Status == "Pending Approval")
+                    .ToListAsync();
+
+                if (!transactions.Any())
+                {
+                    toastMessage = "No pending transactions found in this batch.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                    return;
+                }
+
+                foreach (var trans in transactions)
+                {
+                    trans.Status = "Paid";
+                    trans.UpdatedAt = DateTime.Now;
+                    trans.PaymentDate = DateTime.Now;
+                    trans.ApprovedBy = currentUserId.Value;
+                    trans.ApprovedAt = DateTime.Now;
+                }
+
+                await DbContext.SaveChangesAsync();
+
+                // Create a single combined journal entry for the entire batch
+                try
+                {
+                    var journalEntryId = await JournalEntryService.CreateBatchPayrollJournalEntryAsync(transactions, createdBy: currentUserId.Value, approvedBy: currentUserId.Value);
+                    Logger.LogInformation("Batch journal entry {JournalEntryId} created successfully for {Count} transactions", journalEntryId, transactions.Count);
+                    
+                    // Verify journal entry was created
+                    var createdEntry = await DbContext.JournalEntries
+                        .FirstOrDefaultAsync(je => je.JournalEntryId == journalEntryId);
+                    
+                    if (createdEntry == null)
+                    {
+                        Logger.LogError("Journal entry {JournalEntryId} was not found after creation", journalEntryId);
+                        toastMessage = $"Batch approved, but journal entry verification failed. Please check General Ledger.";
+                        toastType = ToastType.Error;
+                        showToast = true;
+                    }
+                }
+                catch (Exception jeEx)
+                {
+                    Logger.LogError(jeEx, "Failed to create batch journal entry for payroll batch. Error: {ErrorMessage}. StackTrace: {StackTrace}", 
+                        jeEx.Message, jeEx.StackTrace);
+                    // Show error to user - this is critical for financial reporting
+                    var errorMsg = jeEx.InnerException != null 
+                        ? $"{jeEx.Message} (Inner: {jeEx.InnerException.Message})" 
+                        : jeEx.Message;
+                    toastMessage = $"Batch approved, but failed to create journal entry: {errorMsg}. Please contact administrator.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                    StateHasChanged();
+                    return; // Don't continue if journal entry creation fails
+                }
+
+                // Mark notifications as read
+                try
+                {
+                    await NotificationService.MarkNotificationsAsReadByReferenceAsync("Payroll", transactions.First().TransactionId);
+                }
+                catch (Exception notifEx)
+                {
+                    Logger.LogWarning(notifEx, "Failed to mark notification as read");
+                }
+
+                toastMessage = $"Batch payroll approved successfully. {transactions.Count} transaction(s) processed.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            else
+            {
+                // Approve individual transaction
+                var transaction = await DbContext.PayrollTransactions
+                    .FirstOrDefaultAsync(pt => pt.TransactionId == transactionId && pt.Status == "Pending Approval");
+
+                if (transaction == null)
+                {
+                    toastMessage = "Payroll transaction not found or already processed.";
+                    toastType = ToastType.Error;
+                    showToast = true;
+                    return;
+                }
+
+                transaction.Status = "Paid";
+                transaction.UpdatedAt = DateTime.Now;
+                transaction.PaymentDate = DateTime.Now;
+                transaction.ApprovedBy = currentUserId.Value;
+                transaction.ApprovedAt = DateTime.Now;
+
+                await DbContext.SaveChangesAsync();
+
+                // Create journal entry
+                try
+                {
+                    await JournalEntryService.CreatePayrollJournalEntryAsync(transaction, createdBy: currentUserId.Value, approvedBy: currentUserId.Value);
+                }
+                catch (Exception jeEx)
+                {
+                    Logger.LogWarning(jeEx, "Failed to create journal entry for payroll transaction {TransactionId}", transaction.TransactionId);
+                }
+
+                // Mark notification as read
+                try
+                {
+                    await NotificationService.MarkNotificationsAsReadByReferenceAsync("Payroll", transaction.TransactionId);
+                }
+                catch (Exception notifEx)
+                {
+                    Logger.LogWarning(notifEx, "Failed to mark notification as read");
+                }
+
+                toastMessage = "Payroll transaction approved successfully.";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+
+            ClosePayrollApprovalModal();
+            await LoadPendingApprovals();
+            
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error approving payroll transaction");
+            toastMessage = $"Failed to approve payroll: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectPayrollTransaction(int transactionId)
+    {
+        if (currentUserId == null) return;
+
+        try
+        {
+            var transaction = await DbContext.PayrollTransactions
+                .FirstOrDefaultAsync(pt => pt.TransactionId == transactionId && pt.Status == "Pending Approval");
+
+            if (transaction == null)
+            {
+                toastMessage = "Payroll transaction not found or already processed.";
+                toastType = ToastType.Error;
+                showToast = true;
+                return;
+            }
+
+            transaction.Status = "Rejected";
+            transaction.UpdatedAt = DateTime.Now;
+            transaction.ApprovedBy = currentUserId.Value; // Track who rejected it
+            transaction.ApprovedAt = DateTime.Now;
+
+            await DbContext.SaveChangesAsync();
+
+            // Mark notification as read
+            try
+            {
+                await NotificationService.MarkNotificationsAsReadByReferenceAsync("Payroll", transaction.TransactionId);
+            }
+            catch (Exception notifEx)
+            {
+                Logger.LogWarning(notifEx, "Failed to mark notification as read");
+            }
+
+            toastMessage = "Payroll transaction rejected.";
+            toastType = ToastType.Success;
+            showToast = true;
+
+            ClosePayrollApprovalModal();
+            await LoadPendingApprovals();
+            
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error rejecting payroll transaction");
+            toastMessage = $"Failed to reject payroll: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectPayrollBatch(DateTime batchTimestamp)
+    {
+        if (currentUserId == null) return;
+
+        try
+        {
+            var transactions = await DbContext.PayrollTransactions
+                .Where(pt => pt.BatchTimestamp == batchTimestamp && pt.Status == "Pending Approval")
+                .ToListAsync();
+
+            if (!transactions.Any())
+            {
+                toastMessage = "No pending transactions found in this batch.";
+                toastType = ToastType.Error;
+                showToast = true;
+                return;
+            }
+
+            foreach (var trans in transactions)
+            {
+                trans.Status = "Rejected";
+                trans.UpdatedAt = DateTime.Now;
+                trans.ApprovedBy = currentUserId.Value;
+                trans.ApprovedAt = DateTime.Now;
+            }
+
+            await DbContext.SaveChangesAsync();
+
+            // Mark notifications as read
+            try
+            {
+                await NotificationService.MarkNotificationsAsReadByReferenceAsync("Payroll", transactions.First().TransactionId);
+            }
+            catch (Exception notifEx)
+            {
+                Logger.LogWarning(notifEx, "Failed to mark notification as read");
+            }
+
+            toastMessage = $"Batch payroll rejected. {transactions.Count} transaction(s) rejected.";
+            toastType = ToastType.Success;
+            showToast = true;
+
+            await LoadPendingApprovals();
+            
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error rejecting payroll batch");
+            toastMessage = $"Failed to reject batch: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApproveJournalEntry(int journalEntryId)
+    {
+        if (currentUserId == null) return;
+
+        try
+        {
+            await JournalEntryService.ApproveJournalEntryAsync(journalEntryId, currentUserId.Value, approvalNotes);
+            
+            // Show success toast
+            toastMessage = "Journal entry approved successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+            
+            await LoadPendingApprovals();
+            
+            // Notify parent to refresh count
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error approving journal entry");
+            
+            // Show error toast
+            toastMessage = $"Failed to approve journal entry: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RejectJournalEntry(int journalEntryId)
+    {
+        if (currentUserId == null) return;
+
+        try
+        {
+            await JournalEntryService.RejectJournalEntryAsync(journalEntryId, currentUserId.Value, "Rejected by approver");
+            
+            // Show success toast
+            toastMessage = "Journal entry rejected successfully.";
+            toastType = ToastType.Success;
+            showToast = true;
+            
+            await LoadPendingApprovals();
+            
+            // Notify parent to refresh count
+            if (OnApprovalProcessed.HasDelegate)
+            {
+                await OnApprovalProcessed.InvokeAsync();
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error rejecting journal entry");
+            
+            // Show error toast
+            toastMessage = $"Failed to reject journal entry: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private string GetCurrentUserName()
+    {
+        if (AuthService?.CurrentUser == null)
+            return "Unknown User";
+
+        var user = AuthService.CurrentUser;
+        var nameParts = new List<string> { user.first_name };
+        
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        
+        nameParts.Add(user.last_name);
+        
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+        
+        var fullName = string.Join(" ", nameParts);
+        var role = !string.IsNullOrWhiteSpace(user.user_role) ? user.user_role : "User";
+        
+        return $"{fullName} ({role})";
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+}
+

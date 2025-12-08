@@ -1,11 +1,15 @@
 ﻿@inherits LayoutComponentBase
 @implements IDisposable
 @using System.Threading.Tasks
+@using Microsoft.JSInterop
+@using BrightEnroll_DES.Components.Shared
 @inject NavigationManager Navigation
 @inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
 @inject BrightEnroll_DES.Services.Infrastructure.IConnectivityService ConnectivityService
 @inject BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService DatabaseSyncService
 @inject BrightEnroll_DES.Services.Database.Sync.ISyncStatusService SyncStatusService
+@inject BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService ApprovalNotificationService
+@inject BrightEnroll_DES.Services.Business.Notifications.NotificationService NotificationService
 @inject IJSRuntime JSRuntime
 
 <!-- Loading Screen -->
@@ -51,7 +55,7 @@
                         <div class="flex items-center justify-end gap-0 ml-auto">
                             <!-- Notification Icon with Badge -->
                             <div class="group relative">
-                                <button type="button" @onclick="HandleNotifications" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                <button type="button" @onclick="ToggleNotificationDropdown" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
                                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
                                     </svg>
@@ -63,6 +67,12 @@
                                     }
                                 </button>
                                 <span class="tooltip-delay">View notifications</span>
+                                
+                                <!-- Notification Dropdown -->
+                                <NotificationDropdown isOpen="@isNotificationDropdownOpen" 
+                                                      isOpenChanged="@((bool value) => isNotificationDropdownOpen = value)"
+                                                      unreadCount="@notificationCount"
+                                                      OnNotificationRead="@RefreshNotificationCount" />
                             </div>
 
                             <!-- Partition -->
@@ -164,7 +174,8 @@
 @code {
     private bool isDropdownOpen = false;
     private bool isSidebarOpen = false;
-    private int notificationCount = 3; // Example: You can bind this to actual notification data
+    private bool isNotificationDropdownOpen = false;
+    private int notificationCount = 0;
     private bool showLogoutModal = false;
     
     // Connectivity toast state
@@ -172,9 +183,35 @@
     private bool isOnline = false;
     private string connectivityMessage = "";
 
-    protected override void OnInitialized()
+    private System.Threading.CancellationTokenSource? _notificationRefreshTokenSource;
+    private bool _isDisposed = false;
+
+    protected override async Task OnInitializedAsync()
     {
-        base.OnInitialized();
+        await LoadNotificationCount();
+        
+        // Set up periodic refresh (every 3 seconds for real-time updates) with proper cancellation
+        _notificationRefreshTokenSource = new System.Threading.CancellationTokenSource();
+        
+        _ = Task.Run(async () =>
+        {
+            while (!_notificationRefreshTokenSource.Token.IsCancellationRequested && !_isDisposed)
+            {
+                await Task.Delay(3000, _notificationRefreshTokenSource.Token);
+                
+                if (!_isDisposed)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!_isDisposed)
+                        {
+                            await LoadNotificationCount();
+                            StateHasChanged();
+                        }
+                    });
+                }
+            }
+        }, _notificationRefreshTokenSource.Token);
         
         // Subscribe to connectivity changes (only show toast on connection changes, not on initial load)
         ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
@@ -190,6 +227,47 @@
         }
         
         ConnectivityService.StartMonitoring();
+    }
+
+    private async Task LoadNotificationCount()
+    {
+        if (_isDisposed)
+            return;
+            
+        try
+        {
+            // Try to use NotificationService first, fallback to ApprovalNotificationService
+            // Use await directly - we're already on the UI thread
+            if (NotificationService != null)
+            {
+                notificationCount = await NotificationService.GetUnreadCountAsync();
+            }
+            else
+            {
+                notificationCount = await ApprovalNotificationService.GetPendingApprovalsCountAsync();
+            }
+        }
+        catch (Exception)
+        {
+            // Silently fail - don't break the layout
+            if (!_isDisposed)
+            {
+                notificationCount = 0;
+            }
+        }
+    }
+    
+    private async Task RefreshNotificationCount()
+    {
+        await LoadNotificationCount();
+        StateHasChanged();
+    }
+    
+    // Public method to refresh notification count from external events
+    public async Task RefreshNotificationsAsync()
+    {
+        await LoadNotificationCount();
+        StateHasChanged();
     }
 
     private void OnConnectivityChanged(object? sender, bool isConnected)
@@ -216,6 +294,9 @@
 
     public void Dispose()
     {
+        _isDisposed = true;
+        _notificationRefreshTokenSource?.Cancel();
+        _notificationRefreshTokenSource?.Dispose();
         ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
     }
 
@@ -288,11 +369,30 @@
         CloseDropdown();
     }
 
-    private void HandleNotifications()
+    private async Task ToggleNotificationDropdown()
     {
-        // TODO: Implement notification functionality
-        // You can navigate to a notifications page or open a notification panel
-        CloseDropdown();
+        var wasOpen = isNotificationDropdownOpen;
+        isNotificationDropdownOpen = !isNotificationDropdownOpen;
+        CloseDropdown(); // Close profile dropdown if open
+        
+        // Always refresh notification count when toggling (especially when opening)
+        await LoadNotificationCount();
+        
+        // If opening the dropdown, refresh count again after a small delay to ensure fresh data
+        if (isNotificationDropdownOpen && !wasOpen)
+        {
+            await Task.Delay(200);
+            await LoadNotificationCount();
+        }
+        
+        StateHasChanged();
+    }
+    
+    // Method to refresh notification count from external events (e.g., when expense is added)
+    public async Task RefreshNotificationCountAsync()
+    {
+        await LoadNotificationCount();
+        StateHasChanged();
     }
 
     private string GetPageTitle()

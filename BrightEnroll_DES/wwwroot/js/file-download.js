@@ -3,8 +3,11 @@ window.downloadFile = function (filename, contentType, content) {
     try {
         let blob;
         
-        // Check if content is base64 encoded (for PDFs)
-        if (contentType === 'application/pdf' && typeof content === 'string') {
+        // Check if content is base64 encoded (for PDFs, Excel files, etc.)
+        if ((contentType === 'application/pdf' || 
+             contentType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+             contentType === 'application/vnd.ms-excel') && 
+            typeof content === 'string') {
             // Decode base64 string to binary
             const binaryString = atob(content);
             const bytes = new Uint8Array(binaryString.length);

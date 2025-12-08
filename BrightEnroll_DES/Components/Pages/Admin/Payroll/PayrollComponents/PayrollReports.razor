@@ -12,6 +12,8 @@
 @inject IJSRuntime JSRuntime
 @inject IAuthService AuthService
 @inject SalaryChangeLogPdfGenerator SalaryChangeLogPdfGenerator
+@inject BrightEnroll_DES.Services.Business.HR.AttendanceReportService AttendanceReportService
+@inject BrightEnroll_DES.Services.QuestPDF.AttendanceReportPdfGenerator AttendanceReportPdfGenerator
 
 <!-- Toast Notification -->
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
@@ -25,62 +27,87 @@
         </div>
         
         <div class="p-6">
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div class="flex flex-wrap items-end gap-4">
                 <!-- Report Type -->
-                <div>
+                <div class="flex-1 min-w-[180px]">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Report Type <span class="text-red-500">*</span></label>
                     <select @bind="selectedReportType" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
                         <option value="Summary">Summary Report</option>
                         <option value="SalaryApprovalHistory">Salary Approval History</option>
+                        <option value="Attendance">Attendance Report</option>
                     </select>
                 </div>
                 
                 <!-- Date From -->
-                <div>
+                <div class="flex-1 min-w-[160px]">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Date From <span class="text-red-500">*</span></label>
                     <input type="date" @bind="reportDateFrom" 
                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
                 </div>
                 
                 <!-- Date To -->
-                <div>
+                <div class="flex-1 min-w-[160px]">
                     <label class="mb-2 block text-sm font-medium text-gray-700">Date To <span class="text-red-500">*</span></label>
                     <input type="date" @bind="reportDateTo" 
                            class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
                 </div>
                 
-                <!-- Status Filter -->
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
-                    <select @bind="reportStatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
-                        <option value="">All Status</option>
-                        @if (selectedReportType == "SalaryApprovalHistory")
-                        {
-                            <option value="Pending">Pending</option>
-                            <option value="Approved">Approved</option>
-                            <option value="Rejected">Rejected</option>
-                        }
-                        else
-                        {
-                            <option value="Pending">Pending</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Cancelled">Cancelled</option>
-                        }
-                    </select>
+                @if (selectedReportType == "Attendance")
+                {
+                    <!-- Period Filter for Attendance -->
+                    <div class="flex-1 min-w-[160px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Period <span class="text-red-500">*</span></label>
+                        <input type="month" 
+                               value="@attendancePeriod"
+                               onchange="@((ChangeEventArgs e) => { if (e.Value != null) attendancePeriod = e.Value.ToString() ?? DateTime.Now.ToString("yyyy-MM"); })"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    </div>
+                }
+                else
+                {
+                    <!-- Status Filter -->
+                    <div class="flex-1 min-w-[140px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+                        <select @bind="reportStatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                            <option value="">All Status</option>
+                            @if (selectedReportType == "SalaryApprovalHistory")
+                            {
+                                <option value="Pending">Pending</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            }
+                            else
+                            {
+                                <option value="Pending">Pending</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Cancelled">Cancelled</option>
+                            }
+                        </select>
+                    </div>
+                }
+                
+                <!-- Action Buttons - Right aligned in same row -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <button @onclick="ClearFilters" 
+                            class="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+                        Clear Filters
+                    </button>
+                    <button @onclick="GenerateReport" 
+                            class="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Generate Report
+                    </button>
                 </div>
             </div>
             
-            <!-- Action Buttons -->
-            <div class="mt-6 flex gap-3">
-                <button @onclick="GenerateReport" 
-                        class="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Generate Report
-                </button>
-                @if ((selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any()) || (selectedReportType != "SalaryApprovalHistory" && reportData != null && reportData.Any()))
-                {
+            <!-- Export to PDF Button - Show below when report is generated -->
+            @if ((selectedReportType == "Attendance" && attendanceReport != null) || 
+                 (selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any()) || 
+                 (selectedReportType != "SalaryApprovalHistory" && selectedReportType != "Attendance" && reportData != null && reportData.Any()))
+            {
+                <div class="mt-6 flex justify-end">
                     <button @onclick="ExportToPDF" 
                             disabled="@isExporting"
                             class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -89,17 +116,111 @@
                         </svg>
                         @(isExporting ? "Generating PDF..." : "Export to PDF")
                     </button>
-                }
-                <button @onclick="ClearFilters" 
-                        class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                    Clear Filters
-                </button>
-            </div>
+                </div>
+            }
         </div>
     </div>
 
     <!-- Report Results -->
-    @if (selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any())
+    @if (selectedReportType == "Attendance" && attendanceReport != null)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow" id="report-content">
+            <div class="border-b border-gray-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-gray-800">Attendance Report</h2>
+                <p class="mt-1 text-sm text-gray-600">Period: @attendanceReport.Period | Generated on: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</p>
+            </div>
+            
+            <div class="p-6">
+                <!-- Summary Statistics -->
+                <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-lg border border-blue-300 bg-blue-50 p-4">
+                        <p class="text-xs font-medium text-blue-700">Total Employees</p>
+                        <p class="mt-1 text-2xl font-bold text-blue-800">@attendanceReport.TotalEmployees</p>
+                        <p class="mt-0.5 text-[10px] text-blue-600">@attendanceReport.EmployeesWithRecords with records</p>
+                    </div>
+                    <div class="rounded-lg border border-green-300 bg-green-50 p-4">
+                        <p class="text-xs font-medium text-green-700">Total Regular Hours</p>
+                        <p class="mt-1 text-2xl font-bold text-green-800">@attendanceReport.TotalRegularHours.ToString("F2")</p>
+                        <p class="mt-0.5 text-[10px] text-green-600">Avg: @attendanceReport.AverageRegularHours.ToString("F2") hrs</p>
+                    </div>
+                    <div class="rounded-lg border border-orange-300 bg-orange-50 p-4">
+                        <p class="text-xs font-medium text-orange-700">Total Overtime Hours</p>
+                        <p class="mt-1 text-2xl font-bold text-orange-800">@attendanceReport.TotalOvertimeHours.ToString("F2")</p>
+                        <p class="mt-0.5 text-[10px] text-orange-600">Avg: @attendanceReport.AverageOvertimeHours.ToString("F2") hrs</p>
+                    </div>
+                    <div class="rounded-lg border border-red-300 bg-red-50 p-4">
+                        <p class="text-xs font-medium text-red-700">Total Late Minutes</p>
+                        <p class="mt-1 text-2xl font-bold text-red-800">@attendanceReport.TotalLateMinutes</p>
+                        <p class="mt-0.5 text-[10px] text-red-600">Avg: @attendanceReport.AverageLateMinutes mins</p>
+                    </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                @if (attendanceReport.Recommendations != null && attendanceReport.Recommendations.Any())
+                {
+                    <div class="mb-6">
+                        <h3 class="mb-4 text-base font-semibold text-gray-800">Recommendations</h3>
+                        <div class="space-y-3">
+                            @foreach (var rec in attendanceReport.Recommendations)
+                            {
+                                <div class="rounded-lg border @(rec.Severity == "High" ? "border-red-300 bg-red-50" : rec.Severity == "Medium" ? "border-orange-300 bg-orange-50" : "border-blue-300 bg-blue-50") p-4">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <h4 class="text-sm font-semibold @(rec.Severity == "High" ? "text-red-800" : rec.Severity == "Medium" ? "text-orange-800" : "text-blue-800")">@rec.Title</h4>
+                                                <span class="rounded-full px-2 py-0.5 text-[10px] font-medium @(rec.Severity == "High" ? "bg-red-200 text-red-800" : rec.Severity == "Medium" ? "bg-orange-200 text-orange-800" : "bg-blue-200 text-blue-800")">@rec.Severity</span>
+                                            </div>
+                                            <p class="mt-1 text-xs @(rec.Severity == "High" ? "text-red-700" : rec.Severity == "Medium" ? "text-orange-700" : "text-blue-700")">@rec.Description</p>
+                                            @if (!string.IsNullOrWhiteSpace(rec.Details))
+                                            {
+                                                <p class="mt-2 text-xs font-medium @(rec.Severity == "High" ? "text-red-600" : rec.Severity == "Medium" ? "text-orange-600" : "text-blue-600")">Details: @rec.Details</p>
+                                            }
+                                            <p class="mt-2 text-xs @(rec.Severity == "High" ? "text-red-600" : rec.Severity == "Medium" ? "text-orange-600" : "text-blue-600")"><strong>Action:</strong> @rec.Action</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Employee Details Table -->
+                @if (attendanceReport.EmployeeDetails != null && attendanceReport.EmployeeDetails.Any())
+                {
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-sm">
+                            <thead>
+                                <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Role</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Regular Hours</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Overtime Hours</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Late Minutes</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Absent Days</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Leave Days</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var emp in attendanceReport.EmployeeDetails)
+                                {
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-gray-800">@emp.EmployeeName</td>
+                                        <td class="px-4 py-3 text-gray-600">@emp.Role</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.RegularHours.ToString("F2")</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.OvertimeHours.ToString("F2")</td>
+                                        <td class="px-4 py-3 text-right @(emp.LateMinutes > 30 ? "font-medium text-red-600" : "text-gray-700")">@emp.LateMinutes</td>
+                                        <td class="px-4 py-3 text-right @(emp.AbsentDays > 2 ? "font-medium text-red-600" : "text-gray-700")">@emp.AbsentDays</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.LeaveDays.ToString("F1")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any())
     {
         <div class="overflow-hidden rounded-xl bg-white shadow" id="report-content">
             <div class="border-b border-gray-200 px-6 py-4">
@@ -401,7 +522,7 @@
             </div>
         </div>
     }
-    else if (reportGenerated && ((selectedReportType == "SalaryApprovalHistory" && (salaryApprovalData == null || !salaryApprovalData.Any())) || (selectedReportType != "SalaryApprovalHistory" && (reportData == null || !reportData.Any()))))
+    else if (reportGenerated && ((selectedReportType == "Attendance" && attendanceReport == null) || (selectedReportType == "SalaryApprovalHistory" && (salaryApprovalData == null || !salaryApprovalData.Any())) || (selectedReportType != "SalaryApprovalHistory" && selectedReportType != "Attendance" && (reportData == null || !reportData.Any()))))
     {
         <div class="overflow-hidden rounded-xl bg-white shadow">
             <div class="p-6 text-center">
@@ -415,11 +536,13 @@
 @code {
     private List<ReportDataItem>? reportData = null;
     private List<SalaryApprovalHistoryItem>? salaryApprovalData = null;
+    private BrightEnroll_DES.Services.Business.HR.AttendanceReportDto? attendanceReport = null;
     private bool reportGenerated = false;
     private string selectedReportType = "Summary";
     private DateTime? reportDateFrom = DateTime.Now.AddMonths(-1);
     private DateTime? reportDateTo = DateTime.Now;
     private string reportStatusFilter = "";
+    private string attendancePeriod = DateTime.Now.ToString("yyyy-MM");
     
     // Toast notification state
     private bool showToast = false;
@@ -445,19 +568,35 @@
     {
         try
         {
-            if (!reportDateFrom.HasValue || !reportDateTo.HasValue)
+            if (selectedReportType == "Attendance")
             {
-                ShowToast("Please select both Date From and Date To.", ToastType.Error);
-                return;
+                if (string.IsNullOrWhiteSpace(attendancePeriod))
+                {
+                    ShowToast("Please select a period.", ToastType.Error);
+                    return;
+                }
+            }
+            else
+            {
+                if (!reportDateFrom.HasValue || !reportDateTo.HasValue)
+                {
+                    ShowToast("Please select both Date From and Date To.", ToastType.Error);
+                    return;
+                }
             }
             
             reportGenerated = true;
             reportData = null;
             salaryApprovalData = null;
+            attendanceReport = null;
             
             if (selectedReportType == "SalaryApprovalHistory")
             {
                 await GenerateSalaryApprovalHistory();
+            }
+            else if (selectedReportType == "Attendance")
+            {
+                await GenerateAttendanceReport();
             }
             else
             {
@@ -467,6 +606,31 @@
         catch (Exception ex)
         {
             ShowToast($"Error generating report: {ex.Message}", ToastType.Error);
+        }
+    }
+    
+    private async Task GenerateAttendanceReport()
+    {
+        try
+        {
+            // Convert attendancePeriod (yyyy-MM) to period format used in TimeRecords (e.g., "2025-12")
+            var periodParts = attendancePeriod.Split('-');
+            if (periodParts.Length != 2)
+            {
+                ShowToast("Invalid period format. Please use YYYY-MM format.", ToastType.Error);
+                return;
+            }
+            
+            var period = attendancePeriod; // Use as-is (e.g., "2025-12")
+            
+            attendanceReport = await AttendanceReportService.GenerateAttendanceReportAsync(period, reportDateFrom, reportDateTo);
+            
+            ShowToast($"Attendance report generated successfully for period {period}.", ToastType.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error generating attendance report: {ex.Message}", ToastType.Error);
         }
     }
     
@@ -666,6 +830,54 @@
     
     private async Task ExportToPDF()
     {
+        if (selectedReportType == "Attendance")
+        {
+            if (attendanceReport == null)
+            {
+                ShowToast("No data to export.", ToastType.Error);
+                return;
+            }
+            
+            if (isExporting) return;
+            
+            isExporting = true;
+            StateHasChanged();
+            
+            try
+            {
+                var currentUser = AuthService.CurrentUser;
+                var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+                var userRole = currentUser?.user_role ?? "Unknown";
+                
+                // Generate PDF
+                var pdfBytes = AttendanceReportPdfGenerator.GenerateAttendanceReport(
+                    attendanceReport,
+                    generatedBy,
+                    userRole,
+                    reportDateFrom,
+                    reportDateTo
+                );
+                
+                // Download PDF
+                var fileName = $"Attendance_Report_{attendanceReport.Period}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                var base64Content = Convert.ToBase64String(pdfBytes);
+                await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+                
+                ShowToast("PDF exported successfully!", ToastType.Success);
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"Error exporting PDF: {ex.Message}", ToastType.Error);
+            }
+            finally
+            {
+                isExporting = false;
+                StateHasChanged();
+            }
+            
+            return;
+        }
+        
         if (selectedReportType == "SalaryApprovalHistory")
         {
             if (salaryApprovalData == null || !salaryApprovalData.Any())

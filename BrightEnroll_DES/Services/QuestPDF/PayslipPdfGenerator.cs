@@ -195,6 +195,71 @@ public class PayslipPdfGenerator
 
                         column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
 
+                        // Attendance Section
+                        column.Item().Text("ATTENDANCE RECORD:").FontSize(10).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        column.Item().PaddingTop(5).Row(row =>
+                        {
+                            row.RelativeItem().Text("Regular Hours Worked:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{payslipData.RegularHours:N2} hrs").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        column.Item().PaddingTop(3).Row(row =>
+                        {
+                            row.RelativeItem().Text("Overtime Hours:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{payslipData.OvertimeHours:N2} hrs").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        column.Item().PaddingTop(3).Row(row =>
+                        {
+                            row.RelativeItem().Text("Late Minutes:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{payslipData.LateMinutes} mins").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        column.Item().PaddingTop(3).Row(row =>
+                        {
+                            row.RelativeItem().Text("Total Days Absent:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{payslipData.TotalDaysAbsent} days").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        column.Item().PaddingTop(3).Row(row =>
+                        {
+                            row.RelativeItem().Text("Monthly Working Days:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{payslipData.MonthlyWorkingDays} days").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        // Calculate and display total working days (Monthly Working Days - Days Absent)
+                        var totalWorkingDays = payslipData.MonthlyWorkingDays - payslipData.TotalDaysAbsent;
+                        column.Item().PaddingTop(3).Row(row =>
+                        {
+                            row.RelativeItem().Text("Total Working Days:").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            row.RelativeItem().AlignRight().Text($"{totalWorkingDays} days ({payslipData.MonthlyWorkingDays} - {payslipData.TotalDaysAbsent})").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                        });
+                        
+                        // Attendance-based Adjustments
+                        if (payslipData.RegularHours > 0 || payslipData.OvertimeHours > 0 || payslipData.LateMinutes > 0)
+                        {
+                            column.Item().PaddingTop(5).BorderTop(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Medium).PaddingTop(5);
+                            column.Item().Text("ATTENDANCE ADJUSTMENTS:").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            column.Item().PaddingTop(3).Row(row =>
+                            {
+                                row.RelativeItem().Text("Adjusted Base Salary:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                row.RelativeItem().AlignRight().Text($"₱{payslipData.AdjustedBaseSalary:N2}").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            });
+                            if (payslipData.OvertimePay > 0)
+                            {
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Overtime Pay:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    row.RelativeItem().AlignRight().Text($"₱{payslipData.OvertimePay:N2}").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                });
+                            }
+                            if (payslipData.LateDeduction > 0)
+                            {
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Late Deduction:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    row.RelativeItem().AlignRight().Text($"₱{payslipData.LateDeduction:N2}").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                });
+                            }
+                        }
+
+                        column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
                         // Net Salary Section
                         column.Item().Row(row =>
                         {
@@ -248,6 +313,540 @@ public class PayslipPdfGenerator
         }).GeneratePdf();
     }
 
+    public byte[] GenerateBatchPayrollPdf(
+        List<PayslipData> payslips,
+        BatchSummaryData summary,
+        DateTime payPeriodStart,
+        DateTime payPeriodEnd,
+        bool includeSummary = true,
+        bool includePayslips = true)
+    {
+        return Document.Create(container =>
+        {
+            // Summary Page (if requested)
+            if (includeSummary)
+            {
+                container.Page(page =>
+                {
+                    page.Size(PageSizes.A4);
+                    page.Margin(1.5f, Unit.Centimetre);
+                    page.PageColor(global::QuestPDF.Helpers.Colors.White);
+                    page.DefaultTextStyle(x => x.FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black));
+
+                    // Header (same as individual payslip)
+                    page.Header()
+                        .PaddingBottom(10)
+                        .Column(headerColumn =>
+                        {
+                            headerColumn.Item().Height(50).Row(headerRow =>
+                            {
+                                var logoBytes = GetLogoBytes();
+                                if (logoBytes.Length > 0)
+                                {
+                                    headerRow.ConstantItem(50).Height(50).Image(logoBytes).FitArea();
+                                }
+                                
+                                headerRow.RelativeItem().PaddingLeft(10).Column(companyCol =>
+                                {
+                                    companyCol.Item().Text("BRIGHTENROLL").FontSize(16).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                                    companyCol.Item().PaddingTop(2).Text("ENROLLMENT MANAGEMENT SYSTEM").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    companyCol.Item().PaddingTop(3).Text("Elementary School").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Grey.Darken1);
+                                });
+
+                                headerRow.RelativeItem(1).AlignRight().Column(detailsCol =>
+                                {
+                                    detailsCol.Item().Text("PAYROLL DEPARTMENT").FontSize(10).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    detailsCol.Item().PaddingTop(3).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Date:").FontSize(9);
+                                        row.RelativeItem().Text(DateTime.Now.ToString("MMMM dd, yyyy")).FontSize(9);
+                                    });
+                                    detailsCol.Item().PaddingTop(2).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Time:").FontSize(9);
+                                        row.RelativeItem().Text(DateTime.Now.ToString("hh:mm tt")).FontSize(9);
+                                    });
+                                });
+                            });
+                            
+                            headerColumn.Item().PaddingTop(8).BorderBottom(1).BorderColor(global::QuestPDF.Helpers.Colors.Black);
+                            
+                            headerColumn.Item().PaddingTop(8).Row(detailsRow =>
+                            {
+                                detailsRow.RelativeItem().Column(leftDetailsCol =>
+                                {
+                                    leftDetailsCol.Item().Row(row =>
+                                    {
+                                        row.ConstantItem(75).Text("Document Type:").FontSize(9);
+                                        row.RelativeItem().Text("Batch Payroll Summary").FontSize(9).Bold();
+                                    });
+                                    leftDetailsCol.Item().PaddingTop(2).Row(row =>
+                                    {
+                                        row.ConstantItem(75).Text("Payment Period:").FontSize(9);
+                                        row.RelativeItem().Text($"{payPeriodStart:MMMM yyyy}").FontSize(9);
+                                    });
+                                });
+                                
+                                detailsRow.RelativeItem().AlignRight().Column(rightDetailsCol =>
+                                {
+                                    rightDetailsCol.Item().Row(row =>
+                                    {
+                                        row.ConstantItem(70).Text("Generated By:").FontSize(9);
+                                        row.RelativeItem().Text("System").FontSize(9);
+                                    });
+                                });
+                            });
+                        });
+
+                    // Content - Batch Summary
+                    page.Content()
+                        .PaddingVertical(10)
+                        .Column(column =>
+                        {
+                            column.Item().Text("BATCH PAYROLL SUMMARY").FontSize(14).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3).AlignCenter();
+                            column.Item().PaddingTop(5).Text($"Processed on: {summary.ProcessedDate:MMMM dd, yyyy HH:mm}").FontSize(10).AlignCenter();
+                            
+                            column.Item().PaddingTop(10);
+                            
+                            // Audit Trail Section
+                            column.Item().Text("AUDIT TRAIL").FontSize(11).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            column.Item().PaddingTop(5).Row(row =>
+                            {
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Created By:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    col.Item().PaddingTop(2).Text(!string.IsNullOrEmpty(summary.CreatedBy) ? summary.CreatedBy : "N/A").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                });
+                                if (!string.IsNullOrEmpty(summary.ApprovedBy))
+                                {
+                                    row.RelativeItem(1).Column(col =>
+                                    {
+                                        col.Item().Text("Approved By:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        col.Item().PaddingTop(2).Text(summary.ApprovedBy).FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Green.Darken2);
+                                    });
+                                }
+                            });
+                            
+                            column.Item().PaddingTop(10);
+
+                            column.Item().PaddingTop(15);
+
+                            // Summary Statistics
+                            column.Item().Row(row =>
+                            {
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Employees:").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    col.Item().PaddingTop(2).Text(summary.TotalEmployees.ToString()).FontSize(12).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Gross Pay:").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    col.Item().PaddingTop(2).Text($"₱{summary.TotalGrossPay:N2}").FontSize(12).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Deductions:").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    col.Item().PaddingTop(2).Text($"₱{summary.TotalDeductions:N2}").FontSize(12).Bold().FontColor(global::QuestPDF.Helpers.Colors.Red.Darken2);
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Net Pay:").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    col.Item().PaddingTop(2).Text($"₱{summary.TotalNetPay:N2}").FontSize(12).Bold().FontColor(global::QuestPDF.Helpers.Colors.Green.Darken2);
+                                });
+                            });
+
+                            column.Item().PaddingTop(15).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                            // Attendance Totals
+                            column.Item().Text("ATTENDANCE TOTALS").FontSize(11).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            column.Item().PaddingTop(5).Row(row =>
+                            {
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Regular Hours:").FontSize(9);
+                                    col.Item().PaddingTop(2).Text($"{summary.TotalRegularHours:N2} hrs").FontSize(10).Bold();
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Overtime Hours:").FontSize(9);
+                                    col.Item().PaddingTop(2).Text($"{summary.TotalOvertimeHours:N2} hrs").FontSize(10).Bold();
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Late Minutes:").FontSize(9);
+                                    col.Item().PaddingTop(2).Text($"{summary.TotalLateMinutes} mins").FontSize(10).Bold();
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Days Absent:").FontSize(9);
+                                    col.Item().PaddingTop(2).Text($"{summary.TotalDaysAbsent} days").FontSize(10).Bold();
+                                });
+                                row.RelativeItem(1).Column(col =>
+                                {
+                                    col.Item().Text("Total Leave Days:").FontSize(9);
+                                    col.Item().PaddingTop(2).Text($"{summary.TotalLeaveDays:N1} days").FontSize(10).Bold();
+                                });
+                            });
+
+                            column.Item().PaddingTop(15).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                            // Employee List Table
+                            column.Item().Text("EMPLOYEE LIST").FontSize(11).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                            column.Item().PaddingTop(5);
+
+                            column.Item().Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.RelativeColumn();
+                                    columns.RelativeColumn();
+                                    columns.RelativeColumn();
+                                    columns.RelativeColumn();
+                                });
+
+                                // Header
+                                table.Header(header =>
+                                {
+                                    header.Cell().Element(CellStyle).Text("Employee Name").FontSize(9).Bold();
+                                    header.Cell().Element(CellStyle).Text("Position").FontSize(9).Bold();
+                                    header.Cell().Element(CellStyle).AlignRight().Text("Gross Pay").FontSize(9).Bold();
+                                    header.Cell().Element(CellStyle).AlignRight().Text("Net Pay").FontSize(9).Bold();
+                                });
+
+                                // Rows
+                                int rowIndex = 0;
+                                foreach (var payslip in payslips)
+                                {
+                                    table.Cell().Element(CellStyle).Background(rowIndex % 2 == 0 ? global::QuestPDF.Helpers.Colors.White : global::QuestPDF.Helpers.Colors.Grey.Lighten4)
+                                        .Text(payslip.EmployeeName).FontSize(8);
+                                    table.Cell().Element(CellStyle).Background(rowIndex % 2 == 0 ? global::QuestPDF.Helpers.Colors.White : global::QuestPDF.Helpers.Colors.Grey.Lighten4)
+                                        .Text(payslip.Position).FontSize(8);
+                                    table.Cell().Element(CellStyle).Background(rowIndex % 2 == 0 ? global::QuestPDF.Helpers.Colors.White : global::QuestPDF.Helpers.Colors.Grey.Lighten4)
+                                        .AlignRight().Text($"₱{payslip.GrossPay:N2}").FontSize(8);
+                                    table.Cell().Element(CellStyle).Background(rowIndex % 2 == 0 ? global::QuestPDF.Helpers.Colors.White : global::QuestPDF.Helpers.Colors.Grey.Lighten4)
+                                        .AlignRight().Text($"₱{payslip.NetPay:N2}").FontSize(8);
+                                    rowIndex++;
+                                }
+                            });
+                        });
+
+                    page.Footer()
+                        .AlignCenter()
+                        .DefaultTextStyle(x => x.FontSize(8).FontColor(global::QuestPDF.Helpers.Colors.Grey.Medium))
+                        .Text(x =>
+                        {
+                            x.Span("Page ");
+                            x.CurrentPageNumber();
+                            x.Span(" of ");
+                            x.TotalPages();
+                            x.Span(" | Generated by BRIGHTENROLL ENROLLMENT MANAGEMENT SYSTEM");
+                        });
+                });
+            }
+
+            // Individual Payslip Pages (if requested)
+            if (includePayslips)
+            {
+                foreach (var payslip in payslips)
+                {
+                    container.Page(page =>
+                    {
+                        page.Size(PageSizes.A4);
+                        page.Margin(1.5f, Unit.Centimetre);
+                        page.PageColor(global::QuestPDF.Helpers.Colors.White);
+                        page.DefaultTextStyle(x => x.FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black));
+
+                        // Use the same header and content structure as individual payslip
+                        page.Header()
+                            .PaddingBottom(10)
+                            .Column(headerColumn =>
+                            {
+                                headerColumn.Item().Height(50).Row(headerRow =>
+                                {
+                                    var logoBytes = GetLogoBytes();
+                                    if (logoBytes.Length > 0)
+                                    {
+                                        headerRow.ConstantItem(50).Height(50).Image(logoBytes).FitArea();
+                                    }
+                                    
+                                    headerRow.RelativeItem().PaddingLeft(10).Column(companyCol =>
+                                    {
+                                        companyCol.Item().Text("BRIGHTENROLL").FontSize(16).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                                        companyCol.Item().PaddingTop(2).Text("ENROLLMENT MANAGEMENT SYSTEM").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        companyCol.Item().PaddingTop(3).Text("Elementary School").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Grey.Darken1);
+                                    });
+
+                                    headerRow.RelativeItem(1).AlignRight().Column(detailsCol =>
+                                    {
+                                        detailsCol.Item().Text("PAYROLL DEPARTMENT").FontSize(10).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        detailsCol.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Date:").FontSize(9);
+                                            row.RelativeItem().Text(DateTime.Now.ToString("MMMM dd, yyyy")).FontSize(9);
+                                        });
+                                        detailsCol.Item().PaddingTop(2).Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Time:").FontSize(9);
+                                            row.RelativeItem().Text(DateTime.Now.ToString("hh:mm tt")).FontSize(9);
+                                        });
+                                    });
+                                });
+                                
+                                headerColumn.Item().PaddingTop(8).BorderBottom(1).BorderColor(global::QuestPDF.Helpers.Colors.Black);
+                                
+                                headerColumn.Item().PaddingTop(8).Row(detailsRow =>
+                                {
+                                    detailsRow.RelativeItem().Column(leftDetailsCol =>
+                                    {
+                                        leftDetailsCol.Item().Row(row =>
+                                        {
+                                            row.ConstantItem(75).Text("Document Type:").FontSize(9);
+                                            row.RelativeItem().Text("Payslip Receipt").FontSize(9).Bold();
+                                        });
+                                        leftDetailsCol.Item().PaddingTop(2).Row(row =>
+                                        {
+                                            row.ConstantItem(75).Text("Payment Period:").FontSize(9);
+                                            row.RelativeItem().Text($"{payPeriodStart:MMMM yyyy}").FontSize(9);
+                                        });
+                                    });
+                                    
+                                    detailsRow.RelativeItem().AlignRight().Column(rightDetailsCol =>
+                                    {
+                                        rightDetailsCol.Item().Row(row =>
+                                        {
+                                            row.ConstantItem(70).Text("Generated By:").FontSize(9);
+                                            row.RelativeItem().Text("System").FontSize(9);
+                                        });
+                                    });
+                                });
+                            });
+
+                        // Content - Individual Payslip (reuse GeneratePayslip content structure)
+                        page.Content()
+                            .PaddingVertical(10)
+                            .Column(column =>
+                            {
+                                // Employee Details
+                                column.Item().Column(empCol =>
+                                {
+                                    empCol.Item().Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Name:").FontSize(9);
+                                        row.RelativeItem().Text(payslip.EmployeeName).FontSize(9).Bold();
+                                    });
+                                    empCol.Item().PaddingTop(3).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Employee No:").FontSize(9);
+                                        row.RelativeItem().Text(payslip.EmployeeId).FontSize(9);
+                                    });
+                                    empCol.Item().PaddingTop(3).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Position:").FontSize(9);
+                                        row.RelativeItem().Text(payslip.Position).FontSize(9);
+                                    });
+                                });
+
+                                column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                                // Earnings and Deductions
+                                column.Item().Row(row =>
+                                {
+                                    row.RelativeItem(1).Column(earningsCol =>
+                                    {
+                                        earningsCol.Item().Text("EARNINGS").FontSize(10).Bold();
+                                        earningsCol.Item().PaddingTop(5).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("BASIC PAY:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.BaseSalary:N2}").FontSize(9);
+                                        });
+                                        earningsCol.Item().PaddingTop(3).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("ALLOWANCE:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.Allowance:N2}").FontSize(9);
+                                        });
+                                        earningsCol.Item().PaddingTop(8).BorderTop(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(5);
+                                        earningsCol.Item().Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("TOTAL EARNINGS:").FontSize(10).Bold();
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.GrossPay:N2}").FontSize(10).Bold();
+                                        });
+                                    });
+
+                                    row.RelativeItem(1).PaddingLeft(20).Column(deductionsCol =>
+                                    {
+                                        deductionsCol.Item().Text("DEDUCTIONS").FontSize(10).Bold();
+                                        deductionsCol.Item().PaddingTop(5).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("EMPLOYEE SSS:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.SSS:N2}").FontSize(9);
+                                        });
+                                        deductionsCol.Item().PaddingTop(3).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("EMPLOYEE PHILHEALTH:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.PhilHealth:N2}").FontSize(9);
+                                        });
+                                        deductionsCol.Item().PaddingTop(3).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("EMPLOYEE PAG-IBIG:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.PagIbig:N2}").FontSize(9);
+                                        });
+                                        deductionsCol.Item().PaddingTop(3).Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("EMPLOYEE TAX:").FontSize(9);
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.WithholdingTax:N2}").FontSize(9);
+                                        });
+                                        deductionsCol.Item().PaddingTop(8).BorderTop(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(5);
+                                        deductionsCol.Item().Row(itemRow =>
+                                        {
+                                            itemRow.RelativeItem().Text("TOTAL DEDUCTIONS:").FontSize(10).Bold();
+                                            itemRow.RelativeItem().AlignRight().Text($"₱{payslip.TotalDeductions:N2}").FontSize(10).Bold();
+                                        });
+                                    });
+                                });
+
+                                column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                                // Attendance Record
+                                column.Item().Text("ATTENDANCE RECORD:").FontSize(10).Bold();
+                                column.Item().PaddingTop(5).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Regular Hours Worked:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"{payslip.RegularHours:N2} hrs").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Overtime Hours:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"{payslip.OvertimeHours:N2} hrs").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Late Minutes:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"{payslip.LateMinutes} mins").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Days Absent:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"{payslip.TotalDaysAbsent} days").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Monthly Working Days:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"{payslip.MonthlyWorkingDays} days").FontSize(9);
+                                });
+                                // Calculate and display total working days (Monthly Working Days - Days Absent)
+                                var totalWorkingDays = payslip.MonthlyWorkingDays - payslip.TotalDaysAbsent;
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Working Days:").FontSize(9).Bold();
+                                    row.RelativeItem().AlignRight().Text($"{totalWorkingDays} days ({payslip.MonthlyWorkingDays} - {payslip.TotalDaysAbsent})").FontSize(9).Bold();
+                                });
+                                
+                                if (payslip.RegularHours > 0 || payslip.OvertimeHours > 0 || payslip.LateMinutes > 0)
+                                {
+                                    column.Item().PaddingTop(5).BorderTop(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Medium).PaddingTop(5);
+                                    column.Item().Text("ATTENDANCE ADJUSTMENTS:").FontSize(9).Bold();
+                                    column.Item().PaddingTop(3).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Adjusted Base Salary:").FontSize(9);
+                                        row.RelativeItem().AlignRight().Text($"₱{payslip.AdjustedBaseSalary:N2}").FontSize(9);
+                                    });
+                                    if (payslip.OvertimePay > 0)
+                                    {
+                                        column.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Overtime Pay:").FontSize(9);
+                                            row.RelativeItem().AlignRight().Text($"₱{payslip.OvertimePay:N2}").FontSize(9);
+                                        });
+                                    }
+                                    if (payslip.LateDeduction > 0)
+                                    {
+                                        column.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Text("Late Deduction:").FontSize(9);
+                                            row.RelativeItem().AlignRight().Text($"₱{payslip.LateDeduction:N2}").FontSize(9);
+                                        });
+                                    }
+                                }
+
+                                column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                                // Net Salary
+                                column.Item().Row(row =>
+                                {
+                                    row.RelativeItem().Text("NET SALARY:").FontSize(12).Bold();
+                                    row.RelativeItem().AlignRight().Text($"₱{payslip.NetPay:N2}").FontSize(12).Bold();
+                                });
+
+                                column.Item().PaddingTop(10).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(10);
+
+                                // Employer Contributions
+                                column.Item().Text("EMPLOYER CONTRIBUTIONS:").FontSize(10).Bold();
+                                column.Item().PaddingTop(5).Row(row =>
+                                {
+                                    row.RelativeItem().Text("EMPLOYER SSS:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"₱{(payslip.BaseSalary * 0.085m):N2}").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("EMPLOYER PHILHEALTH:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"₱{(payslip.BaseSalary * 0.015m):N2}").FontSize(9);
+                                });
+                                column.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("EMPLOYER PAG-IBIG:").FontSize(9);
+                                    row.RelativeItem().AlignRight().Text($"₱{payslip.PagIbig:N2}").FontSize(9);
+                                });
+
+                                column.Item().PaddingTop(15).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Black).PaddingTop(15);
+
+                                // Signature Section
+                                column.Item().Row(row =>
+                                {
+                                    row.RelativeItem(1).Column(sigCol =>
+                                    {
+                                        sigCol.Item().Text("CHECKED BY:").FontSize(9);
+                                        sigCol.Item().PaddingTop(20).BorderBottom(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                    row.RelativeItem(1).PaddingLeft(20).Column(sigCol =>
+                                    {
+                                        sigCol.Item().Text("APPROVED BY:").FontSize(9);
+                                        sigCol.Item().PaddingTop(20).BorderBottom(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                    row.RelativeItem(1).PaddingLeft(20).Column(sigCol =>
+                                    {
+                                        sigCol.Item().Text("RECEIVED BY:").FontSize(9);
+                                        sigCol.Item().PaddingTop(20).BorderBottom(0.5f).BorderColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                });
+                            });
+
+                        page.Footer()
+                            .AlignCenter()
+                            .DefaultTextStyle(x => x.FontSize(8).FontColor(global::QuestPDF.Helpers.Colors.Grey.Medium))
+                            .Text(x =>
+                            {
+                                x.Span("Page ");
+                                x.CurrentPageNumber();
+                                x.Span(" of ");
+                                x.TotalPages();
+                                x.Span(" | Generated by BRIGHTENROLL ENROLLMENT MANAGEMENT SYSTEM");
+                            });
+                    });
+                }
+            }
+        }).GeneratePdf();
+    }
+
+    private static global::QuestPDF.Infrastructure.IContainer CellStyle(global::QuestPDF.Infrastructure.IContainer container)
+    {
+        return container
+            .Border(1)
+            .BorderColor(global::QuestPDF.Helpers.Colors.Black)
+            .Padding(5)
+            .Background(global::QuestPDF.Helpers.Colors.White);
+    }
+
     public class PayslipData
     {
         public string EmployeeId { get; set; } = string.Empty;
@@ -264,6 +863,32 @@ public class PayslipPdfGenerator
         public decimal NetPay { get; set; }
         public string PayslipNumber { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
+        
+        // Attendance data
+        public decimal RegularHours { get; set; }
+        public decimal OvertimeHours { get; set; }
+        public int LateMinutes { get; set; }
+        public int TotalDaysAbsent { get; set; }
+        public int MonthlyWorkingDays { get; set; }
+        public decimal AdjustedBaseSalary { get; set; }
+        public decimal OvertimePay { get; set; }
+        public decimal LateDeduction { get; set; }
+    }
+
+    public class BatchSummaryData
+    {
+        public int TotalEmployees { get; set; }
+        public decimal TotalGrossPay { get; set; }
+        public decimal TotalDeductions { get; set; }
+        public decimal TotalNetPay { get; set; }
+        public decimal TotalRegularHours { get; set; }
+        public decimal TotalOvertimeHours { get; set; }
+        public int TotalLateMinutes { get; set; }
+        public int TotalDaysAbsent { get; set; }
+        public decimal TotalLeaveDays { get; set; }
+        public DateTime ProcessedDate { get; set; }
+        public string CreatedBy { get; set; } = string.Empty;
+        public string ApprovedBy { get; set; } = string.Empty;
     }
 }
 
