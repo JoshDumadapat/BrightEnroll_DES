@@ -27,6 +27,14 @@ public class PaymentDataModel
     public string PaymentStatus { get; set; } = "";
     public decimal NewPaymentAmount { get; set; } = 0;
     public string PaymentMethod { get; set; } = "Cash";
+    
+    // Properties for handling previous school year balances
+    public bool HasPreviousBalance { get; set; } = false;
+    public string? PreviousSchoolYear { get; set; }
+    public string? SchoolYearForPayment { get; set; }
+    
+    // Ledger system properties
+    public int? LedgerId { get; set; }
 }
 
 public class PaymentRecord

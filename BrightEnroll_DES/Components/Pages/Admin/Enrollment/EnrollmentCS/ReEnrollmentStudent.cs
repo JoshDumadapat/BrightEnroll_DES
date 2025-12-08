@@ -17,5 +17,9 @@ public class ReEnrollmentStudent
     public decimal Balance { get; set; }
     public string PaymentStatus { get; set; } = "Unpaid";
     public bool IsFullyPaid => Balance <= 0 && (PaymentStatus == "Fully Paid" || AmountPaid >= TotalFee);
+    
+    // Re-enrollment specific fields
+    public string? PreviousSchoolYear { get; set; } // The school year the student was last enrolled in
+    public bool IsEligible { get; set; } = false; // Whether the student is eligible for re-enrollment
 }
 

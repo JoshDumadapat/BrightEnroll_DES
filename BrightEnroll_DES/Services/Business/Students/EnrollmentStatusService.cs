@@ -2,6 +2,7 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Authentication;
 using BrightEnroll_DES.Services.Business.Academic;
+using BrightEnroll_DES.Services.Business.Finance;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -14,17 +15,20 @@ public class EnrollmentStatusService
     private readonly ILogger<EnrollmentStatusService>? _logger;
     private readonly IAuthService? _authService;
     private readonly SchoolYearService? _schoolYearService;
+    private readonly StudentLedgerService? _ledgerService;
 
     public EnrollmentStatusService(
         AppDbContext context, 
         ILogger<EnrollmentStatusService>? logger = null, 
         IAuthService? authService = null,
-        SchoolYearService? schoolYearService = null)
+        SchoolYearService? schoolYearService = null,
+        StudentLedgerService? ledgerService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
         _authService = authService;
         _schoolYearService = schoolYearService;
+        _ledgerService = ledgerService;
     }
 
     // Gets students by status (with optional school year filtering)
@@ -167,6 +171,22 @@ public class EnrollmentStatusService
             var oldStatus = student.Status ?? "Pending";
             student.Status = newStatus;
             await _context.SaveChangesAsync();
+
+            // If status changed to "For Payment", automatically create ledger for current school year
+            if (newStatus == "For Payment" && oldStatus != "For Payment" && _ledgerService != null)
+            {
+                try
+                {
+                    await _ledgerService.GetOrCreateLedgerForCurrentSYAsync(studentId, student.GradeLevel);
+                    _logger?.LogInformation("Created ledger for student {StudentId} when status changed to For Payment", studentId);
+                }
+                catch (Exception ledgerEx)
+                {
+                    _logger?.LogWarning(ledgerEx, "Failed to create ledger for student {StudentId} when status changed to For Payment: {Message}", 
+                        studentId, ledgerEx.Message);
+                    // Don't fail the status update if ledger creation fails
+                }
+            }
 
             // Create status log entry
             try

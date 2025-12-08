@@ -35,6 +35,11 @@ public class AppDbContext : DbContext
     public DbSet<ExpenseAttachment> ExpenseAttachments { get; set; }
     public DbSet<StudentPayment> StudentPayments { get; set; }
 
+    // Ledger system tables
+    public DbSet<StudentLedger> StudentLedgers { get; set; }
+    public DbSet<LedgerCharge> LedgerCharges { get; set; }
+    public DbSet<LedgerPayment> LedgerPayments { get; set; }
+
     // User status logging
     public DbSet<UserStatusLog> UserStatusLogs { get; set; }
     
@@ -895,6 +900,59 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(a => a.TeacherId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure StudentLedger entity
+        modelBuilder.Entity<StudentLedger>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_StudentLedgers");
+            entity.HasIndex(e => new { e.StudentId, e.SchoolYear }).IsUnique();
+            entity.HasIndex(e => e.StudentId);
+            entity.HasIndex(e => e.SchoolYear);
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.TotalCharges)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0);
+
+            entity.Property(e => e.TotalPayments)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0);
+
+            entity.Property(e => e.Balance)
+                  .HasColumnType("decimal(18,2)")
+                  .HasDefaultValue(0);
+
+            entity.HasOne(l => l.Student)
+                  .WithMany()
+                  .HasForeignKey(l => l.StudentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure LedgerCharge entity
+        modelBuilder.Entity<LedgerCharge>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_LedgerCharges");
+            entity.HasIndex(e => e.LedgerId);
+            entity.HasIndex(e => e.ChargeType);
+
+            entity.Property(e => e.Amount)
+                  .HasColumnType("decimal(18,2)");
+        });
+
+        // Configure LedgerPayment entity
+        modelBuilder.Entity<LedgerPayment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("tbl_LedgerPayments");
+            entity.HasIndex(e => e.LedgerId);
+            entity.HasIndex(e => e.OrNumber).IsUnique();
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.Amount)
+                  .HasColumnType("decimal(18,2)");
         });
 
         // Configure SchoolYear entity

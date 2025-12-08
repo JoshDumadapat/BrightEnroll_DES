@@ -1258,59 +1258,161 @@
     {
         try
         {
-            // Get all students with "Eligible" status
-            // These are students who have completed a school year and are ready for re-enrollment
-            var allEligibleStudents = await EnrollmentStatusService.GetStudentsByStatusAsync("Eligible", null);
+            // NEW DESIGN: Show students from PREVIOUS school years (old students who want to re-enroll)
+            // The re-enrollment tab shows students from any previous school year, not just the immediate previous
             
-            // Filter to only show students who have at least one completed enrollment
-            // (to ensure they're actual students, not just applicants)
-            var eligibleStudents = new List<BrightEnroll_DES.Data.Models.Student>();
-            
-            foreach (var student in allEligibleStudents)
+            if (string.IsNullOrWhiteSpace(CurrentSchoolYear))
             {
-                // Load section enrollments to verify student has enrollment history
-                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
-                
-                // Check if student has at least one "Enrolled" enrollment record
-                // This ensures they're a returning student, not a new applicant
-                var hasEnrollmentHistory = student.SectionEnrollments?.Any(e => e.Status == "Enrolled") ?? false;
-                
-                if (hasEnrollmentHistory)
-                {
-                    eligibleStudents.Add(student);
-                }
+                ReEnrollmentStudents = new List<ReEnrollmentStudent>();
+                return;
             }
+
+            // Get all students who have enrollment records from PREVIOUS school years
+            // These are old students who may want to re-enroll in the current school year
+            var previousSchoolYearEnrollments = await _context.StudentSectionEnrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.Requirements)
+                .Include(e => e.Section)
+                    .ThenInclude(s => s.GradeLevel)
+                .Where(e => e.SchoolYear != CurrentSchoolYear && 
+                           e.Status == "Enrolled") // Only completed enrollments from previous years
+                .ToListAsync();
+
+            // Group by student to get unique students
+            var previousYearStudents = previousSchoolYearEnrollments
+                .Select(e => e.Student)
+                .Where(s => s != null)
+                .Distinct()
+                .ToList();
             
+            // Filter out students who:
+            // 1. Already have enrollment for current school year, OR
+            // 2. Have status "For Payment", "Partially Paid", or "Fully Paid" (already re-enrolled for current SY)
+            var currentYearEnrollmentStudentIds = await _context.StudentSectionEnrollments
+                .Where(e => e.SchoolYear == CurrentSchoolYear)
+                .Select(e => e.StudentId)
+                .Distinct()
+                .ToListAsync();
+
+            // Get students who are already in enrollment process for current SY
+            var studentsInEnrollmentProcess = await _context.Students
+                .Where(s => (s.Status == "For Payment" || s.Status == "Partially Paid" || s.Status == "Fully Paid") &&
+                           !string.IsNullOrWhiteSpace(CurrentSchoolYear))
+                .Select(s => s.StudentId)
+                .Distinct()
+                .ToListAsync();
+
+            var candidatesForReEnrollment = previousYearStudents
+                .Where(s => !currentYearEnrollmentStudentIds.Contains(s.StudentId) &&
+                           !studentsInEnrollmentProcess.Contains(s.StudentId))
+                .ToList();
+
             var reEnrollmentList = new List<ReEnrollmentStudent>();
             
-            foreach (var s in eligibleStudents)
+            foreach (var student in candidatesForReEnrollment)
             {
-                // Get payment information for each student
-                var paymentInfo = await PaymentService.GetStudentPaymentInfoAsync(s.StudentId);
+                // Get the most recent enrollment from previous school years
+                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
+                
+                var mostRecentEnrollment = student.SectionEnrollments
+                    .Where(e => e.SchoolYear != CurrentSchoolYear && e.Status == "Enrolled")
+                    .OrderByDescending(e => e.SchoolYear)
+                    .ThenByDescending(e => e.CreatedAt)
+                    .FirstOrDefault();
+
+                if (mostRecentEnrollment == null)
+                    continue;
+
+                // Load section details to get grade level
+                await _context.Entry(mostRecentEnrollment).Reference(e => e.Section).LoadAsync();
+                if (mostRecentEnrollment.Section != null)
+                {
+                    await _context.Entry(mostRecentEnrollment.Section).Reference(s => s.GradeLevel).LoadAsync();
+                }
+
+                var previousSchoolYear = mostRecentEnrollment.SchoolYear;
+                var previousGradeLevel = mostRecentEnrollment.Section?.GradeLevel?.GradeLevelName ?? student.GradeLevel ?? "N/A";
+
+                // Check eligibility for current school year enrollment:
+                // 1. Check if student has complete grades (Q1-Q4) for the previous school year
+                // 2. Check if student has no failing grades (general average >= 75)
+                // 3. Check if student has paid all previous balances
+                
+                bool isEligible = true;
+                string eligibilityReason = "";
+
+                if (mostRecentEnrollment.SectionId > 0)
+                {
+                    // Check complete grades
+                    var hasCompleteGrades = await ReEnrollmentService.HasCompleteGradesAsync(
+                        student.StudentId, 
+                        previousSchoolYear, 
+                        mostRecentEnrollment.SectionId);
+
+                    if (!hasCompleteGrades)
+                    {
+                        isEligible = false;
+                        eligibilityReason = "Incomplete grades";
+                }
+                    else
+                    {
+                        // Check general average (passing grade is >= 75)
+                        var generalAverage = await ReEnrollmentService.CalculateGeneralAverageAsync(
+                            student.StudentId,
+                            mostRecentEnrollment.SectionId,
+                            previousSchoolYear);
+
+                        if (generalAverage < 75)
+                        {
+                            isEligible = false;
+                            eligibilityReason = $"Failed (Average: {generalAverage:F2})";
+                        }
+                    }
+                }
+
+                // Check if student has outstanding balance for the previous school year
+                var previousYearPaymentInfo = await PaymentService.GetStudentPaymentInfoBySchoolYearAsync(
+                    student.StudentId, 
+                    previousSchoolYear);
+
+                if (previousYearPaymentInfo != null && previousYearPaymentInfo.Balance > 0)
+                {
+                    isEligible = false;
+                    eligibilityReason = string.IsNullOrEmpty(eligibilityReason) 
+                        ? $"Outstanding balance: Php {previousYearPaymentInfo.Balance:N2}"
+                        : $"{eligibilityReason}, Outstanding balance: Php {previousYearPaymentInfo.Balance:N2}";
+                }
+
+                // Get payment information for display (from previous school year)
+                var paymentInfo = previousYearPaymentInfo ?? await PaymentService.GetStudentPaymentInfoBySchoolYearAsync(
+                    student.StudentId, 
+                    previousSchoolYear);
                 
                 reEnrollmentList.Add(new ReEnrollmentStudent
                 {
-                    Id = s.StudentId,
-                    Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
-                    LRN = s.Lrn ?? "N/A",
-                    Date = FormatDate(s.DateRegistered),
-                    Type = "Eligible", // All in re-enrollment are eligible
-                    GradeLevel = s.GradeLevel ?? "N/A",
-                    Documents = s.Requirements != null && 
-                               s.Requirements.Any() && 
-                               s.Requirements.All(r => r.IsVerified || 
+                    Id = student.StudentId,
+                    Name = $"{student.FirstName} {student.MiddleName} {student.LastName}".Replace("  ", " ").Trim(),
+                    LRN = student.Lrn ?? "N/A",
+                    Date = FormatDate(student.DateRegistered),
+                    Type = "Old Student", // These are old students from previous school years
+                    GradeLevel = previousGradeLevel, // Show grade level from previous enrollment
+                    Documents = student.Requirements != null && 
+                               student.Requirements.Any() && 
+                               student.Requirements.All(r => r.IsVerified || 
                                    (!string.IsNullOrWhiteSpace(r.Status) && 
                                     r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
                                ? "Verified" : "Not verified",
-                    Status = s.Status,
+                    Status = isEligible ? "Eligible" : $"Not Eligible ({eligibilityReason})",
                     TotalFee = paymentInfo?.TotalFee ?? 0,
                     AmountPaid = paymentInfo?.AmountPaid ?? 0,
                     Balance = paymentInfo?.Balance ?? 0,
-                    PaymentStatus = paymentInfo?.PaymentStatus ?? "Unpaid"
+                    PaymentStatus = paymentInfo?.PaymentStatus ?? (paymentInfo?.Balance > 0 ? "Unpaid" : "Fully Paid"), // Show "Fully Paid" when balance is 0
+                    PreviousSchoolYear = previousSchoolYear, // Store previous school year for reference
+                    IsEligible = isEligible
                 });
             }
             
-            ReEnrollmentStudents = reEnrollmentList;
+            ReEnrollmentStudents = reEnrollmentList.OrderByDescending(s => s.PreviousSchoolYear).ToList();
         }
         catch (Exception ex)
         {
@@ -1355,9 +1457,11 @@
     private async Task HandleReEnrollmentRefresh(string studentId)
     {
         // Refresh the re-enrollment list after a student is re-enrolled
+        // Also refresh For Enrollment tab since the student should now appear there with "For Payment" status
         await LoadReEnrollmentStudentsAsync();
+        await LoadForEnrollmentStudentsAsync(); // Student should now appear in For Enrollment tab
         await LoadEnrolledStudentsAsync();
-        ShowToast($"Student {studentId} has been successfully re-enrolled.", ToastType.Success);
+        ShowToast($"Student {studentId} has been successfully re-enrolled and moved to For Enrollment tab with 'For Payment' status.", ToastType.Success);
     }
 
     private async Task HandleReEnrollmentRefreshAll()

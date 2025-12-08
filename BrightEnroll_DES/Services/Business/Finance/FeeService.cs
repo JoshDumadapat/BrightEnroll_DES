@@ -242,6 +242,34 @@ public class FeeService
             throw;
         }
     }
+
+    public async Task<decimal> CalculateTotalFeesAsync(string gradeLevelName)
+    {
+        if (string.IsNullOrWhiteSpace(gradeLevelName))
+            return 0;
+
+        // Load grade level
+        var gradeLevel = await _context.GradeLevels
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g =>
+                g.GradeLevelName.Equals(gradeLevelName, StringComparison.OrdinalIgnoreCase));
+
+        if (gradeLevel == null)
+        {
+            _logger?.LogWarning("No GradeLevel found matching: {GradeLevelName}", gradeLevelName);
+            return 0;
+        }
+
+        // Load associated fee
+        var fee = await GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
+        if (fee == null)
+        {
+            _logger?.LogWarning("No fee record found for GradeLevelId: {Id}", gradeLevel.GradeLevelId);
+        }
+
+        return fee?.TotalFee ?? 0;
+    }
+
 }
 
 public class CreateFeeRequest

@@ -8,6 +8,7 @@
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
 @inject FeeService FeeService
+@inject StudentLedgerService LedgerService
 @inject PaymentReceiptPdfGenerator PdfGenerator
 @inject ILogger<Payments> Logger
 
@@ -87,14 +88,26 @@
                     <div>
                         <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Grade Level</p>
                         <p class="text-xl font-bold text-gray-900">@PaymentData.GradeLevel</p>
+                        @if (!string.IsNullOrWhiteSpace(PaymentData.SchoolYearForPayment) && PaymentData.HasPreviousBalance)
+                        {
+                            <p class="text-xs text-orange-600 font-semibold mt-1">Previous Balance: @PaymentData.SchoolYearForPayment</p>
+                        }
                     </div>
                     <div>
                         <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Enrollment Status</p>
                         <p class="text-xl font-bold @GetEnrollmentStatusColor()">@enrollmentStatus</p>
+                        @if (PaymentData.HasPreviousBalance)
+                        {
+                            <p class="text-xs text-orange-600 font-semibold mt-1">⚠️ Pay Previous Balance First</p>
+                        }
                     </div>
                     <div>
                         <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Balance Summary</p>
                         <p class="text-2xl font-bold @(PaymentData.Balance > 0 ? "text-red-600" : "text-green-600")">₱@PaymentData.Balance.ToString("N2")</p>
+                        @if (PaymentData.HasPreviousBalance)
+                        {
+                            <p class="text-xs text-orange-600 font-semibold mt-1">From: @PaymentData.SchoolYearForPayment</p>
+                        }
                     </div>
                 </div>
             </div>
@@ -108,71 +121,40 @@
                     <h2 class="text-xl font-bold text-gray-800">Tuition & Fees Breakdown</h2>
                 </div>
                 <div class="p-6">
-                    @if (feeBreakdown != null && feeBreakdown.Any())
+                    @if (ledgerCharges != null && ledgerCharges.Any())
                     {
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead>
                                     <tr class="border-b-2 border-gray-300">
-                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Fee Category</th>
+                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Charge Type</th>
+                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Description</th>
                                         <th class="text-right py-4 px-4 text-sm font-bold text-gray-800">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Tuition"))
-                                    {
-                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Tuition").OrderBy(b => b.DisplayOrder))
+                                    @foreach (var charge in ledgerCharges.OrderBy(c => c.ChargeType == "Discount" ? 1 : 0).ThenBy(c => c.ChargeType).ThenBy(c => c.CreatedAt))
                                         {
-                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
-                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
-                                            </tr>
-                                        }
-                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Tuition Fee</td>
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Tuition").Sum(b => b.Amount).ToString("N2")</td>
-                                        </tr>
-                                    }
-                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Misc"))
-                                    {
-                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Misc").OrderBy(b => b.DisplayOrder))
-                                        {
-                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
-                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
-                                            </tr>
-                                        }
-                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Miscellaneous</td>
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Misc").Sum(b => b.Amount).ToString("N2")</td>
-                                        </tr>
-                                    }
-                                    @if (feeBreakdown.Any(b => b.BreakdownType == "Other"))
-                                    {
-                                        @foreach (var item in feeBreakdown.Where(b => b.BreakdownType == "Other").OrderBy(b => b.DisplayOrder))
-                                        {
-                                            <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                                <td class="py-3 px-4 text-sm text-gray-700">@item.ItemName</td>
-                                                <td class="py-3 px-4 text-sm text-gray-900 text-right font-medium">₱@item.Amount.ToString("N2")</td>
-                                            </tr>
-                                        }
-                                        <tr class="border-b-2 border-gray-300 bg-gray-50">
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-800">Total Other Fees</td>
-                                            <td class="py-3 px-4 text-sm font-bold text-gray-900 text-right">₱@feeBreakdown.Where(b => b.BreakdownType == "Other").Sum(b => b.Amount).ToString("N2")</td>
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50 @(charge.ChargeType == "Discount" ? "bg-green-50" : "")">
+                                            <td class="py-3 px-4 text-sm text-gray-700 font-medium">@charge.ChargeType</td>
+                                            <td class="py-3 px-4 text-sm text-gray-700">@(charge.Description ?? charge.ChargeType)</td>
+                                            <td class="py-3 px-4 text-sm text-right font-medium @(charge.Amount < 0 ? "text-green-600" : "text-gray-900")">
+                                                @(charge.Amount < 0 ? "-" : "")₱@Math.Abs(charge.Amount).ToString("N2")
+                                            </td>
                                         </tr>
                                     }
                                 </tbody>
                                 <tfoot>
                                     <tr class="border-t-4 border-gray-400 bg-blue-50">
-                                        <td class="py-4 px-4 text-base font-bold text-gray-900">Total Tuition</td>
+                                        <td colspan="2" class="py-4 px-4 text-base font-bold text-gray-900">Total Charges</td>
                                         <td class="py-4 px-4 text-base font-bold text-blue-800 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
                                     </tr>
                                     <tr class="bg-green-50">
-                                        <td class="py-3 px-4 text-base font-bold text-gray-900">Total Paid</td>
+                                        <td colspan="2" class="py-3 px-4 text-base font-bold text-gray-900">Total Paid</td>
                                         <td class="py-3 px-4 text-base font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
                                     </tr>
                                     <tr class="bg-red-50">
-                                        <td class="py-3 px-4 text-base font-bold text-gray-900">Remaining Balance</td>
+                                        <td colspan="2" class="py-3 px-4 text-base font-bold text-gray-900">Remaining Balance</td>
                                         <td class="py-3 px-4 text-base font-bold text-red-800 text-right">₱@PaymentData.Balance.ToString("N2")</td>
                                     </tr>
                                 </tfoot>
@@ -181,7 +163,7 @@
                     }
                     else
                     {
-                        <p class="text-sm text-gray-500 text-center py-8">No fee breakdown available for this grade level.</p>
+                        <p class="text-sm text-gray-500 text-center py-8">No charges available for this ledger.</p>
                     }
                 </div>
             </div>
@@ -326,7 +308,7 @@
             @if (showPaymentHistory)
             {
                 <div class="p-6">
-                    @if (paymentHistory != null && paymentHistory.Any())
+                    @if (ledgerPayments != null && ledgerPayments.Any())
                     {
                         <div class="overflow-x-auto max-h-96 overflow-y-auto">
                             <table class="w-full text-sm">
@@ -340,7 +322,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var payment in paymentHistory)
+                                    @foreach (var payment in ledgerPayments)
                                     {
                                         <tr class="border-b border-gray-100 hover:bg-gray-50">
                                             <td class="py-2 px-3 text-xs text-gray-700">@payment.CreatedAt.ToString("MMM dd, yyyy")</td>
@@ -566,9 +548,9 @@
     private string searchErrorMessage { get; set; } = "";
     private string enrollmentStatus { get; set; } = "";
     private bool isProcessingPayment { get; set; } = false;
-    private List<FeeBreakdown> feeBreakdown { get; set; } = new();
+    private List<LedgerCharge> ledgerCharges { get; set; } = new();
+    private List<LedgerPayment> ledgerPayments { get; set; } = new();
     private string paymentType { get; set; } = "Downpayment";
-    private List<StudentPayment> paymentHistory { get; set; } = new();
     private bool showPaymentHistory { get; set; } = false;
 
     private async Task SearchStudent()
@@ -609,18 +591,30 @@
                     Balance = paymentInfo.Balance,
                     PaymentStatus = paymentInfo.PaymentStatus,
                     NewPaymentAmount = 0,
-                    PaymentMethod = "Cash"
+                    PaymentMethod = "Cash",
+                    HasPreviousBalance = paymentInfo.HasPreviousBalance,
+                    PreviousSchoolYear = paymentInfo.PreviousSchoolYear,
+                    SchoolYearForPayment = paymentInfo.SchoolYearForPayment,
+                    LedgerId = paymentInfo.LedgerId
                 };
                 enrollmentStatus = paymentInfo.EnrollmentStatus;
                 paymentAmountRawInput = "";
                 isEditingPaymentAmount = false;
                 paymentType = "Downpayment";
 
-                // Load fee breakdown
-                await LoadFeeBreakdownAsync(paymentInfo.Student?.GradeLevel);
-
-                // Load payment history
-                await LoadPaymentHistoryAsync(paymentInfo.StudentId);
+                // Load ledger charges and payments
+                if (paymentInfo.LedgerId.HasValue)
+                {
+                    await LoadLedgerDataAsync(paymentInfo.LedgerId.Value);
+                }
+                else if (!string.IsNullOrWhiteSpace(paymentInfo.SchoolYearForPayment))
+                {
+                    var ledger = await LedgerService.GetLedgerBySchoolYearAsync(paymentInfo.StudentId, paymentInfo.SchoolYearForPayment);
+                    if (ledger != null)
+                    {
+                        await LoadLedgerDataAsync(ledger.Id);
+                    }
+                }
             }
         }
         catch (Exception ex)
@@ -923,51 +917,28 @@
         StateHasChanged();
     }
 
-    private async Task LoadFeeBreakdownAsync(string? gradeLevel)
+    private async Task LoadLedgerDataAsync(int ledgerId)
     {
         try
         {
-            feeBreakdown = new List<FeeBreakdown>();
+            var ledger = await LedgerService.GetLedgerByIdAsync(ledgerId);
             
-            if (string.IsNullOrWhiteSpace(gradeLevel))
+            if (ledger != null)
             {
-                return;
+                ledgerCharges = ledger.Charges.OrderBy(c => c.ChargeType).ThenBy(c => c.CreatedAt).ToList();
+                ledgerPayments = ledger.Payments.OrderByDescending(p => p.CreatedAt).ToList();
             }
-
-            // Get grade level ID
-            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
-            var grade = gradeLevels.FirstOrDefault(g => g.GradeLevelName == gradeLevel);
-            
-            if (grade == null)
+            else
             {
-                return;
-            }
-
-            // Get fee with breakdown
-            var fee = await FeeService.GetFeeByGradeLevelIdAsync(grade.GradeLevelId);
-            
-            if (fee != null && fee.Breakdowns != null)
-            {
-                feeBreakdown = fee.Breakdowns.OrderBy(b => b.BreakdownType).ThenBy(b => b.DisplayOrder).ToList();
+                ledgerCharges = new List<LedgerCharge>();
+                ledgerPayments = new List<LedgerPayment>();
             }
         }
         catch (Exception ex)
         {
-            Logger?.LogError(ex, "Error loading fee breakdown: {Message}", ex.Message);
-            feeBreakdown = new List<FeeBreakdown>();
-        }
-    }
-
-    private async Task LoadPaymentHistoryAsync(string studentId)
-    {
-        try
-        {
-            paymentHistory = await PaymentService.GetPaymentsByStudentIdAsync(studentId);
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogError(ex, "Error loading payment history: {Message}", ex.Message);
-            paymentHistory = new List<StudentPayment>();
+            Logger?.LogError(ex, "Error loading ledger data: {Message}", ex.Message);
+            ledgerCharges = new List<LedgerCharge>();
+            ledgerPayments = new List<LedgerPayment>();
         }
     }
 
@@ -1053,10 +1024,18 @@
             enrollmentStatus = updatedInfo.EnrollmentStatus;
 
             // Reload payment history
-            await LoadPaymentHistoryAsync(PaymentData.StudentId);
+            // Reload ledger data after payment
+            if (PaymentData.LedgerId.HasValue)
+            {
+                await LoadLedgerDataAsync(PaymentData.LedgerId.Value);
+            }
 
             // Reload payment history
-            await LoadPaymentHistoryAsync(PaymentData.StudentId);
+            // Reload ledger data after payment
+            if (PaymentData.LedgerId.HasValue)
+            {
+                await LoadLedgerDataAsync(PaymentData.LedgerId.Value);
+            }
 
             // Prepare receipt data
             ReceiptData = new ReceiptDataModel

@@ -452,15 +452,11 @@ public class ReEnrollmentService
                 return result;
             }
 
-            if (student.Status != "Eligible")
-            {
-                result.Success = false;
-                result.ErrorMessage = $"Student {studentId} is not eligible for re-enrollment. Current status: {student.Status}";
-                return result;
-            }
+            // Note: Eligibility is now checked in the UI before re-enrollment
+            // We allow re-enrollment for students from previous school years
+            // The UI will show eligibility status based on grades and payment history
 
-            // Check if student has outstanding balance for the current school year
-            // Get the most recent enrollment to check balance for that school year
+            // Get the most recent enrollment to determine previous school year and check balance
             var mostRecentEnrollmentForBalance = student.SectionEnrollments
                 .OrderByDescending(e => e.SchoolYear)
                 .ThenByDescending(e => e.CreatedAt)
@@ -468,17 +464,19 @@ public class ReEnrollmentService
 
             if (_paymentService != null && mostRecentEnrollmentForBalance != null)
             {
-                // Check balance for the current school year only
+                // Check balance for the PREVIOUS school year (the one they were last enrolled in)
+                // Students must have paid all balances from their previous enrollment before re-enrolling
+                var enrollmentSchoolYear = mostRecentEnrollmentForBalance.SchoolYear;
                 var paymentInfo = await _paymentService.GetStudentPaymentInfoBySchoolYearAsync(
                     studentId, 
-                    mostRecentEnrollmentForBalance.SchoolYear);
+                    enrollmentSchoolYear);
                 
                 if (paymentInfo != null && paymentInfo.Balance > 0)
                 {
                     result.Success = false;
-                    result.ErrorMessage = $"Student {studentId} has outstanding balance of Php {paymentInfo.Balance:N2} for school year {mostRecentEnrollmentForBalance.SchoolYear}. " +
+                    result.ErrorMessage = $"Student {studentId} has outstanding balance of Php {paymentInfo.Balance:N2} for school year {enrollmentSchoolYear}. " +
                                         $"Total Fee: Php {paymentInfo.TotalFee:N2}, Amount Paid: Php {paymentInfo.AmountPaid:N2}. " +
-                                        $"Please settle all balances before re-enrollment.";
+                                        $"Please settle all balances from previous school year before re-enrollment.";
                     return result;
                 }
             }
@@ -520,23 +518,24 @@ public class ReEnrollmentService
                 return result;
             }
 
-            // Get next school year
-            var nextSchoolYear = GetNextSchoolYear(currentSchoolYear);
-            if (nextSchoolYear == null)
+            // Get the CURRENT active school year (not the next from previous)
+            // Students are re-enrolling for the current school year, not necessarily the next sequential year
+            var currentActiveSchoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+            if (string.IsNullOrWhiteSpace(currentActiveSchoolYear))
             {
                 result.Success = false;
-                result.ErrorMessage = $"Cannot determine next school year from {currentSchoolYear}";
+                result.ErrorMessage = "Cannot determine current active school year. Please ensure a school year is active.";
                 return result;
             }
 
-            // Check if enrollment already exists for next school year
+            // Check if enrollment already exists for current school year
             var existingEnrollment = await _context.StudentSectionEnrollments
-                .FirstOrDefaultAsync(e => e.StudentId == studentId && e.SchoolYear == nextSchoolYear);
+                .FirstOrDefaultAsync(e => e.StudentId == studentId && e.SchoolYear == currentActiveSchoolYear);
 
             if (existingEnrollment != null)
             {
                 result.Success = false;
-                result.ErrorMessage = $"Student {studentId} already has an enrollment record for school year {nextSchoolYear}";
+                result.ErrorMessage = $"Student {studentId} already has an enrollment record for school year {currentActiveSchoolYear}";
                 return result;
             }
 
@@ -562,11 +561,14 @@ public class ReEnrollmentService
                 userId = user.user_ID;
             }
 
-            // DO NOT update student's main record (GradeLevel, SchoolYr, AmountPaid, PaymentStatus)
-            // These should remain as historical data from the previous school year
-            // Only update Status to "For Payment" so they appear in the For Enrollment tab
+            // Store previous values for logging
             var previousGradeLevel = currentGradeLevel;
             var previousSchoolYear = currentSchoolYear;
+            
+            // Update student's GradeLevel to the next grade level (e.g., Grade 1 → Grade 2)
+            // This is needed so payment service can show the correct grade level for new enrollment
+            // Note: We preserve historical enrollment records, but update the student's current grade level
+            student.GradeLevel = nextGradeLevel;
             
             // Update student type to "Returnee" since they're re-enrolling
             // Only update if it's not already set to "Returnee" or "Old Student"
@@ -596,7 +598,7 @@ public class ReEnrollmentService
                 {
                     StudentId = studentId,
                     SectionId = sectionId.Value,
-                    SchoolYear = nextSchoolYear,
+                    SchoolYear = currentActiveSchoolYear, // Use current active school year
                     Status = "Pending", // Pending until payment is made and enrollment is confirmed
                     CreatedAt = DateTime.Now
                 };
@@ -614,7 +616,44 @@ public class ReEnrollmentService
             await _context.SaveChangesAsync();
 
             // Create status log - student is now "For Payment" and will appear in "For Enrollment" tab
+            // This will also automatically create a ledger for the current school year
             await _enrollmentStatusService.UpdateStudentStatusAsync(studentId, "For Payment");
+
+                     var ledgerExists = await _context.StudentLedgers
+                .AnyAsync(l => l.StudentId == studentId && l.SchoolYear == currentActiveSchoolYear);
+
+            if (!ledgerExists)
+            {
+                // Get total fees for the NEXT grade level
+                var feeService = new FeeService(_context);
+                var totalFees = await feeService.CalculateTotalFeesAsync(nextGradeLevel);
+
+                var newLedger = new StudentLedger
+                {
+                    StudentId = studentId,
+                    SchoolYear = currentActiveSchoolYear,
+                    GradeLevel = nextGradeLevel,
+                    TotalCharges = totalFees,
+                    TotalPayments = 0,
+                    Balance = totalFees,
+                    Status = "Unpaid",
+                    CreatedAt = DateTime.Now
+                };
+
+                _context.StudentLedgers.Add(newLedger);
+                await _context.SaveChangesAsync();
+
+                _logger?.LogInformation(
+                    "Created NEW LEDGER for student {StudentId} for SY {SY}, Grade {Grade}, Amount {Amount}",
+                    studentId, currentActiveSchoolYear, nextGradeLevel, totalFees);
+            }
+            else
+            {
+                _logger?.LogWarning(
+                    "Ledger for student {StudentId} in SY {SY} already exists. Skipping creation.",
+                    studentId, currentActiveSchoolYear);
+            }
+
 
             // Create audit log
             if (_auditLogService != null)
@@ -622,10 +661,10 @@ public class ReEnrollmentService
                 await _auditLogService.CreateLogAsync(
                     action: "Student Re-Enrollment",
                     module: "Re-Enrollment",
-                    description: $"Student {studentId} ({student.FirstName} {student.LastName}) re-enrolled for {nextSchoolYear}. " +
+                    description: $"Student {studentId} ({student.FirstName} {student.LastName}) re-enrolled for {currentActiveSchoolYear}. " +
                                 $"Promoted from {previousGradeLevel} to {nextGradeLevel}. " +
                                 $"Status set to 'For Payment' - awaiting downpayment. " +
-                                $"New independent enrollment record created for school year {nextSchoolYear}.",
+                                $"New independent enrollment record created for school year {currentActiveSchoolYear}.",
                     userName: performedByName,
                     userRole: userRole,
                     userId: userId,
@@ -645,11 +684,11 @@ public class ReEnrollmentService
             result.PreviousGradeLevel = previousGradeLevel;
             result.NewGradeLevel = nextGradeLevel;
             result.PreviousSchoolYear = currentSchoolYear;
-            result.NewSchoolYear = nextSchoolYear;
+            result.NewSchoolYear = currentActiveSchoolYear; // Use current active school year
 
             _logger?.LogInformation(
                 "Student {StudentId} successfully re-enrolled: {PreviousGrade} → {NewGrade}, {PreviousSY} → {NewSY}. Status: For Payment (awaiting downpayment)",
-                studentId, previousGradeLevel, nextGradeLevel, currentSchoolYear, nextSchoolYear);
+                studentId, previousGradeLevel, nextGradeLevel, currentSchoolYear, currentActiveSchoolYear);
 
             return result;
         }

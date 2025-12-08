@@ -46,6 +46,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetExpenseAttachmentsTableDefinition(),
                 // Finance - student payments (must be after tbl_Students)
                 GetStudentPaymentsTableDefinition(),
+                // Finance - ledger system (must be after tbl_Students)
+                GetStudentLedgersTableDefinition(),
+                GetLedgerChargesTableDefinition(),
+                GetLedgerPaymentsTableDefinition(),
                 // Inventory & Asset Management tables
                 GetAssetsTableDefinition(),
                 GetInventoryItemsTableDefinition(),
@@ -1073,6 +1077,108 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_school_year' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
                         CREATE INDEX IX_tbl_StudentPayments_school_year ON [dbo].[tbl_StudentPayments]([school_year])
                         WHERE [school_year] IS NOT NULL"
+                }
+            };
+        }
+
+        // Creates tbl_StudentLedgers table - ledger per student per school year
+        public static TableDefinition GetStudentLedgersTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_StudentLedgers",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_StudentLedgers](
+                        [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [student_id] VARCHAR(6) NOT NULL,
+                        [school_year] VARCHAR(20) NOT NULL,
+                        [grade_level] VARCHAR(50) NULL,
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Unpaid',
+                        [total_charges] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [total_payments] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [balance] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_StudentLedgers_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentLedgers_StudentId_SchoolYear' AND object_id = OBJECT_ID('dbo.tbl_StudentLedgers'))
+                        CREATE UNIQUE INDEX IX_tbl_StudentLedgers_StudentId_SchoolYear ON [dbo].[tbl_StudentLedgers]([student_id], [school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentLedgers_StudentId' AND object_id = OBJECT_ID('dbo.tbl_StudentLedgers'))
+                        CREATE INDEX IX_tbl_StudentLedgers_StudentId ON [dbo].[tbl_StudentLedgers]([student_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentLedgers_SchoolYear' AND object_id = OBJECT_ID('dbo.tbl_StudentLedgers'))
+                        CREATE INDEX IX_tbl_StudentLedgers_SchoolYear ON [dbo].[tbl_StudentLedgers]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentLedgers_Status' AND object_id = OBJECT_ID('dbo.tbl_StudentLedgers'))
+                        CREATE INDEX IX_tbl_StudentLedgers_Status ON [dbo].[tbl_StudentLedgers]([status])"
+                }
+            };
+        }
+
+        // Creates tbl_LedgerCharges table - individual charges and discounts in a ledger
+        public static TableDefinition GetLedgerChargesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_LedgerCharges",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_LedgerCharges](
+                        [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [ledger_id] INT NOT NULL,
+                        [charge_type] VARCHAR(50) NOT NULL,
+                        [description] VARCHAR(500) NULL,
+                        [amount] DECIMAL(18,2) NOT NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL,
+                        CONSTRAINT FK_tbl_LedgerCharges_tbl_StudentLedgers FOREIGN KEY ([ledger_id]) REFERENCES [dbo].[tbl_StudentLedgers]([id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerCharges_LedgerId' AND object_id = OBJECT_ID('dbo.tbl_LedgerCharges'))
+                        CREATE INDEX IX_tbl_LedgerCharges_LedgerId ON [dbo].[tbl_LedgerCharges]([ledger_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerCharges_ChargeType' AND object_id = OBJECT_ID('dbo.tbl_LedgerCharges'))
+                        CREATE INDEX IX_tbl_LedgerCharges_ChargeType ON [dbo].[tbl_LedgerCharges]([charge_type])"
+                }
+            };
+        }
+
+        // Creates tbl_LedgerPayments table - payment records linked to a ledger
+        public static TableDefinition GetLedgerPaymentsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_LedgerPayments",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_LedgerPayments](
+                        [id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [ledger_id] INT NOT NULL,
+                        [amount] DECIMAL(18,2) NOT NULL,
+                        [or_number] VARCHAR(50) NOT NULL,
+                        [payment_method] VARCHAR(50) NOT NULL,
+                        [processed_by] VARCHAR(100) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_LedgerPayments_tbl_StudentLedgers FOREIGN KEY ([ledger_id]) REFERENCES [dbo].[tbl_StudentLedgers]([id]) ON DELETE CASCADE
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerPayments_LedgerId' AND object_id = OBJECT_ID('dbo.tbl_LedgerPayments'))
+                        CREATE INDEX IX_tbl_LedgerPayments_LedgerId ON [dbo].[tbl_LedgerPayments]([ledger_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerPayments_OrNumber' AND object_id = OBJECT_ID('dbo.tbl_LedgerPayments'))
+                        CREATE UNIQUE INDEX IX_tbl_LedgerPayments_OrNumber ON [dbo].[tbl_LedgerPayments]([or_number])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerPayments_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_LedgerPayments'))
+                        CREATE INDEX IX_tbl_LedgerPayments_CreatedAt ON [dbo].[tbl_LedgerPayments]([created_at])"
                 }
             };
         }
