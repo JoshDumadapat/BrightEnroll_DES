@@ -356,6 +356,42 @@ public class CurriculumService
         }
     }
 
+    /// <summary>
+    /// Gets all subject schedules for multiple subjects at once to avoid concurrent DbContext operations
+    /// </summary>
+    public async Task<Dictionary<int, List<SubjectSchedule>>> GetSubjectSchedulesBySubjectIdsAsync(IEnumerable<int> subjectIds)
+    {
+        try
+        {
+            var subjectIdList = subjectIds.ToList();
+            if (!subjectIdList.Any())
+            {
+                return new Dictionary<int, List<SubjectSchedule>>();
+            }
+
+            var allSchedules = await _context.SubjectSchedules
+                .AsNoTracking()
+                .Include(ss => ss.GradeLevel)
+                .Where(ss => subjectIdList.Contains(ss.SubjectId) && ss.IsDefault)
+                .OrderBy(ss => ss.SubjectId)
+                .ThenBy(ss => ss.DayOfWeek)
+                .ThenBy(ss => ss.StartTime)
+                .ToListAsync();
+
+            var result = allSchedules
+                .GroupBy(ss => ss.SubjectId)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            _logger?.LogInformation("Loaded schedules for {SubjectCount} subjects", result.Count);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error loading schedules for multiple subjects: {ErrorMessage}", ex.Message);
+            throw;
+        }
+    }
+
     public async Task<SubjectSchedule> CreateSubjectScheduleAsync(SubjectSchedule schedule)
     {
         try
@@ -716,6 +752,35 @@ public class CurriculumService
             .OrderBy(u => u.LastName)
             .ThenBy(u => u.FirstName)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Gets section names that have enrollments in the specified school year
+    /// </summary>
+    public async Task<List<string>> GetSectionNamesWithEnrollmentsAsync(string schoolYear)
+    {
+        try
+        {
+            var sectionNames = await _context.StudentSectionEnrollments
+                .AsNoTracking()
+                .Where(e => e.Status == "Enrolled" && e.SchoolYear == schoolYear)
+                .Select(e => e.SectionId)
+                .Distinct()
+                .Join(_context.Sections,
+                    enrollmentId => enrollmentId,
+                    section => section.SectionId,
+                    (enrollmentId, section) => section.SectionName)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Distinct()
+                .ToListAsync();
+
+            return sectionNames;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting section names with enrollments for school year {SchoolYear}", schoolYear);
+            return new List<string>();
+        }
     }
 
     public async Task<List<FinalClassView>> GetFinalClassesAsync()

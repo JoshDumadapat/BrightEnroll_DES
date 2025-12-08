@@ -30,6 +30,10 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
 
     private EditContext? editContext;
+    
+    // Auto-refresh timer
+    private System.Threading.Timer? _refreshTimer;
+    private bool _isDisposed = false;
 
     private StudentRegistrationModel registrationModel = new();
     private bool isSubmitting = false;
@@ -68,7 +72,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     protected override async Task OnInitializedAsync()
     {
         editContext = new EditContext(registrationModel);
-        LoadSchoolYears(); // This will also call LoadAvailableStartYears()
+        await LoadSchoolYearsAsync(); // This will also call LoadAvailableStartYears()
         await LoadGradeLevelsAsync(); // Load grade levels from database
         registrationModel.StudentType = ""; // Initialize to trigger requirements update
         dotNetRef = DotNetObjectReference.Create(this);
@@ -80,6 +84,36 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         // Link handlers to each other for cross-closing dropdowns
         currentAddressHandler.SetPermanentHandler(permanentAddressHandler);
         permanentAddressHandler.SetCurrentHandler(currentAddressHandler);
+        
+        // Start automatic page refresh timer (refresh every 30 seconds)
+        _ = Task.Run(async () => await StartAutoRefreshAsync());
+    }
+    
+    private async Task StartAutoRefreshAsync()
+    {
+        // Wait a bit before starting to avoid conflicts with initial load
+        await Task.Delay(5000);
+        
+        if (_isDisposed) return;
+        
+        // Refresh every 30 seconds
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            if (_isDisposed) return;
+            
+            try
+            {
+                await InvokeAsync(async () =>
+                {
+                    // Refresh school years data
+                    await LoadSchoolYearsAsync();
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error in auto-refresh: {Message}", ex.Message);
+            }
+        }, null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -94,6 +128,9 @@ public partial class StudentRegistration : ComponentBase, IDisposable
 
     public void Dispose()
     {
+        _isDisposed = true;
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
         dotNetRef?.Dispose();
     }
 
@@ -509,13 +546,25 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         StateHasChanged();
     }
 
-    private void LoadSchoolYears()
+    private async Task LoadSchoolYearsAsync()
     {
-        // Auto-remove finished school years before loading
-        SchoolYearService.RemoveFinishedSchoolYears();
-        availableSchoolYears = SchoolYearService.GetAvailableSchoolYears();
-        // Reload available start years after school years are updated
-        LoadAvailableStartYears();
+        try
+        {
+            // Auto-remove finished school years before loading
+            await SchoolYearService.RemoveFinishedSchoolYearsAsync();
+            availableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+            // Reload available start years after school years are updated
+            LoadAvailableStartYears();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading school years: {Message}", ex.Message);
+            // Fallback to current school year
+            availableSchoolYears = new List<string> { SchoolYearService.GetCurrentSchoolYear() };
+            LoadAvailableStartYears();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadGradeLevelsAsync()
@@ -697,28 +746,45 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         newSchoolYear = $"{startYear}-{endYear}";
     }
 
-    private void AddSchoolYear()
+    private async Task AddSchoolYear()
     {
         // Check if we've reached the maximum of 3 school years
         if (availableSchoolYears.Count >= 3)
         {
             schoolYearValidationError = "Maximum of 3 school years allowed. Please remove an existing school year before adding a new one.";
+            StateHasChanged();
             return;
         }
 
-        if (isValidSchoolYearFormat && SchoolYearService.AddSchoolYear(newSchoolYear))
+        if (isValidSchoolYearFormat)
         {
-            LoadSchoolYears();
-            registrationModel.SchoolYear = newSchoolYear;
-            CloseAddSchoolYearModal();
-        }
-        else if (!isValidSchoolYearFormat)
-        {
-            // Validation error is already set in ValidateSchoolYearFormat
+            try
+            {
+                var success = await SchoolYearService.AddSchoolYearAsync(newSchoolYear);
+                if (success)
+                {
+                    await LoadSchoolYearsAsync();
+                    registrationModel.SchoolYear = newSchoolYear;
+                    CloseAddSchoolYearModal();
+                    StateHasChanged();
+                }
+                else
+                {
+                    schoolYearValidationError = "Failed to add school year. It may already exist.";
+                    StateHasChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error adding school year: {Message}", ex.Message);
+                schoolYearValidationError = $"Error adding school year: {ex.Message}";
+                StateHasChanged();
+            }
         }
         else
         {
-            schoolYearValidationError = "Failed to add school year. It may already exist.";
+            // Validation error is already set in ValidateSchoolYearFormat
+            StateHasChanged();
         }
     }
 

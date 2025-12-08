@@ -37,6 +37,10 @@ public class StudentPayment
     [Column("processed_by")]
     public string? ProcessedBy { get; set; }
 
+    [MaxLength(20)]
+    [Column("school_year")]
+    public string? SchoolYear { get; set; } // Links payment to school year enrollment
+
     [Required]
     [Column("created_at", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

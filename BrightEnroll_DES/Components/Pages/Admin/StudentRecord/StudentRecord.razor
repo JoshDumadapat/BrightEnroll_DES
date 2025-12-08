@@ -9,13 +9,25 @@
 @inject BrightEnroll_DES.Services.RoleBase.IAuthorizationService AuthorizationService
 @inject StudentService StudentService
 @inject GradeService GradeService
+@inject SchoolYearService SchoolYearService
 
 <PageTitle>Student Record</PageTitle>
 
 <RoleAuthorizeView RequiredPermission="@Permissions.ViewStudentRecord">
 
 <div class="text-gray-800">
-    <h1 class="mb-6 text-2xl font-bold text-gray-800">Student Record</h1>
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Student Record</h1>
+        @if (!string.IsNullOrEmpty(CurrentSchoolYear))
+        {
+            <div class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
+                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-sm font-semibold text-blue-800">School Year: <span class="font-bold">@CurrentSchoolYear</span></span>
+            </div>
+        }
+    </div>
     @if (ShowDetailView)
     {
         <StudentDetail StudentData="SelectedStudentData" AcademicRecords="SelectedAcademicRecords" EnrollmentRecords="SelectedEnrollmentRecords" OnBackClick="HandleBackClick" />
@@ -224,8 +236,12 @@
         => FilteredStudents.Skip((CurrentPage - 1) * RowsPerPage)
                            .Take(RowsPerPage);
 
+    private string CurrentSchoolYear { get; set; } = "";
+
     protected override async Task OnInitializedAsync()
     {
+        // Load current school year
+        CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
         await LoadStudentsAsync();
     }
 

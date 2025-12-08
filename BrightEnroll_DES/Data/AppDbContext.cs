@@ -67,6 +67,9 @@ public class AppDbContext : DbContext
     public DbSet<TeacherActivityLog> TeacherActivityLogs { get; set; }
     public DbSet<Attendance> Attendances { get; set; }
 
+    // School Year Management
+    public DbSet<SchoolYear> SchoolYears { get; set; }
+
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
@@ -332,6 +335,8 @@ public class AppDbContext : DbContext
             entity.ToTable("tbl_Fees");
             entity.HasIndex(e => e.GradeLevelId);
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.SchoolYear);
+            entity.HasIndex(e => new { e.GradeLevelId, e.SchoolYear });
 
             entity.HasOne(f => f.GradeLevel)
                   .WithMany()
@@ -361,6 +366,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.ExpenseDate);
             entity.HasIndex(e => e.Category);
             entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.SchoolYear);
 
             entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
         });
@@ -385,6 +391,7 @@ public class AppDbContext : DbContext
             entity.HasIndex(e => e.StudentId);
             entity.HasIndex(e => e.OrNumber).IsUnique();
             entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.SchoolYear);
 
             entity.Property(e => e.Amount).HasColumnType("decimal(18,2)");
             entity.Property(e => e.CreatedAt)
@@ -888,6 +895,21 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(a => a.TeacherId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure SchoolYear entity
+        modelBuilder.Entity<SchoolYear>(entity =>
+        {
+            entity.HasKey(e => e.SchoolYearId);
+            entity.ToTable("tbl_SchoolYear");
+            
+            entity.HasIndex(e => e.SchoolYearName).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.IsOpen);
+
+            entity.Property(e => e.SchoolYearName)
+                  .HasMaxLength(20)
+                  .IsRequired();
         });
     }
 }

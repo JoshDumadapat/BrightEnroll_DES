@@ -24,6 +24,33 @@ public class GradeService
     }
 
     /// <summary>
+    /// Checks if a school year is open for editing (grades can be saved)
+    /// </summary>
+    private async Task<bool> IsSchoolYearOpenAsync(string schoolYear)
+    {
+        try
+        {
+            var schoolYearEntity = await _context.SchoolYears
+                .FirstOrDefaultAsync(sy => sy.SchoolYearName == schoolYear);
+            
+            // If school year doesn't exist in database, allow editing (backward compatibility)
+            if (schoolYearEntity == null)
+            {
+                return true;
+            }
+            
+            // School year must be active and open
+            return schoolYearEntity.IsActive && schoolYearEntity.IsOpen;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error checking if school year {SchoolYear} is open", schoolYear);
+            // On error, allow editing (fail open for backward compatibility)
+            return true;
+        }
+    }
+
+    /// <summary>
     /// Ensures tbl_Grades table exists before querying
     /// </summary>
     private async Task EnsureGradesTableExistsAsync()
@@ -274,6 +301,15 @@ public class GradeService
                 return false;
             }
 
+            // Check if school year is open for editing
+            var schoolYear = gradeInputs.First().SchoolYear;
+            var isOpen = await IsSchoolYearOpenAsync(schoolYear);
+            if (!isOpen)
+            {
+                _logger?.LogWarning("Attempted to save grades for closed school year {SchoolYear}", schoolYear);
+                throw new InvalidOperationException($"Cannot save grades. The school year {schoolYear} is closed. Please contact an administrator to reopen it if you need to make changes.");
+            }
+
             // Get unique section-subject combinations
             var sectionSubjectPairs = gradeInputs
                 .Select(g => new { g.SectionId, g.SubjectId })
@@ -445,6 +481,15 @@ public class GradeService
             if (gradeInputs == null || !gradeInputs.Any())
             {
                 throw new ArgumentException("Grade inputs cannot be empty.");
+            }
+
+            // Check if school year is open for editing
+            var schoolYear = gradeInputs.First().SchoolYear;
+            var isOpen = await IsSchoolYearOpenAsync(schoolYear);
+            if (!isOpen)
+            {
+                _logger?.LogWarning("Attempted to save quarterly grades for closed school year {SchoolYear}", schoolYear);
+                throw new InvalidOperationException($"Cannot save grades. The school year {schoolYear} is closed. Please contact an administrator to reopen it if you need to make changes.");
             }
 
             // Validate teacher is assigned to all section-subject combinations

@@ -229,6 +229,7 @@ BEGIN
         [created_by] VARCHAR(50) NULL,
         [updated_by] VARCHAR(50) NULL,
         [is_active] BIT NOT NULL DEFAULT 1,
+        [school_year] VARCHAR(20) NULL,
         CONSTRAINT FK_tbl_Fees_GradeLevel FOREIGN KEY ([gradelevel_ID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID])
     );
     PRINT 'Table [tbl_Fees] created.';
@@ -291,7 +292,25 @@ BEGIN
 END
 GO
 
--- 1.15 tbl_Buildings (standalone)
+-- 1.15 tbl_StudentPayments (depends on tbl_Students)
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_StudentPayments' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_StudentPayments](
+        [payment_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [student_id] VARCHAR(6) NOT NULL,
+        [amount] DECIMAL(18,2) NOT NULL,
+        [payment_method] VARCHAR(50) NOT NULL,
+        [or_number] VARCHAR(50) NOT NULL,
+        [processed_by] VARCHAR(50) NULL,
+        [school_year] VARCHAR(20) NULL,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_tbl_StudentPayments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
+    );
+    PRINT 'Table [tbl_StudentPayments] created.';
+END
+GO
+
+-- 1.16 tbl_Buildings (standalone)
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_Buildings' AND schema_id = SCHEMA_ID('dbo'))
 BEGIN
     CREATE TABLE [dbo].[tbl_Buildings](
@@ -587,6 +606,12 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_gradelevel_ID
     CREATE INDEX IX_tbl_Fees_gradelevel_ID ON [dbo].[tbl_Fees]([gradelevel_ID]);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_is_active' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
     CREATE INDEX IX_tbl_Fees_is_active ON [dbo].[tbl_Fees]([is_active]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_school_year' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+    CREATE INDEX IX_tbl_Fees_school_year ON [dbo].[tbl_Fees]([school_year])
+    WHERE [school_year] IS NOT NULL;
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_gradelevel_schoolyear' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+    CREATE INDEX IX_tbl_Fees_gradelevel_schoolyear ON [dbo].[tbl_Fees]([gradelevel_ID], [school_year])
+    WHERE [school_year] IS NOT NULL;
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_FeeBreakdown_fee_ID' AND object_id = OBJECT_ID('dbo.tbl_FeeBreakdown'))
     CREATE INDEX IX_tbl_FeeBreakdown_fee_ID ON [dbo].[tbl_FeeBreakdown]([fee_ID]);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_FeeBreakdown_breakdown_type' AND object_id = OBJECT_ID('dbo.tbl_FeeBreakdown'))
@@ -599,6 +624,15 @@ IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_Status' A
     CREATE INDEX IX_tbl_Expenses_Status ON [dbo].[tbl_Expenses]([status]);
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ExpenseAttachments_ExpenseId' AND object_id = OBJECT_ID('dbo.tbl_ExpenseAttachments'))
     CREATE INDEX IX_tbl_ExpenseAttachments_ExpenseId ON [dbo].[tbl_ExpenseAttachments]([expense_ID]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_StudentId' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+    CREATE INDEX IX_tbl_StudentPayments_StudentId ON [dbo].[tbl_StudentPayments]([student_id]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_OrNumber' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+    CREATE UNIQUE INDEX IX_tbl_StudentPayments_OrNumber ON [dbo].[tbl_StudentPayments]([or_number]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+    CREATE INDEX IX_tbl_StudentPayments_CreatedAt ON [dbo].[tbl_StudentPayments]([created_at]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_school_year' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+    CREATE INDEX IX_tbl_StudentPayments_school_year ON [dbo].[tbl_StudentPayments]([school_year])
+    WHERE [school_year] IS NOT NULL;
 GO
 
 -- Indexes for curriculum tables

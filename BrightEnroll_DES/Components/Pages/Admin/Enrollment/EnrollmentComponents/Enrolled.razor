@@ -149,14 +149,26 @@
                         <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">@student.Status</span>
                     </td>
                     <td class="py-3 pr-6 pl-4 text-center">
-                        <!-- View Button -->
-                        <button @onclick="() => HandleViewClick(student.Id)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            <span class="hidden sm:inline">View</span>
-                        </button>
+                        <div class="flex items-center justify-center gap-2">
+                            <!-- View Button -->
+                            <button @onclick="() => HandleViewClick(student.Id)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span class="hidden sm:inline">View</span>
+                            </button>
+                            <!-- History Button -->
+                            @if (OnViewHistory.HasDelegate)
+                            {
+                                <button @onclick="() => HandleHistoryClick(student.Id)" class="flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-400 transition-colors hover:bg-purple-100" title="View Enrollment History">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">History</span>
+                                </button>
+                            }
+                        </div>
                     </td>
                 </tr>
             }
@@ -200,6 +212,9 @@
     [Parameter]
     public EventCallback<string> OnViewStudent { get; set; }
 
+    [Parameter]
+    public EventCallback<string> OnViewHistory { get; set; }
+
     // Filter properties
     private string SearchText { get; set; } = "";
     private string LRNStatusFilter { get; set; } = "";
@@ -215,6 +230,14 @@
         if (OnViewStudent.HasDelegate)
         {
             await OnViewStudent.InvokeAsync(studentId);
+        }
+    }
+
+    private async Task HandleHistoryClick(string studentId)
+    {
+        if (OnViewHistory.HasDelegate)
+        {
+            await OnViewHistory.InvokeAsync(studentId);
         }
     }
 

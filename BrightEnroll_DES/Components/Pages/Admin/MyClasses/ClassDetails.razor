@@ -10,6 +10,7 @@
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject TeacherService TeacherService
+@inject SchoolYearService SchoolYearService
 @inject NavigationManager NavigationManager
 
 <PageTitle>Class Details - @(SectionDetails?.SectionName ?? "Loading...")</PageTitle>
@@ -305,10 +306,16 @@
         IsLoading = true;
         try
         {
-            // Get current school year
-            var currentYear = DateTime.Now.Year;
-            var nextYear = currentYear + 1;
-            CurrentSchoolYear = $"{currentYear}-{nextYear}";
+            // Get active school year from database
+            CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
+            
+            // Fallback to calculated school year if no active school year
+            if (string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                var currentYear = DateTime.Now.Year;
+                var nextYear = currentYear + 1;
+                CurrentSchoolYear = $"{currentYear}-{nextYear}";
+            }
 
             // Load section details
             SectionDetails = await TeacherService.GetSectionDetailsAsync(SectionId, CurrentSchoolYear);

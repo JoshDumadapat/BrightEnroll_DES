@@ -6,19 +6,23 @@
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services.RoleBase
 @using Microsoft.Extensions.Logging
+@using Microsoft.EntityFrameworkCore
 @inject StudentService StudentService
 @inject EnrollmentStatusService EnrollmentStatusService
 @inject ReEnrollmentService ReEnrollmentService
 @inject PaymentService PaymentService
 @inject ArchiveService ArchiveService
+@inject SchoolYearService SchoolYearService
 @inject ILoadingService LoadingService
 @inject ILogger<Enrollment> Logger
 @inject IAuthorizationService AuthorizationService
 @inject BrightEnroll_DES.Services.QuestPDF.Form1PdfGenerator Form1PdfGenerator
 @inject IJSRuntime JSRuntime
+@inject BrightEnroll_DES.Data.AppDbContext _context
 
 <PageTitle>Enrollment</PageTitle>
 
@@ -28,7 +32,18 @@
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
 
 <div class="text-gray-800">
-    <h1 class="mb-6 text-2xl font-bold text-gray-800">Enrollment</h1>
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Enrollment</h1>
+        @if (!string.IsNullOrEmpty(CurrentSchoolYear))
+        {
+            <div class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
+                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-sm font-semibold text-blue-800">School Year: <span class="font-bold">@CurrentSchoolYear</span></span>
+            </div>
+        }
+    </div>
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
@@ -89,7 +104,11 @@
         }
         else if (SelectedTab == TabType.EnrolledStudent)
         {
-            <Enrolled Students="EnrolledStudents" RowsPerPage="RowsPerPage" IsLoading="isLoading" OnViewStudent="HandleEnrolledStudentView" />
+            <Enrolled Students="EnrolledStudents" 
+                     RowsPerPage="RowsPerPage" 
+                     IsLoading="isLoading" 
+                     OnViewStudent="HandleEnrolledStudentView"
+                     OnViewHistory="ShowEnrollmentHistoryAsync" />
         }
     </div>
 
@@ -112,6 +131,18 @@
                                IsReEnrollContext="true"
                                OnCancel="CloseEnrolledViewModal"
                                OnSave="SaveEditedApplicantAsync" />
+    }
+
+    <!-- Enrollment History Modal -->
+    @if (ShowEnrollmentHistoryModal)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseEnrollmentHistory">
+            <div class="w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+                <EnrollmentHistory StudentId="@SelectedStudentForHistory" 
+                                 EnrollmentRecords="@EnrollmentHistoryData"
+                                 OnClose="CloseEnrollmentHistory" />
+            </div>
+        </div>
     }
 </div>
 
@@ -199,6 +230,10 @@
     private bool ShowEnrolledViewModal { get; set; } = false;
     private StudentEditModel? EnrolledViewModel { get; set; }
 
+    // Enrollment history modal state
+    private bool ShowEnrollmentHistoryModal { get; set; } = false;
+    private string SelectedStudentForHistory { get; set; } = "";
+
     // Toast notification state
     private bool showToast = false;
     private string toastMessage = "";
@@ -218,8 +253,13 @@
         StateHasChanged();
     }
 
+    private string CurrentSchoolYear { get; set; } = "";
+
     protected override async Task OnInitializedAsync()
     {
+        // Load current active school year
+        CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
+        
         // Hide loading screen immediately when page loads
         LoadingService.HideLoading();
         
@@ -267,7 +307,8 @@
     {
         try
         {
-            var enrolledStudentsDto = await StudentService.GetEnrolledStudentsAsync();
+            // Pass current active school year to filter enrolled students
+            var enrolledStudentsDto = await StudentService.GetEnrolledStudentsAsync(CurrentSchoolYear);
             
             // Map EnrolledStudentDto to EnrolledStudent
             EnrolledStudents = enrolledStudentsDto.Select(dto => new EnrolledStudent
@@ -504,6 +545,52 @@
                     }
                 };
 
+                // Load section enrollments to check if student has previous enrollments (re-enrolled student)
+                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
+                
+                // Determine school year and grade level for enrollment
+                string schoolYearForEnrollment = CurrentSchoolYear; // Use active school year by default
+                string gradeToEnroll = student.GradeLevel ?? string.Empty;
+                
+                // If student has previous enrollments (re-enrolled student), calculate next grade level
+                if (student.SectionEnrollments != null && student.SectionEnrollments.Any())
+                {
+                    // Get most recent enrollment to determine current grade
+                    var mostRecentEnrollment = student.SectionEnrollments
+                        .OrderByDescending(e => e.SchoolYear)
+                        .ThenByDescending(e => e.CreatedAt)
+                        .FirstOrDefault();
+                    
+                    if (mostRecentEnrollment != null)
+                    {
+                        // Load section and grade level
+                        await _context.Entry(mostRecentEnrollment).Reference(e => e.Section).LoadAsync();
+                        if (mostRecentEnrollment.Section != null)
+                        {
+                            await _context.Entry(mostRecentEnrollment.Section).Reference(s => s.GradeLevel).LoadAsync();
+                            var currentGradeLevel = mostRecentEnrollment.Section.GradeLevel?.GradeLevelName;
+                            
+                            // Calculate next grade level for re-enrollment
+                            if (!string.IsNullOrWhiteSpace(currentGradeLevel))
+                            {
+                                gradeToEnroll = ReEnrollmentService.GetNextGradeLevel(currentGradeLevel) ?? gradeToEnroll;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // New student - use their registered school year if available, otherwise use active school year
+                    if (string.IsNullOrWhiteSpace(student.SchoolYr))
+                    {
+                        schoolYearForEnrollment = CurrentSchoolYear;
+                    }
+                    else
+                    {
+                        schoolYearForEnrollment = student.SchoolYr;
+                    }
+                }
+
                 // Prepare edit model for modal (mirrors registration + status/requirements)
 
                 EditModel = new StudentEditModel
@@ -549,8 +636,8 @@
                     StudentType = student.StudentType ?? string.Empty,
                     HasLRN = hasRealLrn ? "Yes" : "No",
                     LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
-                    SchoolYear = student.SchoolYr ?? string.Empty,
-                    GradeToEnroll = student.GradeLevel ?? string.Empty,
+                    SchoolYear = schoolYearForEnrollment, // Use active school year for re-enrolled students, or student's school year for new students
+                    GradeToEnroll = gradeToEnroll, // Calculated next grade level for re-enrolled students
                     Status = student.Status ?? "Pending",
                     // Map requirement checkboxes from Status field (since IsVerified is ignored in AppDbContext)
                     // Check Status field directly - "verified" means checked, anything else means unchecked
@@ -625,6 +712,40 @@
                                   normalizedLrn != "PENDING" &&
                                   normalizedLrn != "NULL";
 
+                // Load section enrollments to check if student has previous enrollments
+                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
+                
+                // Determine school year and grade level for enrollment
+                string schoolYearForEnrollment = CurrentSchoolYear; // Use active school year
+                string gradeToEnroll = student.GradeLevel ?? string.Empty;
+                
+                // If student has previous enrollments, calculate next grade level
+                if (student.SectionEnrollments != null && student.SectionEnrollments.Any())
+                {
+                    // Get most recent enrollment to determine current grade
+                    var mostRecentEnrollment = student.SectionEnrollments
+                        .OrderByDescending(e => e.SchoolYear)
+                        .ThenByDescending(e => e.CreatedAt)
+                        .FirstOrDefault();
+                    
+                    if (mostRecentEnrollment != null)
+                    {
+                        // Load section and grade level
+                        await _context.Entry(mostRecentEnrollment).Reference(e => e.Section).LoadAsync();
+                        if (mostRecentEnrollment.Section != null)
+                        {
+                            await _context.Entry(mostRecentEnrollment.Section).Reference(s => s.GradeLevel).LoadAsync();
+                            var currentGradeLevel = mostRecentEnrollment.Section.GradeLevel?.GradeLevelName;
+                            
+                            // Calculate next grade level for re-enrollment
+                            if (!string.IsNullOrWhiteSpace(currentGradeLevel))
+                            {
+                                gradeToEnroll = ReEnrollmentService.GetNextGradeLevel(currentGradeLevel) ?? gradeToEnroll;
+                            }
+                        }
+                    }
+                }
+
                 EditModel = new StudentEditModel
                 {
                     StudentId = student.StudentId,
@@ -668,8 +789,8 @@
                     StudentType = student.StudentType ?? string.Empty,
                     HasLRN = hasRealLrn ? "Yes" : "No",
                     LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
-                    SchoolYear = student.SchoolYr ?? string.Empty,
-                    GradeToEnroll = student.GradeLevel ?? string.Empty,
+                    SchoolYear = schoolYearForEnrollment, // Use active school year, not student's old school year
+                    GradeToEnroll = gradeToEnroll, // Calculated next grade level for re-enrolled students
                     Status = student.Status ?? "For Payment",
                     // Map requirement checkboxes from Status field (since IsVerified is ignored in AppDbContext)
                     // Check Status field directly - "verified" means checked, anything else means unchecked
@@ -969,21 +1090,85 @@
     {
         try
         {
-            // Get students with status: For Payment, Partially Paid, or Fully Paid
-            // These are all students eligible for enrollment (payment status determines eligibility)
-            var students = await EnrollmentStatusService.GetStudentsByStatusesAsync(
+            // STRICT FILTERING: Only get students with enrollment records for the ACTIVE school year
+            // This ensures closed school years don't show students from other years
+            
+            // Get enrollments for the active school year with statuses that allow enrollment
+            var enrollments = await _context.StudentSectionEnrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.Requirements)
+                .Include(e => e.Section)
+                    .ThenInclude(s => s.GradeLevel)
+                .Where(e => e.SchoolYear == CurrentSchoolYear && 
+                           (e.Status == "Pending" || e.Status == "For Payment" || 
+                            e.Status == "Partially Paid" || e.Status == "Fully Paid"))
+                .ToListAsync();
+
+            // Also get students without enrollment records yet (new applicants)
+            var studentsWithoutEnrollments = await EnrollmentStatusService.GetStudentsByStatusesAsync(
+                CurrentSchoolYear,
                 "For Payment",
                 "Partially Paid",
                 "Fully Paid"
             );
 
-            // Get status logs for all students
-            var studentIds = students.Select(s => s.StudentId).ToList();
-            var statusLogs = await EnrollmentStatusService.GetLatestStatusLogsAsync(studentIds);
+            // Filter out students who already have enrollments (to avoid duplicates)
+            var enrollmentStudentIds = enrollments.Select(e => e.StudentId).Distinct().ToList();
+            var newStudentsOnly = studentsWithoutEnrollments
+                .Where(s => !enrollmentStudentIds.Contains(s.StudentId))
+                .ToList();
 
-            ForEnrollmentStudents = students.Select(s =>
+            // Get status logs for all students
+            var allStudentIds = enrollments.Select(e => e.StudentId)
+                .Concat(newStudentsOnly.Select(s => s.StudentId))
+                .Distinct()
+                .ToList();
+            var statusLogs = await EnrollmentStatusService.GetLatestStatusLogsAsync(allStudentIds);
+
+            // Build ForEnrollmentStudents from enrollments
+            var enrollmentStudentsList = new List<ForEnrollment.ForEnrollmentStudent>();
+            foreach (var e in enrollments)
             {
-                // Derive a consistent payment status even if the database value is missing or outdated
+                var s = e.Student;
+                
+                // Get payment info for THIS school year
+                var paymentInfo = await PaymentService.GetStudentPaymentInfoBySchoolYearAsync(s.StudentId, CurrentSchoolYear);
+                
+                // Use enrollment status, or fall back to student status
+                var status = e.Status ?? s.Status ?? "For Payment";
+                var paymentStatus = paymentInfo?.PaymentStatus ?? 
+                    (status == "Fully Paid" ? "Fully Paid" : 
+                     status == "Partially Paid" ? "Partially Paid" : "Unpaid");
+
+                // Get grade level from enrollment's section (at enrollment time), NOT from student's main record
+                // This ensures historical accuracy
+                var gradeLevel = e.Section?.GradeLevel?.GradeLevelName ?? s.GradeLevel ?? "N/A";
+
+                var statusLog = statusLogs.GetValueOrDefault(s.StudentId);
+                var changedBy = statusLog?.ChangedByName ?? "N/A";
+                var changedOn = statusLog?.CreatedAt;
+
+                enrollmentStudentsList.Add(new ForEnrollment.ForEnrollmentStudent
+                {
+                    Id = s.StudentId,
+                    Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
+                    LRN = s.Lrn ?? "N/A",
+                    Date = FormatDate(s.DateRegistered),
+                    Type = s.StudentType,
+                    GradeLevel = gradeLevel,
+                    Status = status,
+                    PaymentStatus = paymentStatus,
+                    DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType),
+                    ChangedBy = changedBy,
+                    ChangedOn = changedOn
+                });
+            }
+            var enrollmentStudents = enrollmentStudentsList;
+
+            // Build ForEnrollmentStudents from new students without enrollments
+            var newStudentsList = new List<ForEnrollment.ForEnrollmentStudent>();
+            foreach (var s in newStudentsOnly)
+            {
                 var status = s.Status ?? "For Payment";
                 var paymentStatus = s.PaymentStatus;
 
@@ -997,26 +1182,70 @@
                     };
                 }
 
-                // Get status change information
+                // For re-enrolled students without enrollment records yet, calculate next grade level
+                // Get their most recent enrollment to determine current grade level
+                string? gradeLevelToShow = null;
+                
+                // Load section enrollments if not already loaded
+                await _context.Entry(s).Collection(st => st.SectionEnrollments).LoadAsync();
+                
+                if (s.SectionEnrollments != null && s.SectionEnrollments.Any())
+                {
+                    // Get most recent enrollment (by school year, then by creation date)
+                    var mostRecentEnrollment = s.SectionEnrollments
+                        .OrderByDescending(e => e.SchoolYear)
+                        .ThenByDescending(e => e.CreatedAt)
+                        .FirstOrDefault();
+                    
+                    if (mostRecentEnrollment != null)
+                    {
+                        // Load section and grade level
+                        await _context.Entry(mostRecentEnrollment).Reference(e => e.Section).LoadAsync();
+                        if (mostRecentEnrollment.Section != null)
+                        {
+                            await _context.Entry(mostRecentEnrollment.Section).Reference(sec => sec.GradeLevel).LoadAsync();
+                            var currentGradeLevel = mostRecentEnrollment.Section.GradeLevel?.GradeLevelName;
+                            
+                            // Calculate next grade level for re-enrollment
+                            if (!string.IsNullOrWhiteSpace(currentGradeLevel))
+                            {
+                                gradeLevelToShow = ReEnrollmentService.GetNextGradeLevel(currentGradeLevel);
+                            }
+                        }
+                    }
+                }
+                
+                // Fallback to student's grade level if no enrollment found or calculation failed
+                if (string.IsNullOrWhiteSpace(gradeLevelToShow))
+                {
+                    gradeLevelToShow = s.GradeLevel ?? "N/A";
+                }
+
                 var statusLog = statusLogs.GetValueOrDefault(s.StudentId);
                 var changedBy = statusLog?.ChangedByName ?? "N/A";
                 var changedOn = statusLog?.CreatedAt;
 
-                return new ForEnrollment.ForEnrollmentStudent
+                newStudentsList.Add(new ForEnrollment.ForEnrollmentStudent
                 {
                     Id = s.StudentId,
                     Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
                     LRN = s.Lrn ?? "N/A",
                     Date = FormatDate(s.DateRegistered),
                     Type = s.StudentType,
-                    GradeLevel = s.GradeLevel ?? "N/A",
+                    GradeLevel = gradeLevelToShow,
                     Status = status,
                     PaymentStatus = paymentStatus,
                     DocumentsVerified = CalculateDocumentsVerifiedForStudent(s.Requirements, s.StudentType),
                     ChangedBy = changedBy,
                     ChangedOn = changedOn
-                };
-            }).ToList();
+                });
+            }
+            var newStudents = newStudentsList;
+
+            // Combine and return
+            ForEnrollmentStudents = enrollmentStudents.Concat(newStudents)
+                .OrderByDescending(s => s.Date)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -1029,12 +1258,32 @@
     {
         try
         {
-            // Get students with Eligible status
-            var students = await EnrollmentStatusService.GetStudentsByStatusAsync("Eligible");
+            // Get all students with "Eligible" status
+            // These are students who have completed a school year and are ready for re-enrollment
+            var allEligibleStudents = await EnrollmentStatusService.GetStudentsByStatusAsync("Eligible", null);
+            
+            // Filter to only show students who have at least one completed enrollment
+            // (to ensure they're actual students, not just applicants)
+            var eligibleStudents = new List<BrightEnroll_DES.Data.Models.Student>();
+            
+            foreach (var student in allEligibleStudents)
+            {
+                // Load section enrollments to verify student has enrollment history
+                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
+                
+                // Check if student has at least one "Enrolled" enrollment record
+                // This ensures they're a returning student, not a new applicant
+                var hasEnrollmentHistory = student.SectionEnrollments?.Any(e => e.Status == "Enrolled") ?? false;
+                
+                if (hasEnrollmentHistory)
+                {
+                    eligibleStudents.Add(student);
+                }
+            }
             
             var reEnrollmentList = new List<ReEnrollmentStudent>();
             
-            foreach (var s in students)
+            foreach (var s in eligibleStudents)
             {
                 // Get payment information for each student
                 var paymentInfo = await PaymentService.GetStudentPaymentInfoAsync(s.StudentId);
@@ -1117,5 +1366,81 @@
         await LoadReEnrollmentStudentsAsync();
         await LoadEnrolledStudentsAsync();
     }
+
+    private async Task ShowEnrollmentHistoryAsync(string studentId)
+    {
+        SelectedStudentForHistory = studentId;
+        ShowEnrollmentHistoryModal = true;
+        StateHasChanged();
+
+        // Load enrollment history
+        try
+        {
+            var student = await StudentService.GetStudentByIdAsync(studentId);
+            if (student != null)
+            {
+                // Load section enrollments
+                await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
+                
+                var historyRecords = new List<EnrollmentHistoryRecord>();
+                
+                foreach (var enrollment in student.SectionEnrollments.OrderByDescending(e => e.SchoolYear))
+                {
+                    // Load section details
+                    await _context.Entry(enrollment).Reference(e => e.Section).LoadAsync();
+                    if (enrollment.Section != null)
+                    {
+                        await _context.Entry(enrollment.Section).Reference(s => s.GradeLevel).LoadAsync();
+                    }
+
+                    // Get payment info for THIS specific school year (historical data)
+                    var paymentInfo = await PaymentService.GetStudentPaymentInfoBySchoolYearAsync(studentId, enrollment.SchoolYear);
+                    
+                    // Use the section's grade level (at enrollment time), not the current student grade level
+                    var gradeLevelAtEnrollment = enrollment.Section?.GradeLevel?.GradeLevelName ?? "N/A";
+                    
+                    // Determine student type at enrollment time
+                    // If this is not the first enrollment, it should be "Returnee" or "Old Student"
+                    var enrollmentCount = student.SectionEnrollments.Count(e => e.SchoolYear.CompareTo(enrollment.SchoolYear) < 0);
+                    var studentTypeAtEnrollment = enrollmentCount > 0 ? "Returnee" : (student.StudentType ?? "N/A");
+                    
+                    historyRecords.Add(new EnrollmentHistoryRecord
+                    {
+                        SchoolYear = enrollment.SchoolYear,
+                        GradeLevel = gradeLevelAtEnrollment, // Use section's grade level at enrollment time
+                        Section = enrollment.Section?.SectionName ?? "N/A",
+                        Status = enrollment.Status,
+                        StudentType = studentTypeAtEnrollment,
+                        EnrollmentDate = enrollment.CreatedAt,
+                        PaymentStatus = paymentInfo?.PaymentStatus ?? "Unpaid",
+                        TotalFee = paymentInfo?.TotalFee ?? 0,
+                        AmountPaid = paymentInfo?.AmountPaid ?? 0,
+                        Balance = paymentInfo?.Balance ?? 0,
+                        UpdatedAt = enrollment.UpdatedAt?.ToString("MMM. d, yyyy") ?? enrollment.CreatedAt.ToString("MMM. d, yyyy")
+                    });
+                }
+
+                // Find and update the EnrollmentHistory component
+                // Note: We'll need to pass this data through a parameter or use a service
+                // For now, we'll store it in a field that the component can access
+                EnrollmentHistoryData = historyRecords;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading enrollment history for student {StudentId}: {Message}", studentId, ex.Message);
+            ShowToast($"Error loading enrollment history: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private void CloseEnrollmentHistory()
+    {
+        ShowEnrollmentHistoryModal = false;
+        SelectedStudentForHistory = "";
+        EnrollmentHistoryData = new List<EnrollmentHistoryRecord>();
+        StateHasChanged();
+    }
+
+    private List<EnrollmentHistoryRecord> EnrollmentHistoryData { get; set; } = new();
 }
 </RoleAuthorizeView>

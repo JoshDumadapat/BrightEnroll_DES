@@ -671,11 +671,21 @@ public class StudentService
         }
     }
 
-    public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync()
+    public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync(string? schoolYear = null)
     {
         try
         {
             var enrolledStatus = "Enrolled";
+            
+            // Get active school year if not provided
+            if (string.IsNullOrEmpty(schoolYear))
+            {
+                var activeSY = await _context.SchoolYears
+                    .Where(sy => sy.IsActive && sy.IsOpen)
+                    .Select(sy => sy.SchoolYearName)
+                    .FirstOrDefaultAsync();
+                schoolYear = activeSY;
+            }
             
             // Base query from section enrollments so we can get section + grade information
             var query = _context.StudentSectionEnrollments
@@ -684,6 +694,12 @@ public class StudentService
                 .Include(e => e.Section)
                     .ThenInclude(sec => sec.GradeLevel)
                 .Where(e => e.Status == enrolledStatus);
+
+            // Filter by school year if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                query = query.Where(e => e.SchoolYear == schoolYear);
+            }
 
             var enrollments = await query
                 .OrderByDescending(e => e.Student.DateRegistered)
@@ -702,13 +718,17 @@ public class StudentService
                 var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
                     s.Requirements, s.StudentType);
 
+                // Use grade level from enrollment's section (at enrollment time), NOT from student's main record
+                // This ensures historical accuracy - grade level at enrollment time is preserved
+                var gradeLevelAtEnrollment = enrollment.Section?.GradeLevel?.GradeLevelName ?? "N/A";
+                
                 result.Add(new EnrolledStudentDto
                 {
                     Id = s.StudentId,
                     Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
                     LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
-                    GradeLevel = s.GradeLevel ?? enrollment.Section.GradeLevel?.GradeLevelName ?? "N/A",
+                    GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
                     Section = enrollment.Section.SectionName ?? "N/A",
                     Documents = docsVerified ? "Verified" : "Pending",
                     Status = enrollment.Status ?? s.Status ?? enrolledStatus
@@ -730,9 +750,25 @@ public class StudentService
         {
             var pendingStatus = "Pending";
             
-            var students = await _context.Students
+            // Get active school year
+            var activeSchoolYear = await _context.SchoolYears
+                .Where(sy => sy.IsActive && sy.IsOpen)
+                .Select(sy => sy.SchoolYearName)
+                .FirstOrDefaultAsync();
+            
+            // Filter by active school year - only show students registered for the current school year
+            // Students with "Pending" status who don't have an enrollment record yet for the active school year
+            var query = _context.Students
                 .Include(s => s.Requirements)
-                .Where(s => s.Status == pendingStatus)
+                .Where(s => s.Status == pendingStatus);
+            
+            // Only include students registered for the active school year
+            if (!string.IsNullOrEmpty(activeSchoolYear))
+            {
+                query = query.Where(s => s.SchoolYr == activeSchoolYear);
+            }
+            
+            var students = await query
                 .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
 
@@ -812,12 +848,33 @@ public class StudentService
             student.Lrn = model.HasLRN == "Yes" && !string.IsNullOrWhiteSpace(model.LearnerReferenceNo) && model.LearnerReferenceNo != "N/A"
                 ? model.LearnerReferenceNo
                 : null;
-            student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
-            student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+            
+            // Only update student.SchoolYr and student.GradeLevel if this is a new student (no existing enrollments)
+            // For re-enrollments or students with existing enrollments, these should remain as historical data
+            var hasExistingEnrollments = student.SectionEnrollments != null && student.SectionEnrollments.Any();
+            
+            if (!hasExistingEnrollments)
+            {
+                // New student - safe to set SchoolYr and GradeLevel
+                student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
+                student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+            }
+            // For existing students, do NOT update SchoolYr or GradeLevel - they should remain as historical data
 
             // Update section enrollment (assignment to a section for a specific school year)
             if (model.SectionId.HasValue && !string.IsNullOrWhiteSpace(model.SchoolYear))
             {
+                // Check if the school year is closed - prevent updates to closed school years
+                var schoolYearEntity = await _context.SchoolYears
+                    .FirstOrDefaultAsync(sy => sy.SchoolYearName == model.SchoolYear);
+                
+                if (schoolYearEntity != null && !schoolYearEntity.IsOpen)
+                {
+                    throw new Exception($"Cannot update enrollment for closed school year {model.SchoolYear}. " +
+                                        $"This school year was closed on {schoolYearEntity.ClosedAt:MMM dd, yyyy}. " +
+                                        $"Please use the active school year for new enrollments.");
+                }
+
                 var targetSection = await _context.Sections.FirstOrDefaultAsync(s => s.SectionId == model.SectionId.Value);
                 if (targetSection != null)
                 {
@@ -840,6 +897,14 @@ public class StudentService
 
                     if (existingEnrollment == null)
                     {
+                        // Check if school year is closed before creating new enrollment
+                        if (schoolYearEntity != null && !schoolYearEntity.IsOpen)
+                        {
+                            throw new Exception($"Cannot create enrollment for closed school year {model.SchoolYear}. " +
+                                                $"This school year was closed on {schoolYearEntity.ClosedAt:MMM dd, yyyy}. " +
+                                                $"Please use the active school year for new enrollments.");
+                        }
+
                         var newEnrollment = new StudentSectionEnrollment
                         {
                             StudentId = student.StudentId,
@@ -852,6 +917,14 @@ public class StudentService
                     }
                     else
                     {
+                        // Check if school year is closed before updating enrollment
+                        if (schoolYearEntity != null && !schoolYearEntity.IsOpen)
+                        {
+                            throw new Exception($"Cannot update enrollment for closed school year {model.SchoolYear}. " +
+                                                $"This school year was closed on {schoolYearEntity.ClosedAt:MMM dd, yyyy}. " +
+                                                $"Enrollment records for closed school years are read-only.");
+                        }
+
                         existingEnrollment.SectionId = model.SectionId.Value;
                         existingEnrollment.Status = "Enrolled";
                         existingEnrollment.UpdatedAt = DateTime.Now;

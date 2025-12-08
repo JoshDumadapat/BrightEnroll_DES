@@ -57,6 +57,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Teacher-specific tables (must be after tbl_Users, tbl_Sections, tbl_Subjects, tbl_Students)
                 GetTeacherActivityLogsTableDefinition(),
                 GetAttendanceTableDefinition(),
+                // School Year Management (standalone, no dependencies)
+                GetSchoolYearTableDefinition(),
             };
         }
 
@@ -380,6 +382,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [created_by] VARCHAR(50) NULL,
                         [updated_by] VARCHAR(50) NULL,
                         [is_active] BIT NOT NULL DEFAULT 1,
+                        [school_year] VARCHAR(20) NULL,
                         CONSTRAINT FK_tbl_Fees_GradeLevel FOREIGN KEY ([gradelevel_ID]) REFERENCES [dbo].[tbl_GradeLevel]([gradelevel_ID])
                     )",
                 CreateIndexesScripts = new List<string>
@@ -389,7 +392,15 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_Fees_gradelevel_ID ON [dbo].[tbl_Fees]([gradelevel_ID])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_is_active' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
-                        CREATE INDEX IX_tbl_Fees_is_active ON [dbo].[tbl_Fees]([is_active])"
+                        CREATE INDEX IX_tbl_Fees_is_active ON [dbo].[tbl_Fees]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_school_year' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+                        CREATE INDEX IX_tbl_Fees_school_year ON [dbo].[tbl_Fees]([school_year])
+                        WHERE [school_year] IS NOT NULL",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_gradelevel_schoolyear' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+                        CREATE INDEX IX_tbl_Fees_gradelevel_schoolyear ON [dbo].[tbl_Fees]([gradelevel_ID], [school_year])
+                        WHERE [school_year] IS NOT NULL"
                 }
             };
         }
@@ -981,6 +992,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
                         [recorded_by] VARCHAR(100) NULL,
                         [approved_by] VARCHAR(100) NULL,
+                        [school_year] VARCHAR(20) NULL,
                         [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
                         [updated_at] DATETIME NULL
                     )",
@@ -994,7 +1006,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE INDEX IX_tbl_Expenses_Category ON [dbo].[tbl_Expenses]([category])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_Status' AND object_id = OBJECT_ID('dbo.tbl_Expenses'))
-                        CREATE INDEX IX_tbl_Expenses_Status ON [dbo].[tbl_Expenses]([status])"
+                        CREATE INDEX IX_tbl_Expenses_Status ON [dbo].[tbl_Expenses]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Expenses_school_year' AND object_id = OBJECT_ID('dbo.tbl_Expenses'))
+                        CREATE INDEX IX_tbl_Expenses_school_year ON [dbo].[tbl_Expenses]([school_year])"
                 }
             };
         }
@@ -1039,6 +1054,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [payment_method] VARCHAR(50) NOT NULL,
                         [or_number] VARCHAR(50) NOT NULL,
                         [processed_by] VARCHAR(50) NULL,
+                        [school_year] VARCHAR(20) NULL,
                         [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
                         CONSTRAINT FK_tbl_StudentPayments_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE CASCADE
                     )",
@@ -1052,7 +1068,11 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         CREATE UNIQUE INDEX IX_tbl_StudentPayments_OrNumber ON [dbo].[tbl_StudentPayments]([or_number])",
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
-                        CREATE INDEX IX_tbl_StudentPayments_CreatedAt ON [dbo].[tbl_StudentPayments]([created_at])"
+                        CREATE INDEX IX_tbl_StudentPayments_CreatedAt ON [dbo].[tbl_StudentPayments]([created_at])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_school_year' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+                        CREATE INDEX IX_tbl_StudentPayments_school_year ON [dbo].[tbl_StudentPayments]([school_year])
+                        WHERE [school_year] IS NOT NULL"
                 }
             };
         }
@@ -1352,6 +1372,40 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Attendance_StudentID_AttendanceDate' AND object_id = OBJECT_ID('dbo.tbl_Attendance'))
                         CREATE INDEX IX_tbl_Attendance_StudentID_AttendanceDate ON [dbo].[tbl_Attendance]([StudentID], [AttendanceDate])"
+                }
+            };
+        }
+
+        // Creates tbl_SchoolYear table - manages school years with open/closed status
+        public static TableDefinition GetSchoolYearTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SchoolYear",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SchoolYear](
+                        [school_year_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [school_year] VARCHAR(20) NOT NULL UNIQUE,
+                        [is_active] BIT NOT NULL DEFAULT 0,
+                        [is_open] BIT NOT NULL DEFAULT 0,
+                        [start_date] DATE NULL,
+                        [end_date] DATE NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [opened_at] DATETIME NULL,
+                        [closed_at] DATETIME NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_school_year' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE UNIQUE INDEX IX_tbl_SchoolYear_school_year ON [dbo].[tbl_SchoolYear]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_active' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE INDEX IX_tbl_SchoolYear_is_active ON [dbo].[tbl_SchoolYear]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_open' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE INDEX IX_tbl_SchoolYear_is_open ON [dbo].[tbl_SchoolYear]([is_open])"
                 }
             };
         }

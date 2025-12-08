@@ -16,6 +16,7 @@
 @inject EmployeeService EmployeeService
 @inject StudentService StudentService
 @inject FeeService FeeService
+@inject SchoolYearService SchoolYearService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject FinancialReportService FinancialReportService
@@ -276,7 +277,12 @@ else
             <h3 class="mb-1 text-lg font-bold text-gray-800 md:mb-2 md:text-xl">Total income</h3>
             @if (!string.IsNullOrEmpty(CurrentSchoolYear))
             {
-                <p class="mb-3 text-xs text-gray-500 md:mb-4 md:text-sm">School Year: @CurrentSchoolYear</p>
+                <div class="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 md:mb-4">
+                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="text-xs font-semibold text-blue-800 md:text-sm">School Year: <span class="font-bold">@CurrentSchoolYear</span></p>
+                </div>
             }
             <div class="flex flex-wrap gap-4 md:gap-6">
                 <div class="flex items-center gap-2">
@@ -510,44 +516,58 @@ else
     {
         try
         {
-            // Get total employee count from vw_EmployeeData
+            // Load current school year first
+            await LoadCurrentSchoolYear();
+
+            // Get total employee count from vw_EmployeeData (not filtered by school year)
             TotalEmployees = await Context.EmployeeDataViews
                 .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
                 .CountAsync();
 
             // Get pending applicants count from vw_StudentData (Status = 'Pending')
+            // Pending applicants are not yet enrolled, so they don't have a school year yet
             var pendingStatus = "Pending";
             PendingApplications = await Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData] WHERE Status = {0}", pendingStatus)
                 .Where(s => s.Status == pendingStatus)
                 .CountAsync();
 
-            // Get student type statistics from vw_StudentData
-            var allStudents = await Context.StudentDataViews
+            // Get student type statistics from vw_StudentData - filter by active school year if available
+            var allStudentsQuery = Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
-                .ToListAsync();
+                .AsQueryable();
+
+            // Filter by active school year if available
+            if (!string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == CurrentSchoolYear);
+            }
+
+            var allStudents = await allStudentsQuery.ToListAsync();
 
             TotalStudentCount = allStudents.Count;
             NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
 
-            // Calculate TotalEnrolled - students with status "Enrolled"
+            // Calculate TotalEnrolled - students with status "Enrolled" for active school year
             TotalEnrolled = allStudents.Count(s => 
                 s.Status != null && 
                 (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of all student payments
-            TotalTuitionCollected = await Context.StudentPayments
+            // Calculate TotalTuitionCollected - sum of student payments for active school year
+            var paymentsQuery = Context.StudentPayments.AsQueryable();
+            if (!string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                paymentsQuery = paymentsQuery.Where(p => p.SchoolYear == CurrentSchoolYear);
+            }
+            TotalTuitionCollected = await paymentsQuery
                 .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
             // Load tuition fees
             await LoadTuitionFees();
-
-            // Load current school year
-            await LoadCurrentSchoolYear();
 
             StateHasChanged();
         }
@@ -844,6 +864,9 @@ else
     {
         try
         {
+            // Reload current school year in case it changed
+            await LoadCurrentSchoolYear();
+
             // Build base query for employees
             var employeeQuery = Context.EmployeeDataViews
                 .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
@@ -876,12 +899,18 @@ else
 
             PendingApplications = await studentQuery.CountAsync();
 
-            // Get student type statistics with filters
+            // Get student type statistics - filter by active school year if available
             var allStudentsQuery = Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
                 .AsQueryable();
 
-            // Apply date filter to all students if provided
+            // Filter by active school year if available
+            if (!string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == CurrentSchoolYear);
+            }
+
+            // Apply date filter if provided
             if (fromDate.HasValue && toDate.HasValue)
             {
                 allStudentsQuery = allStudentsQuery.Where(s => s.DateRegistered.HasValue && 
@@ -896,19 +925,23 @@ else
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
 
-            // Calculate TotalEnrolled - students with status "Enrolled"
+            // Calculate TotalEnrolled - students with status "Enrolled" for active school year
             TotalEnrolled = allStudents.Count(s => 
                 s.Status != null && 
                 (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of all student payments (with date filter if provided)
+            // Calculate TotalTuitionCollected - sum of student payments for active school year
             var paymentsQuery = Context.StudentPayments.AsQueryable();
+            if (!string.IsNullOrEmpty(CurrentSchoolYear))
+            {
+                paymentsQuery = paymentsQuery.Where(p => p.SchoolYear == CurrentSchoolYear);
+            }
+            // Apply date filter to payments if provided
             if (fromDate.HasValue && toDate.HasValue)
             {
-                paymentsQuery = paymentsQuery.Where(p => 
-                    p.CreatedAt.Date >= fromDate.Value.Date && 
+                paymentsQuery = paymentsQuery.Where(p => p.CreatedAt.Date >= fromDate.Value.Date && 
                     p.CreatedAt.Date <= toDate.Value.Date);
             }
             TotalTuitionCollected = await paymentsQuery
@@ -1090,15 +1123,9 @@ else
     {
         try
         {
-            // Get the most common school year from StudentSectionEnrollment
-            var mostCommonSchoolYear = await Context.StudentSectionEnrollments
-                .Where(e => !string.IsNullOrEmpty(e.SchoolYear))
-                .GroupBy(e => e.SchoolYear)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
-                .FirstOrDefaultAsync();
-
-            CurrentSchoolYear = mostCommonSchoolYear ?? string.Empty;
+            // Get the active and open school year from SchoolYearService
+            var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+            CurrentSchoolYear = activeSchoolYear ?? string.Empty;
         }
         catch (Exception)
         {

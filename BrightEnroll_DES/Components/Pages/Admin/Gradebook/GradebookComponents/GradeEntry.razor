@@ -5,6 +5,7 @@
 @using BrightEnroll_DES.Components
 @inject GradeService GradeService
 @inject TeacherService TeacherService
+@inject SchoolYearService SchoolYearService
 @inject IAuthService AuthService
 @inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 
@@ -12,6 +13,39 @@
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
 
 <div class="p-6">
+    <!-- School Year Indicator -->
+    @if (!string.IsNullOrEmpty(selectedSchoolYear))
+    {
+        <div class="mb-4 flex items-center justify-between">
+            <div class="flex items-center gap-2 rounded-lg border @(isSchoolYearOpen ? "border-blue-200 bg-blue-50" : "border-amber-200 bg-amber-50") px-4 py-2">
+                <svg class="h-5 w-5 @(isSchoolYearOpen ? "text-blue-600" : "text-amber-600")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-sm font-semibold @(isSchoolYearOpen ? "text-blue-800" : "text-amber-800")">
+                    Current School Year: <span class="font-bold">@selectedSchoolYear</span>
+                    @if (!isSchoolYearOpen)
+                    {
+                        <span class="ml-2 rounded-full bg-amber-200 px-2 py-0.5 text-xs font-medium text-amber-800">Closed</span>
+                    }
+                </span>
+            </div>
+        </div>
+    }
+
+    <!-- Warning for Closed School Year -->
+    @if (!isSchoolYearOpen && !string.IsNullOrEmpty(selectedSchoolYear))
+    {
+        <div class="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3">
+            <div class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <p class="text-sm font-medium text-amber-800">
+                    <strong>Read-Only Mode:</strong> The school year <strong>@selectedSchoolYear</strong> is closed. You can view grades but cannot make changes. Contact an administrator to reopen it if needed.
+                </p>
+            </div>
+        </div>
+    }
 
     <!-- Class Selection -->
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -79,29 +113,33 @@
                                 <input type="number" 
                                        value="@(student.Q1?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q1", e))"
+                                       disabled="@(!isSchoolYearOpen)"
                                        min="0" max="100" step="0.01"
-                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
                                        value="@(student.Q2?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q2", e))"
+                                       disabled="@(!isSchoolYearOpen)"
                                        min="0" max="100" step="0.01"
-                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
                                        value="@(student.Q3?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q3", e))"
+                                       disabled="@(!isSchoolYearOpen)"
                                        min="0" max="100" step="0.01"
-                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
                                 <input type="number" 
                                        value="@(student.Q4?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q4", e))"
+                                       disabled="@(!isSchoolYearOpen)"
                                        min="0" max="100" step="0.01"
-                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400" />
+                                       class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3 text-center font-semibold text-blue-600">
                                 @if (student.GeneralAverage > 0)
@@ -134,7 +172,7 @@
         <!-- Action Buttons -->
         <div class="flex justify-end gap-3">
             <button @onclick="SaveGrades" 
-                    disabled="@isLoading"
+                    disabled="@(isLoading || !isSchoolYearOpen)"
                     class="rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
                 @if (isLoading)
                 {
@@ -168,6 +206,7 @@
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+    private bool isSchoolYearOpen = true;
 
     private class GradeStudent
     {
@@ -216,17 +255,38 @@
         {
             isLoading = true;
             
-            // Get current school year
-            var currentYear = DateTime.Now.Year;
-            var nextYear = currentYear + 1;
-            selectedSchoolYear = $"{currentYear}-{nextYear}";
-            
-            // Generate available school years (current and past 2 years)
-            availableSchoolYears = new List<string>();
-            for (int i = 0; i < 3; i++)
+            // Get active school year from database
+            var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+            if (!string.IsNullOrEmpty(activeSchoolYear))
             {
-                var year = currentYear - i;
-                availableSchoolYears.Add($"{year}-{year + 1}");
+                selectedSchoolYear = activeSchoolYear;
+            }
+            else
+            {
+                // Fallback to calculated school year
+                var currentYear = DateTime.Now.Year;
+                var nextYear = currentYear + 1;
+                selectedSchoolYear = $"{currentYear}-{nextYear}";
+            }
+            
+            // Get all available school years from database
+            availableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+            
+            // If no school years in database, generate current and past 2 years as fallback
+            if (!availableSchoolYears.Any())
+            {
+                var currentYear = DateTime.Now.Year;
+                for (int i = 0; i < 3; i++)
+                {
+                    var year = currentYear - i;
+                    availableSchoolYears.Add($"{year}-{year + 1}");
+                }
+            }
+
+            // Check if selected school year is open
+            if (!string.IsNullOrEmpty(selectedSchoolYear))
+            {
+                isSchoolYearOpen = await SchoolYearService.IsSchoolYearOpenAsync(selectedSchoolYear);
             }
 
             await LoadAssignedSectionsAsync();
@@ -267,6 +327,16 @@
         availableSections.Clear();
         availableSubjects.Clear();
         students.Clear();
+        
+        // Check if selected school year is open
+        if (!string.IsNullOrEmpty(selectedSchoolYear))
+        {
+            isSchoolYearOpen = await SchoolYearService.IsSchoolYearOpenAsync(selectedSchoolYear);
+        }
+        else
+        {
+            isSchoolYearOpen = true;
+        }
         
         await LoadAssignedSectionsAsync();
     }
@@ -458,6 +528,12 @@
         if (selectedSectionId <= 0)
         {
             ShowToast("Please select a section.", ToastType.Error);
+            return;
+        }
+
+        if (!isSchoolYearOpen)
+        {
+            ShowToast("Cannot save grades. The school year is closed. Contact an administrator to reopen it.", ToastType.Error);
             return;
         }
 

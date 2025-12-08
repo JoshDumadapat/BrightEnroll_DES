@@ -1,0 +1,551 @@
+@page "/settings/school-year"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject SchoolYearService SchoolYearService
+@inject NavigationManager Navigation
+@inject ILoadingService LoadingService
+@inject ILogger<SchoolYearManagement> Logger
+@inject IJSRuntime JSRuntime
+
+<PageTitle>School Year Management</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">School Year Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Manage academic periods and control which school year is active</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <button @onclick="RefreshData" 
+                    disabled="@isLoading"
+                    class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                <svg class="h-4 w-4 @(isLoading ? "animate-spin" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+            </button>
+            <button @onclick="GoBack" 
+                    class="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Back
+            </button>
+        </div>
+    </div>
+
+    <!-- Active School Year Banner -->
+    @if (activeSchoolYear != null)
+    {
+        <div class="mb-6 rounded-lg border-2 border-green-500 bg-green-50 p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-green-500">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Currently Active School Year</p>
+                        <p class="text-xl font-bold text-gray-800">@activeSchoolYear.SchoolYearName</p>
+                        @if (activeSchoolYear.OpenedAt.HasValue)
+                        {
+                            <p class="text-xs text-gray-500">Opened on @activeSchoolYear.OpenedAt.Value.ToString("MMM d, yyyy")</p>
+                        }
+                    </div>
+                </div>
+                <button @onclick="() => CloseSchoolYear(activeSchoolYear.SchoolYearName)" 
+                        disabled="@isProcessing"
+                        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Close School Year
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="mb-6 rounded-lg border-2 border-yellow-500 bg-yellow-50 p-4">
+            <div class="flex items-center gap-3">
+                <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                    <p class="font-medium text-yellow-800">No Active School Year</p>
+                    <p class="text-sm text-yellow-700">Please open a school year to begin enrollment and academic activities.</p>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Add New School Year Section -->
+    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <h2 class="text-lg font-bold text-gray-800">Add New School Year</h2>
+        </div>
+        <div class="px-6 py-4">
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">School Year *</label>
+                    <input type="text" @bind="newSchoolYear" @bind:event="oninput" 
+                           placeholder="2024-2025"
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                    @if (!string.IsNullOrEmpty(schoolYearError))
+                    {
+                        <p class="mt-1 text-xs text-red-600">@schoolYearError</p>
+                    }
+                    <p class="mt-1 text-xs text-gray-500">Format: YYYY-YYYY (e.g., 2024-2025)</p>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Start Date</label>
+                    <input type="date" @bind="newStartDate" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700">End Date</label>
+                    <input type="date" @bind="newEndDate" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button @onclick="AddSchoolYear" 
+                        disabled="@(isProcessing || string.IsNullOrWhiteSpace(newSchoolYear))"
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                    @if (isProcessing)
+                    {
+                        <span class="flex items-center gap-2">
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Adding...
+                        </span>
+                    }
+                    else
+                    {
+                        <span>Add School Year</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- School Years List -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <h2 class="text-lg font-bold text-gray-800">All School Years</h2>
+        </div>
+        <div class="overflow-x-auto">
+            @if (isLoading)
+            {
+                <div class="py-12 text-center">
+                    <svg class="mx-auto h-8 w-8 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p class="mt-2 text-sm text-gray-500">Loading school years...</p>
+                </div>
+            }
+            else if (schoolYears.Count == 0)
+            {
+                <div class="py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p class="mt-2 text-sm font-medium text-gray-600">No school years found</p>
+                    <p class="mt-1 text-xs text-gray-500">Add a new school year to get started</p>
+                </div>
+            }
+            else
+            {
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700">School Year</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700">Start Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700">End Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700">Opened</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-700">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @foreach (var sy in schoolYears)
+                        {
+                            <tr class="transition hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-sm font-medium text-gray-900">@sy.SchoolYearName</span>
+                                        @if (sy.IsActive && sy.IsOpen)
+                                        {
+                                            <span class="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Active</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex flex-col gap-1">
+                                        @if (sy.IsOpen)
+                                        {
+                                            <span class="inline-flex w-fit items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                                <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                                </svg>
+                                                Open
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex w-fit items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800">
+                                                <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                                                </svg>
+                                                Closed
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600">
+                                    @if (sy.StartDate.HasValue)
+                                    {
+                                        @sy.StartDate.Value.ToString("MMM d, yyyy")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-400">Not set</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600">
+                                    @if (sy.EndDate.HasValue)
+                                    {
+                                        @sy.EndDate.Value.ToString("MMM d, yyyy")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-400">Not set</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-600">
+                                    @if (sy.OpenedAt.HasValue)
+                                    {
+                                        @sy.OpenedAt.Value.ToString("MMM d, yyyy")
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-400">Never</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center justify-center gap-2">
+                                        @if (!sy.IsOpen)
+                                        {
+                                            <button @onclick="() => OpenSchoolYear(sy.SchoolYearName)" 
+                                                    disabled="@isProcessing"
+                                                    class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                Open
+                                            </button>
+                                        }
+                                        @if (!sy.IsActive && !sy.IsOpen)
+                                        {
+                                            <button @onclick="() => DeleteSchoolYear(sy.SchoolYearName)" 
+                                                    disabled="@isProcessing"
+                                                    class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-medium text-white transition-all hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                                                Delete
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<SchoolYear> schoolYears = new();
+    private SchoolYear? activeSchoolYear;
+    private bool isLoading = true;
+    private bool isProcessing = false;
+    
+    // Add school year form
+    private string newSchoolYear = string.Empty;
+    private DateTime? newStartDate;
+    private DateTime? newEndDate;
+    private string schoolYearError = string.Empty;
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // Auto-refresh timer
+    private System.Threading.Timer? _refreshTimer;
+    private bool _isDisposed = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSchoolYearsAsync();
+        
+        // Start automatic page refresh timer (refresh every 60 seconds)
+        _ = Task.Run(async () => await StartAutoRefreshAsync());
+    }
+    
+    private async Task StartAutoRefreshAsync()
+    {
+        // Wait a bit before starting to avoid conflicts with initial load
+        await Task.Delay(10000);
+        
+        if (_isDisposed) return;
+        
+        // Refresh every 60 seconds
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            if (_isDisposed) return;
+            
+            try
+            {
+                await InvokeAsync(async () =>
+                {
+                    // Refresh school years data
+                    await LoadSchoolYearsAsync();
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error in auto-refresh: {Message}", ex.Message);
+            }
+        }, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+    }
+    
+    public void Dispose()
+    {
+        _isDisposed = true;
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+    }
+
+    private async Task LoadSchoolYearsAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            schoolYears = await SchoolYearService.GetAllSchoolYearsAsync();
+            activeSchoolYear = await SchoolYearService.GetActiveSchoolYearAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading school years: {Message}", ex.Message);
+            ShowToast("Error loading school years. Please try again.", ToastType.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task AddSchoolYear()
+    {
+        schoolYearError = string.Empty;
+        
+        // Validate format
+        if (!System.Text.RegularExpressions.Regex.IsMatch(newSchoolYear, @"^\d{4}-\d{4}$"))
+        {
+            schoolYearError = "Invalid format. Please use YYYY-YYYY (e.g., 2024-2025)";
+            StateHasChanged();
+            return;
+        }
+
+        // Validate year sequence
+        var parts = newSchoolYear.Split('-');
+        if (parts.Length == 2 && int.TryParse(parts[0], out int startYear) && int.TryParse(parts[1], out int endYear))
+        {
+            if (endYear != startYear + 1)
+            {
+                schoolYearError = "End year must be one year after start year (e.g., 2024-2025)";
+                StateHasChanged();
+                return;
+            }
+        }
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var success = await SchoolYearService.AddSchoolYearAsync(newSchoolYear, newStartDate, newEndDate);
+            
+            if (success)
+            {
+                ShowToast($"School year {newSchoolYear} added successfully", ToastType.Success);
+                newSchoolYear = string.Empty;
+                newStartDate = null;
+                newEndDate = null;
+                await LoadSchoolYearsAsync();
+            }
+            else
+            {
+                ShowToast($"Failed to add school year. It may already exist.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error adding school year: {Message}", ex.Message);
+            ShowToast($"Error adding school year: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenSchoolYear(string schoolYear)
+    {
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var success = await SchoolYearService.OpenSchoolYearAsync(schoolYear);
+            
+            if (success)
+            {
+                ShowToast($"School year {schoolYear} opened successfully. All other school years have been closed.", ToastType.Success);
+                await LoadSchoolYearsAsync();
+                
+                // Show confirmation dialog
+                await JSRuntime.InvokeVoidAsync("alert", 
+                    $"School year {schoolYear} is now active!\n\n" +
+                    "All enrollments, grades, and reports will now filter by this school year.");
+            }
+            else
+            {
+                ShowToast($"Failed to open school year {schoolYear}", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error opening school year: {Message}", ex.Message);
+            ShowToast($"Error opening school year: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CloseSchoolYear(string schoolYear)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to close school year {schoolYear}?\n\n" +
+            "This will prevent new enrollments for this school year.");
+        
+        if (!confirmed)
+            return;
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var success = await SchoolYearService.CloseSchoolYearAsync(schoolYear);
+            
+            if (success)
+            {
+                ShowToast($"School year {schoolYear} closed successfully", ToastType.Success);
+                await LoadSchoolYearsAsync();
+            }
+            else
+            {
+                ShowToast($"Failed to close school year {schoolYear}", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error closing school year: {Message}", ex.Message);
+            ShowToast($"Error closing school year: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteSchoolYear(string schoolYear)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", 
+            $"Are you sure you want to delete school year {schoolYear}?\n\n" +
+            "This action cannot be undone. Make sure there are no enrollments or data associated with this school year.");
+        
+        if (!confirmed)
+            return;
+
+        isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var success = await SchoolYearService.RemoveSchoolYearAsync(schoolYear);
+            
+            if (success)
+            {
+                ShowToast($"School year {schoolYear} deleted successfully", ToastType.Success);
+                await LoadSchoolYearsAsync();
+            }
+            else
+            {
+                ShowToast($"Failed to delete school year. It may be active or have associated data.", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error deleting school year: {Message}", ex.Message);
+            ShowToast($"Error deleting school year: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadSchoolYearsAsync();
+        ShowToast("Data refreshed successfully", ToastType.Success);
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/settings");
+    }
+}
+

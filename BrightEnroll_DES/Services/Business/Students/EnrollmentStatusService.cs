@@ -1,6 +1,7 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Authentication;
+using BrightEnroll_DES.Services.Business.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -12,22 +13,42 @@ public class EnrollmentStatusService
     private readonly AppDbContext _context;
     private readonly ILogger<EnrollmentStatusService>? _logger;
     private readonly IAuthService? _authService;
+    private readonly SchoolYearService? _schoolYearService;
 
-    public EnrollmentStatusService(AppDbContext context, ILogger<EnrollmentStatusService>? logger = null, IAuthService? authService = null)
+    public EnrollmentStatusService(
+        AppDbContext context, 
+        ILogger<EnrollmentStatusService>? logger = null, 
+        IAuthService? authService = null,
+        SchoolYearService? schoolYearService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
         _authService = authService;
+        _schoolYearService = schoolYearService;
     }
 
-    // Gets students by status
-    public async Task<List<Student>> GetStudentsByStatusAsync(string status)
+    // Gets students by status (with optional school year filtering)
+    public async Task<List<Student>> GetStudentsByStatusAsync(string status, string? schoolYear = null)
     {
         try
         {
-            return await _context.Students
+            // Get active school year if not provided
+            if (string.IsNullOrEmpty(schoolYear) && _schoolYearService != null)
+            {
+                schoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+            }
+
+            var query = _context.Students
                 .Include(s => s.Requirements)
-                .Where(s => s.Status == status)
+                .Where(s => s.Status == status);
+
+            // Filter by school year if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                query = query.Where(s => s.SchoolYr == schoolYear);
+            }
+
+            return await query
                 .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
         }
@@ -38,16 +59,81 @@ public class EnrollmentStatusService
         }
     }
 
-    // Gets students by multiple statuses
-    public async Task<List<Student>> GetStudentsByStatusesAsync(params string[] statuses)
+    // Gets students by multiple statuses (with optional school year filtering)
+    // STRICTLY filters by enrollment records for the specified school year
+    // For "For Enrollment" tab: Only shows students with enrollments for the active school year
+    public async Task<List<Student>> GetStudentsByStatusesAsync(string? schoolYear = null, params string[] statuses)
     {
         try
         {
-            return await _context.Students
-                .Include(s => s.Requirements)
-                .Where(s => statuses.Contains(s.Status))
-                .OrderByDescending(s => s.DateRegistered)
-                .ToListAsync();
+            // Get active school year if not provided
+            if (string.IsNullOrEmpty(schoolYear) && _schoolYearService != null)
+            {
+                schoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+            }
+
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                // STRICT FILTERING: Only get students who have enrollment records for this specific school year
+                // This ensures closed school years don't show students from other years
+                var enrollmentStudentIds = await _context.StudentSectionEnrollments
+                    .Where(e => e.SchoolYear == schoolYear && statuses.Contains(e.Status))
+                    .Select(e => e.StudentId)
+                    .Distinct()
+                    .ToListAsync();
+
+                // Also include students who don't have enrollment records yet but match the status
+                // This covers:
+                // 1. New applicants who haven't been enrolled yet (status "Pending" or "For Payment")
+                // 2. Re-enrolled students who don't have enrollment records yet (Status = "For Payment" but no enrollment record)
+                // For re-enrolled students, check if they have enrollments for OTHER school years but not this one
+                var allEnrollmentStudentIds = await _context.StudentSectionEnrollments
+                    .Where(e => e.SchoolYear == schoolYear)
+                    .Select(e => e.StudentId)
+                    .Distinct()
+                    .ToListAsync();
+
+                var studentsWithoutEnrollments = await _context.Students
+                    .Include(s => s.Requirements)
+                    .Include(s => s.SectionEnrollments)
+                    .Where(s => statuses.Contains(s.Status) && 
+                               !allEnrollmentStudentIds.Contains(s.StudentId))
+                    .ToListAsync();
+
+                // Further filter: only include if they're registered for this school year OR have no enrollments at all
+                // This ensures re-enrolled students (who might have old SchoolYr) are included
+                studentsWithoutEnrollments = studentsWithoutEnrollments
+                    .Where(s => s.SchoolYr == schoolYear || 
+                               s.SchoolYr == null || 
+                               (s.SectionEnrollments != null && s.SectionEnrollments.Any() && 
+                                !s.SectionEnrollments.Any(e => e.SchoolYear == schoolYear)))
+                    .ToList();
+
+                // Get students with enrollments for this school year
+                var studentsWithEnrollments = await _context.Students
+                    .Include(s => s.Requirements)
+                    .Include(s => s.SectionEnrollments)
+                    .Where(s => enrollmentStudentIds.Contains(s.StudentId))
+                    .ToListAsync();
+
+                // Combine and return
+                var allStudents = studentsWithEnrollments.Concat(studentsWithoutEnrollments)
+                    .OrderByDescending(s => s.DateRegistered)
+                    .ToList();
+
+                return allStudents;
+            }
+            else
+            {
+                // No school year filter - return all students with matching statuses
+                var query = _context.Students
+                    .Include(s => s.Requirements)
+                    .Where(s => statuses.Contains(s.Status));
+
+                return await query
+                    .OrderByDescending(s => s.DateRegistered)
+                    .ToListAsync();
+            }
         }
         catch (Exception ex)
         {

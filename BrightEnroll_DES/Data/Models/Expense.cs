@@ -58,6 +58,10 @@ public class Expense
     [Column("approved_by")]
     public string? ApprovedBy { get; set; }
 
+    [MaxLength(20)]
+    [Column("school_year")]
+    public string? SchoolYear { get; set; } // Optional: for school-year specific expenses
+
     [Required]
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

@@ -50,6 +50,10 @@ public class Fee
     [Column("is_active")]
     public bool IsActive { get; set; } = true;
 
+    [MaxLength(20)]
+    [Column("school_year")]
+    public string? SchoolYear { get; set; } // Fee structure per school year
+
     // Navigation properties
     [ForeignKey("GradeLevelId")]
     public virtual GradeLevel? GradeLevel { get; set; }

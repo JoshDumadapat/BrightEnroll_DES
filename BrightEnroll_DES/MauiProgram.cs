@@ -47,7 +47,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<DatabaseSeeder>();
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
             builder.Services.AddSingleton<AddressService>();
-            builder.Services.AddSingleton<SchoolYearService>();
+            builder.Services.AddScoped<SchoolYearService>();
 
             // Role-based access control services
             builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();

@@ -4,10 +4,14 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Curriculum.CurriculumCS
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Data
 @using DataModels = BrightEnroll_DES.Data.Models
 @using Microsoft.Extensions.Logging
+@using Microsoft.EntityFrameworkCore
 @using BrightEnroll_DES.Components
 @inject CurriculumService CurriculumService
+@inject SchoolYearService SchoolYearService
 @inject ILogger<Curriculum> Logger
 
 <PageTitle>Curriculum</PageTitle>
@@ -15,7 +19,18 @@
 <RoleAuthorizeView RequiredPermission="@Permissions.ViewCurriculum">
 
 <div class="text-gray-800">
-    <h1 class="mb-6 text-2xl font-bold text-gray-800">Curriculum</h1>
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-800">Curriculum</h1>
+        @if (!string.IsNullOrEmpty(CurrentSchoolYear))
+        {
+            <div class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
+                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-sm font-semibold text-blue-800">School Year: <span class="font-bold">@CurrentSchoolYear</span></span>
+            </div>
+        }
+    </div>
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
@@ -397,6 +412,7 @@
     private List<TeacherAssignmentModel> DetailedAssignments = new();
     // When viewing from Classes Overview, this holds all FinalClassView rows for the selected class
     private List<DataModels.FinalClassView>? ViewingClassRows = null;
+    private string CurrentSchoolYear { get; set; } = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -407,6 +423,9 @@
     {
         try
         {
+            // Load current school year
+            CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
+            
             // Load from database
             DbClassrooms = await CurriculumService.GetAllClassroomsAsync();
             DbSections = await CurriculumService.GetAllSectionsAsync();
@@ -443,6 +462,9 @@
                     FinalClasses = new List<DataModels.FinalClassView>();
                 }
             }
+
+            // Filter FinalClasses by active school year - only show classes with enrollments in active school year
+            await FilterFinalClassesByActiveSchoolYear();
 
             // Normalize classroom/building info for FinalClasses using section data so that
             // Classroom always shows the room name and BuildingName is accurate.
@@ -504,6 +526,48 @@
             ErrorModalMessage = $"An error occurred while loading curriculum data:\n\n{ex.Message}\n\nPlease refresh the page and try again.";
             ShowErrorModal = true;
             StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Filters FinalClasses to only show classes with enrollments in the active school year
+    /// </summary>
+    private async Task FilterFinalClassesByActiveSchoolYear()
+    {
+        try
+        {
+            var activeSchoolYear = CurrentSchoolYear;
+            
+            // Fallback to active school year if CurrentSchoolYear is not set
+            if (string.IsNullOrEmpty(activeSchoolYear))
+            {
+                activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+            }
+            
+            if (string.IsNullOrEmpty(activeSchoolYear))
+            {
+                // No active school year - hide all classes
+                FinalClasses = new List<DataModels.FinalClassView>();
+                Logger.LogInformation("No active school year found, hiding all classes");
+                return;
+            }
+
+            // Use CurriculumService to get section names with enrollments (avoids DbContext concurrency issues)
+            var sectionNamesWithEnrollments = await CurriculumService.GetSectionNamesWithEnrollmentsAsync(activeSchoolYear);
+
+            // Filter FinalClasses to only include sections with enrollments
+            FinalClasses = FinalClasses
+                .Where(fc => !string.IsNullOrEmpty(fc.SectionName) && 
+                            sectionNamesWithEnrollments.Contains(fc.SectionName))
+                .ToList();
+
+            Logger.LogInformation("Filtered FinalClasses to {Count} classes with enrollments in school year {SchoolYear}", 
+                FinalClasses.Count, activeSchoolYear);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error filtering FinalClasses by active school year: {ErrorMessage}", ex.Message);
+            // On error, don't filter (show all) to prevent breaking the page
         }
     }
 
@@ -654,27 +718,41 @@
             return uiSubjects;
         }
         
+        // Load all subject schedules in a single batch query to avoid concurrent DbContext operations
+        var subjectIds = DbSubjects.Select(s => s.SubjectId).ToList();
+        Dictionary<int, List<DataModels.SubjectSchedule>> schedulesBySubjectId;
+        
+        try
+        {
+            schedulesBySubjectId = await CurriculumService.GetSubjectSchedulesBySubjectIdsAsync(subjectIds);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading subject schedules in batch: {ErrorMessage}", ex.Message);
+            schedulesBySubjectId = new Dictionary<int, List<DataModels.SubjectSchedule>>();
+        }
+        
+        // Group schedules by time slot and convert to SubjectScheduleItem format
+        var dayOrder = new Dictionary<string, int>
+        {
+            { "M", 1 },
+            { "T", 2 },
+            { "W", 3 },
+            { "TH", 4 },
+            { "F", 5 },
+            { "SAT", 6 },
+            { "SUN", 7 }
+        };
+        
         foreach (var dbSubject in DbSubjects)
         {
             try
             {
-                // Get subject schedules instead of linked sections
-                var schedules = await CurriculumService.GetSubjectSchedulesBySubjectIdAsync(dbSubject.SubjectId);
+                // Get schedules for this subject from the batch-loaded data
+                var schedules = schedulesBySubjectId.GetValueOrDefault(dbSubject.SubjectId, new List<DataModels.SubjectSchedule>());
                 
                 Logger.LogInformation("Found {ScheduleCount} schedules for subject '{SubjectName}' (ID: {SubjectId})", 
                     schedules.Count, dbSubject.SubjectName, dbSubject.SubjectId);
-                
-                // Group schedules by time slot and convert to SubjectScheduleItem format
-                var dayOrder = new Dictionary<string, int>
-                {
-                    { "M", 1 },
-                    { "T", 2 },
-                    { "W", 3 },
-                    { "TH", 4 },
-                    { "F", 5 },
-                    { "SAT", 6 },
-                    { "SUN", 7 }
-                };
 
                 var scheduleItems = schedules
                     .GroupBy(s => new { s.StartTime, s.EndTime })

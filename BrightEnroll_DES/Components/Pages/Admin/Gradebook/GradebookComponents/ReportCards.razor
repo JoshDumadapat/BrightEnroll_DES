@@ -7,6 +7,7 @@
 @using Microsoft.JSInterop
 @inject GradeService GradeService
 @inject TeacherService TeacherService
+@inject SchoolYearService SchoolYearService
 @inject IAuthService AuthService
 @inject ReportCardPdfGenerator PdfGenerator
 @inject IJSRuntime JSRuntime
@@ -15,6 +16,18 @@
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="@CloseToast" Duration="4000" />
 
 <div class="p-6">
+    <!-- School Year Indicator -->
+    @if (!string.IsNullOrEmpty(selectedSchoolYear))
+    {
+        <div class="mb-4 flex items-center justify-start">
+            <div class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2">
+                <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <span class="text-sm font-semibold text-blue-800">Current School Year: <span class="font-bold">@selectedSchoolYear</span></span>
+            </div>
+        </div>
+    }
 
     <!-- Report Card Generation -->
     <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -145,15 +158,32 @@
 
         teacherId = currentUser.user_ID;
 
-        // Initialize school years
-        var currentYear = DateTime.Now.Year;
-        var nextYear = currentYear + 1;
-        selectedSchoolYear = $"{currentYear}-{nextYear}";
-        availableSchoolYears = new List<string>();
-        for (int i = 0; i < 3; i++)
+        // Get active school year from database
+        var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+        if (!string.IsNullOrEmpty(activeSchoolYear))
         {
-            var year = currentYear - i;
-            availableSchoolYears.Add($"{year}-{year + 1}");
+            selectedSchoolYear = activeSchoolYear;
+        }
+        else
+        {
+            // Fallback to calculated school year
+            var currentYear = DateTime.Now.Year;
+            var nextYear = currentYear + 1;
+            selectedSchoolYear = $"{currentYear}-{nextYear}";
+        }
+        
+        // Get all available school years from database
+        availableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+        
+        // If no school years in database, generate current and past 2 years as fallback
+        if (!availableSchoolYears.Any())
+        {
+            var currentYear = DateTime.Now.Year;
+            for (int i = 0; i < 3; i++)
+            {
+                var year = currentYear - i;
+                availableSchoolYears.Add($"{year}-{year + 1}");
+            }
         }
 
         await LoadSectionsAsync();

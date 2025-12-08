@@ -28,11 +28,31 @@ public class TeacherService
     {
         try
         {
-            return await _context.TeacherSectionAssignments
+            var currentSchoolYear = await GetCurrentSchoolYearAsync();
+            
+            // Get sections assigned to teacher that have enrollments in the active school year
+            var assignedSections = await _context.TeacherSectionAssignments
                 .Where(a => a.TeacherId == teacherId && !a.IsArchived)
                 .Select(a => a.SectionId)
                 .Distinct()
-                .CountAsync();
+                .ToListAsync();
+            
+            // Filter to only sections with enrollments in the active school year
+            if (!string.IsNullOrEmpty(currentSchoolYear))
+            {
+                var sectionsWithEnrollments = await _context.StudentSectionEnrollments
+                    .Where(e => assignedSections.Contains(e.SectionId) &&
+                               e.Status == "Enrolled" &&
+                               e.SchoolYear == currentSchoolYear)
+                    .Select(e => e.SectionId)
+                    .Distinct()
+                    .CountAsync();
+                
+                return sectionsWithEnrollments;
+            }
+            
+            // If no active school year, return 0
+            return 0;
         }
         catch (Exception ex)
         {
@@ -50,6 +70,7 @@ public class TeacherService
         {
             var today = DateTime.Today;
             var dayOfWeek = GetDayOfWeekAbbreviation(today.DayOfWeek);
+            var currentSchoolYear = await GetCurrentSchoolYearAsync();
 
             var schedules = await _context.ClassSchedules
                 .Include(cs => cs.Assignment!)
@@ -65,19 +86,41 @@ public class TeacherService
                 .OrderBy(cs => cs.StartTime)
                 .ToListAsync();
 
-            return schedules.Select(cs => new TodayScheduleItem
+            // Filter to only sections with enrollments in the active school year
+            var filteredSchedules = new List<TodayScheduleItem>();
+            
+            if (!string.IsNullOrEmpty(currentSchoolYear))
             {
-                ScheduleId = cs.ScheduleId,
-                SectionName = cs.Assignment?.Section?.SectionName ?? "Unknown",
-                GradeLevel = cs.Assignment?.Section?.GradeLevel?.GradeLevelName ?? "",
-                SubjectName = cs.Assignment?.Subject?.SubjectName ?? 
-                             (cs.Assignment?.Role == "adviser" ? "Homeroom" : "Unknown"),
-                RoomName = cs.Room?.RoomName ?? "TBA",
-                BuildingName = cs.Room?.BuildingName ?? "",
-                StartTime = cs.StartTime,
-                EndTime = cs.EndTime,
-                Role = cs.Assignment?.Role ?? ""
-            }).ToList();
+                foreach (var cs in schedules)
+                {
+                    if (cs.Assignment?.SectionId == null) continue;
+                    
+                    // Check if this section has enrollments in the active school year
+                    var hasEnrollments = await _context.StudentSectionEnrollments
+                        .AnyAsync(e => e.SectionId == cs.Assignment.SectionId &&
+                                      e.Status == "Enrolled" &&
+                                      e.SchoolYear == currentSchoolYear);
+                    
+                    if (hasEnrollments)
+                    {
+                        filteredSchedules.Add(new TodayScheduleItem
+                        {
+                            ScheduleId = cs.ScheduleId,
+                            SectionName = cs.Assignment?.Section?.SectionName ?? "Unknown",
+                            GradeLevel = cs.Assignment?.Section?.GradeLevel?.GradeLevelName ?? "",
+                            SubjectName = cs.Assignment?.Subject?.SubjectName ?? 
+                                         (cs.Assignment?.Role == "adviser" ? "Homeroom" : "Unknown"),
+                            RoomName = cs.Room?.RoomName ?? "TBA",
+                            BuildingName = cs.Room?.BuildingName ?? "",
+                            StartTime = cs.StartTime,
+                            EndTime = cs.EndTime,
+                            Role = cs.Assignment?.Role ?? ""
+                        });
+                    }
+                }
+            }
+
+            return filteredSchedules;
         }
         catch (Exception ex)
         {
@@ -721,13 +764,32 @@ public class TeacherService
     {
         try
         {
-            // Try to get from a settings table or use current year
+            // Get active school year from database
+            var activeSchoolYear = await _context.SchoolYears
+                .Where(sy => sy.IsActive && sy.IsOpen)
+                .Select(sy => sy.SchoolYearName)
+                .FirstOrDefaultAsync();
+            
+            if (!string.IsNullOrEmpty(activeSchoolYear))
+            {
+                return activeSchoolYear;
+            }
+            
+            // Fallback to calculated school year
             var currentYear = DateTime.Now.Year;
-            var nextYear = currentYear + 1;
-            return $"{currentYear}-{nextYear}";
+            var currentMonth = DateTime.Now.Month;
+            if (currentMonth >= 6)
+            {
+                return $"{currentYear}-{currentYear + 1}";
+            }
+            else
+            {
+                return $"{currentYear - 1}-{currentYear}";
+            }
         }
         catch
         {
+            // Final fallback
             var currentYear = DateTime.Now.Year;
             var nextYear = currentYear + 1;
             return $"{currentYear}-{nextYear}";

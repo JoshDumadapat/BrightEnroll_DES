@@ -1402,6 +1402,230 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Adds school_year columns to StudentPayments, Fees, and Expenses tables if they don't exist
+        public async Task<bool> AddSchoolYearColumnsIfNotExistAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Add school_year to tbl_StudentPayments
+                string checkPaymentColumn = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_StudentPayments') 
+                    AND name = 'school_year'";
+
+                using var checkPaymentCommand = new SqlCommand(checkPaymentColumn, connection);
+                var paymentResult = await checkPaymentCommand.ExecuteScalarAsync();
+                var paymentColumnExists = paymentResult != null ? (int)paymentResult : 0;
+
+                if (paymentColumnExists == 0)
+                {
+                    string addPaymentColumn = @"
+                        ALTER TABLE [dbo].[tbl_StudentPayments]
+                        ADD [school_year] VARCHAR(20) NULL;";
+
+                    using var addPaymentCommand = new SqlCommand(addPaymentColumn, connection);
+                    await addPaymentCommand.ExecuteNonQueryAsync();
+                    
+                    // Create index for school_year
+                    string createIndex = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_school_year' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
+                        BEGIN
+                            CREATE INDEX IX_tbl_StudentPayments_school_year 
+                            ON [dbo].[tbl_StudentPayments]([school_year])
+                            WHERE [school_year] IS NOT NULL;
+                        END";
+
+                    using var createIndexCommand = new SqlCommand(createIndex, connection);
+                    await createIndexCommand.ExecuteNonQueryAsync();
+                    
+                    // Backfill: Link payments to enrollment's school year
+                    string backfillPayments = @"
+                        UPDATE p
+                        SET p.school_year = e.school_yr
+                        FROM [dbo].[tbl_StudentPayments] p
+                        INNER JOIN [dbo].[tbl_StudentSectionEnrollment] e 
+                            ON p.student_id = e.student_id
+                            AND e.status = 'Enrolled'
+                        WHERE p.school_year IS NULL;";
+
+                    using var backfillCommand = new SqlCommand(backfillPayments, connection);
+                    await backfillCommand.ExecuteNonQueryAsync();
+                }
+
+                // Add school_year to tbl_Fees
+                string checkFeeColumn = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Fees') 
+                    AND name = 'school_year'";
+
+                using var checkFeeCommand = new SqlCommand(checkFeeColumn, connection);
+                var feeResult = await checkFeeCommand.ExecuteScalarAsync();
+                var feeColumnExists = feeResult != null ? (int)feeResult : 0;
+
+                if (feeColumnExists == 0)
+                {
+                    string addFeeColumn = @"
+                        ALTER TABLE [dbo].[tbl_Fees]
+                        ADD [school_year] VARCHAR(20) NULL;";
+
+                    using var addFeeCommand = new SqlCommand(addFeeColumn, connection);
+                    await addFeeCommand.ExecuteNonQueryAsync();
+                    
+                    // Create indexes for school_year
+                    string createIndexes = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_school_year' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+                        BEGIN
+                            CREATE INDEX IX_tbl_Fees_school_year 
+                            ON [dbo].[tbl_Fees]([school_year])
+                            WHERE [school_year] IS NOT NULL;
+                        END
+                        
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_gradelevel_schoolyear' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
+                        BEGIN
+                            CREATE INDEX IX_tbl_Fees_gradelevel_schoolyear 
+                            ON [dbo].[tbl_Fees]([gradelevel_ID], [school_year])
+                            WHERE [school_year] IS NOT NULL;
+                        END";
+
+                    using var createIndexCommand = new SqlCommand(createIndexes, connection);
+                    await createIndexCommand.ExecuteNonQueryAsync();
+                }
+
+                // Add school_year to tbl_Expenses
+                string checkExpenseColumn = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_Expenses') 
+                    AND name = 'school_year'";
+
+                using var checkExpenseCommand = new SqlCommand(checkExpenseColumn, connection);
+                var expenseResult = await checkExpenseCommand.ExecuteScalarAsync();
+                var expenseColumnExists = expenseResult != null ? (int)expenseResult : 0;
+
+                if (expenseColumnExists == 0)
+                {
+                    string addExpenseColumn = @"
+                        ALTER TABLE [dbo].[tbl_Expenses]
+                        ADD [school_year] VARCHAR(20) NULL;
+                        
+                        CREATE INDEX IX_tbl_Expenses_school_year 
+                        ON [dbo].[tbl_Expenses]([school_year])
+                        WHERE [school_year] IS NOT NULL;";
+
+                    using var addExpenseCommand = new SqlCommand(addExpenseColumn, connection);
+                    await addExpenseCommand.ExecuteNonQueryAsync();
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding school_year columns: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Seeds initial school year data from existing enrollment records
+        public async Task<bool> SeedSchoolYearsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if school years already exist
+                string checkQuery = "SELECT COUNT(*) FROM [dbo].[tbl_SchoolYear]";
+                using var checkCommand = new SqlCommand(checkQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var count = result != null ? (int)result : 0;
+
+                if (count > 0)
+                {
+                    return false; // Already seeded
+                }
+
+                // Get unique school years from existing enrollment data
+                string getSchoolYearsQuery = @"
+                    SELECT DISTINCT [school_yr] 
+                    FROM [dbo].[tbl_StudentSectionEnrollment]
+                    WHERE [school_yr] IS NOT NULL AND [school_yr] != ''
+                    ORDER BY [school_yr] DESC";
+
+                var schoolYears = new List<string>();
+                using var getCommand = new SqlCommand(getSchoolYearsQuery, connection);
+                using var reader = await getCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    var schoolYear = reader["school_yr"]?.ToString();
+                    if (!string.IsNullOrWhiteSpace(schoolYear))
+                    {
+                        schoolYears.Add(schoolYear);
+                    }
+                }
+                await reader.CloseAsync();
+
+                // If no school years found in enrollments, create current school year
+                if (schoolYears.Count == 0)
+                {
+                    var currentYear = DateTime.Now.Year;
+                    var currentMonth = DateTime.Now.Month;
+                    int startYear;
+                    if (currentMonth >= 6)
+                    {
+                        startYear = currentYear;
+                    }
+                    else
+                    {
+                        startYear = currentYear - 1;
+                    }
+                    schoolYears.Add($"{startYear}-{startYear + 1}");
+                }
+
+                // Insert school years into tbl_SchoolYear
+                // Mark the most recent one as active and open
+                var mostRecent = schoolYears.FirstOrDefault();
+                bool isFirst = true;
+
+                foreach (var schoolYear in schoolYears)
+                {
+                    string insertQuery = @"
+                        INSERT INTO [dbo].[tbl_SchoolYear] 
+                        ([school_year], [is_active], [is_open], [created_at], [opened_at])
+                        VALUES 
+                        (@schoolYear, @isActive, @isOpen, GETDATE(), @openedAt)";
+
+                    using var insertCommand = new SqlCommand(insertQuery, connection);
+                    insertCommand.Parameters.AddWithValue("@schoolYear", schoolYear);
+                    insertCommand.Parameters.AddWithValue("@isActive", isFirst ? 1 : 0);
+                    insertCommand.Parameters.AddWithValue("@isOpen", isFirst ? 1 : 0);
+                    insertCommand.Parameters.AddWithValue("@openedAt", isFirst ? (object)DateTime.Now : DBNull.Value);
+                    
+                    await insertCommand.ExecuteNonQueryAsync();
+                    isFirst = false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error seeding school years: {ex.Message}");
+                return false;
+            }
+        }
+
         // Initializes everything - creates database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
@@ -1428,6 +1652,12 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 // Migrate grade-related table columns if needed
                 await MigrateGradeWeightsTableColumnsAsync();
                 await MigrateGradeHistoryTableColumnsAsync();
+                
+                // Add school_year columns to existing tables (for migration)
+                await AddSchoolYearColumnsIfNotExistAsync();
+                
+                // Seed initial school year data
+                await SeedSchoolYearsAsync();
                 
                 return dbCreated || tablesCreated;
             }
