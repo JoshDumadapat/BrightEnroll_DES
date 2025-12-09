@@ -2,6 +2,7 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Models;
 using BrightEnroll_DES.Services.DataAccess.Repositories;
+using BrightEnroll_DES.Services.Business.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -11,12 +12,14 @@ public class EmployeeService
 {
     private readonly AppDbContext _context;
     private readonly IUserRepository _userRepository;
+    private readonly SchoolYearService _schoolYearService;
     private readonly ILogger<EmployeeService>? _logger;
 
-    public EmployeeService(AppDbContext context, IUserRepository userRepository, ILogger<EmployeeService>? logger = null)
+    public EmployeeService(AppDbContext context, IUserRepository userRepository, SchoolYearService schoolYearService, ILogger<EmployeeService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _logger = logger;
     }
 
@@ -113,16 +116,18 @@ public class EmployeeService
                 _context.EmployeeEmergencyContacts.Add(emergencyContact);
 
                 _logger?.LogInformation("Creating salary info record");
+                var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
                 var salaryInfo = new SalaryInfo
                 {
                     UserId = userId,
                     BaseSalary = employeeData.BaseSalary,
                     Allowance = employeeData.Allowance,
                     DateEffective = DateTime.Today,
-                    IsActive = true
+                    IsActive = employeeData.IsSalaryActive, // Use flag from employeeData
+                    SchoolYear = currentSchoolYear
                 };
-                _logger?.LogInformation("Salary data: BaseSalary={BaseSalary}, Allowance={Allowance}, Total={Total}", 
-                    salaryInfo.BaseSalary, salaryInfo.Allowance, salaryInfo.BaseSalary + salaryInfo.Allowance);
+                _logger?.LogInformation("Salary data: BaseSalary={BaseSalary}, Allowance={Allowance}, Total={Total}, SchoolYear={SchoolYear}", 
+                    salaryInfo.BaseSalary, salaryInfo.Allowance, salaryInfo.BaseSalary + salaryInfo.Allowance, salaryInfo.SchoolYear);
 
                 _context.SalaryInfos.Add(salaryInfo);
 
@@ -176,6 +181,19 @@ public class EmployeeService
                 await transaction.RollbackAsync();
                 _logger?.LogError(ex, "Error creating employee records for user {UserId}: {Message}", userId, ex.Message);
                 LogDetailedException(ex, "Employee Records Creation");
+                
+                // Delete the user that was created before the transaction
+                try
+                {
+                    _logger?.LogWarning("Attempting to delete user {UserId} due to transaction failure", userId);
+                    await _userRepository.DeleteAsync(userId);
+                    _logger?.LogInformation("User {UserId} deleted successfully after transaction failure", userId);
+                }
+                catch (Exception deleteEx)
+                {
+                    _logger?.LogError(deleteEx, "CRITICAL: Failed to delete user {UserId} after transaction failure. Manual cleanup may be required.", userId);
+                }
+                
                 throw new Exception($"Failed to create employee records: {ex.Message}", ex);
             }
         }
@@ -495,7 +513,7 @@ public class EmployeeService
         }
     }
 
-    public async Task<bool> UpdateEmployeeInfoAsync(int userId, EmployeeUpdateData updateData)
+    public async Task<bool> UpdateEmployeeInfoAsync(int userId, EmployeeUpdateData updateData, int? requestedByUserId = null)
     {
         try
         {
@@ -580,6 +598,111 @@ public class EmployeeService
                     _context.EmployeeEmergencyContacts.Add(emergencyContact);
                 }
 
+                // Handle salary update if provided
+                if (updateData.BaseSalary.HasValue || updateData.Allowance.HasValue)
+                {
+                    var currentSalary = await _context.SalaryInfos
+                        .FirstOrDefaultAsync(s => s.UserId == userId && s.IsActive);
+
+                    if (currentSalary != null)
+                    {
+                        var newBaseSalary = updateData.BaseSalary ?? currentSalary.BaseSalary;
+                        var newAllowance = updateData.Allowance ?? currentSalary.Allowance;
+
+                        // Check if salary change requires approval (threshold check - cumulative approach)
+                        // Threshold is dynamically loaded from Payroll module (tbl_roles.threshold_percentage)
+                        // CUMULATIVE APPROACH: Always compares new salary to role base * (1 + threshold%)
+                        // If threshold is 0%, no approval needed (no limit on salary increase)
+                        var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == updateData.Role);
+                        decimal defaultBaseSalary = role?.BaseSalary ?? currentSalary.BaseSalary;
+                        decimal defaultAllowance = role?.Allowance ?? currentSalary.Allowance;
+                        decimal thresholdPercentage = role?.ThresholdPercentage ?? 0.00m;
+                        
+                        bool requiresApproval = false;
+                        
+                        // If threshold is 0%, no approval needed - allow any salary increase
+                        if (thresholdPercentage == 0.00m)
+                        {
+                            _logger?.LogInformation(
+                                "Salary threshold check for {UserId} ({Role}): " +
+                                "Threshold is 0% - No approval required. Allowing direct update.",
+                                userId, updateData.Role);
+                            requiresApproval = false;
+                        }
+                        else
+                        {
+                            // Threshold > 0% - check if exceeds threshold using CUMULATIVE approach
+                            // Compare new salary to role base * (1 + threshold%)
+                            decimal salaryThresholdPercentage = thresholdPercentage / 100m;
+
+                            // Calculate threshold amounts (CUMULATIVE: always based on role base, not current salary)
+                            var thresholdBaseSalary = defaultBaseSalary * (1 + salaryThresholdPercentage);
+                            var thresholdAllowance = defaultAllowance * (1 + salaryThresholdPercentage);
+
+                            // CUMULATIVE CHECK: Compare new salary to role base + threshold
+                            // This ensures threshold doesn't restart - if previous increase used 7% of 10%,
+                            // remaining threshold is still 3% (new salary must be <= role base * 1.10)
+                            bool baseSalaryExceeds = newBaseSalary > thresholdBaseSalary;
+                            bool allowanceExceeds = newAllowance > thresholdAllowance;
+                            
+                            if (baseSalaryExceeds || allowanceExceeds)
+                            {
+                                requiresApproval = true;
+                                _logger?.LogInformation(
+                                    "Salary threshold check for {UserId} ({Role}): " +
+                                    "Base Salary: {NewBase:N2} > {ThresholdBase:N2} (role base: {RoleBase:N2} + {Threshold}% threshold) = {BaseExceeds}, " +
+                                    "Allowance: {NewAllowance:N2} > {ThresholdAllowance:N2} (role base: {RoleAllowance:N2} + {Threshold}% threshold) = {AllowanceExceeds}",
+                                    userId, updateData.Role, newBaseSalary, thresholdBaseSalary, defaultBaseSalary, thresholdPercentage, baseSalaryExceeds,
+                                    newAllowance, thresholdAllowance, defaultAllowance, thresholdPercentage, allowanceExceeds);
+                            }
+                            else
+                            {
+                                _logger?.LogInformation(
+                                    "Salary threshold check for {UserId} ({Role}): " +
+                                    "Within threshold ({Threshold}%) - No approval required.",
+                                    userId, updateData.Role, thresholdPercentage);
+                            }
+                        }
+
+                        if (requiresApproval)
+                        {
+                            // Create salary change request instead of directly updating
+                            if (requestedByUserId.HasValue)
+                            {
+                                var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
+                                var salaryRequest = new SalaryChangeRequest
+                                {
+                                    UserId = userId,
+                                    CurrentBaseSalary = currentSalary.BaseSalary,
+                                    CurrentAllowance = currentSalary.Allowance,
+                                    RequestedBaseSalary = newBaseSalary,
+                                    RequestedAllowance = newAllowance,
+                                    Reason = "Salary update from employee profile edit",
+                                    Status = "Pending",
+                                    RequestedBy = requestedByUserId.Value, // Current logged-in HR user ID
+                                    RequestedAt = DateTime.Now,
+                                    SchoolYear = currentSchoolYear,
+                                    IsInitialRegistration = false
+                                };
+                                _context.SalaryChangeRequests.Add(salaryRequest);
+                                _logger?.LogInformation("Salary change request created for user {UserId} due to threshold", userId);
+                            }
+                            else
+                            {
+                                _logger?.LogWarning("Salary change requires approval but no requestedByUserId provided. Skipping salary update.");
+                            }
+                        }
+                        else
+                        {
+                            // Direct update if within threshold
+                            currentSalary.BaseSalary = newBaseSalary;
+                            currentSalary.Allowance = newAllowance;
+                            _context.SalaryInfos.Update(currentSalary);
+                            _logger?.LogInformation("Salary updated directly for user {UserId} (within threshold)", userId);
+                        }
+                    }
+                }
+
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
@@ -635,6 +758,7 @@ public class EmployeeRegistrationData
 
     public decimal BaseSalary { get; set; }
     public decimal Allowance { get; set; }
+    public bool IsSalaryActive { get; set; } = true; // Default to active, set to false if approval needed
 }
 
 public class EmployeeDuplicateCheckResult
@@ -688,5 +812,7 @@ public class EmployeeUpdateData
     public string EmergencyContactRelationship { get; set; } = string.Empty;
     public string EmergencyContactNumber { get; set; } = string.Empty;
     public string EmergencyContactAddress { get; set; } = string.Empty;
+    public decimal? BaseSalary { get; set; }
+    public decimal? Allowance { get; set; }
 }
 

@@ -124,13 +124,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         }
                         catch (Exception tableEx)
                         {
-                            System.Diagnostics.Debug.WriteLine($"ERROR creating table {tableKey}: {tableEx.Message}");
-                            System.Diagnostics.Debug.WriteLine($"Full error: {tableEx}");
-                            if (tableEx.InnerException != null)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Inner exception: {tableEx.InnerException.Message}");
-                            }
-                            System.Diagnostics.Debug.WriteLine($"SQL Script preview: {tableDef.CreateTableScript.Substring(0, Math.Min(500, tableDef.CreateTableScript.Length))}...");
+                            System.Diagnostics.Debug.WriteLine($"Error creating table {tableKey}: {tableEx.Message}");
+                            System.Diagnostics.Debug.WriteLine($"SQL Script preview: {tableDef.CreateTableScript.Substring(0, Math.Min(200, tableDef.CreateTableScript.Length))}...");
                             // Continue with other tables even if one fails
                         }
                     }
@@ -348,28 +343,6 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                     using var addPaymentCommand = new SqlCommand(addPaymentColumnQuery, connection);
                     await addPaymentCommand.ExecuteNonQueryAsync();
-                    anyColumnAdded = true;
-                }
-
-                // Check and add updated_at column
-                string checkUpdatedAtQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_Students') 
-                    AND name = 'updated_at'";
-
-                using var checkUpdatedAtCommand = new SqlCommand(checkUpdatedAtQuery, connection);
-                var updatedAtResult = await checkUpdatedAtCommand.ExecuteScalarAsync();
-                var updatedAtColumnExists = updatedAtResult != null ? (int)updatedAtResult : 0;
-
-                if (updatedAtColumnExists == 0)
-                {
-                    string addUpdatedAtColumnQuery = @"
-                        ALTER TABLE [dbo].[tbl_Students]
-                        ADD [updated_at] DATETIME NULL";
-
-                    using var addUpdatedAtCommand = new SqlCommand(addUpdatedAtColumnQuery, connection);
-                    await addUpdatedAtCommand.ExecuteNonQueryAsync();
                     anyColumnAdded = true;
                 }
 
@@ -995,8 +968,8 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
-        // Ensures tbl_Grades table exists (for existing databases that might not have it)
-        public async Task<bool> EnsureGradesTableExistsAsync()
+        // Adds threshold_percentage column to tbl_roles if it doesn't exist (for existing databases)
+        public async Task<bool> AddThresholdPercentageColumnIfNotExistsAsync()
         {
             try
             {
@@ -1007,176 +980,56 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 using var connection = new SqlConnection(dbConnectionString);
                 await connection.OpenAsync();
 
-                // Check if table exists
+                // First check if table exists
                 string checkTableQuery = @"
                     SELECT COUNT(*) 
                     FROM sys.tables 
-                    WHERE name = 'tbl_Grades' 
-                    AND schema_id = SCHEMA_ID('dbo')";
+                    WHERE name = 'tbl_roles' AND schema_id = SCHEMA_ID('dbo')";
 
-                using var checkCommand = new SqlCommand(checkTableQuery, connection);
-                var result = await checkCommand.ExecuteScalarAsync();
-                var tableExists = result != null ? (int)result : 0;
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
 
                 if (tableExists == 0)
                 {
-                    // Get the grades table definition
-                    var gradesTableDef = TableDefinitions.GetGradesTableDefinition();
-                    
-                    System.Diagnostics.Debug.WriteLine("Attempting to create tbl_Grades table...");
-                    System.Diagnostics.Debug.WriteLine($"Table script length: {gradesTableDef.CreateTableScript.Length} characters");
-                    
-                    // Create table
-                    try
-                    {
-                        using var createCommand = new SqlCommand(gradesTableDef.CreateTableScript, connection);
-                        await createCommand.ExecuteNonQueryAsync();
-                        System.Diagnostics.Debug.WriteLine("tbl_Grades table created successfully.");
-                    }
-                    catch (Exception createEx)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"ERROR creating tbl_Grades table: {createEx.Message}");
-                        System.Diagnostics.Debug.WriteLine($"Full error: {createEx}");
-                        if (createEx.InnerException != null)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Inner exception: {createEx.InnerException.Message}");
-                        }
-                        throw; // Re-throw to be caught by outer catch
-                    }
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
 
-                    // Create indexes
-                    if (gradesTableDef.CreateIndexesScripts.Any())
-                    {
-                        foreach (var indexScript in gradesTableDef.CreateIndexesScripts)
-                        {
-                            try
-                            {
-                                using var indexCommand = new SqlCommand(indexScript, connection);
-                                await indexCommand.ExecuteNonQueryAsync();
-                            }
-                            catch (Exception indexEx)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for tbl_Grades: {indexEx.Message}");
-                            }
-                        }
-                    }
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_roles') 
+                    AND name = 'threshold_percentage'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_roles]
+                        ADD [threshold_percentage] DECIMAL(5,2) NOT NULL DEFAULT 10.00";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
                     
-                    System.Diagnostics.Debug.WriteLine("Successfully created tbl_Grades table.");
+                    System.Diagnostics.Debug.WriteLine("Added threshold_percentage column to tbl_roles table.");
                     return true;
                 }
-                else
-                {
-                    // Table exists, check if we need to migrate columns
-                    await MigrateGradesTableColumnsAsync(connection);
-                    
-                    // Also migrate related tables (they might be accessed soon)
-                    // Note: These methods create their own connections, so we don't pass the connection
-                    await MigrateGradeWeightsTableColumnsAsync();
-                    await MigrateGradeHistoryTableColumnsAsync();
-                }
 
                 return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error ensuring grades table exists: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error adding threshold_percentage column: {ex.Message}");
                 return false;
             }
         }
 
-        // Migrates tbl_Grades table from old column names to new DepEd-compliant column names
-        private async Task MigrateGradesTableColumnsAsync(SqlConnection connection)
-        {
-            try
-            {
-                // Check if new columns already exist
-                string checkNewColumnsQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_Grades') 
-                    AND name IN ('written_work', 'performance_tasks', 'quarterly_assessment')";
-
-                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
-                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
-                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
-
-                // If all three new columns exist, migration already done
-                if (newColumnsCount == 3)
-                {
-                    System.Diagnostics.Debug.WriteLine("tbl_Grades table already has new DepEd-compliant columns.");
-                    return;
-                }
-
-                // Check if old columns exist
-                string checkOldColumnsQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_Grades') 
-                    AND name IN ('quiz', 'exam', 'project', 'participation')";
-
-                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
-                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
-                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
-
-                // If old columns exist, migrate data
-                if (oldColumnsCount > 0 && newColumnsCount == 0)
-                {
-                    System.Diagnostics.Debug.WriteLine("Migrating tbl_Grades table columns to DepEd-compliant structure...");
-
-                    // Add new columns
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_Grades]
-                        ADD [written_work] DECIMAL(5,2) NULL,
-                            [performance_tasks] DECIMAL(5,2) NULL,
-                            [quarterly_assessment] DECIMAL(5,2) NULL";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_Grades.");
-
-                    // Migrate data from old columns to new columns
-                    // Map: quiz -> written_work, exam -> performance_tasks, project -> quarterly_assessment
-                    // Note: participation is not mapped as it's not part of DepEd structure
-                    string migrateDataQuery = @"
-                        UPDATE [dbo].[tbl_Grades]
-                        SET [written_work] = [quiz],
-                            [performance_tasks] = [exam],
-                            [quarterly_assessment] = [project]
-                        WHERE [quiz] IS NOT NULL OR [exam] IS NOT NULL OR [project] IS NOT NULL";
-
-                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
-                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade records.");
-
-                    // Note: We keep old columns for now to allow rollback if needed
-                    // They can be dropped manually later after verification
-                    System.Diagnostics.Debug.WriteLine("Migration completed. Old columns (quiz, exam, project, participation) are kept for safety.");
-                }
-                else if (newColumnsCount == 0)
-                {
-                    // Table exists but has neither old nor new columns - add new columns
-                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_Grades table...");
-                    
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_Grades]
-                        ADD [written_work] DECIMAL(5,2) NULL,
-                            [performance_tasks] DECIMAL(5,2) NULL,
-                            [quarterly_assessment] DECIMAL(5,2) NULL";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_Grades.");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error migrating grades table columns: {ex.Message}");
-                // Don't throw - allow table to work even if migration fails
-            }
-        }
-
-        // Migrates tbl_GradeWeights table from old column names to new DepEd-compliant column names
-        private async Task MigrateGradeWeightsTableColumnsAsync()
+        public async Task<bool> AddBatchTimestampColumnIfNotExistsAsync()
         {
             try
             {
@@ -1187,12 +1040,11 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 using var connection = new SqlConnection(dbConnectionString);
                 await connection.OpenAsync();
 
-                // Check if table exists
+                // First check if table exists
                 string checkTableQuery = @"
                     SELECT COUNT(*) 
                     FROM sys.tables 
-                    WHERE name = 'tbl_GradeWeights' 
-                    AND schema_id = SCHEMA_ID('dbo')";
+                    WHERE name = 'tbl_payroll_transactions' AND schema_id = SCHEMA_ID('dbo')";
 
                 using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
                 var tableResult = await checkTableCommand.ExecuteScalarAsync();
@@ -1200,428 +1052,338 @@ namespace BrightEnroll_DES.Services.Database.Initialization
 
                 if (tableExists == 0)
                 {
-                    return; // Table doesn't exist, nothing to migrate
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
                 }
 
-                // Check if new columns already exist
-                string checkNewColumnsQuery = @"
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
                     SELECT COUNT(*) 
                     FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeWeights') 
-                    AND name IN ('written_work_weight', 'performance_tasks_weight', 'quarterly_assessment_weight')";
+                    WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                    AND name = 'batch_timestamp'";
 
-                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
-                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
-                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
-
-                // If all three new columns exist, migration already done
-                if (newColumnsCount == 3)
-                {
-                    System.Diagnostics.Debug.WriteLine("tbl_GradeWeights table already has new DepEd-compliant columns.");
-                    return;
-                }
-
-                // Check if old columns exist
-                string checkOldColumnsQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeWeights') 
-                    AND name IN ('quiz_weight', 'exam_weight', 'project_weight', 'participation_weight')";
-
-                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
-                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
-                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
-
-                // If old columns exist, migrate data
-                if (oldColumnsCount > 0 && newColumnsCount == 0)
-                {
-                    System.Diagnostics.Debug.WriteLine("Migrating tbl_GradeWeights table columns to DepEd-compliant structure...");
-
-                    // Add new columns with DepEd defaults
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_GradeWeights]
-                        ADD [written_work_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20,
-                            [performance_tasks_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.60,
-                            [quarterly_assessment_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeWeights.");
-
-                    // Migrate data: quiz_weight -> written_work_weight, exam_weight -> performance_tasks_weight, project_weight -> quarterly_assessment_weight
-                    string migrateDataQuery = @"
-                        UPDATE [dbo].[tbl_GradeWeights]
-                        SET [written_work_weight] = [quiz_weight],
-                            [performance_tasks_weight] = [exam_weight],
-                            [quarterly_assessment_weight] = [project_weight]
-                        WHERE [quiz_weight] IS NOT NULL OR [exam_weight] IS NOT NULL OR [project_weight] IS NOT NULL";
-
-                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
-                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade weight records.");
-                }
-                else if (newColumnsCount == 0)
-                {
-                    // Table exists but has neither old nor new columns - add new columns
-                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_GradeWeights table...");
-                    
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_GradeWeights]
-                        ADD [written_work_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20,
-                            [performance_tasks_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.60,
-                            [quarterly_assessment_weight] DECIMAL(5,2) NOT NULL DEFAULT 0.20";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeWeights.");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error migrating grade weights table columns: {ex.Message}");
-                // Don't throw - allow table to work even if migration fails
-            }
-        }
-
-        // Migrates tbl_GradeHistory table from old column names to new DepEd-compliant column names
-        private async Task MigrateGradeHistoryTableColumnsAsync()
-        {
-            try
-            {
-                var builder = new SqlConnectionStringBuilder(_connectionString);
-                builder.InitialCatalog = _databaseName;
-                string dbConnectionString = builder.ConnectionString;
-
-                using var connection = new SqlConnection(dbConnectionString);
-                await connection.OpenAsync();
-
-                // Check if table exists
-                string checkTableQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.tables 
-                    WHERE name = 'tbl_GradeHistory' 
-                    AND schema_id = SCHEMA_ID('dbo')";
-
-                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
-                var tableResult = await checkTableCommand.ExecuteScalarAsync();
-                var tableExists = tableResult != null ? (int)tableResult : 0;
-
-                if (tableExists == 0)
-                {
-                    return; // Table doesn't exist, nothing to migrate
-                }
-
-                // Check if new columns already exist
-                string checkNewColumnsQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeHistory') 
-                    AND name IN ('written_work_old', 'written_work_new', 'performance_tasks_old', 'performance_tasks_new', 'quarterly_assessment_old', 'quarterly_assessment_new')";
-
-                using var checkNewCommand = new SqlCommand(checkNewColumnsQuery, connection);
-                var newColumnsResult = await checkNewCommand.ExecuteScalarAsync();
-                var newColumnsCount = newColumnsResult != null ? (int)newColumnsResult : 0;
-
-                // If all six new columns exist, migration already done
-                if (newColumnsCount == 6)
-                {
-                    System.Diagnostics.Debug.WriteLine("tbl_GradeHistory table already has new DepEd-compliant columns.");
-                    return;
-                }
-
-                // Check if old columns exist
-                string checkOldColumnsQuery = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_GradeHistory') 
-                    AND name IN ('quiz_old', 'quiz_new', 'exam_old', 'exam_new', 'project_old', 'project_new', 'participation_old', 'participation_new')";
-
-                using var checkOldCommand = new SqlCommand(checkOldColumnsQuery, connection);
-                var oldColumnsResult = await checkOldCommand.ExecuteScalarAsync();
-                var oldColumnsCount = oldColumnsResult != null ? (int)oldColumnsResult : 0;
-
-                // If old columns exist, migrate data
-                if (oldColumnsCount > 0 && newColumnsCount == 0)
-                {
-                    System.Diagnostics.Debug.WriteLine("Migrating tbl_GradeHistory table columns to DepEd-compliant structure...");
-
-                    // Add new columns
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_GradeHistory]
-                        ADD [written_work_old] DECIMAL(5,2) NULL,
-                            [written_work_new] DECIMAL(5,2) NULL,
-                            [performance_tasks_old] DECIMAL(5,2) NULL,
-                            [performance_tasks_new] DECIMAL(5,2) NULL,
-                            [quarterly_assessment_old] DECIMAL(5,2) NULL,
-                            [quarterly_assessment_new] DECIMAL(5,2) NULL";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeHistory.");
-
-                    // Migrate data: quiz -> written_work, exam -> performance_tasks, project -> quarterly_assessment
-                    string migrateDataQuery = @"
-                        UPDATE [dbo].[tbl_GradeHistory]
-                        SET [written_work_old] = [quiz_old],
-                            [written_work_new] = [quiz_new],
-                            [performance_tasks_old] = [exam_old],
-                            [performance_tasks_new] = [exam_new],
-                            [quarterly_assessment_old] = [project_old],
-                            [quarterly_assessment_new] = [project_new]
-                        WHERE [quiz_old] IS NOT NULL OR [quiz_new] IS NOT NULL 
-                           OR [exam_old] IS NOT NULL OR [exam_new] IS NOT NULL
-                           OR [project_old] IS NOT NULL OR [project_new] IS NOT NULL";
-
-                    using var migrateCommand = new SqlCommand(migrateDataQuery, connection);
-                    var rowsAffected = await migrateCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine($"Migrated data for {rowsAffected} grade history records.");
-                }
-                else if (newColumnsCount == 0)
-                {
-                    // Table exists but has neither old nor new columns - add new columns
-                    System.Diagnostics.Debug.WriteLine("Adding new DepEd-compliant columns to existing tbl_GradeHistory table...");
-                    
-                    string addColumnsQuery = @"
-                        ALTER TABLE [dbo].[tbl_GradeHistory]
-                        ADD [written_work_old] DECIMAL(5,2) NULL,
-                            [written_work_new] DECIMAL(5,2) NULL,
-                            [performance_tasks_old] DECIMAL(5,2) NULL,
-                            [performance_tasks_new] DECIMAL(5,2) NULL,
-                            [quarterly_assessment_old] DECIMAL(5,2) NULL,
-                            [quarterly_assessment_new] DECIMAL(5,2) NULL";
-
-                    using var addCommand = new SqlCommand(addColumnsQuery, connection);
-                    await addCommand.ExecuteNonQueryAsync();
-                    System.Diagnostics.Debug.WriteLine("Added new DepEd-compliant columns to tbl_GradeHistory.");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error migrating grade history table columns: {ex.Message}");
-                // Don't throw - allow table to work even if migration fails
-            }
-        }
-
-        // Adds school_year columns to StudentPayments, Fees, and Expenses tables if they don't exist
-        public async Task<bool> AddSchoolYearColumnsIfNotExistAsync()
-        {
-            try
-            {
-                var builder = new SqlConnectionStringBuilder(_connectionString);
-                builder.InitialCatalog = _databaseName;
-                string dbConnectionString = builder.ConnectionString;
-
-                using var connection = new SqlConnection(dbConnectionString);
-                await connection.OpenAsync();
-
-                // Add school_year to tbl_StudentPayments
-                string checkPaymentColumn = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_StudentPayments') 
-                    AND name = 'school_year'";
-
-                using var checkPaymentCommand = new SqlCommand(checkPaymentColumn, connection);
-                var paymentResult = await checkPaymentCommand.ExecuteScalarAsync();
-                var paymentColumnExists = paymentResult != null ? (int)paymentResult : 0;
-
-                if (paymentColumnExists == 0)
-                {
-                    string addPaymentColumn = @"
-                        ALTER TABLE [dbo].[tbl_StudentPayments]
-                        ADD [school_year] VARCHAR(20) NULL;";
-
-                    using var addPaymentCommand = new SqlCommand(addPaymentColumn, connection);
-                    await addPaymentCommand.ExecuteNonQueryAsync();
-                    
-                    // Create index for school_year
-                    string createIndex = @"
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_StudentPayments_school_year' AND object_id = OBJECT_ID('dbo.tbl_StudentPayments'))
-                        BEGIN
-                            CREATE INDEX IX_tbl_StudentPayments_school_year 
-                            ON [dbo].[tbl_StudentPayments]([school_year])
-                            WHERE [school_year] IS NOT NULL;
-                        END";
-
-                    using var createIndexCommand = new SqlCommand(createIndex, connection);
-                    await createIndexCommand.ExecuteNonQueryAsync();
-                    
-                    // Backfill: Link payments to enrollment's school year
-                    string backfillPayments = @"
-                        UPDATE p
-                        SET p.school_year = e.school_yr
-                        FROM [dbo].[tbl_StudentPayments] p
-                        INNER JOIN [dbo].[tbl_StudentSectionEnrollment] e 
-                            ON p.student_id = e.student_id
-                            AND e.status = 'Enrolled'
-                        WHERE p.school_year IS NULL;";
-
-                    using var backfillCommand = new SqlCommand(backfillPayments, connection);
-                    await backfillCommand.ExecuteNonQueryAsync();
-                }
-
-                // Add school_year to tbl_Fees
-                string checkFeeColumn = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_Fees') 
-                    AND name = 'school_year'";
-
-                using var checkFeeCommand = new SqlCommand(checkFeeColumn, connection);
-                var feeResult = await checkFeeCommand.ExecuteScalarAsync();
-                var feeColumnExists = feeResult != null ? (int)feeResult : 0;
-
-                if (feeColumnExists == 0)
-                {
-                    string addFeeColumn = @"
-                        ALTER TABLE [dbo].[tbl_Fees]
-                        ADD [school_year] VARCHAR(20) NULL;";
-
-                    using var addFeeCommand = new SqlCommand(addFeeColumn, connection);
-                    await addFeeCommand.ExecuteNonQueryAsync();
-                    
-                    // Create indexes for school_year
-                    string createIndexes = @"
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_school_year' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
-                        BEGIN
-                            CREATE INDEX IX_tbl_Fees_school_year 
-                            ON [dbo].[tbl_Fees]([school_year])
-                            WHERE [school_year] IS NOT NULL;
-                        END
-                        
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Fees_gradelevel_schoolyear' AND object_id = OBJECT_ID('dbo.tbl_Fees'))
-                        BEGIN
-                            CREATE INDEX IX_tbl_Fees_gradelevel_schoolyear 
-                            ON [dbo].[tbl_Fees]([gradelevel_ID], [school_year])
-                            WHERE [school_year] IS NOT NULL;
-                        END";
-
-                    using var createIndexCommand = new SqlCommand(createIndexes, connection);
-                    await createIndexCommand.ExecuteNonQueryAsync();
-                }
-
-                // Add school_year to tbl_Expenses
-                string checkExpenseColumn = @"
-                    SELECT COUNT(*) 
-                    FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('dbo.tbl_Expenses') 
-                    AND name = 'school_year'";
-
-                using var checkExpenseCommand = new SqlCommand(checkExpenseColumn, connection);
-                var expenseResult = await checkExpenseCommand.ExecuteScalarAsync();
-                var expenseColumnExists = expenseResult != null ? (int)expenseResult : 0;
-
-                if (expenseColumnExists == 0)
-                {
-                    string addExpenseColumn = @"
-                        ALTER TABLE [dbo].[tbl_Expenses]
-                        ADD [school_year] VARCHAR(20) NULL;
-                        
-                        CREATE INDEX IX_tbl_Expenses_school_year 
-                        ON [dbo].[tbl_Expenses]([school_year])
-                        WHERE [school_year] IS NOT NULL;";
-
-                    using var addExpenseCommand = new SqlCommand(addExpenseColumn, connection);
-                    await addExpenseCommand.ExecuteNonQueryAsync();
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error adding school_year columns: {ex.Message}");
-                return false;
-            }
-        }
-
-        // Seeds initial school year data from existing enrollment records
-        public async Task<bool> SeedSchoolYearsAsync()
-        {
-            try
-            {
-                var builder = new SqlConnectionStringBuilder(_connectionString);
-                builder.InitialCatalog = _databaseName;
-                string dbConnectionString = builder.ConnectionString;
-
-                using var connection = new SqlConnection(dbConnectionString);
-                await connection.OpenAsync();
-
-                // Check if school years already exist
-                string checkQuery = "SELECT COUNT(*) FROM [dbo].[tbl_SchoolYear]";
-                using var checkCommand = new SqlCommand(checkQuery, connection);
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
                 var result = await checkCommand.ExecuteScalarAsync();
-                var count = result != null ? (int)result : 0;
+                var columnExists = result != null ? (int)result : 0;
 
-                if (count > 0)
+                if (columnExists == 0)
                 {
-                    return false; // Already seeded
-                }
+                    // Add the column
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                        ADD [batch_timestamp] DATETIME NULL";
 
-                // Get unique school years from existing enrollment data
-                string getSchoolYearsQuery = @"
-                    SELECT DISTINCT [school_yr] 
-                    FROM [dbo].[tbl_StudentSectionEnrollment]
-                    WHERE [school_yr] IS NOT NULL AND [school_yr] != ''
-                    ORDER BY [school_yr] DESC";
-
-                var schoolYears = new List<string>();
-                using var getCommand = new SqlCommand(getSchoolYearsQuery, connection);
-                using var reader = await getCommand.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    var schoolYear = reader["school_yr"]?.ToString();
-                    if (!string.IsNullOrWhiteSpace(schoolYear))
-                    {
-                        schoolYears.Add(schoolYear);
-                    }
-                }
-                await reader.CloseAsync();
-
-                // If no school years found in enrollments, create current school year
-                if (schoolYears.Count == 0)
-                {
-                    var currentYear = DateTime.Now.Year;
-                    var currentMonth = DateTime.Now.Month;
-                    int startYear;
-                    if (currentMonth >= 6)
-                    {
-                        startYear = currentYear;
-                    }
-                    else
-                    {
-                        startYear = currentYear - 1;
-                    }
-                    schoolYears.Add($"{startYear}-{startYear + 1}");
-                }
-
-                // Insert school years into tbl_SchoolYear
-                // Mark the most recent one as active and open
-                var mostRecent = schoolYears.FirstOrDefault();
-                bool isFirst = true;
-
-                foreach (var schoolYear in schoolYears)
-                {
-                    string insertQuery = @"
-                        INSERT INTO [dbo].[tbl_SchoolYear] 
-                        ([school_year], [is_active], [is_open], [created_at], [opened_at])
-                        VALUES 
-                        (@schoolYear, @isActive, @isOpen, GETDATE(), @openedAt)";
-
-                    using var insertCommand = new SqlCommand(insertQuery, connection);
-                    insertCommand.Parameters.AddWithValue("@schoolYear", schoolYear);
-                    insertCommand.Parameters.AddWithValue("@isActive", isFirst ? 1 : 0);
-                    insertCommand.Parameters.AddWithValue("@isOpen", isFirst ? 1 : 0);
-                    insertCommand.Parameters.AddWithValue("@openedAt", isFirst ? (object)DateTime.Now : DBNull.Value);
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
                     
-                    await insertCommand.ExecuteNonQueryAsync();
-                    isFirst = false;
+                    // Create index for batch_timestamp
+                    string createIndexQuery = @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_payroll_transactions_batch_timestamp' AND object_id = OBJECT_ID('dbo.tbl_payroll_transactions'))
+                        CREATE INDEX IX_tbl_payroll_transactions_batch_timestamp ON [dbo].[tbl_payroll_transactions]([batch_timestamp])";
+
+                    using var indexCommand = new SqlCommand(createIndexQuery, connection);
+                    await indexCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Added batch_timestamp column and index to tbl_payroll_transactions table.");
+                    return true;
                 }
 
-                return true;
+                return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error seeding school years: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error adding batch_timestamp column: {ex.Message}");
+                return false;
+            }
+        }
+
+        // Adds effective_date column to tbl_salary_change_requests if it doesn't exist (for existing databases)
+        public async Task<bool> AddEffectiveDateColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // First check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_salary_change_requests' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
+
+                // Table exists, check if column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_salary_change_requests') 
+                    AND name = 'effective_date'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_salary_change_requests]
+                        ADD [effective_date] DATE NULL";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    
+                    System.Diagnostics.Debug.WriteLine("Added effective_date column to tbl_salary_change_requests table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding effective_date column: {ex.Message}");
+                return false;
+            }
+        }
+
+        public async Task<bool> AddPayrollAuditTrailAndCompanyContributionsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_payroll_transactions' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkTableCommand = new SqlCommand(checkTableQuery, connection);
+                var tableResult = await checkTableCommand.ExecuteScalarAsync();
+                var tableExists = tableResult != null ? (int)tableResult : 0;
+
+                if (tableExists == 0)
+                {
+                    return false;
+                }
+
+                bool anyAdded = false;
+
+                // Add company contribution columns
+                string[] companyColumns = new[]
+                {
+                    "company_sss_contribution", "company_philhealth_contribution", 
+                    "company_pagibig_contribution", "total_company_contribution"
+                };
+
+                foreach (var colName in companyColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = $@"
+                            ALTER TABLE [dbo].[tbl_payroll_transactions]
+                            ADD [{colName}] DECIMAL(12,2) NOT NULL DEFAULT 0.00";
+
+                        using var addCommand = new SqlCommand(addColQuery, connection);
+                        await addCommand.ExecuteNonQueryAsync();
+                        anyAdded = true;
+                    }
+                }
+
+                // Add created_by column
+                string checkCreatedByQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                    AND name = 'created_by'";
+
+                using var checkCreatedByCommand = new SqlCommand(checkCreatedByQuery, connection);
+                var createdByResult = await checkCreatedByCommand.ExecuteScalarAsync();
+                var createdByExists = createdByResult != null ? (int)createdByResult : 0;
+
+                if (createdByExists == 0)
+                {
+                    string addCreatedByQuery = @"
+                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                        ADD [created_by] INT NOT NULL DEFAULT 1";
+
+                    using var addCreatedByCommand = new SqlCommand(addCreatedByQuery, connection);
+                    await addCreatedByCommand.ExecuteNonQueryAsync();
+
+                    // Update existing records
+                    string updateCreatedByQuery = @"
+                        UPDATE [dbo].[tbl_payroll_transactions]
+                        SET [created_by] = [processed_by]
+                        WHERE [created_by] = 1";
+
+                    using var updateCommand = new SqlCommand(updateCreatedByQuery, connection);
+                    await updateCommand.ExecuteNonQueryAsync();
+
+                    // Add foreign key if it doesn't exist
+                    string checkFkQuery = @"
+                        SELECT COUNT(*) 
+                        FROM sys.foreign_keys 
+                        WHERE name = 'FK_tbl_payroll_transactions_CreatedBy'";
+
+                    using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                    var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                    if (fkExists != null && (int)fkExists == 0)
+                    {
+                        string addFkQuery = @"
+                            ALTER TABLE [dbo].[tbl_payroll_transactions]
+                            ADD CONSTRAINT FK_tbl_payroll_transactions_CreatedBy 
+                            FOREIGN KEY ([created_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                        using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                        await addFkCommand.ExecuteNonQueryAsync();
+                    }
+
+                    anyAdded = true;
+                }
+
+                // Add approved_by, approved_at
+                string[] approvalColumns = new[] { "approved_by", "approved_at" };
+                foreach (var colName in approvalColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = colName == "approved_by"
+                            ? @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [approved_by] INT NULL"
+                            : @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [approved_at] DATETIME NULL";
+
+                        using var addCommand = new SqlCommand(addColQuery, connection);
+                        await addCommand.ExecuteNonQueryAsync();
+
+                        if (colName == "approved_by")
+                        {
+                            // Add foreign key
+                            string checkFkQuery = @"
+                                SELECT COUNT(*) 
+                                FROM sys.foreign_keys 
+                                WHERE name = 'FK_tbl_payroll_transactions_ApprovedBy'";
+
+                            using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                            var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                            if (fkExists != null && (int)fkExists == 0)
+                            {
+                                string addFkQuery = @"
+                                    ALTER TABLE [dbo].[tbl_payroll_transactions]
+                                    ADD CONSTRAINT FK_tbl_payroll_transactions_ApprovedBy 
+                                    FOREIGN KEY ([approved_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                                using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                                await addFkCommand.ExecuteNonQueryAsync();
+                            }
+                        }
+
+                        anyAdded = true;
+                    }
+                }
+
+                // Add cancelled_by, cancelled_at, cancellation_reason
+                string[] cancelColumns = new[] { "cancelled_by", "cancelled_at", "cancellation_reason" };
+                foreach (var colName in cancelColumns)
+                {
+                    string checkColQuery = $@"
+                        SELECT COUNT(*) 
+                        FROM sys.columns 
+                        WHERE object_id = OBJECT_ID('dbo.tbl_payroll_transactions') 
+                        AND name = '{colName}'";
+
+                    using var checkColCommand = new SqlCommand(checkColQuery, connection);
+                    var colResult = await checkColCommand.ExecuteScalarAsync();
+                    var colExists = colResult != null ? (int)colResult : 0;
+
+                    if (colExists == 0)
+                    {
+                        string addColQuery = colName switch
+                        {
+                            "cancelled_by" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancelled_by] INT NULL",
+                            "cancelled_at" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancelled_at] DATETIME NULL",
+                            "cancellation_reason" => @"ALTER TABLE [dbo].[tbl_payroll_transactions] ADD [cancellation_reason] NVARCHAR(500) NULL",
+                            _ => ""
+                        };
+
+                        if (!string.IsNullOrEmpty(addColQuery))
+                        {
+                            using var addCommand = new SqlCommand(addColQuery, connection);
+                            await addCommand.ExecuteNonQueryAsync();
+
+                            if (colName == "cancelled_by")
+                            {
+                                // Add foreign key
+                                string checkFkQuery = @"
+                                    SELECT COUNT(*) 
+                                    FROM sys.foreign_keys 
+                                    WHERE name = 'FK_tbl_payroll_transactions_CancelledBy'";
+
+                                using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                                var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                                if (fkExists != null && (int)fkExists == 0)
+                                {
+                                    string addFkQuery = @"
+                                        ALTER TABLE [dbo].[tbl_payroll_transactions]
+                                        ADD CONSTRAINT FK_tbl_payroll_transactions_CancelledBy 
+                                        FOREIGN KEY ([cancelled_by]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE NO ACTION";
+
+                                    using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                                    await addFkCommand.ExecuteNonQueryAsync();
+                                }
+                            }
+
+                            anyAdded = true;
+                        }
+                    }
+                }
+
+                if (anyAdded)
+                {
+                    System.Diagnostics.Debug.WriteLine("Added audit trail and company contribution columns to tbl_payroll_transactions table.");
+                }
+
+                return anyAdded;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding audit trail and company contribution columns: {ex.Message}");
                 return false;
             }
         }
@@ -1640,24 +1402,17 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await AddSubjectColumnsIfNotExistAsync();
                 await AddSectionAdviserColumnIfNotExistsAsync();
                 await AddTeacherAssignmentArchiveColumnIfNotExistsAsync();
+                await AddThresholdPercentageColumnIfNotExistsAsync(); // Add missing column
+                await AddBatchTimestampColumnIfNotExistsAsync(); // Add batch_timestamp column for payroll
+                await AddPayrollAuditTrailAndCompanyContributionsAsync(); // Add audit trail and company contributions
+                await AddEffectiveDateColumnIfNotExistsAsync(); // Add effective_date column to salary change requests
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();
                 await SeedGradeLevelsAsync();
                 
-                // Explicitly ensure critical tables exist (for existing databases)
+                // Explicitly ensure audit logs table exists (for existing databases)
                 await EnsureAuditLogsTableExistsAsync();
-                await EnsureGradesTableExistsAsync();
-                
-                // Migrate grade-related table columns if needed
-                await MigrateGradeWeightsTableColumnsAsync();
-                await MigrateGradeHistoryTableColumnsAsync();
-                
-                // Add school_year columns to existing tables (for migration)
-                await AddSchoolYearColumnsIfNotExistAsync();
-                
-                // Seed initial school year data
-                await SeedSchoolYearsAsync();
                 
                 return dbCreated || tablesCreated;
             }

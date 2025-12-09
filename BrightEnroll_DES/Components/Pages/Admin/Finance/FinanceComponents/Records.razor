@@ -60,6 +60,7 @@
                     <th class="px-4 py-3 text-left">Amount Paid</th>
                     <th class="px-4 py-3 text-left">Balance</th>
                     <th class="px-4 py-3 text-left">Payment Status</th>
+                    <th class="px-4 py-3 text-left">Processed By</th>
                     <th class="px-4 py-3 text-center">Actions</th>
                 </tr>
             </thead>
@@ -90,6 +91,15 @@
                             }
                         </td>
                         <td class="px-4 py-3">
+                            <div class="text-sm text-gray-700">
+                                <div class="font-medium">@(string.IsNullOrWhiteSpace(record.ProcessedBy) ? "N/A" : record.ProcessedBy)</div>
+                                @if (record.LastPaymentDate.HasValue)
+                                {
+                                    <div class="text-xs text-gray-500 mt-0.5">@record.LastPaymentDate.Value.ToString("MMM dd, yyyy")</div>
+                                }
+                            </div>
+                        </td>
+                        <td class="px-4 py-3">
                             <div class="flex items-center justify-center gap-2">
                                 <button @onclick="() => ViewPaymentDetails(record)" 
                                         class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
@@ -99,13 +109,6 @@
                                     </svg>
                                     <span class="hidden sm:inline">View</span>
                                 </button>
-                                <button @onclick="() => EditPaymentRecord(record)" 
-                                        class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                                    </svg>
-                                    <span class="hidden sm:inline">Edit</span>
-                                </button>
                             </div>
                         </td>
                     </tr>
@@ -114,7 +117,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                        <td colspan="9" class="px-4 py-12 text-center text-gray-500">
                             <div class="flex flex-col items-center justify-center">
                                 <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -141,7 +144,6 @@
 @code {
     [Parameter] public List<PaymentRecord> PaymentRecords { get; set; } = new();
     [Parameter] public EventCallback<PaymentRecord> OnViewPaymentDetails { get; set; }
-    [Parameter] public EventCallback<PaymentRecord> OnEditPaymentRecord { get; set; }
     [Parameter] public EventCallback OnExportPDF { get; set; }
 
     private string SearchText { get; set; } = "";
@@ -209,11 +211,6 @@
     private async Task ViewPaymentDetails(PaymentRecord record)
     {
         await OnViewPaymentDetails.InvokeAsync(record);
-    }
-
-    private async Task EditPaymentRecord(PaymentRecord record)
-    {
-        await OnEditPaymentRecord.InvokeAsync(record);
     }
 
     private async Task ExportRecordsPDF()

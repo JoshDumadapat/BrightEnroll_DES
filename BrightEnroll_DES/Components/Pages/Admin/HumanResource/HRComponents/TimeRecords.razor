@@ -1,0 +1,567 @@
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.Business.HR
+@using Microsoft.AspNetCore.Components.Forms
+@inject EmployeeService EmployeeService
+@inject TimeRecordExcelService TimeRecordExcelService
+@inject TimeRecordService TimeRecordService
+@inject IJSRuntime JSRuntime
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="overflow-hidden rounded-xl bg-white shadow-lg">
+    <!-- Header Section -->
+    <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-800">Time Records</h2>
+                <p class="mt-1 text-sm text-gray-600">Upload Excel file to import attendance data (Time In, Time Out, Overtime, Leave, Late)</p>
+            </div>
+            <div class="flex flex-col gap-2 sm:flex-row">
+                <button @onclick="DownloadTemplate" 
+                        class="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download Template
+                </button>
+                <label class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors cursor-pointer">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Upload Excel
+                    <InputFile OnChange="HandleFileUpload" accept=".xlsx,.xls" class="hidden" />
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="border-b border-gray-200 px-6 py-4">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">Period:</label>
+                <input type="month" 
+                       value="@(selectedMonth?.ToString("yyyy-MM"))"
+                       onchange="@((ChangeEventArgs e) => OnMonthChanged(e.Value?.ToString()))"
+                       class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+            </div>
+            <div class="flex items-center gap-2">
+                <label class="text-sm font-medium text-gray-700">Search:</label>
+                <input type="text" placeholder="Search employee..." @bind="searchText" @bind:after="OnSearchChanged"
+                       class="w-full sm:w-60 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Employee ID
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Name
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Role
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Regular Hours
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Overtime (hrs)
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Leave (days)
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Late (mins)
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Total Days Absent
+                    </th>
+                    <th scope="col" class="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Total Days Duty
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="9" class="px-6 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="animate-spin h-8 w-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Loading employees...</span>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else if (!timeRecords.Any())
+                {
+                    <tr>
+                        <td colspan="11" class="px-6 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center gap-2">
+                                <svg class="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-sm font-medium text-gray-600">No time records found</p>
+                                <p class="text-xs text-gray-500">Upload an Excel file to import attendance data</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var record in filteredRecords)
+                    {
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                @record.EmployeeId
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                @record.Name
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                @record.Role
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                                @record.RegularHours.ToString("F2")
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                @if (record.OvertimeHours > 0)
+                                {
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                        @record.OvertimeHours.ToString("F2")
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-500">0.00</span>
+                                }
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                @if (record.LeaveDays > 0)
+                                {
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        @record.LeaveDays.ToString("F1")
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-500">0.0</span>
+                                }
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                @if (record.LateMinutes > 0)
+                                {
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        @record.LateMinutes
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-500">0</span>
+                                }
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
+                                @record.TotalDaysAbsent
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 font-semibold">
+                                    @(GetMonthlyWorkingDays() - record.TotalDaysAbsent)
+                                </span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Summary Footer -->
+    @if (timeRecords.Any())
+    {
+        <div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div>
+                    <p class="text-xs text-gray-600">Total Employees</p>
+                    <p class="text-lg font-semibold text-gray-900">@timeRecords.Count</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-600">Total Overtime Hours</p>
+                    <p class="text-lg font-semibold text-orange-600">@timeRecords.Sum(r => r.OvertimeHours).ToString("F2")</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-600">Total Leave Days</p>
+                    <p class="text-lg font-semibold text-blue-600">@timeRecords.Sum(r => r.LeaveDays).ToString("F1")</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-600">Total Late Minutes</p>
+                    <p class="text-lg font-semibold text-red-600">@timeRecords.Sum(r => r.LateMinutes)</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private DateTime? selectedMonth = DateTime.Now;
+    private string searchText = "";
+
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    // Sample data structure - will be populated from Excel
+    private List<BrightEnroll_DES.Services.Business.HR.TimeRecordDto> timeRecords = new();
+    private List<EmployeeBasicInfo> employees = new();
+
+    private List<BrightEnroll_DES.Services.Business.HR.TimeRecordDto> filteredRecords
+    {
+        get
+        {
+            var filtered = timeRecords.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var searchLower = searchText.ToLower();
+                filtered = filtered.Where(r =>
+                    r.Name.ToLower().Contains(searchLower) ||
+                    r.EmployeeId.ToLower().Contains(searchLower) ||
+                    r.Role.ToLower().Contains(searchLower)
+                );
+            }
+
+            return filtered.ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEmployees();
+        // Load existing time records from database for the selected period
+        await LoadTimeRecordsFromDatabase();
+        isLoading = false;
+    }
+
+    private async Task LoadTimeRecordsFromDatabase()
+    {
+        try
+        {
+            if (!selectedMonth.HasValue)
+            {
+                selectedMonth = DateTime.Now;
+            }
+
+            var period = selectedMonth.Value.ToString("yyyy-MM");
+            var savedRecords = await TimeRecordService.GetTimeRecordsByPeriodAsync(period);
+
+            if (savedRecords.Any())
+            {
+                // Use saved records from database
+                timeRecords = savedRecords;
+            }
+            else
+            {
+                // Initialize with employee data but blank attendance fields
+                timeRecords = employees.Select(e => new BrightEnroll_DES.Services.Business.HR.TimeRecordDto
+                {
+                    EmployeeId = e.EmployeeId,
+                    Name = e.Name,
+                    Role = e.Role,
+                    // Leave attendance fields blank
+                    RegularHours = 0,
+                    OvertimeHours = 0,
+                    LeaveDays = 0,
+                    LateMinutes = 0,
+                    TotalDaysAbsent = 0
+                }).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading time records: {ex.Message}");
+            // Fallback to initializing with employee data
+            timeRecords = employees.Select(e => new BrightEnroll_DES.Services.Business.HR.TimeRecordDto
+            {
+                EmployeeId = e.EmployeeId,
+                Name = e.Name,
+                Role = e.Role,
+                RegularHours = 0,
+                OvertimeHours = 0,
+                LeaveDays = 0,
+                LateMinutes = 0,
+                TotalDaysAbsent = 0
+            }).ToList();
+        }
+    }
+
+    private async Task LoadEmployees()
+    {
+        try
+        {
+            // Only fetch Name and Role from existing employees
+            var allEmployees = await EmployeeService.GetAllEmployeesAsync();
+            employees = allEmployees.Select(e => new EmployeeBasicInfo
+            {
+                EmployeeId = e.Id,
+                Name = e.Name,
+                Role = e.Role
+            }).ToList();
+        }
+        catch (Exception)
+        {
+            employees = new List<EmployeeBasicInfo>();
+        }
+    }
+
+    private async Task HandleFileUpload(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            isLoading = true;
+            StateHasChanged();
+
+            // Validate file
+            if (e.File == null)
+            {
+                ShowToast("No file selected.", ToastType.Error);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Validate file extension
+            var fileName = e.File.Name.ToLower();
+            if (!fileName.EndsWith(".xlsx") && !fileName.EndsWith(".xls"))
+            {
+                ShowToast("Please upload a valid Excel file (.xlsx or .xls).", ToastType.Error);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Load employees if not already loaded
+            if (!employees.Any())
+            {
+                await LoadEmployees();
+            }
+
+            // Read file stream asynchronously into byte array
+            using var stream = e.File.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024); // 10MB max
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            byte[] fileBytes = memoryStream.ToArray();
+            
+            var uploadedRecords = TimeRecordExcelService.ParseUploadedFile(fileBytes);
+
+            if (!uploadedRecords.Any())
+            {
+                ShowToast("No data found in the Excel file. Please check the file format.", ToastType.Error);
+                isLoading = false;
+                StateHasChanged();
+                return;
+            }
+
+            // Match uploaded records with employee data and populate timeRecords
+            timeRecords = new List<TimeRecordDto>();
+            var matchedCount = 0;
+            var unmatchedEmployees = new List<string>();
+
+            foreach (var uploadedRecord in uploadedRecords)
+            {
+                // Find matching employee by Employee ID
+                var employee = employees.FirstOrDefault(e => 
+                    e.EmployeeId.Equals(uploadedRecord.EmployeeId, StringComparison.OrdinalIgnoreCase));
+
+                if (employee != null)
+                {
+                    // Use employee data from database, attendance data from Excel
+                    var timeRecord = new BrightEnroll_DES.Services.Business.HR.TimeRecordDto
+                    {
+                        EmployeeId = employee.EmployeeId,
+                        Name = employee.Name,
+                        Role = employee.Role,
+                        // Attendance data from Excel
+                        RegularHours = uploadedRecord.RegularHours,
+                        OvertimeHours = uploadedRecord.OvertimeHours,
+                        LeaveDays = uploadedRecord.LeaveDays,
+                        LateMinutes = uploadedRecord.LateMinutes,
+                        TotalDaysAbsent = uploadedRecord.TotalDaysAbsent
+                    };
+
+                    timeRecords.Add(timeRecord);
+                    matchedCount++;
+                }
+                else
+                {
+                    unmatchedEmployees.Add($"{uploadedRecord.EmployeeId} ({uploadedRecord.Name})");
+                }
+            }
+
+            // Auto-save to database
+            if (matchedCount > 0 && selectedMonth.HasValue)
+            {
+                try
+                {
+                    var period = selectedMonth.Value.ToString("yyyy-MM");
+                    var savedCount = await TimeRecordService.SaveTimeRecordsAsync(uploadedRecords, period);
+                    
+                    // Reload from database to ensure consistency
+                    await LoadTimeRecordsFromDatabase();
+                    
+                    isLoading = false;
+                    StateHasChanged();
+
+                    // Show success message with unmatched employees if any
+                    if (unmatchedEmployees.Any())
+                    {
+                        var unmatchedList = string.Join(", ", unmatchedEmployees.Take(5));
+                        if (unmatchedEmployees.Count > 5)
+                            unmatchedList += $" and {unmatchedEmployees.Count - 5} more";
+                        
+                        ShowToast(
+                            $"Saved {savedCount} time record(s) to database. Warning: {unmatchedEmployees.Count} employee(s) not found: {unmatchedList}",
+                            ToastType.Edit);
+                    }
+                    else
+                    {
+                        ShowToast($"Successfully saved {savedCount} time record(s) to database.", ToastType.Success);
+                    }
+                }
+                catch (Exception saveEx)
+                {
+                    isLoading = false;
+                    StateHasChanged();
+                    Console.WriteLine($"Error saving time records: {saveEx.Message}");
+                    ShowToast($"Error saving to database: {saveEx.Message}", ToastType.Error);
+                }
+            }
+            else
+            {
+                isLoading = false;
+                StateHasChanged();
+                
+                if (unmatchedEmployees.Any())
+                {
+                    var unmatchedList = string.Join(", ", unmatchedEmployees.Take(5));
+                    if (unmatchedEmployees.Count > 5)
+                        unmatchedList += $" and {unmatchedEmployees.Count - 5} more";
+                    
+                    ShowToast(
+                        $"Uploaded {matchedCount} employee records. Warning: {unmatchedEmployees.Count} employee(s) not found in database: {unmatchedList}",
+                        ToastType.Edit);
+                }
+                else
+                {
+                    ShowToast($"Successfully uploaded {matchedCount} employee time record(s).", ToastType.Success);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            StateHasChanged();
+            Console.WriteLine($"Error uploading Excel file: {ex.Message}");
+            ShowToast($"Error uploading file: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private async Task DownloadTemplate()
+    {
+        try
+        {
+            // Load employees if not already loaded
+            if (!employees.Any())
+            {
+                await LoadEmployees();
+            }
+
+            // Get all employees from service
+            var allEmployees = await EmployeeService.GetAllEmployeesAsync();
+
+            // Generate Excel with employee data and random attendance
+            var excelBytes = TimeRecordExcelService.GenerateTemplate(allEmployees);
+            var fileName = $"TimeRecord_Template_{DateTime.Now:yyyyMMdd}.xlsx";
+            var base64Content = Convert.ToBase64String(excelBytes);
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", base64Content);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error generating Excel template: {ex.Message}");
+            ShowToast($"Error generating template: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private async Task OnMonthChanged(string? monthValue)
+    {
+        if (!string.IsNullOrEmpty(monthValue) && DateTime.TryParse(monthValue + "-01", out var parsedDate))
+        {
+            selectedMonth = parsedDate;
+            // Load time records for the selected period
+            isLoading = true;
+            StateHasChanged();
+            await LoadTimeRecordsFromDatabase();
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        StateHasChanged();
+    }
+
+    private int GetMonthlyWorkingDays()
+    {
+        DateTime now = selectedMonth ?? DateTime.Now;
+        int year = now.Year;
+        int month = now.Month;
+        int daysInMonth = DateTime.DaysInMonth(year, month);
+        int workingDays = 0;
+
+        for (int day = 1; day <= daysInMonth; day++)
+        {
+            DateTime currentDate = new DateTime(year, month, day);
+            // Count only weekdays (Monday = 1, Sunday = 7)
+            if (currentDate.DayOfWeek != DayOfWeek.Saturday && currentDate.DayOfWeek != DayOfWeek.Sunday)
+            {
+                workingDays++;
+            }
+        }
+
+        return workingDays;
+    }
+
+    private void ShowToast(string message, ToastType type = ToastType.Success)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+
+    // Data Transfer Objects
+    public class EmployeeBasicInfo
+    {
+        public string EmployeeId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+    }
+}

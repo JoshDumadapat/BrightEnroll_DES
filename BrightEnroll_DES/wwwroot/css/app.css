@@ -57,12 +57,26 @@ h1:focus {
     top: 0.5rem;
 }
 
-/* Print Styles for Calculation Details */
+/* Print Styles for Calculation Details - Enhanced for PDF */
 @media print {
+    @page {
+        size: A4;
+        margin: 1.5cm 1cm;
+    }
+    
+    /* Force color printing */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+    
+    /* Hide everything except the calculation details */
     body * {
         visibility: hidden;
     }
     
+    /* Show only the calculation details section */
     #calculation-details-print,
     #calculation-details-print * {
         visibility: visible;
@@ -73,17 +87,70 @@ h1:focus {
         left: 0;
         top: 0;
         width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: white !important;
     }
     
-    /* Hide navigation and other UI elements */
-    nav, header, footer, .sidebar, button, .print\\:hidden {
+    /* Hide navigation, sidebar, buttons, and other UI elements */
+    nav, 
+    header, 
+    footer, 
+    .sidebar, 
+    button, 
+    .print\\:hidden,
+    [class*="nav"],
+    [class*="sidebar"],
+    .bg-gray-50:not(#calculation-details-print),
+    .shadow,
+    .shadow-sm,
+    .shadow-md,
+    .shadow-lg,
+    .shadow-xl,
+    .shadow-2xl {
         display: none !important;
+        visibility: hidden !important;
     }
     
     /* Ensure proper page breaks */
     .print\\:break-inside-avoid {
-        break-inside: avoid;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+    
+    /* Prevent page breaks inside tables */
+    table {
         page-break-inside: avoid;
+        break-inside: avoid;
+    }
+    
+    /* Ensure tables don't overflow */
+    table, thead, tbody, tr {
+        page-break-inside: avoid;
+    }
+    
+    /* Better spacing for print */
+    #calculation-details-print > div {
+        margin-bottom: 0.5cm;
+    }
+    
+    /* Ensure text is readable */
+    #calculation-details-print {
+        font-size: 11pt;
+        line-height: 1.4;
+    }
+    
+    /* Remove rounded corners for cleaner print */
+    #calculation-details-print * {
+        border-radius: 0 !important;
+    }
+    
+    /* Ensure borders print properly */
+    #calculation-details-print [class*="border"] {
+        border-color: #000 !important;
     }
 }
 
@@ -180,22 +247,22 @@ h1:focus {
     animation: progressBar 2s ease-in-out infinite;
 }
 
-/* Unified tooltip style */
+/* Simple tooltip style */
 .tooltip-delay {
     position: fixed !important;
     z-index: 999999 !important;
     pointer-events: none;
     display: none;
-    white-space: normal;
-    max-width: 250px;
+    white-space: nowrap;
+    max-width: 300px;
     word-wrap: break-word;
     background-color: #1f2937;
     color: white;
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     border-radius: 0.375rem;
     font-size: 0.75rem;
     line-height: 1.4;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     transform: translateX(-50%);
     left: 0;
     top: 0;
@@ -214,6 +281,11 @@ h1:focus {
 
 /* Ensure parent containers of groups don't clip tooltips */
 .group:has(.tooltip-delay) {
+    overflow: visible !important;
+}
+
+/* Ensure dashboard filter container doesn't clip tooltips */
+div[style*="overflow: visible"] {
     overflow: visible !important;
 }
 

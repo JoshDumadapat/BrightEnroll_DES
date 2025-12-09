@@ -16,7 +16,22 @@ namespace BrightEnroll_DES.WinUI
         /// </summary>
         public App()
         {
-            this.InitializeComponent();
+            try
+            {
+                this.InitializeComponent();
+            }
+            catch (System.Runtime.InteropServices.SEHException sehEx)
+            {
+                // Handle SEHException during initialization
+                System.Diagnostics.Debug.WriteLine($"SEHException during App initialization: {sehEx.Message}");
+                // Try to continue - the app might still work
+            }
+            catch (Exception ex)
+            {
+                // Handle any other exceptions during initialization
+                System.Diagnostics.Debug.WriteLine($"Exception during App initialization: {ex.Message}");
+                throw; // Re-throw non-SEH exceptions as they might be critical
+            }
         }
 
         protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();

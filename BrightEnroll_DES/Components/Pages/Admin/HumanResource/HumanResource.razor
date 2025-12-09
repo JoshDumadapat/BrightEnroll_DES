@@ -22,8 +22,33 @@
 
 <div class="text-gray-800 px-2 sm:px-4 lg:px-6">
     <h1 class="mb-4 sm:mb-6 text-xl sm:text-2xl font-bold text-gray-800">Human Resource</h1>
-    <!-- Filter, Table, and Pagination Card -->
-    <div class="overflow-hidden rounded-xl bg-white shadow-lg">
+    
+    <!-- Tabs -->
+    <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+        <div class="flex items-center gap-6">
+            <button @onclick='() => SetActiveTab("Employees")' 
+                    class="@GetTabClasses("Employees")">
+                Employee Records
+            </button>
+            <button @onclick='() => SetActiveTab("SalaryChangeLog")' 
+                    class="@GetTabClasses("SalaryChangeLog")">
+                Salary Change Log
+            </button>
+            <button @onclick='() => SetActiveTab("TimeRecords")' 
+                    class="@GetTabClasses("TimeRecords")">
+                Time Records
+            </button>
+            <button @onclick='() => SetActiveTab("HRAnalytics")' 
+                    class="@GetTabClasses("HRAnalytics")">
+                HR Analytics
+            </button>
+        </div>
+    </div>
+    
+    @if (activeTab == "Employees")
+    {
+        <!-- Filter, Table, and Pagination Card -->
+        <div class="overflow-hidden rounded-xl bg-white shadow-lg">
         <!-- Filters -->
         <div class="border-b border-gray-200 px-4 py-4 sm:px-6">
             <label class="mb-3 block text-sm font-bold text-gray-700">Filter:</label>
@@ -200,8 +225,21 @@
                     ItemName="employees"
                     OnPageChanged="HandlePageChanged"
                     OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+        </div>
+    }
+    else if (activeTab == "SalaryChangeLog")
+    {
+        <SalaryChangeLog />
+    }
+    else if (activeTab == "TimeRecords")
+    {
+        <TimeRecords />
+    }
+    else if (activeTab == "HRAnalytics")
+    {
+        <HRAnalytics />
+    }
     </div>
-</div>
 
 <!-- Inactive Reason Modal -->
 @if (ShowInactiveModal)
@@ -287,6 +325,7 @@
 }
 
 @code {
+    private string activeTab = "Employees";
     private List<EmployeeDisplayDto> Employees = new();
     private bool isLoading = true;
     
@@ -416,6 +455,14 @@
                 hasSuccessToast = true;
                 StateHasChanged();
             }
+            else if (toastValue == "employee_added_pending_approval")
+            {
+                toastMessage = "Employee registered successfully. Salary change request has been submitted for approval. The employee will be notified once approved.";
+                toastType = ToastType.Success;
+                showToast = true;
+                hasSuccessToast = true;
+                StateHasChanged();
+            }
         }
 
         // Load employees inline (no full-screen loading - uses table loading indicator)
@@ -433,6 +480,13 @@
             if (toastValue == "employee_added" && !showToast)
             {
                 toastMessage = "Employee has been added successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+                StateHasChanged();
+            }
+            else if (toastValue == "employee_added_pending_approval" && !showToast)
+            {
+                toastMessage = "Employee registered successfully. Salary change request has been submitted for approval. The employee will be notified once approved.";
                 toastType = ToastType.Success;
                 showToast = true;
                 StateHasChanged();
@@ -500,12 +554,28 @@
             
             if (query.TryGetValue("toast", out var toastValue))
             {
-                if (toastValue == "employee_added")
+                if (toastValue == "employee_added" || toastValue == "employee_added_pending_approval" || 
+                    toastValue == "employee_updated" || toastValue == "employee_updated_salary_pending")
                 {
                     // Only set if not already set (avoid duplicate)
                     if (!showToast)
                     {
-                        toastMessage = "Employee has been added successfully!";
+                        if (toastValue == "employee_added")
+                        {
+                            toastMessage = "Employee has been added successfully!";
+                        }
+                        else if (toastValue == "employee_added_pending_approval")
+                        {
+                            toastMessage = "Employee registered successfully. Salary change request has been submitted for approval. The employee will be notified once approved.";
+                        }
+                        else if (toastValue == "employee_updated")
+                        {
+                            toastMessage = "Employee information updated successfully!";
+                        }
+                        else if (toastValue == "employee_updated_salary_pending")
+                        {
+                            toastMessage = "Employee information updated. Salary change request has been submitted for approval.";
+                        }
                         toastType = ToastType.Success;
                         showToast = true;
                         StateHasChanged();
@@ -513,7 +583,7 @@
                     
                     // Clean up query parameter from URL after a delay to ensure toast is shown
                     await Task.Delay(3000);
-                    if (NavigationManager.Uri.Contains("toast=employee_added"))
+                    if (NavigationManager.Uri.Contains("toast="))
                     {
                         NavigationManager.NavigateTo("/human-resource", forceLoad: false);
                     }
@@ -775,6 +845,36 @@
     private void ViewEmployee(EmployeeDisplayDto employee)
     {
         NavigationManager.NavigateTo($"/human-resource/employee-profile/{employee.UserId}");
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        StateHasChanged();
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        bool isSelected = activeTab == tab;
+        
+        return tab switch
+        {
+            "Employees" => isSelected
+                ? "px-4 py-2 text-sm font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors"
+                : "px-4 py-2 text-sm font-semibold text-blue-600 transition-colors duration-200 hover:text-blue-700",
+            "SalaryChangeLog" => isSelected
+                ? "px-4 py-2 text-sm font-semibold text-purple-600 border-b-2 border-purple-600 transition-colors"
+                : "px-4 py-2 text-sm font-semibold text-purple-600 transition-colors duration-200 hover:text-purple-700",
+            "TimeRecords" => isSelected
+                ? "px-4 py-2 text-sm font-semibold text-green-600 border-b-2 border-green-600 transition-colors"
+                : "px-4 py-2 text-sm font-semibold text-green-600 transition-colors duration-200 hover:text-green-700",
+            "HRAnalytics" => isSelected
+                ? "px-4 py-2 text-sm font-semibold text-orange-600 border-b-2 border-orange-600 transition-colors"
+                : "px-4 py-2 text-sm font-semibold text-orange-600 transition-colors duration-200 hover:text-orange-700",
+            _ => isSelected
+                ? "px-4 py-2 text-sm font-semibold text-gray-600 border-b-2 border-gray-600 transition-colors"
+                : "px-4 py-2 text-sm font-semibold text-gray-600 transition-colors duration-200 hover:text-gray-800"
+        };
     }
 }
 </RoleAuthorizeView>

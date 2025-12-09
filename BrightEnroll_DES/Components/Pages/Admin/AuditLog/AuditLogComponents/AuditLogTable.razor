@@ -135,9 +135,32 @@
                                 @log.Status
                                 <span class="tooltip-delay">Status: @log.Status</span>
                             </span>
-                            <span class="group relative inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold @GetSeverityClass(log.Severity ?? "Low") whitespace-nowrap">
-                                @(log.Severity ?? "Low")
-                                <span class="tooltip-delay">Severity Level: @(log.Severity ?? "Low")</span>
+                            @{
+                                var severity = string.IsNullOrWhiteSpace(log.Severity) 
+                                    ? DetermineSeverity(log.Action, log.Module, log.Status) 
+                                    : log.Severity;
+                            }
+                            <span class="group relative inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold @GetSeverityClass(severity) whitespace-nowrap shadow-sm">
+                                @if (severity.Equals("High", StringComparison.OrdinalIgnoreCase) || severity.Equals("Critical", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else if (severity.Equals("Moderate", StringComparison.OrdinalIgnoreCase) || severity.Equals("Medium", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                <span>@severity</span>
+                                <span class="tooltip-delay">Severity Level: @severity - @GetSeverityDescription(severity)</span>
                             </span>
                         </div>
                         <h3 class="mb-1 text-sm font-semibold text-blue-600">
@@ -254,8 +277,31 @@
                             <span class="rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(SelectedLog.Status)">
                                 @SelectedLog.Status
                             </span>
-                            <span class="rounded-full px-2 py-0.5 text-xs font-normal @GetSeverityClass(SelectedLog.Severity ?? "Low")">
-                                @(SelectedLog.Severity ?? "Low")
+                            @{
+                                var modalSeverity = string.IsNullOrWhiteSpace(SelectedLog.Severity) 
+                                    ? DetermineSeverity(SelectedLog.Action, SelectedLog.Module, SelectedLog.Status) 
+                                    : SelectedLog.Severity;
+                            }
+                            <span class="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold @GetSeverityClass(modalSeverity) shadow-sm">
+                                @if (modalSeverity.Equals("High", StringComparison.OrdinalIgnoreCase) || modalSeverity.Equals("Critical", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else if (modalSeverity.Equals("Moderate", StringComparison.OrdinalIgnoreCase) || modalSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                <span>@modalSeverity</span>
                             </span>
                         </div>
                         <h2 class="text-xl font-bold text-blue-600">@SelectedLog.Action</h2>
@@ -322,7 +368,33 @@
                         </div>
                         <div>
                             <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">Severity</label>
-                            <p class="text-sm font-medium text-gray-900">@(SelectedLog.Severity ?? "Low")</p>
+                            @{
+                                var detailSeverity = string.IsNullOrWhiteSpace(SelectedLog.Severity) 
+                                    ? DetermineSeverity(SelectedLog.Action, SelectedLog.Module, SelectedLog.Status) 
+                                    : SelectedLog.Severity;
+                            }
+                            <div class="mt-1 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold @GetSeverityClass(detailSeverity) shadow-sm">
+                                @if (detailSeverity.Equals("High", StringComparison.OrdinalIgnoreCase) || detailSeverity.Equals("Critical", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else if (detailSeverity.Equals("Moderate", StringComparison.OrdinalIgnoreCase) || detailSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                else
+                                {
+                                    <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                    </svg>
+                                }
+                                <span>@detailSeverity</span>
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">@GetSeverityDescription(detailSeverity)</p>
                         </div>
                     </div>
                 </div>
@@ -408,10 +480,19 @@
                 filtered = filtered.Where(l => l.Status.Equals(StatusFilter, StringComparison.OrdinalIgnoreCase));
             }
 
-            // Severity filter
+            // Severity filter - check both stored severity and determined severity
             if (!string.IsNullOrWhiteSpace(SeverityFilter))
             {
-                filtered = filtered.Where(l => l.Severity.Equals(SeverityFilter, StringComparison.OrdinalIgnoreCase));
+                filtered = filtered.Where(l =>
+                {
+                    var severity = string.IsNullOrWhiteSpace(l.Severity)
+                        ? DetermineSeverity(l.Action, l.Module, l.Status)
+                        : l.Severity;
+                    // Normalize "Medium" to "Moderate" for comparison
+                    var normalizedSeverity = severity.Equals("Medium", StringComparison.OrdinalIgnoreCase) ? "Moderate" : severity;
+                    var normalizedFilter = SeverityFilter.Equals("Medium", StringComparison.OrdinalIgnoreCase) ? "Moderate" : SeverityFilter;
+                    return normalizedSeverity.Equals(normalizedFilter, StringComparison.OrdinalIgnoreCase);
+                });
             }
 
             // Role filter
@@ -508,16 +589,65 @@
         };
     }
 
-    // Get severity class
+    // Get severity class with better UI/UX styling
     private string GetSeverityClass(string severity)
     {
-        return severity switch
+        // Normalize severity values (handle both "Medium" and "Moderate")
+        var normalizedSeverity = severity?.Trim() ?? "Low";
+        if (normalizedSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase))
         {
-            "Low" => "bg-blue-100 text-blue-700",
-            "Moderate" => "bg-yellow-100 text-yellow-700",
-            "High" => "bg-orange-100 text-orange-700",
-            _ => "bg-gray-100 text-gray-700"
+            normalizedSeverity = "Moderate";
+        }
+
+        return normalizedSeverity switch
+        {
+            "Low" => "bg-blue-50 border border-blue-200 text-blue-700 font-semibold",
+            "Moderate" => "bg-yellow-50 border border-yellow-200 text-yellow-700 font-semibold",
+            "High" => "bg-orange-50 border border-orange-200 text-orange-700 font-semibold",
+            "Critical" => "bg-red-50 border border-red-200 text-red-700 font-semibold",
+            _ => "bg-gray-50 border border-gray-200 text-gray-700 font-semibold"
         };
+    }
+
+    // Determine severity based on action and transaction type
+    private string DetermineSeverity(string action, string module, string status)
+    {
+        // If status is Failed, it's usually High severity
+        if (status.Equals("Failed", StringComparison.OrdinalIgnoreCase))
+        {
+            return "High";
+        }
+
+        // High severity actions - critical operations
+        var highSeverityActions = new[]
+        {
+            "Delete Record", "Delete Student", "Delete Employee", "Delete Payment",
+            "Archive Student", "Archive Employee", "System Settings Change",
+            "Failed Login Attempt", "Unauthorized Access", "Data Export",
+            "Bulk Delete", "Permanent Delete", "Approve Expense", "Reject Expense",
+            "Process Payment", "Create Expense", "Update Expense"
+        };
+
+        if (highSeverityActions.Any(a => action.Contains(a, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "High";
+        }
+
+        // Moderate severity actions - important but not critical
+        var moderateSeverityActions = new[]
+        {
+            "Create Employee", "Update Employee", "Create Student", "Update Student",
+            "Update Enrollment", "Update Grade", "Assign Section", "Document Verification",
+            "Create Fee", "Update Fee", "Salary Change Request"
+        };
+
+        if (moderateSeverityActions.Any(a => action.Contains(a, StringComparison.OrdinalIgnoreCase)))
+        {
+            return "Moderate";
+        }
+
+        // Low severity actions - routine operations
+        return "Low";
     }
 
     public void ClearFilters()
@@ -628,5 +758,24 @@
     private void ExportPDF()
     {
         // Export PDF logic will be implemented here
+    }
+
+    // Get severity description for tooltips
+    private string GetSeverityDescription(string severity)
+    {
+        var normalizedSeverity = severity?.Trim() ?? "Low";
+        if (normalizedSeverity.Equals("Medium", StringComparison.OrdinalIgnoreCase))
+        {
+            normalizedSeverity = "Moderate";
+        }
+
+        return normalizedSeverity switch
+        {
+            "Low" => "Routine operation with minimal impact",
+            "Moderate" => "Important operation requiring attention",
+            "High" => "Critical operation with significant impact",
+            "Critical" => "Urgent operation requiring immediate attention",
+            _ => "Standard operation"
+        };
     }
 }

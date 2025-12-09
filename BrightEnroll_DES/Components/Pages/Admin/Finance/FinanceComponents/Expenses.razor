@@ -1,8 +1,10 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Components.Pages.Admin
+@using BrightEnroll_DES.Services.Authentication
 @using System.Linq
 @inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
 
 <div class="p-6 space-y-6">
     <!-- Header / Filters / Add Button -->
@@ -58,6 +60,8 @@
                     <th class="px-4 py-3 text-left">Payee</th>
                     <th class="px-4 py-3 text-left">Amount</th>
                     <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Created By</th>
+                    <th class="px-4 py-3 text-left">Approved By</th>
                     <th class="px-4 py-3 text-center">Actions</th>
                 </tr>
             </thead>
@@ -91,6 +95,26 @@
                                     <span class="text-xs font-semibold text-gray-400">N/A</span>
                                 }
                             </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                @if (!string.IsNullOrWhiteSpace(expense.RecordedBy))
+                                {
+                                    <span>@expense.RecordedBy</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">N/A</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                @if (!string.IsNullOrWhiteSpace(expense.ApprovedBy))
+                                {
+                                    <span>@expense.ApprovedBy</span>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">Not yet approved</span>
+                                }
+                            </td>
                             <td class="px-4 py-3">
                                 <div class="flex items-center justify-center">
                                     <button @onclick="() => ViewExpense(expense)"
@@ -109,7 +133,7 @@
                 else
                 {
                     <tr>
-                        <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                        <td colspan="10" class="px-4 py-12 text-center text-gray-500">
                             <div class="flex flex-col items-center justify-center">
                                 <svg class="mb-3 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -135,8 +159,8 @@
     <!-- Expense Details Modal -->
     @if (ShowDetailsPanel)
     {
-        <div class="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 overflow-y-auto" @onclick="HandleBackdropClick">
-            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl mt-0" @onclick:stopPropagation="true">
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto p-4" @onclick="HandleBackdropClick">
+            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-y-auto" @onclick:stopPropagation="true">
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3">
                     <div>
@@ -175,8 +199,8 @@
                 <option value="Office Supplies">Office Supplies</option>
                 <option value="Teaching Materials">Teaching Materials</option>
                 <option value="Equipment & Maintenance">Equipment &amp; Maintenance</option>
-                <option value="Salaries / Honorarium">Salaries / Honorarium</option>
-                <option value="Events / Activities">Events / Activities</option>
+                <option value="Salaries and Honorarium">Salaries and Honorarium</option>
+                <option value="Events and Activities">Events and Activities</option>
                 <option value="Miscellaneous">Miscellaneous</option>
             </select>
         </div>
@@ -214,18 +238,20 @@
                    disabled="@IsViewMode" />
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Payee / Supplier:</label>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Payee:</label>
             <input type="text" @bind="ExpenseForm.Payee"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                    readonly="@IsViewMode"
-                   placeholder="Enter supplier or payee" />
+                   placeholder="Enter payee name" />
+            <p class="mt-1 text-xs text-gray-500">Name of person or company receiving payment</p>
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">OR / Receipt Number:</label>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Receipt Number:</label>
             <input type="text" @bind="ExpenseForm.OrNumber"
                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                    readonly="@IsViewMode"
-                   placeholder="Enter OR or receipt number" />
+                   placeholder="Enter receipt or OR number" />
+            <p class="mt-1 text-xs text-gray-500">Official Receipt or invoice number (optional)</p>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method:</label>
@@ -241,27 +267,43 @@
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Status:</label>
-            <select @bind="ExpenseForm.Status"
-                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
-                    disabled="@IsViewMode">
-                <option value="Pending">Pending</option>
-                <option value="Approved">Approved</option>
-                <option value="Rejected">Rejected</option>
-                <option value="Paid">Paid</option>
-            </select>
+            <div class="flex items-center gap-2">
+                @if (ExpenseForm.Status == "Pending")
+                {
+                    <span class="inline-flex items-center rounded-full bg-orange-100 px-3 py-1.5 text-sm font-medium text-orange-800">Pending Approval</span>
+                }
+                else if (ExpenseForm.Status == "Approved")
+                {
+                    <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1.5 text-sm font-medium text-green-800">Approved</span>
+                }
+                else if (ExpenseForm.Status == "Rejected")
+                {
+                    <span class="inline-flex items-center rounded-full bg-red-100 px-3 py-1.5 text-sm font-medium text-red-800">Rejected</span>
+                }
+                else if (ExpenseForm.Status == "Paid")
+                {
+                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1.5 text-sm font-medium text-blue-800">Paid</span>
+                }
+                else
+                {
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-800">@ExpenseForm.Status</span>
+                }
+            </div>
+            <p class="mt-1 text-xs text-gray-500">Status is updated through the approval process.</p>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Recorded By:</label>
-            <input type="text" @bind="ExpenseForm.RecordedBy"
+            <input type="text" value="@ExpenseForm.RecordedBy"
                    class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
                    readonly />
+            <p class="mt-1 text-xs text-gray-500">User who created this expense record.</p>
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Approved By:</label>
-            <input type="text" @bind="ExpenseForm.ApprovedBy"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
-                   readonly="@IsViewMode"
-                   placeholder="Enter approver name" />
+            <input type="text" value="@(string.IsNullOrWhiteSpace(ExpenseForm.ApprovedBy) ? "Not yet approved" : ExpenseForm.ApprovedBy)"
+                   class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-700 outline-none"
+                   readonly />
+            <p class="mt-1 text-xs text-gray-500">Will be set automatically when expense is approved.</p>
         </div>
         <div class="md:col-span-2">
             <label class="mb-2 block text-sm font-medium text-gray-700">Attachments:</label>
@@ -391,6 +433,13 @@
             ExpenseForm.ExpenseDate = DateTime.Now;
         }
     }
+    
+    protected override void OnParametersSet()
+    {
+        // Refresh the filtered list when ExpenseList parameter changes
+        // This ensures the list updates automatically when a new expense is added
+        StateHasChanged();
+    }
 
     private List<ExpenseRecord> FilteredExpenses
     {
@@ -460,13 +509,14 @@
         StateHasChanged();
     }
 
+
     private void StartAddExpense()
     {
         // Initialize a fresh expense for adding
         ExpenseForm = new ExpenseFormModel
         {
             ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
-            RecordedBy = "Admin User",
+            RecordedBy = GetCurrentUserDisplayName(),
             ExpenseDate = DateTime.Now,
             PaymentMethod = "Cash",
             Status = "Pending"
@@ -518,7 +568,7 @@
         ExpenseForm = new ExpenseFormModel
         {
             ExpenseId = $"EXP-{DateTime.Now:yyyyMMddHHmmss}",
-            RecordedBy = "Admin User",
+            RecordedBy = GetCurrentUserDisplayName(),
             ExpenseDate = DateTime.Now,
             PaymentMethod = "Cash",
             Status = "Pending"
@@ -759,12 +809,37 @@
         await OnExpenseSaved.InvokeAsync(ExpenseForm);
         ClearExpenseForm();
         ShowDetailsPanel = false;
+        
+        // Force UI refresh to show the new expense
+        StateHasChanged();
     }
 
     private void PromptArchive(ExpenseRecord record)
     {
         ExpenseIdPendingArchive = record.ExpenseId;
         ShowArchiveConfirmModal = true;
+    }
+
+    private string GetCurrentUserDisplayName()
+    {
+        if (AuthService?.CurrentUser == null)
+            return "Unknown User";
+
+        var user = AuthService.CurrentUser;
+        var nameParts = new List<string> { user.first_name };
+        
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        
+        nameParts.Add(user.last_name);
+        
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+        
+        var fullName = string.Join(" ", nameParts);
+        var role = !string.IsNullOrWhiteSpace(user.user_role) ? user.user_role : "User";
+        
+        return $"{fullName} ({role})";
     }
 
     private async Task ConfirmArchiveAsync()

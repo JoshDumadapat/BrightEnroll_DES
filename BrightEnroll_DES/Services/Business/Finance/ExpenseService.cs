@@ -1,5 +1,6 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Business.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -8,12 +9,16 @@ namespace BrightEnroll_DES.Services.Business.Finance;
 public class ExpenseService
 {
     private readonly AppDbContext _context;
+    private readonly JournalEntryService _journalEntryService;
+    private readonly NotificationService? _notificationService;
     private readonly ILogger<ExpenseService>? _logger;
 
-    public ExpenseService(AppDbContext context, ILogger<ExpenseService>? logger = null)
+    public ExpenseService(AppDbContext context, JournalEntryService journalEntryService, ILogger<ExpenseService>? logger = null, NotificationService? notificationService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<Expense> CreateExpenseAsync(CreateExpenseRequest request)
@@ -67,6 +72,39 @@ public class ExpenseService
             _context.Expenses.Add(expense);
             await _context.SaveChangesAsync();
 
+            // Create notification if expense is pending approval
+            if (expense.Status == "Pending" && _notificationService != null)
+            {
+                try
+                {
+                    // Get created by user ID
+                    int? createdBy = null;
+                    if (!string.IsNullOrWhiteSpace(expense.RecordedBy))
+                    {
+                        var user = await _context.Users
+                            .FirstOrDefaultAsync(u => u.Email == expense.RecordedBy || u.SystemId == expense.RecordedBy ||
+                                (u.FirstName + " " + u.LastName) == expense.RecordedBy);
+                        createdBy = user?.UserId;
+                    }
+
+                    await _notificationService.CreateNotificationAsync(
+                        notificationType: "Expense",
+                        title: "New Expense Pending Approval",
+                        message: $"Expense {expense.ExpenseCode}: {expense.Description} - ₱{expense.Amount:N2}",
+                        referenceType: "Expense",
+                        referenceId: expense.ExpenseId,
+                        actionUrl: "/finance?tab=Approvals",
+                        priority: "Normal",
+                        createdBy: createdBy
+                    );
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create notification for expense {ExpenseCode}", expense.ExpenseCode);
+                    // Don't throw - notification failure shouldn't break expense creation
+                }
+            }
+
             _logger?.LogInformation("Expense created successfully with code {ExpenseCode}", expense.ExpenseCode);
 
             return expense;
@@ -96,6 +134,10 @@ public class ExpenseService
             if (request.Amount <= 0)
                 throw new ArgumentException("Amount must be greater than zero.", nameof(request.Amount));
 
+            // Track status change for journal entry creation
+            string oldStatus = expense.Status;
+            bool justApproved = oldStatus != "Approved" && request.Status == "Approved";
+
             expense.Category = Sanitize(request.Category, 50) ?? string.Empty;
             expense.Description = Sanitize(request.Description, 500, allowNull: true);
             expense.Amount = request.Amount;
@@ -109,6 +151,43 @@ public class ExpenseService
             expense.UpdatedAt = DateTime.Now;
 
             await _context.SaveChangesAsync();
+
+            // Create journal entry when expense is approved
+            if (justApproved)
+            {
+                try
+                {
+                    // Get user IDs for audit trail
+                    int? createdBy = null;
+                    int? approvedBy = null;
+
+                    // Get created by user ID (from RecordedBy)
+                    if (!string.IsNullOrWhiteSpace(expense.RecordedBy))
+                    {
+                        var createdByUser = await _context.Users
+                            .FirstOrDefaultAsync(u => u.Email == expense.RecordedBy || u.SystemId == expense.RecordedBy || 
+                                (u.FirstName + " " + u.LastName) == expense.RecordedBy);
+                        createdBy = createdByUser?.UserId;
+                    }
+
+                    // Get approved by user ID (from ApprovedBy)
+                    if (!string.IsNullOrWhiteSpace(request.ApprovedBy))
+                    {
+                        var approvedByUser = await _context.Users
+                            .FirstOrDefaultAsync(u => u.Email == request.ApprovedBy || u.SystemId == request.ApprovedBy ||
+                                (u.FirstName + " " + u.LastName) == request.ApprovedBy);
+                        approvedBy = approvedByUser?.UserId;
+                    }
+
+                    await _journalEntryService.CreateExpenseJournalEntryAsync(expense, createdBy, approvedBy);
+                    _logger?.LogInformation("Journal entry created for expense {ExpenseId} with approver {ApprovedBy}", expense.ExpenseId, approvedBy);
+                }
+                catch (Exception ex)
+                {
+                    // Log but don't fail the expense update if journal entry creation fails
+                    _logger?.LogWarning(ex, "Failed to create journal entry for expense {ExpenseId}: {Message}", expense.ExpenseId, ex.Message);
+                }
+            }
 
             _logger?.LogInformation("Expense updated successfully with code {ExpenseCode}", expense.ExpenseCode);
             return expense;

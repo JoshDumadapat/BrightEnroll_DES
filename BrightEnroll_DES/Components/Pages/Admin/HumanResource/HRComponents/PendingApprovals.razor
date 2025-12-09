@@ -1,0 +1,138 @@
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Services.Business.HR
+@using Microsoft.EntityFrameworkCore
+@inject SalaryChangeRequestService SalaryChangeRequestService
+@inject AppDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<div class="overflow-hidden rounded-xl bg-white shadow">
+    <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-800">Pending Salary Approvals</h2>
+            <button @onclick="LoadRequests" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="p-6">
+        @if (isLoading)
+        {
+            <div class="flex items-center justify-center py-12">
+                <svg class="h-8 w-8 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+        }
+        else if (!pendingRequests.Any())
+        {
+            <div class="py-12 text-center">
+                <p class="text-gray-500">No pending salary approval requests.</p>
+            </div>
+        }
+        else
+        {
+            <div class="space-y-4">
+                @foreach (var request in pendingRequests)
+                {
+                    <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-6 shadow-sm">
+                        <div class="mb-4 flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="mb-2 flex items-center gap-3">
+                                    <h3 class="text-lg font-semibold text-gray-800">
+                                        @(request.User?.FirstName ?? "N/A") @(request.User?.LastName ?? "")
+                                    </h3>
+                                    <span class="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-800">
+                                        Pending Approval
+                                    </span>
+                                    @if (request.IsInitialRegistration)
+                                    {
+                                        <span class="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">
+                                            New Employee
+                                        </span>
+                                    }
+                                </div>
+                                <p class="text-sm text-gray-500">Employee ID: @(request.User?.SystemId ?? "N/A")</p>
+                            </div>
+                        </div>
+
+                        <div class="mb-4 grid grid-cols-2 gap-4">
+                            <div class="rounded-lg bg-white p-3">
+                                <p class="text-xs text-gray-500 mb-1">Role Monthly Salary</p>
+                                <p class="text-sm font-semibold text-gray-800">
+                                    ₱@request.CurrentBaseSalary.ToString("N2") + ₱@request.CurrentAllowance.ToString("N2")
+                                </p>
+                            </div>
+                            <div class="rounded-lg bg-blue-50 p-3">
+                                <p class="text-xs text-gray-500 mb-1">Requested Salary</p>
+                                <p class="text-sm font-semibold text-blue-600">
+                                    ₱@request.RequestedBaseSalary.ToString("N2") + ₱@request.RequestedAllowance.ToString("N2")
+                                </p>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(request.Reason))
+                        {
+                            <div class="mb-4 rounded-lg bg-white p-3">
+                                <p class="text-xs font-medium text-gray-500 mb-1">Reason</p>
+                                <p class="text-sm text-gray-700">@request.Reason</p>
+                            </div>
+                        }
+
+                        <div class="flex items-center gap-6 text-xs text-gray-500">
+                            <div>
+                                <span class="font-medium">Requested by:</span> @(request.RequestedByUser?.FirstName ?? "N/A") @(request.RequestedByUser?.LastName ?? "")
+                            </div>
+                            <div>
+                                <span class="font-medium">Date:</span> @request.RequestedAt.ToString("MMM dd, yyyy hh:mm tt")
+                            </div>
+                            <div>
+                                <span class="font-medium">School Year:</span> @request.SchoolYear
+                            </div>
+                        </div>
+
+                        <div class="mt-4 rounded-lg bg-yellow-100 border border-yellow-300 p-3">
+                            <p class="text-xs font-medium text-yellow-800">
+                                ⚠️ This employee's salary is currently <strong>inactive</strong> and pending approval. 
+                                Once approved by Payroll, the salary will be activated automatically.
+                            </p>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<SalaryChangeRequest> pendingRequests = new();
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRequests();
+    }
+
+    private async Task LoadRequests()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            pendingRequests = await SalaryChangeRequestService.GetPendingRequestsAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading pending requests: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+}
+

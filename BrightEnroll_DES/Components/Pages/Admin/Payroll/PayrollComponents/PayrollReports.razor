@@ -1,0 +1,1143 @@
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
+@using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.Payroll
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@inject AppDbContext DbContext
+@inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
+@inject SalaryChangeLogPdfGenerator SalaryChangeLogPdfGenerator
+@inject BrightEnroll_DES.Services.Business.HR.AttendanceReportService AttendanceReportService
+@inject BrightEnroll_DES.Services.QuestPDF.AttendanceReportPdfGenerator AttendanceReportPdfGenerator
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="space-y-6">
+    <!-- Report Filters -->
+    <div class="overflow-hidden rounded-xl bg-white shadow">
+        <div class="border-b border-gray-200 px-6 py-4">
+            <h2 class="text-lg font-semibold text-gray-800">Generate Payroll Reports</h2>
+            <p class="mt-1 text-sm text-gray-600">Select filters and report type to generate payroll reports</p>
+        </div>
+        
+        <div class="p-6">
+            <div class="flex flex-wrap items-end gap-4">
+                <!-- Report Type -->
+                <div class="flex-1 min-w-[180px]">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Report Type <span class="text-red-500">*</span></label>
+                    <select @bind="selectedReportType" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                        <option value="Summary">Summary Report</option>
+                        <option value="SalaryApprovalHistory">Salary Approval History</option>
+                        <option value="Attendance">Attendance Report</option>
+                    </select>
+                </div>
+                
+                <!-- Date From -->
+                <div class="flex-1 min-w-[160px]">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Date From <span class="text-red-500">*</span></label>
+                    <input type="date" @bind="reportDateFrom" 
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                </div>
+                
+                <!-- Date To -->
+                <div class="flex-1 min-w-[160px]">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Date To <span class="text-red-500">*</span></label>
+                    <input type="date" @bind="reportDateTo" 
+                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                </div>
+                
+                @if (selectedReportType == "Attendance")
+                {
+                    <!-- Period Filter for Attendance -->
+                    <div class="flex-1 min-w-[160px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Period <span class="text-red-500">*</span></label>
+                        <input type="month" 
+                               value="@attendancePeriod"
+                               onchange="@((ChangeEventArgs e) => { if (e.Value != null) attendancePeriod = e.Value.ToString() ?? DateTime.Now.ToString("yyyy-MM"); })"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    </div>
+                }
+                else
+                {
+                    <!-- Status Filter -->
+                    <div class="flex-1 min-w-[140px]">
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+                        <select @bind="reportStatusFilter" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                            <option value="">All Status</option>
+                            @if (selectedReportType == "SalaryApprovalHistory")
+                            {
+                                <option value="Pending">Pending</option>
+                                <option value="Approved">Approved</option>
+                                <option value="Rejected">Rejected</option>
+                            }
+                            else
+                            {
+                                <option value="Pending">Pending</option>
+                                <option value="Paid">Paid</option>
+                                <option value="Cancelled">Cancelled</option>
+                            }
+                        </select>
+                    </div>
+                }
+                
+                <!-- Action Buttons - Right aligned in same row -->
+                <div class="flex items-center gap-3 flex-shrink-0">
+                    <button @onclick="ClearFilters" 
+                            class="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 whitespace-nowrap">
+                        Clear Filters
+                    </button>
+                    <button @onclick="GenerateReport" 
+                            class="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 whitespace-nowrap">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Generate Report
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Export to PDF Button - Show below when report is generated -->
+            @if ((selectedReportType == "Attendance" && attendanceReport != null) || 
+                 (selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any()) || 
+                 (selectedReportType != "SalaryApprovalHistory" && selectedReportType != "Attendance" && reportData != null && reportData.Any()))
+            {
+                <div class="mt-6 flex justify-end">
+                    <button @onclick="ExportToPDF" 
+                            disabled="@isExporting"
+                            class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        @(isExporting ? "Generating PDF..." : "Export to PDF")
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Report Results -->
+    @if (selectedReportType == "Attendance" && attendanceReport != null)
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow" id="report-content">
+            <div class="border-b border-gray-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-gray-800">Attendance Report</h2>
+                <p class="mt-1 text-sm text-gray-600">Period: @attendanceReport.Period | Generated on: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</p>
+            </div>
+            
+            <div class="p-6">
+                <!-- Summary Statistics -->
+                <div class="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                    <div class="rounded-lg border border-blue-300 bg-blue-50 p-4">
+                        <p class="text-xs font-medium text-blue-700">Total Employees</p>
+                        <p class="mt-1 text-2xl font-bold text-blue-800">@attendanceReport.TotalEmployees</p>
+                        <p class="mt-0.5 text-[10px] text-blue-600">@attendanceReport.EmployeesWithRecords with records</p>
+                    </div>
+                    <div class="rounded-lg border border-green-300 bg-green-50 p-4">
+                        <p class="text-xs font-medium text-green-700">Total Regular Hours</p>
+                        <p class="mt-1 text-2xl font-bold text-green-800">@attendanceReport.TotalRegularHours.ToString("F2")</p>
+                        <p class="mt-0.5 text-[10px] text-green-600">Avg: @attendanceReport.AverageRegularHours.ToString("F2") hrs</p>
+                    </div>
+                    <div class="rounded-lg border border-orange-300 bg-orange-50 p-4">
+                        <p class="text-xs font-medium text-orange-700">Total Overtime Hours</p>
+                        <p class="mt-1 text-2xl font-bold text-orange-800">@attendanceReport.TotalOvertimeHours.ToString("F2")</p>
+                        <p class="mt-0.5 text-[10px] text-orange-600">Avg: @attendanceReport.AverageOvertimeHours.ToString("F2") hrs</p>
+                    </div>
+                    <div class="rounded-lg border border-red-300 bg-red-50 p-4">
+                        <p class="text-xs font-medium text-red-700">Total Late Minutes</p>
+                        <p class="mt-1 text-2xl font-bold text-red-800">@attendanceReport.TotalLateMinutes</p>
+                        <p class="mt-0.5 text-[10px] text-red-600">Avg: @attendanceReport.AverageLateMinutes mins</p>
+                    </div>
+                </div>
+
+                <!-- Recommendations Section -->
+                @if (attendanceReport.Recommendations != null && attendanceReport.Recommendations.Any())
+                {
+                    <div class="mb-6">
+                        <h3 class="mb-4 text-base font-semibold text-gray-800">Recommendations</h3>
+                        <div class="space-y-3">
+                            @foreach (var rec in attendanceReport.Recommendations)
+                            {
+                                <div class="rounded-lg border @(rec.Severity == "High" ? "border-red-300 bg-red-50" : rec.Severity == "Medium" ? "border-orange-300 bg-orange-50" : "border-blue-300 bg-blue-50") p-4">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <h4 class="text-sm font-semibold @(rec.Severity == "High" ? "text-red-800" : rec.Severity == "Medium" ? "text-orange-800" : "text-blue-800")">@rec.Title</h4>
+                                                <span class="rounded-full px-2 py-0.5 text-[10px] font-medium @(rec.Severity == "High" ? "bg-red-200 text-red-800" : rec.Severity == "Medium" ? "bg-orange-200 text-orange-800" : "bg-blue-200 text-blue-800")">@rec.Severity</span>
+                                            </div>
+                                            <p class="mt-1 text-xs @(rec.Severity == "High" ? "text-red-700" : rec.Severity == "Medium" ? "text-orange-700" : "text-blue-700")">@rec.Description</p>
+                                            @if (!string.IsNullOrWhiteSpace(rec.Details))
+                                            {
+                                                <p class="mt-2 text-xs font-medium @(rec.Severity == "High" ? "text-red-600" : rec.Severity == "Medium" ? "text-orange-600" : "text-blue-600")">Details: @rec.Details</p>
+                                            }
+                                            <p class="mt-2 text-xs @(rec.Severity == "High" ? "text-red-600" : rec.Severity == "Medium" ? "text-orange-600" : "text-blue-600")"><strong>Action:</strong> @rec.Action</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Employee Details Table -->
+                @if (attendanceReport.EmployeeDetails != null && attendanceReport.EmployeeDetails.Any())
+                {
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse text-sm">
+                            <thead>
+                                <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Role</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Regular Hours</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Overtime Hours</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Late Minutes</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Absent Days</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Leave Days</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var emp in attendanceReport.EmployeeDetails)
+                                {
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-gray-800">@emp.EmployeeName</td>
+                                        <td class="px-4 py-3 text-gray-600">@emp.Role</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.RegularHours.ToString("F2")</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.OvertimeHours.ToString("F2")</td>
+                                        <td class="px-4 py-3 text-right @(emp.LateMinutes > 30 ? "font-medium text-red-600" : "text-gray-700")">@emp.LateMinutes</td>
+                                        <td class="px-4 py-3 text-right @(emp.AbsentDays > 2 ? "font-medium text-red-600" : "text-gray-700")">@emp.AbsentDays</td>
+                                        <td class="px-4 py-3 text-right text-gray-700">@emp.LeaveDays.ToString("F1")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (selectedReportType == "SalaryApprovalHistory" && salaryApprovalData != null && salaryApprovalData.Any())
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow" id="report-content">
+            <div class="border-b border-gray-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-gray-800">Salary Approval History Report</h2>
+                <p class="mt-1 text-sm text-gray-600">Generated on: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</p>
+            </div>
+            
+            <div class="p-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Request ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Current Salary</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Requested Salary</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Change Amount</th>
+                                <th class="px-4 py-3 text-right text-xs font-semibold text-gray-700">Change %</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Requested By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Approved By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700">Requested Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in salaryApprovalData)
+                            {
+                                <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-gray-800">#@item.RequestId</td>
+                                    <td class="px-4 py-3 text-gray-800">@item.EmployeeName</td>
+                                    <td class="px-4 py-3 text-right text-gray-700">@Salary.FormatPeso(item.CurrentMonthlySalary + item.CurrentAllowance)</td>
+                                    <td class="px-4 py-3 text-right text-blue-700">@Salary.FormatPeso(item.RequestedMonthlySalary + item.RequestedAllowance)</td>
+                                    <td class="px-4 py-3 text-right font-medium @(item.ChangeAmount >= 0 ? "text-green-600" : "text-red-600")">@Salary.FormatPeso(item.ChangeAmount)</td>
+                                    <td class="px-4 py-3 text-right @(item.ChangePercentage >= 0 ? "text-green-600" : "text-red-600")">@item.ChangePercentage.ToString("F2")%</td>
+                                    <td class="px-4 py-3 text-gray-600 text-sm">@item.RequestedBy</td>
+                                    <td class="px-4 py-3 text-gray-600 text-sm">@(item.ApprovedBy ?? "—")</td>
+                                    <td class="px-4 py-3">
+                                        <span class="@GetSalaryApprovalStatusBadgeClass(item.Status) rounded-full px-2 py-1 text-[10px] font-medium">@item.Status</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-gray-600">@item.RequestedAt.ToString("MMMM dd, yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+    else if (reportData != null && reportData.Any())
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow" id="report-content">
+            <div class="border-b border-gray-200 px-6 py-4">
+                <h2 class="text-lg font-semibold text-gray-800">@GetReportTitle(selectedReportType)</h2>
+                <p class="mt-1 text-sm text-gray-600">Generated on: @DateTime.Now.ToString("MMMM dd, yyyy HH:mm")</p>
+            </div>
+            
+            <div class="p-6">
+                @{
+                    var paidTransactions = reportData?.Where(r => r.Status == "Paid").ToList() ?? new List<ReportDataItem>();
+                    var cancelledTransactions = reportData?.Where(r => r.Status == "Cancelled").ToList() ?? new List<ReportDataItem>();
+                    var pendingTransactions = reportData?.Where(r => r.Status == "Pending").ToList() ?? new List<ReportDataItem>();
+                    var totalTransactions = reportData?.Count ?? 0;
+                    var paidCount = paidTransactions.Count;
+                    var cancelledCount = cancelledTransactions.Count;
+                    var pendingCount = pendingTransactions.Count;
+                    var paidPercentage = totalTransactions > 0 ? (paidCount * 100.0 / totalTransactions) : 0;
+                    var cancelledPercentage = totalTransactions > 0 ? (cancelledCount * 100.0 / totalTransactions) : 0;
+                    var totalPaidNetPay = paidTransactions.Sum(r => r.NetSalary);
+                    var totalCancelledNetPay = cancelledTransactions.Sum(r => r.NetSalary);
+                    var totalPaidGrossPay = paidTransactions.Sum(r => r.GrossSalary);
+                    var totalPaidDeductions = paidTransactions.Sum(r => r.TotalDeductions);
+                    var totalCompanyContributions = paidTransactions.Sum(r => r.TotalCompanyContribution);
+                }
+                
+                <!-- Key Metrics - Compact Cards -->
+                @if (reportData != null && reportData.Any())
+                {
+                    <div class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        <div class="rounded-lg border border-green-300 bg-green-50 p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-xs font-medium text-green-700">Amount Paid</p>
+                                    <p class="mt-1 text-2xl font-bold text-green-800">@Salary.FormatPeso(totalPaidNetPay)</p>
+                                    <p class="mt-0.5 text-[10px] text-green-600">@paidCount transaction(s)</p>
+                                </div>
+                                <div class="rounded-full bg-green-200 p-2">
+                                    <svg class="h-6 w-6 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rounded-lg border border-blue-300 bg-blue-50 p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-xs font-medium text-blue-700">Gross Payroll</p>
+                                    <p class="mt-1 text-2xl font-bold text-blue-800">@Salary.FormatPeso(totalPaidGrossPay)</p>
+                                    <p class="mt-0.5 text-[10px] text-blue-600">Before deductions</p>
+                                </div>
+                                <div class="rounded-full bg-blue-200 p-2">
+                                    <svg class="h-6 w-6 text-blue-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rounded-lg border border-orange-300 bg-orange-50 p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-xs font-medium text-orange-700">Total Deductions</p>
+                                    <p class="mt-1 text-2xl font-bold text-orange-800">@Salary.FormatPeso(totalPaidDeductions)</p>
+                                    <p class="mt-0.5 text-[10px] text-orange-600">SSS, PhilHealth, Tax</p>
+                                </div>
+                                <div class="rounded-full bg-orange-200 p-2">
+                                    <svg class="h-6 w-6 text-orange-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="rounded-lg border border-purple-300 bg-purple-50 p-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-xs font-medium text-purple-700">Company Contributions</p>
+                                    <p class="mt-1 text-2xl font-bold text-purple-800">@Salary.FormatPeso(totalCompanyContributions)</p>
+                                    <p class="mt-0.5 text-[10px] text-purple-600">SSS, PhilHealth, Pag-IBIG</p>
+                                </div>
+                                <div class="rounded-full bg-purple-200 p-2">
+                                    <svg class="h-6 w-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Status Overview & Insights -->
+                    <div class="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+                        <div class="mb-3 flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-green-600">@paidCount</p>
+                                    <p class="text-[10px] text-gray-600">Paid</p>
+                                </div>
+                                <div class="h-6 w-px bg-gray-300"></div>
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-red-600">@cancelledCount</p>
+                                    <p class="text-[10px] text-gray-600">Cancelled</p>
+                                </div>
+                                <div class="h-6 w-px bg-gray-300"></div>
+                                <div class="text-center">
+                                    <p class="text-xl font-bold text-yellow-600">@pendingCount</p>
+                                    <p class="text-[10px] text-gray-600">Pending</p>
+                                </div>
+                            </div>
+                            @if (cancelledCount > 0)
+                            {
+                                <div class="rounded-lg bg-red-50 px-3 py-1.5">
+                                    <p class="text-[10px] font-medium text-red-700">⚠️ @cancelledCount require review</p>
+                                </div>
+                            }
+                        </div>
+                        
+                        <!-- Insights & Recommendations -->
+                        <div class="mt-6">
+                            <h4 class="mb-3 text-base font-semibold text-gray-800">📊 Financial Insights & Recommendations</h4>
+                            <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                                @if (financialInsights != null && (financialInsights.Insights.Any() || financialInsights.Recommendations.Any()))
+                                {
+                                    <div class="space-y-4">
+                                        @if (financialInsights.Insights.Any())
+                                        {
+                                            <div>
+                                                <h5 class="mb-2 text-sm font-semibold text-gray-700">Financial Insights</h5>
+                                                <div class="space-y-2 text-base text-gray-700">
+                                                    @foreach (var insight in financialInsights.Insights)
+                                                    {
+                                                        <p>• @insight</p>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                        @if (financialInsights.Recommendations.Any())
+                                        {
+                                            <div>
+                                                <h5 class="mb-2 text-sm font-semibold text-blue-700">Recommendations</h5>
+                                                <div class="space-y-2 text-base text-blue-700">
+                                                    @foreach (var recommendation in financialInsights.Recommendations)
+                                                    {
+                                                        <p>• @recommendation</p>
+                                                    }
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="text-base text-gray-500">
+                                        <p>Financial insights will be generated based on payroll data analysis.</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                
+                <!-- Unified Transaction List - Simplified -->
+                @if (reportData != null && reportData.Any())
+                {
+                    <div class="mb-6">
+                        <div class="mb-4 flex items-center justify-between">
+                            <h3 class="text-base font-semibold text-gray-800">Transaction Details</h3>
+                            <div class="flex gap-2">
+                                @if (paidCount > 0)
+                                {
+                                    <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@paidCount Paid</span>
+                                }
+                                @if (cancelledCount > 0)
+                                {
+                                    <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">@cancelledCount Cancelled</span>
+                                }
+                                @if (pendingCount > 0)
+                                {
+                                    <span class="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@pendingCount Pending</span>
+                                }
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto rounded-lg border border-gray-200">
+                            <table class="w-full border-collapse text-sm table-fixed">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                        <th class="w-20 px-4 py-3 text-left text-xs font-semibold text-gray-700">ID</th>
+                                        <th class="w-1/4 px-4 py-3 text-left text-xs font-semibold text-gray-700">Employee</th>
+                                        <th class="w-1/6 px-4 py-3 text-left text-xs font-semibold text-gray-700">Net Pay</th>
+                                        <th class="w-24 px-4 py-3 text-left text-xs font-semibold text-gray-700">Status</th>
+                                        <th class="w-1/4 px-4 py-3 text-left text-xs font-semibold text-gray-700">Processed By</th>
+                                        <th class="w-32 px-4 py-3 text-left text-xs font-semibold text-gray-700">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in reportData.OrderByDescending(r => r.CreatedAt))
+                                    {
+                                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-gray-800 font-medium">#@item.TransactionId</td>
+                                            <td class="px-4 py-3 text-gray-800">@item.EmployeeName</td>
+                                            <td class="px-4 py-3 text-left font-bold @(item.Status == "Paid" ? "text-green-600" : item.Status == "Cancelled" ? "text-red-600" : "text-gray-600")">
+                                                @Salary.FormatPeso(item.NetSalary)
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <span class="@GetStatusBadgeClass(item.Status) rounded-full px-2 py-1 text-[10px] font-medium">@item.Status</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-gray-600 text-xs">
+                                                @if (item.Status == "Paid")
+                                                {
+                                                    <div class="flex flex-col">
+                                                        <div class="truncate font-medium">@(item.ProcessedByName ?? item.ApprovedByName ?? "N/A")</div>
+                                                        @if (!string.IsNullOrEmpty(item.ProcessedByRole ?? item.ApprovedByRole))
+                                                        {
+                                                            <div class="text-[10px] text-gray-500">@(item.ProcessedByRole ?? item.ApprovedByRole)</div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else if (item.Status == "Cancelled")
+                                                {
+                                                    <div class="flex flex-col">
+                                                        <div class="truncate font-medium text-red-600">@(item.CancelledByName ?? "N/A")</div>
+                                                        @if (!string.IsNullOrEmpty(item.CancelledByRole))
+                                                        {
+                                                            <div class="text-[10px] text-gray-500">@item.CancelledByRole</div>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-gray-400">—</span>
+                                                }
+                                            </td>
+                                            <td class="px-4 py-3 text-gray-600 text-xs">@item.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr class="border-t-2 border-gray-300 bg-gray-50 font-semibold">
+                                        <td colspan="2" class="px-4 py-3 text-left text-gray-700">Total:</td>
+                                        <td class="px-4 py-3 text-left text-gray-800">@Salary.FormatPeso(reportData?.Sum(r => r.NetSalary) ?? 0)</td>
+                                        <td colspan="3"></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                }
+                
+            </div>
+        </div>
+    }
+    else if (reportGenerated && ((selectedReportType == "Attendance" && attendanceReport == null) || (selectedReportType == "SalaryApprovalHistory" && (salaryApprovalData == null || !salaryApprovalData.Any())) || (selectedReportType != "SalaryApprovalHistory" && selectedReportType != "Attendance" && (reportData == null || !reportData.Any()))))
+    {
+        <div class="overflow-hidden rounded-xl bg-white shadow">
+            <div class="p-6 text-center">
+                <p class="text-gray-600">No data found for the selected filters.</p>
+                <p class="mt-1 text-sm text-gray-500">Try adjusting your filters and generate again</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ReportDataItem>? reportData = null;
+    private List<SalaryApprovalHistoryItem>? salaryApprovalData = null;
+    private BrightEnroll_DES.Services.Business.HR.AttendanceReportDto? attendanceReport = null;
+    private bool reportGenerated = false;
+    private string selectedReportType = "Summary";
+    private DateTime? reportDateFrom = DateTime.Now.AddMonths(-1);
+    private DateTime? reportDateTo = DateTime.Now;
+    private string reportStatusFilter = "";
+    private string attendancePeriod = DateTime.Now.ToString("yyyy-MM");
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // PDF export state
+    private bool isExporting = false;
+    private readonly PayrollReportPdfGenerator PdfGenerator = new();
+    
+    // Financial insights
+    private PayrollFinancialInsightsService.FinancialInsights? financialInsights = null;
+    private readonly PayrollFinancialInsightsService insightsService = new();
+    
+    protected override Task OnInitializedAsync()
+    {
+        // No filters to load - simplified to only essential filters
+        return Task.CompletedTask;
+    }
+    
+    
+    private async Task GenerateReport()
+    {
+        try
+        {
+            if (selectedReportType == "Attendance")
+            {
+                if (string.IsNullOrWhiteSpace(attendancePeriod))
+                {
+                    ShowToast("Please select a period.", ToastType.Error);
+                    return;
+                }
+            }
+            else
+            {
+                if (!reportDateFrom.HasValue || !reportDateTo.HasValue)
+                {
+                    ShowToast("Please select both Date From and Date To.", ToastType.Error);
+                    return;
+                }
+            }
+            
+            reportGenerated = true;
+            reportData = null;
+            salaryApprovalData = null;
+            attendanceReport = null;
+            
+            if (selectedReportType == "SalaryApprovalHistory")
+            {
+                await GenerateSalaryApprovalHistory();
+            }
+            else if (selectedReportType == "Attendance")
+            {
+                await GenerateAttendanceReport();
+            }
+            else
+            {
+                await GeneratePayrollReport();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error generating report: {ex.Message}", ToastType.Error);
+        }
+    }
+    
+    private async Task GenerateAttendanceReport()
+    {
+        try
+        {
+            // Convert attendancePeriod (yyyy-MM) to period format used in TimeRecords (e.g., "2025-12")
+            var periodParts = attendancePeriod.Split('-');
+            if (periodParts.Length != 2)
+            {
+                ShowToast("Invalid period format. Please use YYYY-MM format.", ToastType.Error);
+                return;
+            }
+            
+            var period = attendancePeriod; // Use as-is (e.g., "2025-12")
+            
+            attendanceReport = await AttendanceReportService.GenerateAttendanceReportAsync(period, reportDateFrom, reportDateTo);
+            
+            ShowToast($"Attendance report generated successfully for period {period}.", ToastType.Success);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error generating attendance report: {ex.Message}", ToastType.Error);
+        }
+    }
+    
+    private async Task GeneratePayrollReport()
+    {
+        var query = DbContext.PayrollTransactions
+            .Include(t => t.User)
+            .Include(t => t.CreatedByUser)
+            .Include(t => t.ApprovedByUser)
+            .Include(t => t.CancelledByUser)
+            .Include(t => t.ProcessedByUser)
+            .AsQueryable();
+        
+        // Apply date filter
+        query = query.Where(t => t.CreatedAt >= reportDateFrom!.Value && t.CreatedAt <= reportDateTo!.Value.AddDays(1));
+        
+        // Apply status filter
+        if (!string.IsNullOrEmpty(reportStatusFilter))
+        {
+            query = query.Where(t => t.Status == reportStatusFilter);
+        }
+        
+        List<PayrollTransaction> transactions;
+        
+        // Order by report type
+        switch (selectedReportType)
+        {
+            case "Summary":
+                transactions = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+                break;
+            default:
+                transactions = await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+                break;
+        }
+            
+            reportData = transactions.Select(t => new ReportDataItem
+            {
+                TransactionId = t.TransactionId,
+                EmployeeName = t.User != null ? $"{t.User.FirstName} {t.User.LastName}" : $"User ID: {t.UserId}",
+                PayPeriod = t.PayPeriod,
+                GrossSalary = t.GrossSalary,
+                TotalDeductions = t.TotalDeductions,
+                NetSalary = t.NetSalary,
+                Status = t.Status,
+                CreatedAt = t.CreatedAt,
+                CompanySssContribution = t.CompanySssContribution,
+                CompanyPhilHealthContribution = t.CompanyPhilHealthContribution,
+                CompanyPagIbigContribution = t.CompanyPagIbigContribution,
+                TotalCompanyContribution = t.TotalCompanyContribution,
+                CreatedByName = t.CreatedByUser != null ? $"{t.CreatedByUser.FirstName} {t.CreatedByUser.LastName}" : (t.CreatedBy > 0 ? $"User ID: {t.CreatedBy}" : "System"),
+                CreatedByRole = t.CreatedByUser?.UserRole ?? null,
+                ApprovedByName = t.Status == "Paid" && t.ApprovedByUser != null 
+                    ? $"{t.ApprovedByUser.FirstName} {t.ApprovedByUser.LastName}" 
+                    : (t.Status == "Paid" && t.ApprovedBy.HasValue ? $"User ID: {t.ApprovedBy}" : null),
+                ApprovedByRole = t.ApprovedByUser?.UserRole ?? null,
+                CancelledByName = t.Status == "Cancelled" && t.CancelledByUser != null 
+                    ? $"{t.CancelledByUser.FirstName} {t.CancelledByUser.LastName}" 
+                    : (t.Status == "Cancelled" && t.CancelledBy.HasValue ? $"User ID: {t.CancelledBy}" : null),
+                CancelledByRole = t.CancelledByUser?.UserRole ?? null,
+                ProcessedByName = t.Status == "Paid" && t.ProcessedByUser != null 
+                    ? $"{t.ProcessedByUser.FirstName} {t.ProcessedByUser.LastName}" 
+                    : (t.Status == "Paid" && t.ProcessedBy > 0 ? $"User ID: {t.ProcessedBy}" 
+                    : (t.Status == "Cancelled" && t.CancelledByUser != null 
+                        ? $"{t.CancelledByUser.FirstName} {t.CancelledByUser.LastName}" 
+                        : (t.Status == "Cancelled" && t.CancelledBy.HasValue ? $"User ID: {t.CancelledBy}" : null))),
+                ProcessedByRole = t.Status == "Paid" && t.ProcessedByUser != null
+                    ? t.ProcessedByUser.UserRole
+                    : (t.Status == "Cancelled" && t.CancelledByUser != null
+                        ? t.CancelledByUser.UserRole
+                        : null)
+            }).ToList();
+            
+            // Generate financial insights
+            await GenerateFinancialInsights();
+            
+            ShowToast($"Report generated successfully. Found {reportData.Count} record(s).", ToastType.Success);
+            StateHasChanged();
+    }
+    
+    private async Task GenerateFinancialInsights()
+    {
+        if (reportData == null || !reportData.Any() || !reportDateFrom.HasValue || !reportDateTo.HasValue)
+        {
+            financialInsights = null;
+            return;
+        }
+        
+        try
+        {
+            // Convert ReportDataItem to PayrollDataItem
+            var currentPeriodData = reportData.Select(item => new PayrollDataItem
+            {
+                TransactionId = item.TransactionId,
+                EmployeeName = item.EmployeeName,
+                PayPeriod = item.PayPeriod,
+                GrossSalary = item.GrossSalary,
+                TotalDeductions = item.TotalDeductions,
+                NetSalary = item.NetSalary,
+                Status = item.Status,
+                CreatedAt = item.CreatedAt,
+                CompanySssContribution = item.CompanySssContribution,
+                CompanyPhilHealthContribution = item.CompanyPhilHealthContribution,
+                CompanyPagIbigContribution = item.CompanyPagIbigContribution,
+                TotalCompanyContribution = item.TotalCompanyContribution
+            }).ToList();
+            
+            // Get previous period data for comparison
+            var periodDays = (reportDateTo.Value - reportDateFrom.Value).Days;
+            var previousPeriodStart = reportDateFrom.Value.AddDays(-periodDays - 1);
+            var previousPeriodEnd = reportDateFrom.Value.AddDays(-1);
+            
+            List<PayrollDataItem>? previousPeriodData = null;
+            
+            var previousTransactions = await DbContext.PayrollTransactions
+                .Include(t => t.User)
+                .Where(t => t.CreatedAt >= previousPeriodStart && t.CreatedAt <= previousPeriodEnd)
+                .ToListAsync();
+            
+            if (previousTransactions.Any())
+            {
+                previousPeriodData = previousTransactions.Select(t => new PayrollDataItem
+                {
+                    TransactionId = t.TransactionId,
+                    EmployeeName = t.User != null ? $"{t.User.FirstName} {t.User.LastName}" : $"User ID: {t.UserId}",
+                    PayPeriod = t.PayPeriod,
+                    GrossSalary = t.GrossSalary,
+                    TotalDeductions = t.TotalDeductions,
+                    NetSalary = t.NetSalary,
+                    Status = t.Status,
+                    CreatedAt = t.CreatedAt,
+                    CompanySssContribution = t.CompanySssContribution,
+                    CompanyPhilHealthContribution = t.CompanyPhilHealthContribution,
+                    CompanyPagIbigContribution = t.CompanyPagIbigContribution,
+                    TotalCompanyContribution = t.TotalCompanyContribution
+                }).ToList();
+            }
+            
+            // Generate insights
+            financialInsights = insightsService.GenerateInsights(
+                currentPeriodData,
+                previousPeriodData,
+                reportDateFrom.Value,
+                reportDateTo.Value
+            );
+        }
+        catch (Exception)
+        {
+            // Silently fail - insights are optional
+            financialInsights = null;
+        }
+    }
+    
+    private async Task GenerateSalaryApprovalHistory()
+    {
+        var query = DbContext.SalaryChangeRequests
+            .Include(r => r.User)
+            .Include(r => r.RequestedByUser)
+            .Include(r => r.ApprovedByUser)
+            .AsQueryable();
+        
+        // Apply date filter
+        query = query.Where(r => r.RequestedAt >= reportDateFrom!.Value && r.RequestedAt <= reportDateTo!.Value.AddDays(1));
+        
+        // Apply status filter
+        if (!string.IsNullOrEmpty(reportStatusFilter))
+        {
+            query = query.Where(r => r.Status == reportStatusFilter);
+        }
+        
+        var requests = await query.OrderByDescending(r => r.RequestedAt).ToListAsync();
+        
+        salaryApprovalData = requests.Select(r => new SalaryApprovalHistoryItem
+        {
+            RequestId = r.RequestId,
+            EmployeeName = r.User != null ? $"{r.User.FirstName} {r.User.LastName}" : $"User ID: {r.UserId}",
+            CurrentMonthlySalary = r.CurrentBaseSalary,
+            CurrentAllowance = r.CurrentAllowance,
+            RequestedMonthlySalary = r.RequestedBaseSalary,
+            RequestedAllowance = r.RequestedAllowance,
+            ChangeAmount = (r.RequestedBaseSalary + r.RequestedAllowance) - (r.CurrentBaseSalary + r.CurrentAllowance),
+            ChangePercentage = r.CurrentBaseSalary > 0 
+                ? (((r.RequestedBaseSalary - r.CurrentBaseSalary) / r.CurrentBaseSalary) * 100)
+                : 0,
+            Status = r.Status,
+            Reason = r.Reason,
+            RejectionReason = r.RejectionReason,
+            RequestedBy = r.RequestedByUser != null ? $"{r.RequestedByUser.FirstName} {r.RequestedByUser.LastName}" : $"User ID: {r.RequestedBy}",
+            ApprovedBy = r.ApprovedByUser != null ? $"{r.ApprovedByUser.FirstName} {r.ApprovedByUser.LastName}" : (r.ApprovedBy.HasValue ? $"User ID: {r.ApprovedBy}" : null),
+            RequestedAt = r.RequestedAt,
+            ApprovedAt = r.ApprovedAt,
+            SchoolYear = r.SchoolYear
+        }).ToList();
+        
+        ShowToast($"Salary approval history generated successfully. Found {salaryApprovalData.Count} record(s).", ToastType.Success);
+        StateHasChanged();
+    }
+    
+    private async Task ExportToPDF()
+    {
+        if (selectedReportType == "Attendance")
+        {
+            if (attendanceReport == null)
+            {
+                ShowToast("No data to export.", ToastType.Error);
+                return;
+            }
+            
+            if (isExporting) return;
+            
+            isExporting = true;
+            StateHasChanged();
+            
+            try
+            {
+                var currentUser = AuthService.CurrentUser;
+                var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+                var userRole = currentUser?.user_role ?? "Unknown";
+                
+                // Generate PDF
+                var pdfBytes = AttendanceReportPdfGenerator.GenerateAttendanceReport(
+                    attendanceReport,
+                    generatedBy,
+                    userRole,
+                    reportDateFrom,
+                    reportDateTo
+                );
+                
+                // Download PDF
+                var fileName = $"Attendance_Report_{attendanceReport.Period}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                var base64Content = Convert.ToBase64String(pdfBytes);
+                await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+                
+                ShowToast("PDF exported successfully!", ToastType.Success);
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"Error exporting PDF: {ex.Message}", ToastType.Error);
+            }
+            finally
+            {
+                isExporting = false;
+                StateHasChanged();
+            }
+            
+            return;
+        }
+        
+        if (selectedReportType == "SalaryApprovalHistory")
+        {
+            if (salaryApprovalData == null || !salaryApprovalData.Any())
+            {
+                ShowToast("No data to export.", ToastType.Error);
+                return;
+            }
+            
+            if (isExporting) return;
+            
+            isExporting = true;
+            StateHasChanged();
+            
+            try
+            {
+                var currentUser = AuthService.CurrentUser;
+                var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+                var userRole = currentUser?.user_role ?? "Unknown";
+                
+                // Convert SalaryApprovalHistoryItem to SalaryApprovalHistoryItemDto
+                var pdfData = salaryApprovalData.Select(item => new SalaryApprovalHistoryItemDto
+                {
+                    RequestId = item.RequestId,
+                    EmployeeName = item.EmployeeName,
+                    CurrentMonthlySalary = item.CurrentMonthlySalary,
+                    CurrentAllowance = item.CurrentAllowance,
+                    RequestedMonthlySalary = item.RequestedMonthlySalary,
+                    RequestedAllowance = item.RequestedAllowance,
+                    ChangeAmount = item.ChangeAmount,
+                    ChangePercentage = item.ChangePercentage,
+                    Status = item.Status,
+                    Reason = item.Reason,
+                    RejectionReason = item.RejectionReason,
+                    RequestedBy = item.RequestedBy,
+                    ApprovedBy = item.ApprovedBy,
+                    RequestedAt = item.RequestedAt,
+                    ApprovedAt = item.ApprovedAt,
+                    SchoolYear = item.SchoolYear
+                }).ToList();
+                
+                // Generate PDF
+                var pdfBytes = SalaryChangeLogPdfGenerator.GenerateSalaryApprovalHistoryReport(
+                    pdfData,
+                    generatedBy,
+                    userRole,
+                    reportDateFrom,
+                    reportDateTo,
+                    reportStatusFilter
+                );
+                
+                // Download PDF
+                var fileName = $"Salary_Approval_History_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                var base64Content = Convert.ToBase64String(pdfBytes);
+                await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+                
+                ShowToast("PDF exported successfully!", ToastType.Success);
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"Error exporting PDF: {ex.Message}", ToastType.Error);
+            }
+            finally
+            {
+                isExporting = false;
+                StateHasChanged();
+            }
+            
+            return;
+        }
+        
+        if (reportData == null || !reportData.Any())
+        {
+            ShowToast("No data to export.", ToastType.Error);
+            return;
+        }
+        
+        if (isExporting) return;
+        
+        isExporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}" : "System";
+            var userRole = currentUser?.user_role ?? "Unknown";
+            
+            // Convert ReportDataItem to PayrollReportDataItem for PDF generation
+            var pdfData = reportData.Select(item => new PayrollReportDataItem
+            {
+                TransactionId = item.TransactionId,
+                EmployeeName = item.EmployeeName,
+                PayPeriod = item.PayPeriod,
+                GrossSalary = item.GrossSalary,
+                TotalDeductions = item.TotalDeductions,
+                NetSalary = item.NetSalary,
+                Status = item.Status,
+                CreatedAt = item.CreatedAt,
+                CompanySssContribution = item.CompanySssContribution,
+                CompanyPhilHealthContribution = item.CompanyPhilHealthContribution,
+                CompanyPagIbigContribution = item.CompanyPagIbigContribution,
+                TotalCompanyContribution = item.TotalCompanyContribution,
+                CreatedByName = item.CreatedByName,
+                CreatedByRole = item.CreatedByRole,
+                ApprovedByName = item.ApprovedByName,
+                ApprovedByRole = item.ApprovedByRole,
+                CancelledByName = item.CancelledByName,
+                CancelledByRole = item.CancelledByRole,
+                // For ProcessedByName: show who processed (Paid) or who cancelled (Cancelled)
+                ProcessedByName = item.Status == "Paid" 
+                    ? (item.ProcessedByName ?? item.ApprovedByName)
+                    : (item.Status == "Cancelled" ? item.CancelledByName : null),
+                ProcessedByRole = item.Status == "Paid"
+                    ? (item.ProcessedByRole ?? item.ApprovedByRole)
+                    : (item.Status == "Cancelled" ? item.CancelledByRole : null)
+            }).ToList();
+            
+            // Generate PDF
+            var pdfBytes = PdfGenerator.GeneratePayrollReport(
+                pdfData,
+                selectedReportType,
+                generatedBy,
+                userRole,
+                reportDateFrom,
+                reportDateTo,
+                string.IsNullOrEmpty(reportStatusFilter) ? null : reportStatusFilter,
+                null, // schoolYearFilter - removed
+                null, // employeeFilter - removed
+                financialInsights
+            );
+            
+            var fileName = $"PayrollReport_{selectedReportType}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+            
+            ShowToast("Report exported to PDF successfully.", ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error exporting to PDF: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void ClearFilters()
+    {
+        reportDateFrom = DateTime.Now.AddMonths(-1);
+        reportDateTo = DateTime.Now;
+        reportStatusFilter = "";
+        selectedReportType = "Summary";
+        reportData = null;
+        salaryApprovalData = null;
+        reportGenerated = false;
+        StateHasChanged();
+    }
+    
+    private string GetReportTitle(string reportType)
+    {
+        return reportType switch
+        {
+            "Summary" => "Payroll Summary Report",
+            "Detailed" => "Detailed Payroll Report",
+            "AuditTrail" => "Audit Trail Report",
+            "SalaryApprovalHistory" => "Salary Approval History Report",
+            _ => "Payroll Report"
+        };
+    }
+    
+    private int GetColspan()
+    {
+        return selectedReportType switch
+        {
+            "Detailed" or "AuditTrail" => 3,
+            "Summary" => 1,
+            _ => 0
+        };
+    }
+    
+    private string GetStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            "Paid" => "bg-green-100 text-green-800",
+            "Cancelled" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+    
+    private string GetSalaryApprovalStatusBadgeClass(string status)
+    {
+        return status switch
+        {
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            "Approved" => "bg-green-100 text-green-800",
+            "Rejected" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+    
+    private void ShowToast(string message, ToastType type = ToastType.Success)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+    
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+    
+    private class ReportDataItem
+    {
+        public int TransactionId { get; set; }
+        public string EmployeeName { get; set; } = string.Empty;
+        public string PayPeriod { get; set; } = string.Empty;
+        public decimal GrossSalary { get; set; }
+        public decimal TotalDeductions { get; set; }
+        public decimal NetSalary { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public decimal CompanySssContribution { get; set; }
+        public decimal CompanyPhilHealthContribution { get; set; }
+        public decimal CompanyPagIbigContribution { get; set; }
+        public decimal TotalCompanyContribution { get; set; }
+        public string CreatedByName { get; set; } = string.Empty;
+        public string? CreatedByRole { get; set; }
+        public string? ApprovedByName { get; set; }
+        public string? ApprovedByRole { get; set; }
+        public string? CancelledByName { get; set; }
+        public string? CancelledByRole { get; set; }
+        public string? ProcessedByName { get; set; }
+        public string? ProcessedByRole { get; set; }
+    }
+    
+    private class SalaryApprovalHistoryItem
+    {
+        public int RequestId { get; set; }
+        public string EmployeeName { get; set; } = string.Empty;
+        public decimal CurrentMonthlySalary { get; set; }
+        public decimal CurrentAllowance { get; set; }
+        public decimal RequestedMonthlySalary { get; set; }
+        public decimal RequestedAllowance { get; set; }
+        public decimal ChangeAmount { get; set; }
+        public decimal ChangePercentage { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? Reason { get; set; }
+        public string? RejectionReason { get; set; }
+        public string RequestedBy { get; set; } = string.Empty;
+        public string? ApprovedBy { get; set; }
+        public DateTime RequestedAt { get; set; }
+        public DateTime? ApprovedAt { get; set; }
+        public string SchoolYear { get; set; } = string.Empty;
+    }
+}
+

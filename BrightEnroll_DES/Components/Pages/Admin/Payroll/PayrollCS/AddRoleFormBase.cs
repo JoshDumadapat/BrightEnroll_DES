@@ -24,6 +24,7 @@ public class AddRoleFormBase : ComponentBase
         RoleName = string.Empty,
         BaseSalary = 0,
         Allowance = 0,
+        ThresholdPercentage = 0.00m, // Default 0%
         IsActive = true,
         CreatedDate = DateTime.Now
     };
@@ -37,6 +38,14 @@ public class AddRoleFormBase : ComponentBase
     
     // For inline table editing
     protected Dictionary<string, PayrollRoleData> editingRoles = new();
+    
+    // Raw input storage for table editing (per role)
+    protected Dictionary<string, string?> tableBaseSalaryRawInput = new();
+    protected Dictionary<string, string?> tableAllowanceRawInput = new();
+    protected Dictionary<string, string?> tableThresholdPercentageRawInput = new();
+    protected Dictionary<string, bool> tableIsEditingBaseSalary = new();
+    protected Dictionary<string, bool> tableIsEditingAllowance = new();
+    protected Dictionary<string, bool> tableIsEditingThresholdPercentage = new();
     
     // Form visibility
     protected bool showAddForm = false;
@@ -59,8 +68,10 @@ public class AddRoleFormBase : ComponentBase
     // Raw input storage for money fields
     protected string? baseSalaryRawInput = null;
     protected string? allowanceRawInput = null;
+    protected string? thresholdPercentageRawInput = null;
     protected bool isEditingBaseSalary = false;
     protected bool isEditingAllowance = false;
+    protected bool isEditingThresholdPercentage = false;
     
     // Computed property for filtered roles - uses database roles
     protected List<PayrollRoleData>? FilteredRoles
@@ -124,6 +135,7 @@ public class AddRoleFormBase : ComponentBase
                     Role = role.RoleName,
                     BaseSalary = role.BaseSalary,
                     Allowance = role.Allowance,
+                    ThresholdPercentage = role.ThresholdPercentage,
                     IsActive = role.IsActive
                 };
                 data.Recalculate();
@@ -132,8 +144,15 @@ public class AddRoleFormBase : ComponentBase
             
             StateHasChanged();
         }
-        catch
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 207) // Invalid column name
         {
+            System.Diagnostics.Debug.WriteLine($"ERROR: threshold_percentage column missing: {sqlEx.Message}");
+            dbRoles = new List<PayrollRoleData>();
+            // Error will be visible in console - user needs to run migration
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ERROR loading roles: {ex.Message}");
             dbRoles = new List<PayrollRoleData>();
         }
     }
@@ -147,6 +166,7 @@ public class AddRoleFormBase : ComponentBase
                 Role = newRole.RoleName,
                 BaseSalary = newRole.BaseSalary,
                 Allowance = newRole.Allowance,
+                ThresholdPercentage = newRole.ThresholdPercentage,
                 IsActive = newRole.IsActive
             };
             previewData.Recalculate();
@@ -185,6 +205,7 @@ public class AddRoleFormBase : ComponentBase
                 RoleName = dbRole.RoleName,
                 BaseSalary = dbRole.BaseSalary,
                 Allowance = dbRole.Allowance,
+                ThresholdPercentage = dbRole.ThresholdPercentage,
                 IsActive = dbRole.IsActive,
                 CreatedDate = dbRole.CreatedDate
             };
@@ -196,6 +217,7 @@ public class AddRoleFormBase : ComponentBase
                 RoleName = role.Role,
                 BaseSalary = role.BaseSalary,
                 Allowance = role.Allowance,
+                ThresholdPercentage = role.ThresholdPercentage,
                 IsActive = role.IsActive,
                 CreatedDate = DateTime.Now
             };
@@ -221,7 +243,7 @@ public class AddRoleFormBase : ComponentBase
 
         if (newRole.BaseSalary <= 0)
         {
-            validationErrors["BaseSalary"] = "Base salary must be greater than 0";
+            validationErrors["BaseSalary"] = "Monthly salary must be greater than 0";
         }
 
         if (validationErrors.Any())
@@ -255,6 +277,7 @@ public class AddRoleFormBase : ComponentBase
                     existingRole.RoleName = newRole.RoleName;
                     existingRole.BaseSalary = newRole.BaseSalary;
                     existingRole.Allowance = newRole.Allowance;
+                    existingRole.ThresholdPercentage = newRole.ThresholdPercentage;
                     existingRole.IsActive = newRole.IsActive;
                     existingRole.UpdatedDate = DateTime.Now;
                     
@@ -344,7 +367,7 @@ public class AddRoleFormBase : ComponentBase
 
         if (newRole.BaseSalary <= 0)
         {
-            validationErrors["BaseSalary"] = "Base salary must be greater than 0";
+            validationErrors["BaseSalary"] = "Monthly salary must be greater than 0";
         }
 
         if (validationErrors.Any())
@@ -636,6 +659,113 @@ public class AddRoleFormBase : ComponentBase
         StateHasChanged();
     }
     
+    // Threshold Percentage Display and Input Handling
+    protected string GetThresholdPercentageDisplayValue()
+    {
+        if (isEditingThresholdPercentage)
+        {
+            // When editing, show raw input (can be empty when first focused)
+            return thresholdPercentageRawInput ?? "";
+        }
+        
+        // When not editing, show formatted value
+        if (newRole.ThresholdPercentage > 0)
+        {
+            return newRole.ThresholdPercentage.ToString("F2");
+        }
+        return "0.00";
+    }
+    
+    protected void HandleThresholdPercentageInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // Filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove any existing commas, spaces
+        cleaned = cleaned.Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Store raw input
+        thresholdPercentageRawInput = cleaned;
+        
+        // Parse and update the role's value (limit to 0-100)
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            // Limit to 0-100
+            if (parsedValue < 0) parsedValue = 0;
+            if (parsedValue > 100) parsedValue = 100;
+            newRole.ThresholdPercentage = parsedValue;
+            RecalculatePreview();
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            newRole.ThresholdPercentage = 0.00m; // Default
+            RecalculatePreview();
+        }
+        
+        StateHasChanged();
+    }
+    
+    protected void HandleThresholdPercentageFocus()
+    {
+        isEditingThresholdPercentage = true;
+        // Clear the field when focused - user can type fresh value
+        thresholdPercentageRawInput = "";
+        StateHasChanged();
+    }
+    
+    protected void HandleThresholdPercentageBlur()
+    {
+        isEditingThresholdPercentage = false;
+        
+        if (thresholdPercentageRawInput != null)
+        {
+            string rawValue = thresholdPercentageRawInput;
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                if (parsedValue < 0) parsedValue = 0;
+                if (parsedValue > 100) parsedValue = 100;
+                newRole.ThresholdPercentage = parsedValue;
+            }
+            else
+            {
+                newRole.ThresholdPercentage = 0.00m; // Default
+            }
+            thresholdPercentageRawInput = null;
+        }
+        RecalculatePreview();
+        StateHasChanged();
+    }
+    
     // Handle paste to filter invalid characters
     protected async Task HandleSalaryPaste(ClipboardEventArgs e, string fieldName)
     {
@@ -667,8 +797,18 @@ public class AddRoleFormBase : ComponentBase
             Role = role.Role,
             BaseSalary = role.BaseSalary,
             Allowance = role.Allowance,
+            ThresholdPercentage = role.ThresholdPercentage,
             IsActive = role.IsActive
         };
+        
+        // Initialize raw input state (will be set on focus to clear field)
+        tableBaseSalaryRawInput[role.Role] = null;
+        tableAllowanceRawInput[role.Role] = null;
+        tableThresholdPercentageRawInput[role.Role] = null;
+        tableIsEditingBaseSalary[role.Role] = false;
+        tableIsEditingAllowance[role.Role] = false;
+        tableIsEditingThresholdPercentage[role.Role] = false;
+        
         StateHasChanged();
     }
 
@@ -678,6 +818,7 @@ public class AddRoleFormBase : ComponentBase
         {
             editingRoles[role.Role].BaseSalary = role.BaseSalary;
             editingRoles[role.Role].Allowance = role.Allowance;
+            editingRoles[role.Role].ThresholdPercentage = role.ThresholdPercentage;
             editingRoles[role.Role].Recalculate();
         }
     }
@@ -686,7 +827,14 @@ public class AddRoleFormBase : ComponentBase
     {
         if (role.BaseSalary <= 0)
         {
-            await ShowToast("Base salary must be greater than 0", ToastType.Error);
+            await ShowToast("Monthly salary must be greater than 0", ToastType.Error);
+            return;
+        }
+
+        // Validate threshold percentage (0-100)
+        if (role.ThresholdPercentage < 0 || role.ThresholdPercentage > 100)
+        {
+            await ShowToast("Threshold percentage must be between 0 and 100", ToastType.Error);
             return;
         }
 
@@ -697,10 +845,20 @@ public class AddRoleFormBase : ComponentBase
             {
                 dbRole.BaseSalary = role.BaseSalary;
                 dbRole.Allowance = role.Allowance;
+                // Ensure threshold is within valid range
+                dbRole.ThresholdPercentage = Math.Max(0, Math.Min(100, role.ThresholdPercentage));
                 dbRole.UpdatedDate = DateTime.Now;
                 await DbContext.SaveChangesAsync();
 
                 editingRoles.Remove(role.Role);
+                
+                // Clear raw input state for this role
+                tableBaseSalaryRawInput.Remove(role.Role);
+                tableAllowanceRawInput.Remove(role.Role);
+                tableThresholdPercentageRawInput.Remove(role.Role);
+                tableIsEditingBaseSalary.Remove(role.Role);
+                tableIsEditingAllowance.Remove(role.Role);
+                tableIsEditingThresholdPercentage.Remove(role.Role);
                 
                 // Update the role in dbRoles list for immediate UI update
                 var roleInList = dbRoles?.FirstOrDefault(r => r.Role == role.Role);
@@ -708,6 +866,7 @@ public class AddRoleFormBase : ComponentBase
                 {
                     roleInList.BaseSalary = role.BaseSalary;
                     roleInList.Allowance = role.Allowance;
+                    roleInList.ThresholdPercentage = role.ThresholdPercentage;
                     roleInList.Recalculate();
                 }
                 
@@ -730,7 +889,344 @@ public class AddRoleFormBase : ComponentBase
     protected void CancelEditInTable(string roleName)
     {
         editingRoles.Remove(roleName);
+        // Clear raw input state for this role
+        tableBaseSalaryRawInput.Remove(roleName);
+        tableAllowanceRawInput.Remove(roleName);
+        tableThresholdPercentageRawInput.Remove(roleName);
+        tableIsEditingBaseSalary.Remove(roleName);
+        tableIsEditingAllowance.Remove(roleName);
+        tableIsEditingThresholdPercentage.Remove(roleName);
         StateHasChanged();
+    }
+    
+    // Table editing display value methods
+    protected string GetTableBaseSalaryDisplayValue(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return "";
+        
+        var role = editingRoles[roleName];
+        if (tableIsEditingBaseSalary.ContainsKey(roleName) && tableIsEditingBaseSalary[roleName] && 
+            !string.IsNullOrWhiteSpace(tableBaseSalaryRawInput.GetValueOrDefault(roleName)))
+        {
+            return FormatNumberWithCommas(tableBaseSalaryRawInput[roleName] ?? "");
+        }
+        
+        if (role.BaseSalary > 0)
+        {
+            return role.BaseSalary.ToString("N2");
+        }
+        return "";
+    }
+    
+    protected string GetTableAllowanceDisplayValue(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return "";
+        
+        var role = editingRoles[roleName];
+        if (tableIsEditingAllowance.ContainsKey(roleName) && tableIsEditingAllowance[roleName] && 
+            !string.IsNullOrWhiteSpace(tableAllowanceRawInput.GetValueOrDefault(roleName)))
+        {
+            return FormatNumberWithCommas(tableAllowanceRawInput[roleName] ?? "");
+        }
+        
+        if (role.Allowance > 0)
+        {
+            return role.Allowance.ToString("N2");
+        }
+        return "";
+    }
+    
+    protected string GetTableThresholdPercentageDisplayValue(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return "";
+        
+        var role = editingRoles[roleName];
+        if (tableIsEditingThresholdPercentage.ContainsKey(roleName) && tableIsEditingThresholdPercentage[roleName])
+        {
+            return tableThresholdPercentageRawInput.GetValueOrDefault(roleName) ?? "";
+        }
+        
+        if (role.ThresholdPercentage > 0)
+        {
+            return role.ThresholdPercentage.ToString("F2");
+        }
+        return "0.00";
+    }
+    
+    // Table editing input handlers
+    protected void HandleTableSalaryInput(ChangeEventArgs e, string fieldName, string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            if (cleaned.Length > 1 && cleaned[0] == '0' && char.IsDigit(cleaned[1]))
+            {
+                cleaned = cleaned.Substring(1);
+            }
+            
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        if (fieldName == "BaseSalary")
+        {
+            tableBaseSalaryRawInput[roleName] = cleaned;
+        }
+        else if (fieldName == "Allowance")
+        {
+            tableAllowanceRawInput[roleName] = cleaned;
+        }
+        
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            if (fieldName == "BaseSalary")
+            {
+                editingRoles[roleName].BaseSalary = parsedValue;
+            }
+            else if (fieldName == "Allowance")
+            {
+                editingRoles[roleName].Allowance = parsedValue;
+            }
+            editingRoles[roleName].Recalculate();
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            if (fieldName == "BaseSalary")
+            {
+                editingRoles[roleName].BaseSalary = 0;
+            }
+            else if (fieldName == "Allowance")
+            {
+                editingRoles[roleName].Allowance = 0;
+            }
+            editingRoles[roleName].Recalculate();
+        }
+        
+        StateHasChanged();
+    }
+    
+    protected void HandleTableBaseSalaryFocus(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingBaseSalary[roleName] = true;
+        if (!tableBaseSalaryRawInput.ContainsKey(roleName) || tableBaseSalaryRawInput[roleName] == null)
+        {
+            var role = editingRoles[roleName];
+            if (role.BaseSalary > 0)
+            {
+                tableBaseSalaryRawInput[roleName] = role.BaseSalary == Math.Floor(role.BaseSalary) 
+                    ? ((int)role.BaseSalary).ToString() 
+                    : role.BaseSalary.ToString("0.##");
+            }
+            else
+            {
+                tableBaseSalaryRawInput[roleName] = "";
+            }
+        }
+        StateHasChanged();
+    }
+    
+    protected void HandleTableBaseSalaryBlur(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingBaseSalary[roleName] = false;
+        
+        if (tableBaseSalaryRawInput.ContainsKey(roleName) && tableBaseSalaryRawInput[roleName] != null)
+        {
+            string rawValue = tableBaseSalaryRawInput[roleName] ?? "";
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                editingRoles[roleName].BaseSalary = parsedValue;
+            }
+            else
+            {
+                editingRoles[roleName].BaseSalary = 0;
+            }
+            tableBaseSalaryRawInput[roleName] = null;
+        }
+        editingRoles[roleName].Recalculate();
+        StateHasChanged();
+    }
+    
+    protected void HandleTableAllowanceFocus(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingAllowance[roleName] = true;
+        if (!tableAllowanceRawInput.ContainsKey(roleName) || tableAllowanceRawInput[roleName] == null)
+        {
+            var role = editingRoles[roleName];
+            if (role.Allowance > 0)
+            {
+                tableAllowanceRawInput[roleName] = role.Allowance == Math.Floor(role.Allowance) 
+                    ? ((int)role.Allowance).ToString() 
+                    : role.Allowance.ToString("0.##");
+            }
+            else
+            {
+                tableAllowanceRawInput[roleName] = "";
+            }
+        }
+        StateHasChanged();
+    }
+    
+    protected void HandleTableAllowanceBlur(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingAllowance[roleName] = false;
+        
+        if (tableAllowanceRawInput.ContainsKey(roleName) && tableAllowanceRawInput[roleName] != null)
+        {
+            string rawValue = tableAllowanceRawInput[roleName] ?? "";
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                editingRoles[roleName].Allowance = parsedValue;
+            }
+            else
+            {
+                editingRoles[roleName].Allowance = 0;
+            }
+            tableAllowanceRawInput[roleName] = null;
+        }
+        editingRoles[roleName].Recalculate();
+        StateHasChanged();
+    }
+    
+    protected void HandleTableThresholdPercentageInput(ChangeEventArgs e, string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        cleaned = cleaned.Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        tableThresholdPercentageRawInput[roleName] = cleaned;
+        
+        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned != "." && decimal.TryParse(cleaned, out decimal parsedValue))
+        {
+            parsedValue = Math.Round(parsedValue, 2);
+            if (parsedValue < 0) parsedValue = 0;
+            if (parsedValue > 100) parsedValue = 100;
+            editingRoles[roleName].ThresholdPercentage = parsedValue;
+        }
+        else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            editingRoles[roleName].ThresholdPercentage = 0.00m;
+        }
+        
+        StateHasChanged();
+    }
+    
+    protected void HandleTableThresholdPercentageFocus(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingThresholdPercentage[roleName] = true;
+        tableThresholdPercentageRawInput[roleName] = "";
+        StateHasChanged();
+    }
+    
+    protected void HandleTableThresholdPercentageBlur(string roleName)
+    {
+        if (!editingRoles.ContainsKey(roleName)) return;
+        
+        tableIsEditingThresholdPercentage[roleName] = false;
+        
+        if (tableThresholdPercentageRawInput.ContainsKey(roleName) && tableThresholdPercentageRawInput[roleName] != null)
+        {
+            string rawValue = tableThresholdPercentageRawInput[roleName] ?? "";
+            if (!string.IsNullOrWhiteSpace(rawValue) && rawValue != "." && decimal.TryParse(rawValue, out decimal parsedValue))
+            {
+                parsedValue = Math.Round(parsedValue, 2);
+                if (parsedValue < 0) parsedValue = 0;
+                if (parsedValue > 100) parsedValue = 100;
+                editingRoles[roleName].ThresholdPercentage = parsedValue;
+            }
+            else
+            {
+                editingRoles[roleName].ThresholdPercentage = 0.00m;
+            }
+            tableThresholdPercentageRawInput[roleName] = null;
+        }
+        StateHasChanged();
+    }
+    
+    // Handle paste for table editing
+    protected async Task HandleTableSalaryPaste(ClipboardEventArgs e, string fieldName, string roleName)
+    {
+        try
+        {
+            var pastedText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
+            if (!string.IsNullOrWhiteSpace(pastedText))
+            {
+                var validChars = pastedText.Where(c => char.IsDigit(c) || c == '.').ToArray();
+                string cleaned = new string(validChars);
+                
+                var changeEvent = new ChangeEventArgs { Value = cleaned };
+                HandleTableSalaryInput(changeEvent, fieldName, roleName);
+            }
+        }
+        catch
+        {
+            // Ignore paste errors
+        }
     }
     
     // Filter methods

@@ -4,8 +4,6 @@
 @using BrightEnroll_DES.Services.Business.HR
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Services.Business.Reports
-@using BrightEnroll_DES.Services.Authentication
-@using BrightEnroll_DES.Services.RoleBase
 @using BrightEnroll_DES.Data
 @using BrightEnroll_DES.Data.Models
 @using Microsoft.EntityFrameworkCore
@@ -16,31 +14,16 @@
 @inject EmployeeService EmployeeService
 @inject StudentService StudentService
 @inject FeeService FeeService
-@inject SchoolYearService SchoolYearService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject FinancialReportService FinancialReportService
 @inject EnrollmentReportService EnrollmentReportService
-@inject IAuthService AuthService
-@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Dashboard</PageTitle>
 
-@if (IsTeacher)
-{
-    @* Redirect teachers to teacher dashboard *@
-    <div class="flex items-center justify-center py-12">
-        <div class="text-center">
-            <p class="text-gray-600">Redirecting to Teacher Dashboard...</p>
-        </div>
-    </div>
-}
-else
-{
-    <div class="text-gray-800">
-        <h1 class="mb-6 text-2xl font-bold text-gray-800">Dashboard</h1>
-    </div>
-}
+<div class="text-gray-800">
+    <h1 class="mb-6 text-2xl font-bold text-gray-800">Dashboard</h1>
+</div>
 
 <!-- Date Filters -->
 <div class="mb-4 rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:mb-6 md:p-4" style="overflow: visible;">
@@ -54,28 +37,29 @@ else
         <!-- From Date -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600">From Date:</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <input type="date" value="@(FromDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnFromDateChanged"
+                       title="Select the start date for filtering dashboard statistics"
                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
-                <span class="tooltip-delay">Select the start date for filtering dashboard statistics</span>
             </div>
         </div>
 
         <!-- To Date -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600">To Date:</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <input type="date" value="@(ToDate?.ToString("yyyy-MM-dd") ?? "")" @onchange="OnToDateChanged"
+                       title="Select the end date for filtering dashboard statistics"
                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm" />
-                <span class="tooltip-delay">Select the end date for filtering dashboard statistics</span>
             </div>
         </div>
 
         <!-- Month Filter -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600">Month:</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <select value="@SelectedMonth" @onchange="OnMonthChanged"
+                        title="Filter dashboard statistics by specific month"
                         class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
                     <option value="">All Months</option>
                     <option value="current">This Month</option>
@@ -85,15 +69,15 @@ else
                         <option value="@i">@((new DateTime(DateTime.Now.Year, i, 1)).ToString("MMMM"))</option>
                     }
                 </select>
-                <span class="tooltip-delay">Filter dashboard statistics by specific month</span>
             </div>
         </div>
 
         <!-- Year Filter -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600">Year:</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <select value="@SelectedYear" @onchange="OnYearChanged"
+                        title="Filter dashboard statistics by specific year"
                         class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
                     <option value="">All Years</option>
                     <option value="current">This Year</option>
@@ -103,15 +87,31 @@ else
                         <option value="@year">@year</option>
                     }
                 </select>
-                <span class="tooltip-delay">Filter dashboard statistics by specific year</span>
+            </div>
+        </div>
+
+        <!-- School Year Filter -->
+        <div class="flex w-full flex-col gap-1 sm:w-auto">
+            <label class="text-xs font-medium text-gray-600">School Year:</label>
+            <div class="relative w-full">
+                <select value="@SelectedSchoolYear" @onchange="OnSchoolYearChanged"
+                        title="Filter dashboard statistics by school year"
+                        class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
+                    <option value="">All School Years</option>
+                    @foreach (var sy in AvailableSchoolYears)
+                    {
+                        <option value="@sy">@sy</option>
+                    }
+                </select>
             </div>
         </div>
 
         <!-- Quick Select -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600">Quick Select:</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <select value="@QuickSelect" @onchange="OnQuickSelectChanged"
+                        title="Quickly select common date ranges for filtering"
                         class="w-full rounded border px-2 py-1.5 text-xs text-gray-600 outline-none focus:ring-2 focus:ring-blue-400 sm:w-auto md:px-3 md:py-2 md:text-sm">
                     <option value="">Select Range</option>
                     <option value="today">This Day</option>
@@ -119,15 +119,15 @@ else
                     <option value="month">This Month</option>
                     <option value="year">This Year</option>
                 </select>
-                <span class="tooltip-delay">Quickly select common date ranges for filtering</span>
             </div>
         </div>
 
         <!-- Clear Filter Button -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <button @onclick="ClearFilters" disabled="@IsClearingFilters"
+                        title="Clear all filters and reset dashboard to default view"
                         class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-gray-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto md:px-4 md:py-2 md:text-sm">
                     @if (IsClearingFilters)
                     {
@@ -144,15 +144,15 @@ else
                     }
                     Clear
                 </button>
-                <span class="tooltip-delay">Clear all filters and reset dashboard to default view</span>
             </div>
         </div>
 
         <!-- Apply Filter Button -->
         <div class="flex w-full flex-col gap-1 sm:w-auto">
             <label class="text-xs font-medium text-gray-600 opacity-0">Placeholder</label>
-            <div class="group relative w-full">
+            <div class="relative w-full">
                 <button @onclick="ApplyFilters" disabled="@IsApplyingFilters"
+                        title="Apply selected filters to update dashboard statistics"
                         class="flex w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-transparent bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-70 sm:w-auto md:px-4 md:py-2 md:text-sm">
                     @if (IsApplyingFilters)
                     {
@@ -170,7 +170,6 @@ else
                     }
                     Apply Filter
                 </button>
-                <span class="tooltip-delay">Apply selected filters to update dashboard statistics</span>
             </div>
         </div>
     </div>
@@ -186,184 +185,210 @@ else
 
 
 <!-- Stats Cards -->
-<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:mb-8 md:gap-6 lg:grid-cols-4">
+<div class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 md:mb-6 md:gap-4 lg:grid-cols-4">
     <!-- Total Enrolled -->
-    <div @onclick="NavigateToEnrollment" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-300 hover:shadow-lg md:p-6">
-        <div class="mb-3 flex items-start gap-3 md:mb-4">
-            <div class="rounded-xl bg-blue-100 p-2 transition-colors duration-200 group-hover:bg-blue-200 md:p-3">
-                <svg class="h-5 w-5 text-blue-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div @onclick="NavigateToEnrollment" title="Total number of students currently enrolled in the school" class="relative cursor-pointer rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-300 hover:shadow-md md:p-4">
+        <div class="mb-2 flex items-start gap-2 md:mb-3">
+            <div class="rounded-lg bg-blue-100 p-1.5 transition-colors duration-200 hover:bg-blue-200 md:p-2">
+                <svg class="h-4 w-4 text-blue-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
                 </svg>
             </div>
             <div class="flex-1 flex flex-col">
-                <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Total Enrolled</p>
-                <h3 class="mt-2 text-right text-2xl font-bold text-gray-800 md:text-3xl">@TotalEnrolled.ToString("N0")</h3>
+                <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Total Enrolled</p>
+                @{
+                    var enrolledSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(enrolledSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @enrolledSchoolYear</p>
+                }
+                <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">@TotalEnrolled.ToString("N0")</h3>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-8 w-full md:h-10" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,40 40,35 80,30 120,25 160,30 200,35" fill="none" stroke="#3b82f6" stroke-width="2" />
         </svg>
-        <span class="tooltip-delay">Total number of students currently enrolled in the school</span>
     </div>
 
     <!-- Total Employees -->
-    <div @onclick="NavigateToHumanResource" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:shadow-lg md:p-6">
-        <div class="mb-3 flex items-start gap-3 md:mb-4">
-            <div class="rounded-xl bg-purple-100 p-2 transition-colors duration-200 group-hover:bg-purple-200 md:p-3">
-                <svg class="h-5 w-5 text-purple-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div @onclick="NavigateToHumanResource" title="Total number of active employees in the system" class="relative cursor-pointer rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:shadow-md md:p-4">
+        <div class="mb-2 flex items-start gap-2 md:mb-3">
+            <div class="rounded-lg bg-purple-100 p-1.5 transition-colors duration-200 hover:bg-purple-200 md:p-2">
+                <svg class="h-4 w-4 text-purple-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
                 </svg>
             </div>
             <div class="flex-1 flex flex-col">
-                <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Total Employees</p>
-                <h3 class="mt-2 text-right text-2xl font-bold text-gray-800 md:text-3xl">@TotalEmployees.ToString("N0")</h3>
+                <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Total Employees</p>
+                <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">@TotalEmployees.ToString("N0")</h3>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-8 w-full md:h-10" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,35 40,30 80,28 120,32 160,29 200,33" fill="none" stroke="#9333ea" stroke-width="2" />
         </svg>
-        <span class="tooltip-delay">Total number of active employees in the system</span>
     </div>
 
     <!-- Pending Applications -->
-    <div @onclick="NavigateToPendingApplications" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-yellow-300 hover:shadow-lg md:p-6">
-        <div class="mb-3 flex items-start gap-3 md:mb-4">
-            <div class="rounded-xl bg-yellow-100 p-2 transition-colors duration-200 group-hover:bg-yellow-200 md:p-3">
-                <svg class="h-5 w-5 text-yellow-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div @onclick="NavigateToPendingApplications" title="Number of student applications awaiting review and approval" class="relative cursor-pointer rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-yellow-300 hover:shadow-md md:p-4">
+        <div class="mb-2 flex items-start gap-2 md:mb-3">
+            <div class="rounded-lg bg-yellow-100 p-1.5 transition-colors duration-200 hover:bg-yellow-200 md:p-2">
+                <svg class="h-4 w-4 text-yellow-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
             </div>
             <div class="flex-1 flex flex-col">
-                <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Pending Applications</p>
-                <h3 class="mt-2 text-right text-2xl font-bold text-gray-800 md:text-3xl">@PendingApplications.ToString("N0")</h3>
+                <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Pending Applications</p>
+                @{
+                    var pendingSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(pendingSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @pendingSchoolYear</p>
+                }
+                <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">@PendingApplications.ToString("N0")</h3>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-8 w-full md:h-10" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,30 40,25 80,35 120,28 160,32 200,30" fill="none" stroke="#ca8a04" stroke-width="2" />
         </svg>
-        <span class="tooltip-delay">Number of student applications awaiting review and approval</span>
     </div>
 
     <!-- Revenue -->
-    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-green-300 hover:shadow-lg md:p-6">
-        <div class="mb-3 flex items-start gap-3 md:mb-4">
-            <div class="rounded-xl bg-green-100 p-2 transition-colors duration-200 group-hover:bg-green-200 md:p-3">
-                <svg class="h-5 w-5 text-green-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div @onclick="NavigateToFinance" title="Total revenue collected from all students" class="relative cursor-pointer rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-green-300 hover:shadow-md md:p-4">
+        <div class="mb-2 flex items-start gap-2 md:mb-3">
+            <div class="rounded-lg bg-green-100 p-1.5 transition-colors duration-200 hover:bg-green-200 md:p-2">
+                <svg class="h-4 w-4 text-green-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
                 </svg>
             </div>
             <div class="flex-1 flex flex-col">
-                <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Revenue</p>
-                <h3 class="mt-2 text-right text-2xl font-bold text-gray-800 md:text-3xl">₱@TotalTuitionCollected.ToString("N0")</h3>
+                <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Revenue</p>
+                @{
+                    var revenueSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(revenueSchoolYear))
+                {
+                    <p class="text-[10px] text-gray-500 md:text-xs">S.Y. @revenueSchoolYear</p>
+                }
+                <h3 class="mt-1 text-right text-xl font-bold text-gray-800 md:text-2xl">₱@TotalTuitionCollected.ToString("N0")</h3>
             </div>
         </div>
         <!-- Mini Chart -->
-        <svg class="h-10 w-full md:h-12" viewBox="0 0 200 50" preserveAspectRatio="none">
+        <svg class="h-8 w-full md:h-10" viewBox="0 0 200 50" preserveAspectRatio="none">
             <polyline points="0,45 40,40 80,35 120,30 160,32 200,28" fill="none" stroke="#16a34a" stroke-width="2" />
         </svg>
-        <span class="tooltip-delay">Total revenue collected from all students</span>
     </div>
 </div>
 
 <!-- Charts Section -->
-<div class="grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-3">
+<div class="grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-3">
     <!-- Total Income Chart -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="mb-1 text-lg font-bold text-gray-800 md:mb-2 md:text-xl">Total income</h3>
-            @if (!string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                <div class="mb-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 md:mb-4">
-                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                    </svg>
-                    <p class="text-xs font-semibold text-blue-800 md:text-sm">School Year: <span class="font-bold">@CurrentSchoolYear</span></p>
-                </div>
-            }
-            <div class="flex flex-wrap gap-4 md:gap-6">
-                <div class="flex items-center gap-2">
-                    <div class="h-2.5 w-2.5 rounded-full bg-green-500 md:h-3 md:w-3"></div>
+    <div title="Visual representation of total income showing profit and expenses over time" class="relative rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:p-4">
+        <div class="mb-3 md:mb-4">
+            <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
+            <h3 class="mb-1 text-base font-bold text-gray-800 md:mb-1.5 md:text-lg">Total income</h3>
+            <div class="mb-2 md:mb-3">
+                @{
+                    var displaySchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                    var displayYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int y) ? y : DateTime.Now.Year;
+                }
+                @if (!string.IsNullOrEmpty(displaySchoolYear))
+                {
+                    <p class="text-xs text-gray-500 md:text-sm">S.Y. @displaySchoolYear</p>
+                }
+                <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @displayYear</p>
+            </div>
+            <div class="flex flex-wrap gap-3 md:gap-4">
+                <div class="flex items-center gap-1.5">
+                    <div class="h-2 w-2 rounded-full bg-green-500 md:h-2.5 md:w-2.5"></div>
                     <span class="text-xs text-gray-600 md:text-sm">Collections</span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <div class="h-2.5 w-2.5 rounded-full bg-orange-500 md:h-3 md:w-3"></div>
+                <div class="flex items-center gap-1.5">
+                    <div class="h-2 w-2 rounded-full bg-orange-500 md:h-2.5 md:w-2.5"></div>
                     <span class="text-xs text-gray-600 md:text-sm">Expenses</span>
                 </div>
             </div>
         </div>
   
         <!-- Dynamic Chart.js Line Chart -->
-        <div class="relative h-48 md:h-64">
+        <div class="relative h-40 md:h-52">
             <canvas id="incomeChart"></canvas>
         </div>
-        <span class="tooltip-delay">Visual representation of total income showing profit and expenses over time</span>
     </div>
 
     <!-- Total Students by Type -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Total student each type</h3>
+    <div title="Breakdown of students by type: New, Transferee, and Returnee" class="relative rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:p-4">
+        <div class="mb-3 md:mb-4">
+            <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
+            <h3 class="text-base font-bold text-gray-800 md:text-lg">Total student each type</h3>
+            <div class="mt-1">
+                @{
+                    var studentTypeSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                }
+                @if (!string.IsNullOrEmpty(studentTypeSchoolYear))
+                {
+                    <p class="text-xs text-gray-500 md:text-sm">S.Y. @studentTypeSchoolYear</p>
+                }
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Doughnut Chart -->
-        <div class="mb-4 flex items-center justify-center md:mb-6">
-            <div class="relative h-48 w-48 md:h-64 md:w-64">
+        <div class="mb-3 flex items-center justify-center md:mb-4">
+            <div class="relative h-40 w-40 md:h-52 md:w-52">
                 <canvas id="studentTypeChart"></canvas>
             </div>
         </div>
         
         <!-- Legend -->
-        <div class="flex flex-wrap justify-center gap-4 md:gap-8">
-            <div class="flex items-center gap-1.5 md:gap-2">
-                <div class="h-2.5 w-2.5 rounded-full bg-blue-600 md:h-3 md:w-3"></div>
+        <div class="flex flex-wrap justify-center gap-3 md:gap-6">
+            <div class="flex items-center gap-1.5">
+                <div class="h-2 w-2 rounded-full bg-blue-600 md:h-2.5 md:w-2.5"></div>
                 <span class="text-xs text-gray-600 md:text-sm">New <span class="font-semibold">@NewStudentCount.ToString("N0")</span></span>
             </div>
-            <div class="flex items-center gap-1.5 md:gap-2">
-                <div class="h-2.5 w-2.5 rounded-full bg-gray-400 md:h-3 md:w-3"></div>
+            <div class="flex items-center gap-1.5">
+                <div class="h-2 w-2 rounded-full bg-gray-400 md:h-2.5 md:w-2.5"></div>
                 <span class="text-xs text-gray-600 md:text-sm">Transferee <span class="font-semibold">@TransfereeCount.ToString("N0")</span></span>
             </div>
-            <div class="flex items-center gap-1.5 md:gap-2">
-                <div class="h-2.5 w-2.5 rounded-full bg-blue-400 md:h-3 md:w-3"></div>
+            <div class="flex items-center gap-1.5">
+                <div class="h-2 w-2 rounded-full bg-blue-400 md:h-2.5 md:w-2.5"></div>
                 <span class="text-xs text-gray-600 md:text-sm">Returnee <span class="font-semibold">@ReturneeCount.ToString("N0")</span></span>
             </div>
         </div>
-        <span class="tooltip-delay">Breakdown of students by type: New, Transferee, and Returnee</span>
     </div>
 
     <!-- Tuition Fees List -->
-    <div @onclick="NavigateToFinance" class="group relative cursor-pointer rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-indigo-300 hover:shadow-lg md:p-6">
-        <div class="mb-3 flex items-start justify-between md:mb-4">
+    <div @onclick="NavigateToFinance" title="List of tuition fees by grade level" class="relative cursor-pointer rounded-xl border border-gray-100 bg-white p-3 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-indigo-300 hover:shadow-md md:p-4">
+        <div class="mb-2 flex items-start justify-between md:mb-3">
             <div>
-                <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Tuition Fees</p>
-                <h3 class="text-lg font-bold text-gray-800 md:text-xl">@(TuitionFeesList?.Count ?? 0) Grades</h3>
+                <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Tuition Fees</p>
+                <h3 class="text-base font-bold text-gray-800 md:text-lg">@(TuitionFeesList?.Count ?? 0) Grades</h3>
             </div>
-            <div class="rounded-xl bg-indigo-100 p-2 transition-colors duration-200 group-hover:bg-indigo-200 md:p-3">
-                <svg class="h-5 w-5 text-indigo-600 md:h-6 md:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="rounded-lg bg-indigo-100 p-1.5 transition-colors duration-200 hover:bg-indigo-200 md:p-2">
+                <svg class="h-4 w-4 text-indigo-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
             </div>
         </div>
         
         <!-- Tuition Fees List -->
-        <div class="max-h-64 space-y-2 overflow-y-auto">
+        <div class="max-h-52 space-y-1.5 overflow-y-auto md:max-h-56">
             @if (TuitionFeesList != null && TuitionFeesList.Any())
             {
                 @foreach (var fee in TuitionFeesList)
                 {
-                    <div class="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-2.5 transition-all hover:border-indigo-200 hover:bg-indigo-50">
+                    <div class="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 p-2 transition-all hover:border-indigo-200 hover:bg-indigo-50">
                         <!-- Grade Icon/Logo -->
-                        <div class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg @GetGradeColorClass(fee.GradeLevel)">
+                        <div class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg @GetGradeColorClass(fee.GradeLevel)">
                             @GetGradeIcon(fee.GradeLevel)
                         </div>
                         
                         <!-- Grade and Fee Info -->
                         <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-semibold text-gray-800">@fee.GradeLevel</p>
+                            <p class="truncate text-xs font-semibold text-gray-800 md:text-sm">@fee.GradeLevel</p>
                             <p class="text-xs font-medium @GetFeeColorClass(fee.TotalFee)">₱@fee.TotalFee.ToString("N2")</p>
                         </div>
                     </div>
@@ -371,44 +396,52 @@ else
             }
             else
             {
-                <div class="py-4 text-center text-sm text-gray-500">
+                <div class="py-3 text-center text-xs text-gray-500 md:text-sm">
                     No tuition fees configured
                 </div>
             }
         </div>
-        
-        <span class="tooltip-delay">List of tuition fees by grade level</span>
     </div>
 </div>
 
 <!-- Additional Charts Row -->
-<div class="mt-4 grid grid-cols-1 gap-4 md:gap-6 lg:grid-cols-2">
+<div class="mt-3 grid grid-cols-1 gap-3 md:gap-4 lg:grid-cols-2">
     <!-- Payment Status Distribution (Pie Chart) -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Payment Status</h3>
+    <div title="Distribution of students by payment status" class="relative rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:p-4">
+        <div class="mb-3 md:mb-4">
+            <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
+            <h3 class="text-base font-bold text-gray-800 md:text-lg">Payment Status</h3>
+            <div class="mt-1">
+                @{
+                    var paymentStatusSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                }
+                <p class="text-xs text-gray-500 md:text-sm">S.Y. @paymentStatusSchoolYear</p>
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Pie Chart -->
-        <div class="relative h-48 md:h-64">
+        <div class="relative h-40 md:h-52">
             <canvas id="paymentStatusChart"></canvas>
         </div>
-        <span class="tooltip-delay">Distribution of students by payment status</span>
     </div>
 
     <!-- Enrollment by Grade Level (Bar Chart) -->
-    <div class="group relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm md:p-6">
-        <div class="mb-4 md:mb-6">
-            <p class="mb-1 text-left text-sm font-semibold text-gray-600 md:text-base">Statistics</p>
-            <h3 class="text-lg font-bold text-gray-800 md:text-xl">Enrollment by Grade</h3>
+    <div title="Number of enrolled students by grade level" class="relative rounded-xl border border-gray-100 bg-white p-3 shadow-sm md:p-4">
+        <div class="mb-3 md:mb-4">
+            <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Statistics</p>
+            <h3 class="text-base font-bold text-gray-800 md:text-lg">Enrollment by Grade</h3>
+            <div class="mt-1">
+                @{
+                    var enrollmentSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                }
+                <p class="text-xs text-gray-500 md:text-sm">S.Y. @enrollmentSchoolYear</p>
+            </div>
         </div>
 
         <!-- Dynamic Chart.js Bar Chart -->
-        <div class="relative h-48 md:h-64">
+        <div class="relative h-40 md:h-52">
             <canvas id="enrollmentByGradeChart"></canvas>
         </div>
-        <span class="tooltip-delay">Number of enrolled students by grade level</span>
     </div>
 </div>
 
@@ -419,6 +452,8 @@ else
     private string? QuickSelect { get; set; }
     private string? SelectedMonth { get; set; }
     private string? SelectedYear { get; set; }
+    private string? SelectedSchoolYear { get; set; }
+    private List<string> AvailableSchoolYears { get; set; } = new List<string>();
 
     // Loading states for buttons
     private bool IsApplyingFilters { get; set; } = false;
@@ -449,7 +484,6 @@ else
     }
 
     private bool _hasInitialized = false;
-    private bool IsTeacher { get; set; } = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -457,20 +491,10 @@ else
         // This ensures smooth transition from login without showing "Loading dashboard..."
         LoadingService.HideLoading();
         
-        // Check if user is a teacher and redirect
-        if (AuthService.IsAuthenticated && AuthService.CurrentUser != null)
-        {
-            IsTeacher = AuthorizationService.HasRole("Teacher");
-            if (IsTeacher)
-            {
-                // Redirect to teacher dashboard
-                NavigationManager.NavigateTo("/teacher-dashboard", forceLoad: false);
-                return;
-            }
-        }
-        
         try
         {
+            // Load available school years
+            await LoadAvailableSchoolYears();
             // Load dashboard data inline (no loading screen)
             await LoadDashboardStatistics();
             _hasInitialized = true;
@@ -478,6 +502,18 @@ else
         catch (Exception)
         {
             // Error handled inline - no loading screen needed
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure DOM is fully rendered before loading charts
+            await Task.Delay(200);
+            StateHasChanged();
+            await Task.Delay(200);
+            await LoadChartData();
         }
     }
 
@@ -491,8 +527,10 @@ else
             try
             {
                 await LoadDashboardStatistics();
-                // Reload charts after a short delay to ensure DOM is ready
-                await Task.Delay(150);
+                // Ensure DOM is ready before loading charts
+                await Task.Delay(200);
+                StateHasChanged();
+                await Task.Delay(200);
                 await LoadChartData();
             }
             catch (Exception)
@@ -502,72 +540,48 @@ else
         }
     }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            // Wait a bit to ensure DOM is ready
-            await Task.Delay(100);
-            await LoadChartData();
-        }
-    }
-
     private async Task LoadDashboardStatistics()
     {
         try
         {
-            // Load current school year first
-            await LoadCurrentSchoolYear();
-
-            // Get total employee count from vw_EmployeeData (not filtered by school year)
+            // Get total employee count from vw_EmployeeData
             TotalEmployees = await Context.EmployeeDataViews
                 .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
                 .CountAsync();
 
             // Get pending applicants count from vw_StudentData (Status = 'Pending')
-            // Pending applicants are not yet enrolled, so they don't have a school year yet
             var pendingStatus = "Pending";
             PendingApplications = await Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData] WHERE Status = {0}", pendingStatus)
                 .Where(s => s.Status == pendingStatus)
                 .CountAsync();
 
-            // Get student type statistics from vw_StudentData - filter by active school year if available
-            var allStudentsQuery = Context.StudentDataViews
+            // Get student type statistics from vw_StudentData
+            var allStudents = await Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
-                .AsQueryable();
-
-            // Filter by active school year if available
-            if (!string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == CurrentSchoolYear);
-            }
-
-            var allStudents = await allStudentsQuery.ToListAsync();
+                .ToListAsync();
 
             TotalStudentCount = allStudents.Count;
             NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
 
-            // Calculate TotalEnrolled - students with status "Enrolled" for active school year
+            // Calculate TotalEnrolled - students with status "Enrolled"
             TotalEnrolled = allStudents.Count(s => 
                 s.Status != null && 
                 (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of student payments for active school year
-            var paymentsQuery = Context.StudentPayments.AsQueryable();
-            if (!string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                paymentsQuery = paymentsQuery.Where(p => p.SchoolYear == CurrentSchoolYear);
-            }
-            TotalTuitionCollected = await paymentsQuery
+            // Calculate TotalTuitionCollected - sum of all student payments
+            TotalTuitionCollected = await Context.StudentPayments
                 .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
             // Load tuition fees
             await LoadTuitionFees();
+
+            // Load current school year
+            await LoadCurrentSchoolYear();
 
             StateHasChanged();
         }
@@ -582,21 +596,29 @@ else
     {
         try
         {
-            // Determine period based on date range
+            // For the income chart, always use monthly period and ensure full year coverage
             string period = "monthly";
-            if (FromDate.HasValue && ToDate.HasValue)
+            
+            // Determine date range for the chart - default to current year if no filters
+            DateTime? chartFromDate = FromDate;
+            DateTime? chartToDate = ToDate;
+            
+            // If year filter is selected, use that year
+            if (!string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int year))
             {
-                var daysDiff = (ToDate.Value - FromDate.Value).TotalDays;
-                if (daysDiff <= 31)
-                    period = "daily";
-                else if (daysDiff <= 365)
-                    period = "monthly";
-                else
-                    period = "yearly";
+                chartFromDate = new DateTime(year, 1, 1);
+                chartToDate = new DateTime(year, 12, 31);
+            }
+            // If no date filters, default to current year
+            else if (!FromDate.HasValue || !ToDate.HasValue)
+            {
+                var currentYear = DateTime.Now.Year;
+                chartFromDate = new DateTime(currentYear, 1, 1);
+                chartToDate = new DateTime(currentYear, 12, 31);
             }
 
             // Load financial time series data
-            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(FromDate, ToDate, period);
+            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(chartFromDate, chartToDate, period);
             
             // Load enrollment by grade for bar chart
             var enrollmentByGrade = await EnrollmentReportService.GetEnrollmentByGradeAsync();
@@ -620,27 +642,116 @@ else
     {
         try
         {
-            // Wait for DOM to be ready
-            await Task.Delay(100);
-            StateHasChanged();
-            await Task.Delay(100);
+            // Ensure DOM is ready and canvas elements exist
+            var maxRetries = 10;
+            var retryDelay = 150;
+            var canvasesReady = false;
+            
+            for (int i = 0; i < maxRetries; i++)
+            {
+                // Check if canvas elements exist using JavaScript helper
+                try
+                {
+                    canvasesReady = await JSRuntime.InvokeAsync<bool>("dashboardCharts.checkCanvasesExist");
+                    if (canvasesReady)
+                    {
+                        break;
+                    }
+                }
+                catch
+                {
+                    // JavaScript not ready yet, continue retrying
+                }
+                
+                if (i < maxRetries - 1)
+                {
+                    await Task.Delay(retryDelay);
+                    StateHasChanged();
+                }
+            }
+            
+            // If canvases still don't exist after retries, log warning but continue
+            if (!canvasesReady)
+            {
+                System.Diagnostics.Debug.WriteLine("Warning: Some canvas elements not found after retries");
+            }
 
-            // Prepare income line chart data - periods are already formatted as month abbreviations (Jan, Feb, Mar, etc.)
-            var incomeLabels = financialData.Select(d => d.Period).ToArray();
-            var incomeCollections = financialData.Select(d => (double)d.Collections).ToArray();
-            var incomeExpenses = financialData.Select(d => (double)d.Expenses).ToArray();
+            // Prepare income line chart data - School Year format: June to March
+            // School year months: Jun, Jul, Aug, Sep, Oct, Nov, Dec (year 1), Jan, Feb, Mar (year 2)
+            var schoolYearMonthAbbreviations = new[] { "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar" };
+            var schoolYearMonthNumbers = new[] { 6, 7, 8, 9, 10, 11, 12, 1, 2, 3 }; // Corresponding month numbers
+            
+            // Determine school year start and end years from filter
+            int startYear = DateTime.Now.Year;
+            int endYear = DateTime.Now.Year + 1;
+            
+            // Parse school year if available (format: "2025-2026")
+            var schoolYearLabel = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+            if (!string.IsNullOrEmpty(schoolYearLabel))
+            {
+                var parts = schoolYearLabel.Split('-');
+                if (parts.Length == 2 && int.TryParse(parts[0], out int syStart) && int.TryParse(parts[1], out int syEnd))
+                {
+                    startYear = syStart;
+                    endYear = syEnd;
+                }
+            }
+            // If year filter is selected, use that year as start year
+            else if (!string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int parsedYear))
+            {
+                startYear = parsedYear;
+                endYear = parsedYear + 1;
+            }
+            
+            // Create a dictionary from financial data for quick lookup by year and month
+            var financialDataDict = financialData.ToDictionary(
+                d => new { Year = d.PeriodKey.Year, Month = d.PeriodKey.Month }, 
+                d => d);
+            
+            // Build complete school year dataset (June to March)
+            var incomeLabels = new List<string>();
+            var incomeCollections = new List<double>();
+            var incomeExpenses = new List<double>();
+            
+            for (int i = 0; i < schoolYearMonthAbbreviations.Length; i++)
+            {
+                var monthAbbr = schoolYearMonthAbbreviations[i];
+                var monthNumber = schoolYearMonthNumbers[i];
+                incomeLabels.Add(monthAbbr);
+                
+                // Determine which year this month belongs to
+                // Months 6-12 (Jun-Dec) belong to startYear
+                // Months 1-3 (Jan-Mar) belong to endYear
+                int targetYearForMonth = monthNumber >= 6 ? startYear : endYear;
+                
+                // Get data for this month and year if it exists, otherwise use 0
+                var key = new { Year = targetYearForMonth, Month = monthNumber };
+                if (financialDataDict.TryGetValue(key, out var monthData))
+                {
+                    incomeCollections.Add((double)monthData.Collections);
+                    incomeExpenses.Add((double)monthData.Expenses);
+                }
+                else
+                {
+                    incomeCollections.Add(0);
+                    incomeExpenses.Add(0);
+                }
+            }
 
             var incomeDatasets = new object[]
             {
-                new { label = "Collections", data = incomeCollections, borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 },
-                new { label = "Expenses", data = incomeExpenses, borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 }
+                new { label = "Collections", data = incomeCollections.ToArray(), borderColor = "#22c55e", backgroundColor = "rgba(34, 197, 94, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 },
+                new { label = "Expenses", data = incomeExpenses.ToArray(), borderColor = "#f97316", backgroundColor = "rgba(249, 115, 22, 0.1)", tension = 0.4, fill = false, pointRadius = 4, pointHoverRadius = 6, borderWidth = 2 }
             };
 
+            // Get school year for label (already determined above)
+            var yearLabel = $"{startYear}-{endYear}";
+            
             await JSRuntime.InvokeVoidAsync("dashboardCharts.renderLineChart", 
                 "incomeChart", 
-                incomeLabels, 
+                incomeLabels.ToArray(), 
                 incomeDatasets, 
-                new { showLegend = true, isCurrency = true });
+                new { showLegend = true, isCurrency = true, minY = 400000, schoolYear = schoolYearLabel, year = yearLabel });
 
             // Prepare student type doughnut chart data
             var studentTypeLabels = new[] { "New", "Transferee", "Returnee" };
@@ -849,8 +960,13 @@ else
             }
 
             // Apply filters to data loading - updates immediately without loading screen
-            await LoadFilteredStatistics(filterFromDate, filterToDate);
+            await LoadFilteredStatistics(filterFromDate, filterToDate, SelectedSchoolYear);
             await LoadCurrentSchoolYear(); // Reload school year in case it changed
+            
+            // Ensure DOM is ready before loading charts
+            await Task.Delay(200);
+            StateHasChanged();
+            await Task.Delay(200);
             await LoadChartData();
         }
         finally
@@ -860,13 +976,10 @@ else
         }
     }
 
-    private async Task LoadFilteredStatistics(DateTime? fromDate, DateTime? toDate)
+    private async Task LoadFilteredStatistics(DateTime? fromDate, DateTime? toDate, string? schoolYear = null)
     {
         try
         {
-            // Reload current school year in case it changed
-            await LoadCurrentSchoolYear();
-
             // Build base query for employees
             var employeeQuery = Context.EmployeeDataViews
                 .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
@@ -897,25 +1010,31 @@ else
                     s.DateRegistered.Value.Date <= toDate.Value.Date);
             }
 
+            // Apply school year filter if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                studentQuery = studentQuery.Where(s => s.SchoolYear == schoolYear);
+            }
+
             PendingApplications = await studentQuery.CountAsync();
 
-            // Get student type statistics - filter by active school year if available
+            // Get student type statistics with filters
             var allStudentsQuery = Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
                 .AsQueryable();
 
-            // Filter by active school year if available
-            if (!string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == CurrentSchoolYear);
-            }
-
-            // Apply date filter if provided
+            // Apply date filter to all students if provided
             if (fromDate.HasValue && toDate.HasValue)
             {
                 allStudentsQuery = allStudentsQuery.Where(s => s.DateRegistered.HasValue && 
                     s.DateRegistered.Value.Date >= fromDate.Value.Date && 
                     s.DateRegistered.Value.Date <= toDate.Value.Date);
+            }
+
+            // Apply school year filter if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == schoolYear);
             }
 
             var allStudents = await allStudentsQuery.ToListAsync();
@@ -925,25 +1044,35 @@ else
             TransfereeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("transferee"));
             ReturneeCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("returnee"));
 
-            // Calculate TotalEnrolled - students with status "Enrolled" for active school year
+            // Calculate TotalEnrolled - students with status "Enrolled"
             TotalEnrolled = allStudents.Count(s => 
                 s.Status != null && 
                 (s.Status.Equals("Enrolled", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of student payments for active school year
+            // Calculate TotalTuitionCollected - sum of all student payments (with date filter if provided)
             var paymentsQuery = Context.StudentPayments.AsQueryable();
-            if (!string.IsNullOrEmpty(CurrentSchoolYear))
-            {
-                paymentsQuery = paymentsQuery.Where(p => p.SchoolYear == CurrentSchoolYear);
-            }
-            // Apply date filter to payments if provided
             if (fromDate.HasValue && toDate.HasValue)
             {
-                paymentsQuery = paymentsQuery.Where(p => p.CreatedAt.Date >= fromDate.Value.Date && 
+                paymentsQuery = paymentsQuery.Where(p => 
+                    p.CreatedAt.Date >= fromDate.Value.Date && 
                     p.CreatedAt.Date <= toDate.Value.Date);
             }
+            
+            // Apply school year filter to payments if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                // Get student IDs for the selected school year
+                var studentIdsForSchoolYear = await Context.StudentSectionEnrollments
+                    .Where(e => e.SchoolYear == schoolYear)
+                    .Select(e => e.StudentId)
+                    .Distinct()
+                    .ToListAsync();
+                
+                paymentsQuery = paymentsQuery.Where(p => studentIdsForSchoolYear.Contains(p.StudentId));
+            }
+            
             TotalTuitionCollected = await paymentsQuery
                 .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
@@ -966,6 +1095,32 @@ else
         StateHasChanged();
     }
 
+    private void OnSchoolYearChanged(ChangeEventArgs e)
+    {
+        SelectedSchoolYear = e.Value?.ToString();
+        StateHasChanged();
+    }
+
+    private async Task LoadAvailableSchoolYears()
+    {
+        try
+        {
+            // Get distinct school years from StudentSectionEnrollments
+            var schoolYears = await Context.StudentSectionEnrollments
+                .Where(e => !string.IsNullOrEmpty(e.SchoolYear))
+                .Select(e => e.SchoolYear)
+                .Distinct()
+                .OrderByDescending(sy => sy)
+                .ToListAsync();
+            
+            AvailableSchoolYears = schoolYears;
+        }
+        catch (Exception)
+        {
+            AvailableSchoolYears = new List<string>();
+        }
+    }
+
     private async Task ClearFilters()
     {
         if (IsClearingFilters) return; // Prevent multiple simultaneous calls
@@ -980,9 +1135,15 @@ else
             QuickSelect = null;
             SelectedMonth = null;
             SelectedYear = null;
+            SelectedSchoolYear = null;
             
             // Reload all data without filters - updates immediately without loading screen
             await LoadDashboardStatistics();
+            
+            // Ensure DOM is ready before loading charts
+            await Task.Delay(200);
+            StateHasChanged();
+            await Task.Delay(200);
             await LoadChartData();
         }
         finally
@@ -1123,9 +1284,22 @@ else
     {
         try
         {
-            // Get the active and open school year from SchoolYearService
-            var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
-            CurrentSchoolYear = activeSchoolYear ?? string.Empty;
+            // If a school year is selected, use it
+            if (!string.IsNullOrEmpty(SelectedSchoolYear))
+            {
+                CurrentSchoolYear = SelectedSchoolYear;
+                return;
+            }
+
+            // Otherwise, get the most common school year from StudentSectionEnrollment
+            var mostCommonSchoolYear = await Context.StudentSectionEnrollments
+                .Where(e => !string.IsNullOrEmpty(e.SchoolYear))
+                .GroupBy(e => e.SchoolYear)
+                .OrderByDescending(g => g.Count())
+                .Select(g => g.Key)
+                .FirstOrDefaultAsync();
+
+            CurrentSchoolYear = mostCommonSchoolYear ?? string.Empty;
         }
         catch (Exception)
         {

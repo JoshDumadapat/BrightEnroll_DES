@@ -93,7 +93,16 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Students.ReEnrollmentService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Audit.AuditLogService>();
             builder.Services.AddScoped<EmployeeService>();
+            builder.Services.AddScoped<SalaryChangeRequestService>();
+            builder.Services.AddScoped<TimeRecordExcelService>();
+            builder.Services.AddScoped<TimeRecordService>();
+            builder.Services.AddScoped<AttendanceReportService>();
             builder.Services.AddScoped<FeeService>();
+            builder.Services.AddScoped<JournalEntryService>();
+            builder.Services.AddScoped<ChartOfAccountsService>();
+            builder.Services.AddScoped<PeriodClosingService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService>();
             builder.Services.AddScoped<ExpenseService>();
             builder.Services.AddScoped<StudentLedgerService>();
             builder.Services.AddScoped<PaymentService>();
@@ -117,6 +126,9 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.ReportCardPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.GradeFormPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.Form137PdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.SalaryChangeLogPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.AttendanceReportPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PayrollReportPdfGenerator>();
 
             // Inventory services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
@@ -274,6 +286,16 @@ namespace BrightEnroll_DES
                         catch (Exception ex)
                         {
                             logger?.LogWarning(ex, "Deductions seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Chart of Accounts
+                        try
+                        {
+                            await seeder.SeedChartOfAccountsAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Chart of Accounts seeding failed: {Message}", ex.Message);
                         }
 
                         // Verify seeded users

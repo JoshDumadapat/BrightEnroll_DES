@@ -46,6 +46,8 @@ public class PaymentRecord
     public decimal AmountPaid { get; set; }
     public decimal Balance { get; set; }
     public string PaymentStatus { get; set; } = "";
+    public string? ProcessedBy { get; set; } = "";
+    public DateTime? LastPaymentDate { get; set; }
 }
 
 public class ExpenseFormModel

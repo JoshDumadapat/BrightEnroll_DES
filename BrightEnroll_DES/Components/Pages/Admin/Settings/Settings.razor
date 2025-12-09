@@ -5,6 +5,7 @@
 @using BrightEnroll_DES.Services.DataAccess.Repositories
 @using BrightEnroll_DES.Components
 @using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Rendering
 @inject NavigationManager NavigationManager
 @inject IAuthService AuthService
 @inject IUserRepository UserRepository
@@ -268,21 +269,257 @@
         </div>
     </div>
 
-    <!-- System Settings -->
+    <!-- School Information (Admin Only) -->
+    @if (IsAdminUser())
+    {
+        <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+            <div class="px-6 py-6">
+                <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                    <h5 class="text-lg font-bold text-gray-800">School Information</h5>
+                    @if (!isEditingSchoolInfo)
+                    {
+                        <button @onclick="ToggleEditSchoolInfo" 
+                                class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                        </button>
+                    }
+                </div>
+                
+                @if (!isEditingSchoolInfo)
+                {
+                    <!-- Read-Only View -->
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">School Name</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@(string.IsNullOrWhiteSpace(schoolInfo.SchoolName) ? "—" : schoolInfo.SchoolName)</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">School Code</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@(string.IsNullOrWhiteSpace(schoolInfo.SchoolCode) ? "—" : schoolInfo.SchoolCode)</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Contact Number</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@(string.IsNullOrWhiteSpace(schoolInfo.ContactNumber) ? "—" : schoolInfo.ContactNumber)</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Email</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@(string.IsNullOrWhiteSpace(schoolInfo.Email) ? "—" : schoolInfo.Email)</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Website</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@(string.IsNullOrWhiteSpace(schoolInfo.Website) ? "—" : schoolInfo.Website)</p>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t border-gray-200 pt-4">
+                            <label class="text-xs font-medium text-gray-600">Address</label>
+                            <div class="mt-2 text-sm text-gray-800">
+                                @if (string.IsNullOrWhiteSpace(schoolInfo.HouseNo) && 
+                                     string.IsNullOrWhiteSpace(schoolInfo.StreetName) && 
+                                     string.IsNullOrWhiteSpace(schoolInfo.Barangay) && 
+                                     string.IsNullOrWhiteSpace(schoolInfo.City) && 
+                                     string.IsNullOrWhiteSpace(schoolInfo.Province))
+                                {
+                                    <p>—</p>
+                                }
+                                else
+                                {
+                                    <p>
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.HouseNo) ? schoolInfo.HouseNo + " " : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.StreetName) ? schoolInfo.StreetName + ", " : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.Barangay) ? schoolInfo.Barangay + ", " : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.City) ? schoolInfo.City + ", " : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.Province) ? schoolInfo.Province : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.Country) ? (!string.IsNullOrWhiteSpace(schoolInfo.Province) ? ", " : "") + schoolInfo.Country : "")
+                                        @(!string.IsNullOrWhiteSpace(schoolInfo.ZipCode) ? " " + schoolInfo.ZipCode : "")
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <!-- Edit Mode -->
+                    <div class="space-y-4">
+                        @if (!string.IsNullOrEmpty(schoolInfoErrorMessage))
+                        {
+                            <div class="rounded-lg bg-red-50 border border-red-200 p-3">
+                                <p class="text-sm text-red-600">@schoolInfoErrorMessage</p>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(schoolInfoSuccessMessage))
+                        {
+                            <div class="rounded-lg bg-green-50 border border-green-200 p-3">
+                                <p class="text-sm text-green-600">@schoolInfoSuccessMessage</p>
+                            </div>
+                        }
+
+                        <!-- School Name (Required) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700">
+                                School Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="schoolInfo.SchoolName" 
+                                   class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(schoolInfoErrors.ContainsKey("SchoolName") ? "border-red-500" : "")" 
+                                   placeholder="Enter school name" />
+                            @if (schoolInfoErrors.ContainsKey("SchoolName"))
+                            {
+                                <p class="mt-1 text-xs text-red-600">@schoolInfoErrors["SchoolName"]</p>
+                            }
+                        </div>
+
+                        <!-- School Code (Optional) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700">School Code</label>
+                            <input type="text" @bind="schoolInfo.SchoolCode" 
+                                   class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                   placeholder="Enter school code (optional)" />
+                        </div>
+
+                        <!-- Contact Number (Required) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700">
+                                Contact Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="schoolInfo.ContactNumber" 
+                                   class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(schoolInfoErrors.ContainsKey("ContactNumber") ? "border-red-500" : "")" 
+                                   placeholder="Enter contact number" />
+                            @if (schoolInfoErrors.ContainsKey("ContactNumber"))
+                            {
+                                <p class="mt-1 text-xs text-red-600">@schoolInfoErrors["ContactNumber"]</p>
+                            }
+                        </div>
+
+                        <!-- Email (Required) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700">
+                                Email <span class="text-red-500">*</span>
+                            </label>
+                            <input type="email" @bind="schoolInfo.Email" 
+                                   class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(schoolInfoErrors.ContainsKey("Email") ? "border-red-500" : "")" 
+                                   placeholder="Enter email address" />
+                            @if (schoolInfoErrors.ContainsKey("Email"))
+                            {
+                                <p class="mt-1 text-xs text-red-600">@schoolInfoErrors["Email"]</p>
+                            }
+                        </div>
+
+                        <!-- Website (Optional) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700">Website</label>
+                            <input type="url" @bind="schoolInfo.Website" 
+                                   class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                   placeholder="https://www.example.com (optional)" />
+                        </div>
+
+                        <!-- Address Section -->
+                        <div class="border-t border-gray-200 pt-4">
+                            <h6 class="mb-3 text-sm font-semibold text-gray-700">Address</h6>
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <!-- House No -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">House No</label>
+                                    <input type="text" @bind="schoolInfo.HouseNo" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="House number" />
+                                </div>
+
+                                <!-- Street Name -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Street Name</label>
+                                    <input type="text" @bind="schoolInfo.StreetName" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Street name" />
+                                </div>
+
+                                <!-- Barangay -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Barangay</label>
+                                    <input type="text" @bind="schoolInfo.Barangay" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Barangay" />
+                                </div>
+
+                                <!-- City -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">City</label>
+                                    <input type="text" @bind="schoolInfo.City" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="City" />
+                                </div>
+
+                                <!-- Province -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Province</label>
+                                    <input type="text" @bind="schoolInfo.Province" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Province" />
+                                </div>
+
+                                <!-- Country -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Country</label>
+                                    <input type="text" @bind="schoolInfo.Country" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Country" />
+                                </div>
+
+                                <!-- Zip Code -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Zip Code</label>
+                                    <input type="text" @bind="schoolInfo.ZipCode" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Zip code" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex gap-2 pt-4 border-t border-gray-200">
+                            <button @onclick="SaveSchoolInfo" 
+                                    class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                                Save
+                            </button>
+                            <button @onclick="CancelEditSchoolInfo" 
+                                    class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- School Policy & Government Laws -->
     <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                <h5 class="text-lg font-bold text-gray-800">System Settings</h5>
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                        <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h5 class="text-lg font-bold text-gray-800">School Policy & Government Laws</h5>
+                        <p class="text-xs text-gray-500">Comprehensive guide to school policies and Philippine education laws</p>
+                    </div>
+                </div>
             </div>
             
             <div class="space-y-2">
-                <button @onclick="GoToSchoolYearManagement" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
-                    <div class="flex items-center justify-between">
-                        <span>School Year Management</span>
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
+                <button @onclick="OpenPolicyDocumentation" class="w-full rounded-lg border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-all hover:bg-blue-700 flex items-center justify-center gap-2">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View Policy & Laws Documentation
                 </button>
             </div>
         </div>
@@ -308,6 +545,41 @@
     </div>
     </div>
 </div>
+
+<!-- Policy & Laws Documentation Modal -->
+@if (showPolicyModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" @onclick="ClosePolicyModal">
+        <div class="relative w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-white bg-opacity-20">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-white">School Policy & Government Laws</h3>
+                        <p class="text-sm text-blue-100">Comprehensive Documentation</p>
+                    </div>
+                </div>
+                <button @onclick="ClosePolicyModal" class="rounded-lg p-2 text-white transition-colors hover:bg-white hover:bg-opacity-20">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="overflow-y-auto" style="max-height: calc(90vh - 80px);">
+                <div class="px-6 py-6">
+                    @RenderPolicyContent()
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private bool notificationEnabled { get; set; } = true;
@@ -337,6 +609,17 @@
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
 
+    // Policy Documentation Modal
+    private bool showPolicyModal = false;
+
+    // School Information (Admin Only)
+    private bool isEditingSchoolInfo = false;
+    private SchoolInfoModel schoolInfo = new SchoolInfoModel();
+    private SchoolInfoModel originalSchoolInfo = new SchoolInfoModel();
+    private Dictionary<string, string> schoolInfoErrors = new Dictionary<string, string>();
+    private string schoolInfoErrorMessage = string.Empty;
+    private string schoolInfoSuccessMessage = string.Empty;
+
     protected override void OnInitialized()
     {
         // Load current user's email and phone number
@@ -346,6 +629,213 @@
             currentEmail = currentUser.email ?? string.Empty;
             currentPhoneNumber = currentUser.contact_num ?? string.Empty;
         }
+
+        // Initialize mock school information data
+        LoadSchoolInfo();
+    }
+
+    private bool IsAdminUser()
+    {
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser == null) return false;
+            
+            var userRole = currentUser.user_role?.Trim() ?? "";
+            if (string.IsNullOrEmpty(userRole)) return false;
+            
+            var roleLower = userRole.ToLower();
+            return roleLower == "admin" || roleLower == "superadmin";
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void LoadSchoolInfo()
+    {
+        // Mock data - will be replaced with database call later
+        schoolInfo = new SchoolInfoModel
+        {
+            SchoolName = "Bright Enroll Academy",
+            SchoolCode = "BEA-001",
+            ContactNumber = "09123456789",
+            Email = "info@brightenroll.edu.ph",
+            Website = "https://www.brightenroll.edu.ph",
+            HouseNo = "123",
+            StreetName = "Main Street",
+            Barangay = "Centro",
+            City = "Davao City",
+            Province = "Davao del Sur",
+            Country = "Philippines",
+            ZipCode = "8000"
+        };
+        
+        // Store original for cancel functionality
+        originalSchoolInfo = new SchoolInfoModel
+        {
+            SchoolName = schoolInfo.SchoolName,
+            SchoolCode = schoolInfo.SchoolCode,
+            ContactNumber = schoolInfo.ContactNumber,
+            Email = schoolInfo.Email,
+            Website = schoolInfo.Website,
+            HouseNo = schoolInfo.HouseNo,
+            StreetName = schoolInfo.StreetName,
+            Barangay = schoolInfo.Barangay,
+            City = schoolInfo.City,
+            Province = schoolInfo.Province,
+            Country = schoolInfo.Country,
+            ZipCode = schoolInfo.ZipCode
+        };
+    }
+
+    private void ToggleEditSchoolInfo()
+    {
+        isEditingSchoolInfo = true;
+        schoolInfoErrors.Clear();
+        schoolInfoErrorMessage = string.Empty;
+        schoolInfoSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private bool ValidateSchoolInfo()
+    {
+        schoolInfoErrors.Clear();
+        bool isValid = true;
+
+        // Validate School Name (Required)
+        if (string.IsNullOrWhiteSpace(schoolInfo.SchoolName))
+        {
+            schoolInfoErrors["SchoolName"] = "School name is required.";
+            isValid = false;
+        }
+
+        // Validate Contact Number (Required)
+        if (string.IsNullOrWhiteSpace(schoolInfo.ContactNumber))
+        {
+            schoolInfoErrors["ContactNumber"] = "Contact number is required.";
+            isValid = false;
+        }
+        else if (!Regex.IsMatch(schoolInfo.ContactNumber, @"^09\d{9}$|^\d{10,11}$"))
+        {
+            schoolInfoErrors["ContactNumber"] = "Please enter a valid contact number (e.g., 09123456789).";
+            isValid = false;
+        }
+
+        // Validate Email (Required)
+        if (string.IsNullOrWhiteSpace(schoolInfo.Email))
+        {
+            schoolInfoErrors["Email"] = "Email is required.";
+            isValid = false;
+        }
+        else if (!Regex.IsMatch(schoolInfo.Email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            schoolInfoErrors["Email"] = "Please enter a valid email address.";
+            isValid = false;
+        }
+
+        // Validate Website (Optional, but if provided, should be valid URL)
+        if (!string.IsNullOrWhiteSpace(schoolInfo.Website))
+        {
+            if (!Uri.TryCreate(schoolInfo.Website, UriKind.Absolute, out var uriResult) || 
+                (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+            {
+                schoolInfoErrors["Website"] = "Please enter a valid website URL (e.g., https://www.example.com).";
+                isValid = false;
+            }
+        }
+
+        return isValid;
+    }
+
+    private void SaveSchoolInfo()
+    {
+        schoolInfoErrorMessage = string.Empty;
+        schoolInfoSuccessMessage = string.Empty;
+        schoolInfoErrors.Clear();
+
+        if (!ValidateSchoolInfo())
+        {
+            schoolInfoErrorMessage = "Please correct the errors below before saving.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            // TODO: Save to database here (not implemented yet)
+            // For now, just simulate success
+            
+            // Update original data
+            originalSchoolInfo = new SchoolInfoModel
+            {
+                SchoolName = schoolInfo.SchoolName,
+                SchoolCode = schoolInfo.SchoolCode,
+                ContactNumber = schoolInfo.ContactNumber,
+                Email = schoolInfo.Email,
+                Website = schoolInfo.Website,
+                HouseNo = schoolInfo.HouseNo,
+                StreetName = schoolInfo.StreetName,
+                Barangay = schoolInfo.Barangay,
+                City = schoolInfo.City,
+                Province = schoolInfo.Province,
+                Country = schoolInfo.Country,
+                ZipCode = schoolInfo.ZipCode
+            };
+
+            // Exit edit mode
+            isEditingSchoolInfo = false;
+
+            // Show success message
+            schoolInfoSuccessMessage = "School information updated successfully!";
+            toastMessage = "School information updated successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+
+            StateHasChanged();
+
+            // Clear success message after 3 seconds
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                schoolInfoSuccessMessage = string.Empty;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+        catch (Exception ex)
+        {
+            schoolInfoErrorMessage = $"Error updating school information: {ex.Message}";
+            toastMessage = $"Failed to update school information: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
+        }
+    }
+
+    private void CancelEditSchoolInfo()
+    {
+        // Restore original values
+        schoolInfo = new SchoolInfoModel
+        {
+            SchoolName = originalSchoolInfo.SchoolName,
+            SchoolCode = originalSchoolInfo.SchoolCode,
+            ContactNumber = originalSchoolInfo.ContactNumber,
+            Email = originalSchoolInfo.Email,
+            Website = originalSchoolInfo.Website,
+            HouseNo = originalSchoolInfo.HouseNo,
+            StreetName = originalSchoolInfo.StreetName,
+            Barangay = originalSchoolInfo.Barangay,
+            City = originalSchoolInfo.City,
+            Province = originalSchoolInfo.Province,
+            Country = originalSchoolInfo.Country,
+            ZipCode = originalSchoolInfo.ZipCode
+        };
+
+        isEditingSchoolInfo = false;
+        schoolInfoErrors.Clear();
+        schoolInfoErrorMessage = string.Empty;
+        schoolInfoSuccessMessage = string.Empty;
+        StateHasChanged();
     }
 
     private void OnOtpEmailVerificationChanged()
@@ -685,8 +1175,317 @@
         NavigationManager.NavigateTo("/documentation");
     }
 
-    private void GoToSchoolYearManagement()
+    private void OpenPolicyDocumentation()
     {
-        NavigationManager.NavigateTo("/settings/school-year");
+        showPolicyModal = true;
+        StateHasChanged();
+    }
+
+    private void ClosePolicyModal()
+    {
+        showPolicyModal = false;
+        StateHasChanged();
+    }
+
+    private RenderFragment RenderPolicyContent() => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-8");
+
+        // Introduction
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "rounded-lg border border-blue-100 bg-blue-50 p-6");
+        builder.OpenElement(4, "h4");
+        builder.AddAttribute(5, "class", "mb-3 text-lg font-bold text-blue-900");
+        builder.AddContent(6, "Introduction");
+        builder.CloseElement();
+        builder.OpenElement(7, "p");
+        builder.AddAttribute(8, "class", "text-sm leading-relaxed text-gray-700");
+        builder.AddContent(9, "This document outlines the school policies and government laws that govern our educational institution. All staff, students, and stakeholders are expected to comply with these policies and laws to ensure a safe, respectful, and legally compliant learning environment.");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        // School Policies Section
+        builder.OpenElement(10, "div");
+        builder.AddAttribute(11, "class", "space-y-6");
+        builder.OpenElement(12, "h3");
+        builder.AddAttribute(13, "class", "mb-4 text-2xl font-bold text-gray-800 border-b-2 border-gray-300 pb-2");
+        builder.AddContent(14, "School Policies");
+        builder.CloseElement();
+
+        // Policy 1: Student Protection
+        RenderPolicyCard(builder, 15, 
+            "Student Protection & Anti-Abuse Policy",
+            "The safety and well-being of all students is our highest priority. This policy strictly prohibits any form of abuse, harassment, or mistreatment of students.",
+            new List<string>
+            {
+                "Physical abuse, including corporal punishment, is strictly prohibited",
+                "Verbal abuse, threats, or intimidation of students is not tolerated",
+                "Emotional abuse, including humiliation, isolation, or rejection, is forbidden",
+                "Sexual harassment or any inappropriate conduct with students is grounds for immediate dismissal and legal action",
+                "All staff must report any suspected abuse immediately to the administration",
+                "Students have the right to report any form of abuse without fear of retaliation",
+                "All reports will be investigated promptly and confidentially",
+                "Violations will result in disciplinary action, up to and including termination and criminal prosecution"
+            });
+
+        // Policy 2: Code of Conduct
+        RenderPolicyCard(builder, 25,
+            "Code of Conduct for Staff",
+            "All staff members are expected to maintain the highest standards of professional conduct.",
+            new List<string>
+            {
+                "Maintain professional boundaries with students at all times",
+                "Treat all students, parents, and colleagues with respect and dignity",
+                "Maintain confidentiality of student and school information",
+                "Avoid conflicts of interest and maintain impartiality",
+                "Attend all required training and professional development sessions",
+                "Follow all school procedures and administrative directives",
+                "Report any violations of school policies or laws immediately",
+                "Maintain appropriate dress code and professional appearance"
+            });
+
+        // Policy 3: Academic Integrity
+        RenderPolicyCard(builder, 35,
+            "Academic Integrity Policy",
+            "Academic honesty is fundamental to the educational mission of our school.",
+            new List<string>
+            {
+                "Plagiarism, cheating, or academic dishonesty is strictly prohibited",
+                "All academic work must be original and properly cited",
+                "Students found guilty of academic dishonesty will face disciplinary action",
+                "Staff must maintain fairness and integrity in grading and assessment",
+                "All assessments must be conducted in a secure and fair manner"
+            });
+
+        // Policy 4: Non-Discrimination
+        RenderPolicyCard(builder, 45,
+            "Non-Discrimination & Equal Opportunity Policy",
+            "Our school is committed to providing equal opportunities for all students and staff.",
+            new List<string>
+            {
+                "No discrimination based on race, religion, gender, sexual orientation, disability, or socioeconomic status",
+                "Equal access to educational programs and activities for all students",
+                "Reasonable accommodations for students with disabilities",
+                "Respect for cultural and religious diversity",
+                "Inclusive environment that celebrates differences"
+            });
+
+        builder.CloseElement(); // End School Policies Section
+
+        // Philippine Government Laws Section
+        builder.OpenElement(50, "div");
+        builder.AddAttribute(51, "class", "mt-8 space-y-6");
+        builder.OpenElement(52, "h3");
+        builder.AddAttribute(53, "class", "mb-4 text-2xl font-bold text-gray-800 border-b-2 border-gray-300 pb-2");
+        builder.AddContent(54, "Philippine Government Laws");
+        builder.CloseElement();
+
+        // DepEd Laws
+        RenderLawCard(builder, 55,
+            "Department of Education (DepEd) Policies",
+            "Republic Act No. 9155 - Governance of Basic Education Act of 2001",
+            new List<string>
+            {
+                "All educational institutions must comply with DepEd standards and regulations",
+                "Schools must maintain proper accreditation and permits",
+                "Curriculum must align with DepEd's K-12 Basic Education Program",
+                "Teachers must be licensed and meet DepEd qualification requirements",
+                "Schools must submit required reports and documentation to DepEd",
+                "Student records must be maintained according to DepEd guidelines",
+                "Schools must ensure safe and conducive learning environments"
+            });
+
+        // Child Protection Law
+        RenderLawCard(builder, 65,
+            "Republic Act No. 7610 - Special Protection of Children Against Abuse, Exploitation and Discrimination Act",
+            "This law provides special protection to children from all forms of abuse, neglect, cruelty, exploitation, and discrimination.",
+            new List<string>
+            {
+                "Any person who commits child abuse shall suffer the penalty of prision mayor in its minimum period",
+                "Child abuse includes physical, psychological, sexual abuse, and neglect",
+                "Schools are mandated to report suspected child abuse to proper authorities",
+                "Protection of child victims during investigation and prosecution",
+                "Establishment of child protection committees in schools",
+                "Mandatory reporting of child abuse cases",
+                "Protection of child's identity and privacy"
+            });
+
+        // Anti-Bullying Law
+        RenderLawCard(builder, 75,
+            "Republic Act No. 10627 - Anti-Bullying Act of 2013",
+            "This act requires all elementary and secondary schools to adopt policies to prevent and address acts of bullying.",
+            new List<string>
+            {
+                "All schools must adopt anti-bullying policies",
+                "Schools must establish procedures for reporting and investigating bullying",
+                "Schools must provide intervention programs for both victims and bullies",
+                "Protection of students who report bullying incidents",
+                "Regular monitoring and evaluation of anti-bullying programs",
+                "Coordination with parents and guardians in addressing bullying",
+                "Documentation and reporting of bullying incidents"
+            });
+
+        // Data Privacy Law
+        RenderLawCard(builder, 85,
+            "Republic Act No. 10173 - Data Privacy Act of 2012",
+            "This law protects individual personal information in information and communications systems.",
+            new List<string>
+            {
+                "Schools must protect student and staff personal information",
+                "Consent must be obtained before collecting personal data",
+                "Personal data must be used only for legitimate educational purposes",
+                "Schools must implement security measures to protect data",
+                "Students and parents have the right to access their personal data",
+                "Data breach notification requirements",
+                "Appointment of Data Protection Officer (DPO) for large institutions"
+            });
+
+        // Magna Carta for Public School Teachers
+        RenderLawCard(builder, 95,
+            "Republic Act No. 4670 - Magna Carta for Public School Teachers",
+            "This act promotes and improves the social and economic status of public school teachers.",
+            new List<string>
+            {
+                "Teachers' rights to academic freedom",
+                "Protection of teachers from discrimination",
+                "Right to organize and join professional organizations",
+                "Tenure and security of employment",
+                "Compensation and benefits",
+                "Health and safety protection",
+                "Professional development opportunities"
+            });
+
+        // Safe Spaces Act
+        RenderLawCard(builder, 105,
+            "Republic Act No. 11313 - Safe Spaces Act (Bawal Bastos Law)",
+            "This act addresses gender-based sexual harassment in public spaces, including educational institutions.",
+            new List<string>
+            {
+                "Prohibition of gender-based sexual harassment in schools",
+                "Schools must establish internal mechanisms to address complaints",
+                "Protection of complainants from retaliation",
+                "Mandatory training on gender sensitivity",
+                "Clear procedures for reporting and investigation",
+                "Appropriate sanctions for violators",
+                "Coordination with local government units and law enforcement"
+            });
+
+        builder.CloseElement(); // End Government Laws Section
+
+        // Compliance Section
+        builder.OpenElement(110, "div");
+        builder.AddAttribute(111, "class", "mt-8 rounded-lg border-2 border-green-200 bg-green-50 p-6");
+        builder.OpenElement(112, "h4");
+        builder.AddAttribute(113, "class", "mb-3 text-lg font-bold text-green-900");
+        builder.AddContent(114, "Compliance & Reporting");
+        builder.CloseElement();
+        builder.OpenElement(115, "p");
+        builder.AddAttribute(116, "class", "mb-4 text-sm leading-relaxed text-gray-700");
+        builder.AddContent(117, "All members of the school community are responsible for understanding and complying with these policies and laws. Violations should be reported immediately through the proper channels.");
+        builder.CloseElement();
+        builder.OpenElement(118, "div");
+        builder.AddAttribute(119, "class", "space-y-2 text-sm text-gray-700");
+        builder.OpenElement(120, "p");
+        builder.AddAttribute(121, "class", "font-semibold");
+        builder.AddContent(122, "Reporting Channels:");
+        builder.CloseElement();
+        builder.OpenElement(123, "ul");
+        builder.AddAttribute(124, "class", "ml-6 list-disc space-y-1");
+        builder.OpenElement(125, "li");
+        builder.AddContent(126, "School Administration Office");
+        builder.CloseElement();
+        builder.OpenElement(127, "li");
+        builder.AddContent(128, "Child Protection Committee");
+        builder.CloseElement();
+        builder.OpenElement(129, "li");
+        builder.AddContent(130, "DepEd Regional Office");
+        builder.CloseElement();
+        builder.OpenElement(131, "li");
+        builder.AddContent(132, "Local Social Welfare and Development Office");
+        builder.CloseElement();
+        builder.OpenElement(133, "li");
+        builder.AddContent(134, "Philippine National Police (PNP) - Women and Children Protection Desk");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement(); // End main div
+    };
+
+    private void RenderPolicyCard(RenderTreeBuilder builder, int sequence, string title, string description, List<string> points)
+    {
+        builder.OpenElement(sequence, "div");
+        builder.AddAttribute(sequence + 1, "class", "rounded-lg border border-gray-200 bg-white p-6 shadow-sm");
+        builder.OpenElement(sequence + 2, "h4");
+        builder.AddAttribute(sequence + 3, "class", "mb-2 text-lg font-bold text-gray-800");
+        builder.AddContent(sequence + 4, title);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 5, "p");
+        builder.AddAttribute(sequence + 6, "class", "mb-4 text-sm text-gray-600");
+        builder.AddContent(sequence + 7, description);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 8, "ul");
+        builder.AddAttribute(sequence + 9, "class", "ml-6 space-y-2 text-sm text-gray-700");
+        foreach (var point in points)
+        {
+            builder.OpenElement(sequence + 10, "li");
+            builder.AddAttribute(sequence + 11, "class", "flex items-start gap-2");
+            builder.OpenElement(sequence + 12, "span");
+            builder.AddAttribute(sequence + 13, "class", "mt-1.5 flex-shrink-0 text-blue-600");
+            builder.AddContent(sequence + 14, "•");
+            builder.CloseElement();
+            builder.AddContent(sequence + 15, point);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    private void RenderLawCard(RenderTreeBuilder builder, int sequence, string title, string subtitle, List<string> points)
+    {
+        builder.OpenElement(sequence, "div");
+        builder.AddAttribute(sequence + 1, "class", "rounded-lg border-2 border-blue-200 bg-blue-50 p-6");
+        builder.OpenElement(sequence + 2, "h4");
+        builder.AddAttribute(sequence + 3, "class", "mb-1 text-lg font-bold text-blue-900");
+        builder.AddContent(sequence + 4, title);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 5, "p");
+        builder.AddAttribute(sequence + 6, "class", "mb-4 text-sm italic text-blue-800");
+        builder.AddContent(sequence + 7, subtitle);
+        builder.CloseElement();
+        builder.OpenElement(sequence + 8, "ul");
+        builder.AddAttribute(sequence + 9, "class", "ml-6 space-y-2 text-sm text-gray-700");
+        foreach (var point in points)
+        {
+            builder.OpenElement(sequence + 10, "li");
+            builder.AddAttribute(sequence + 11, "class", "flex items-start gap-2");
+            builder.OpenElement(sequence + 12, "span");
+            builder.AddAttribute(sequence + 13, "class", "mt-1.5 flex-shrink-0 text-blue-600 font-bold");
+            builder.AddContent(sequence + 14, "→");
+            builder.CloseElement();
+            builder.AddContent(sequence + 15, point);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    // School Information Model
+    private class SchoolInfoModel
+    {
+        public string SchoolName { get; set; } = string.Empty;
+        public string SchoolCode { get; set; } = string.Empty;
+        public string ContactNumber { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Website { get; set; } = string.Empty;
+        public string HouseNo { get; set; } = string.Empty;
+        public string StreetName { get; set; } = string.Empty;
+        public string Barangay { get; set; } = string.Empty;
+        public string City { get; set; } = string.Empty;
+        public string Province { get; set; } = string.Empty;
+        public string Country { get; set; } = "Philippines";
+        public string ZipCode { get; set; } = string.Empty;
     }
 }
