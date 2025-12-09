@@ -453,15 +453,60 @@ public class StudentLedgerService
 
     /// <summary>
     /// Gets ledger for a student and school year
+    /// Ensures charges are populated if ledger exists but has no charges
     /// </summary>
     public async Task<StudentLedger?> GetLedgerBySchoolYearAsync(string studentId, string schoolYear)
     {
         try
         {
-            return await _context.StudentLedgers
+            var ledger = await _context.StudentLedgers
                 .Include(l => l.Charges)
                 .Include(l => l.Payments)
                 .FirstOrDefaultAsync(l => l.StudentId == studentId && l.SchoolYear == schoolYear);
+
+            if (ledger != null)
+            {
+                // If ledger exists but has no charges, populate them now
+                if (!ledger.Charges.Any())
+                {
+                    var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId);
+                    var ledgerGradeLevel = ledger.GradeLevel ?? student?.GradeLevel;
+                    
+                    if (!string.IsNullOrWhiteSpace(ledgerGradeLevel))
+                    {
+                        _logger?.LogInformation(
+                            "Ledger {LedgerId} exists but has no charges. Populating charges for grade level {GradeLevel}",
+                            ledger.Id, ledgerGradeLevel);
+                        await PopulateInitialChargesAsync(ledger.Id, ledgerGradeLevel);
+                        await RecalculateTotalsAsync(ledger.Id);
+                        
+                        // Reload ledger with charges
+                        return await _context.StudentLedgers
+                            .Include(l => l.Charges)
+                            .Include(l => l.Payments)
+                            .FirstAsync(l => l.Id == ledger.Id);
+                    }
+                    else
+                    {
+                        _logger?.LogWarning(
+                            "Ledger {LedgerId} exists but has no charges and cannot determine grade level for student {StudentId}",
+                            ledger.Id, studentId);
+                    }
+                }
+                else
+                {
+                    // Recalculate totals in case charges/payments were modified
+                    await RecalculateTotalsAsync(ledger.Id);
+                    
+                    // Reload ledger to ensure totals are up to date
+                    ledger = await _context.StudentLedgers
+                        .Include(l => l.Charges)
+                        .Include(l => l.Payments)
+                        .FirstAsync(l => l.Id == ledger.Id);
+                }
+            }
+
+            return ledger;
         }
         catch (Exception ex)
         {
@@ -473,15 +518,60 @@ public class StudentLedgerService
 
     /// <summary>
     /// Gets ledger by ID
+    /// Ensures charges are populated if ledger exists but has no charges
     /// </summary>
     public async Task<StudentLedger?> GetLedgerByIdAsync(int ledgerId)
     {
         try
         {
-            return await _context.StudentLedgers
+            var ledger = await _context.StudentLedgers
                 .Include(l => l.Charges)
                 .Include(l => l.Payments)
                 .FirstOrDefaultAsync(l => l.Id == ledgerId);
+
+            if (ledger != null)
+            {
+                // If ledger exists but has no charges, populate them now
+                if (!ledger.Charges.Any())
+                {
+                    var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == ledger.StudentId);
+                    var ledgerGradeLevel = ledger.GradeLevel ?? student?.GradeLevel;
+                    
+                    if (!string.IsNullOrWhiteSpace(ledgerGradeLevel))
+                    {
+                        _logger?.LogInformation(
+                            "Ledger {LedgerId} exists but has no charges. Populating charges for grade level {GradeLevel}",
+                            ledger.Id, ledgerGradeLevel);
+                        await PopulateInitialChargesAsync(ledger.Id, ledgerGradeLevel);
+                        await RecalculateTotalsAsync(ledger.Id);
+                        
+                        // Reload ledger with charges
+                        return await _context.StudentLedgers
+                            .Include(l => l.Charges)
+                            .Include(l => l.Payments)
+                            .FirstAsync(l => l.Id == ledger.Id);
+                    }
+                    else
+                    {
+                        _logger?.LogWarning(
+                            "Ledger {LedgerId} exists but has no charges and cannot determine grade level for student {StudentId}",
+                            ledger.Id, ledger.StudentId);
+                    }
+                }
+                else
+                {
+                    // Recalculate totals in case charges/payments were modified
+                    await RecalculateTotalsAsync(ledger.Id);
+                    
+                    // Reload ledger to ensure totals are up to date
+                    ledger = await _context.StudentLedgers
+                        .Include(l => l.Charges)
+                        .Include(l => l.Payments)
+                        .FirstAsync(l => l.Id == ledger.Id);
+                }
+            }
+
+            return ledger;
         }
         catch (Exception ex)
         {
