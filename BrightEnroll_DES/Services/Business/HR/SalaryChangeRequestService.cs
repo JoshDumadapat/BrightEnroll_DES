@@ -136,6 +136,18 @@ public class SalaryChangeRequestService
                 severity: "Medium"
             );
 
+            // Create notification for approvers (Payroll/Admin roles)
+            await _notificationService.CreateNotificationAsync(
+                notificationType: "SalaryChange",
+                title: "Salary Change Request Pending Approval",
+                message: $"Salary change request for {employeeName} requires approval. Current: ₱{currentBaseSalary:N2} + ₱{currentAllowance:N2}, Requested: ₱{requestedBaseSalary:N2} + ₱{requestedAllowance:N2}",
+                referenceType: "SalaryChangeRequest",
+                referenceId: request.RequestId,
+                actionUrl: "/payroll?tab=Approvals",
+                priority: "High",
+                createdBy: requestedBy
+            );
+
             _logger?.LogInformation("Salary change request created: RequestId={RequestId}, UserId={UserId}, Status={Status}",
                 request.RequestId, userId, request.Status);
 

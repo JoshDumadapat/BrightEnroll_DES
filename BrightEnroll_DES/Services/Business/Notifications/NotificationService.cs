@@ -96,12 +96,14 @@ public class NotificationService
     /// </summary>
     public async Task MarkAsReadAsync(int notificationId)
     {
-        var notification = await _context.Notifications.FindAsync(notificationId);
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.NotificationId == notificationId);
+        
         if (notification != null && !notification.IsRead)
         {
             notification.IsRead = true;
             notification.ReadAt = DateTime.Now;
-                await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
         }
     }
 
@@ -128,7 +130,9 @@ public class NotificationService
     /// </summary>
     public async Task DeleteNotificationAsync(int notificationId)
     {
-        var notification = await _context.Notifications.FindAsync(notificationId);
+        var notification = await _context.Notifications
+            .FirstOrDefaultAsync(n => n.NotificationId == notificationId);
+        
         if (notification != null)
         {
             _context.Notifications.Remove(notification);

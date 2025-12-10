@@ -1,4 +1,4 @@
-@namespace BrightEnroll_DES.Components.Shared
+﻿f@namespace BrightEnroll_DES.Components.Shared
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services.Business.Notifications
 @using System.Linq
@@ -9,21 +9,21 @@
 <div class="relative">
     @if (isOpen)
     {
-        <div class="fixed inset-0 z-[98]" @onclick="CloseDropdown"></div>
+        <div class="z-[98] fixed inset-0" @onclick="CloseDropdown"></div>
     }
     
     <div class="relative">
         @if (isOpen)
         {
-            <div class="absolute right-0 top-full mt-2 w-96 rounded-lg border border-gray-300 bg-white shadow-xl z-[100]" @onclick:stopPropagation="true">
+            <div class="z-[100] absolute right-0 top-full mt-2 w-96 rounded-lg border border-gray-300 bg-white shadow-xl" @onclick:stopPropagation="true">
                 <!-- Header -->
-                <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 bg-gray-50 rounded-t-lg">
+                <div class="flex items-center justify-between rounded-t-lg border-b border-gray-200 bg-gray-50 px-4 py-3">
                     <h3 class="text-sm font-semibold text-gray-800">Notifications</h3>
                     <div class="flex items-center gap-2">
                         @if (unreadCount > 0 && hasDataLoaded && !isLoading)
                         {
                             <button @onclick="MarkAllAsRead" 
-                                    class="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                                    class="text-xs font-medium text-blue-600 hover:text-blue-800">
                                 Mark all read
                             </button>
                         }
@@ -41,7 +41,7 @@
                     {
                         <!-- ALWAYS show loading when loading or before data loads - NO GLITCHES -->
                         <div class="px-4 py-8 text-center">
-                            <svg class="animate-spin mx-auto h-8 w-8 text-blue-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="mx-auto mb-2 h-8 w-8 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -61,23 +61,23 @@
                                 string indicatorColor = notification.IsRead ? "" : 
                                     notification.NotificationType == "Expense" ? "bg-orange-500" : "bg-blue-600";
                                 
-                                <div class="border-b border-gray-100 hover:bg-gray-50 transition-colors @bgColor">
+                                <div class="border-b border-gray-100 transition-colors hover:bg-gray-50 @bgColor">
                                     <button @onclick="() => HandleNotificationClick(notification)" 
                                             class="w-full text-left px-4 py-3">
                                         <div class="flex items-start gap-3">
-                                            <div class="flex-shrink-0 mt-0.5">
+                                            <div class="mt-0.5 flex-shrink-0">
                                                 @if (!string.IsNullOrEmpty(indicatorColor))
                                                 {
                                                     <div class="h-2 w-2 rounded-full @indicatorColor"></div>
                                                 }
                                             </div>
-                                            <div class="flex-1 min-w-0">
+                                            <div class="min-w-0 flex-1">
                                                 <p class="text-sm font-medium text-gray-900 @(notification.IsRead ? "" : "font-semibold")">
                                                     @notification.Title
                                                 </p>
                                                 @if (!string.IsNullOrWhiteSpace(notification.Message))
                                                 {
-                                                    <p class="mt-1 text-xs text-gray-600 line-clamp-2">
+                                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600">
                                                         @notification.Message
                                                     </p>
                                                 }
@@ -94,7 +94,7 @@
                         {
                             <!-- Show placeholder when loaded but no notifications -->
                             <div class="px-4 py-8 text-center">
-                                <svg class="mx-auto h-12 w-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="mx-auto mb-2 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                 </svg>
                                 <p class="text-sm text-gray-500">No notifications</p>
@@ -106,7 +106,7 @@
                 <!-- Footer -->
                 @if (hasDataLoaded && !isLoading && HasNotifications)
                 {
-                    <div class="border-t border-gray-200 px-4 py-2 bg-gray-50 rounded-b-lg">
+                    <div class="rounded-b-lg border-t border-gray-200 bg-gray-50 px-4 py-2">
                         <button @onclick="ViewAllNotifications" 
                                 class="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-800">
                             View All Notifications
@@ -333,8 +333,25 @@
         {
             actionUrl = "/finance?tab=Approvals&expense=true";
         }
-        // SalaryChange notifications now use actionUrl from notification (redirects to salary change log)
-        // No override needed - use the actionUrl from the notification
+        // Handle SalaryChange notifications
+        else if (notification.NotificationType == "SalaryChange")
+        {
+            // If notification is about pending approval, go to payroll approvals tab
+            if (notification.Title.Contains("Pending Approval", StringComparison.OrdinalIgnoreCase))
+            {
+                actionUrl = "/payroll?tab=Approvals";
+            }
+            // If notification is about approved salary change, go to salary change log
+            else if (notification.Title.Contains("Approved", StringComparison.OrdinalIgnoreCase))
+            {
+                actionUrl = "/human-resource?tab=SalaryChangeLog";
+            }
+            // Otherwise use the actionUrl from notification (could be salary change log or approvals)
+            else if (string.IsNullOrWhiteSpace(actionUrl) || !actionUrl.Contains("payroll"))
+            {
+                actionUrl = "/payroll?tab=Approvals";
+            }
+        }
 
         await CloseDropdown();
         Navigation.NavigateTo(actionUrl, forceLoad: true);

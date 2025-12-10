@@ -758,7 +758,7 @@ public class EmployeeService
                                     var employee = await _context.Users.FindAsync(userId);
                                     var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "Unknown";
                                     
-                                    // Create notification for salary change log
+                                    // Create notification for salary change log (auto-approved, below threshold)
                                     if (_notificationService != null)
                                     {
                                         await _notificationService.CreateNotificationAsync(
@@ -768,7 +768,7 @@ public class EmployeeService
                                             referenceType: "SalaryChangeRequest",
                                             referenceId: salaryChangeRequest.RequestId,
                                             actionUrl: "/human-resource?tab=SalaryChangeLog",
-                                            priority: "Normal",
+                                            priority: "Low",
                                             createdBy: requestedByUserId.Value
                                         );
                                     }
