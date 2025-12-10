@@ -253,9 +253,29 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // Refresh data when component parameters change (e.g., when switching tabs)
+        // Refresh data when component parameters change (e.g., when switching tabs or page refresh)
         if (_hasInitialized)
         {
+            // Re-check school year status on refresh to ensure it's up-to-date
+            if (!string.IsNullOrEmpty(selectedSchoolYear))
+            {
+                isSchoolYearOpen = await SchoolYearService.IsSchoolYearOpenAsync(selectedSchoolYear);
+            }
+            else
+            {
+                // If no school year selected, get active school year and check its status
+                var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+                if (!string.IsNullOrEmpty(activeSchoolYear))
+                {
+                    selectedSchoolYear = activeSchoolYear;
+                    isSchoolYearOpen = await SchoolYearService.IsSchoolYearOpenAsync(activeSchoolYear);
+                }
+                else
+                {
+                    isSchoolYearOpen = true; // Default to open if no school year found
+                }
+            }
+            
             // Small delay to ensure DOM is ready
             await Task.Delay(50);
             await InvokeAsync(StateHasChanged);

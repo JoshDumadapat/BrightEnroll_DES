@@ -242,6 +242,7 @@ public class StudentLedgerService
     /// <summary>
     /// Recalculates totals for a ledger based on charges and payments
     /// Must be called after any charge or payment changes
+    /// Always calculates from actual charges and payments (not stored totals)
     /// </summary>
     public async Task RecalculateTotalsAsync(int ledgerId)
     {
@@ -257,21 +258,22 @@ public class StudentLedgerService
                 throw new Exception($"Ledger {ledgerId} not found.");
             }
 
-            // Calculate total charges (sum of all charges, including negative discounts)
-            ledger.TotalCharges = ledger.Charges.Sum(c => c.Amount);
+            // Always calculate from actual charges and payments (not stored totals)
+            var calculatedTotalCharges = ledger.Charges?.Sum(c => c.Amount) ?? 0m;
+            var calculatedTotalPayments = ledger.Payments?.Sum(p => p.Amount) ?? 0m;
+            var calculatedBalance = calculatedTotalCharges - calculatedTotalPayments;
 
-            // Calculate total payments
-            ledger.TotalPayments = ledger.Payments.Sum(p => p.Amount);
+            // Update stored totals
+            ledger.TotalCharges = calculatedTotalCharges;
+            ledger.TotalPayments = calculatedTotalPayments;
+            ledger.Balance = calculatedBalance;
 
-            // Calculate balance
-            ledger.Balance = ledger.TotalCharges - ledger.TotalPayments;
-
-            // Update status based on balance
-            if (ledger.TotalPayments == 0)
+            // Update status based on calculated balance
+            if (calculatedTotalPayments == 0)
             {
                 ledger.Status = "Unpaid";
             }
-            else if (ledger.Balance > 0)
+            else if (calculatedBalance > 0)
             {
                 ledger.Status = "Partially Paid";
             }
@@ -398,6 +400,7 @@ public class StudentLedgerService
             }
 
             var ledger = await _context.StudentLedgers
+                .Include(l => l.Charges)
                 .Include(l => l.Payments)
                 .FirstOrDefaultAsync(l => l.Id == ledgerId);
 
@@ -415,11 +418,16 @@ public class StudentLedgerService
                 throw new Exception($"OR number {orNumber} already exists. Please use a different OR number.");
             }
 
-            // Check if payment exceeds balance
-            var currentBalance = ledger.TotalCharges - ledger.TotalPayments;
-            if (amount > currentBalance)
+            // Calculate actual balance from charges and payments (not stored totals)
+            // This ensures we use the most up-to-date balance even if totals haven't been recalculated
+            var actualTotalCharges = ledger.Charges?.Sum(c => c.Amount) ?? 0m;
+            var actualTotalPayments = ledger.Payments?.Sum(p => p.Amount) ?? 0m;
+            var actualBalance = actualTotalCharges - actualTotalPayments;
+
+            // Check if payment exceeds balance using ACTUAL calculated balance
+            if (amount > actualBalance)
             {
-                throw new Exception($"Payment amount (Php {amount:N2}) exceeds balance (Php {currentBalance:N2}).");
+                throw new Exception($"Payment amount (Php {amount:N2}) exceeds balance (Php {actualBalance:N2}).");
             }
 
             var payment = new LedgerPayment

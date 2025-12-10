@@ -91,9 +91,12 @@ public class PaymentService
 
     /// <summary>
     /// Process a payment for a student using ledger system (no enrollment/status side effects)
+    /// Uses database transaction to ensure atomicity of all operations
     /// </summary>
     public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string orNumber, string? processedBy = null)
     {
+        // Use database transaction to ensure atomicity
+        using var transaction = await _context.Database.BeginTransactionAsync();
         try
         {
             var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId)
@@ -132,7 +135,7 @@ public class PaymentService
             // Add payment to the target ledger (no status or enrollment changes)
             await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, paymentAmount, orNumber, paymentMethod, processedBy);
 
-            // For current/active school year payments (not previous-balance cases), update student.Status and enrollment records to reflect paid state
+            // For current/active school year payments (not previous-balance cases), update student.Status and enrollment records
             if (!currentInfo.HasPreviousBalance)
             {
                 var activeSchoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
@@ -160,8 +163,6 @@ public class PaymentService
 
                     foreach (var enrollment in enrollments)
                     {
-                        // Update enrollment status to match ledger payment status
-                        // Map ledger status to enrollment status
                         var enrollmentStatus = newStatus switch
                         {
                             "Fully Paid" => "Fully Paid",
@@ -176,32 +177,26 @@ public class PaymentService
                             enrollment.UpdatedAt = DateTime.Now;
                         }
                     }
-
-                    await _context.SaveChangesAsync();
                 }
             }
+
+            // Save all changes within transaction
+            await _context.SaveChangesAsync();
+            
+            // Commit transaction
+            await transaction.CommitAsync();
 
             _logger?.LogInformation(
                 "Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
                 studentId, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
 
-            // Force reload of the ledger from database to ensure we have the latest payments and status
-            if (currentInfo.LedgerId.HasValue)
-            {
-                // Reload the ledger with fresh data from database
-                var reloadedLedger = await _ledgerService.GetLedgerByIdAsync(currentInfo.LedgerId.Value);
-                if (reloadedLedger != null)
-                {
-                    // Ensure the ledger is recalculated with latest payments
-                    await _ledgerService.RecalculateTotalsAsync(currentInfo.LedgerId.Value);
-                }
-            }
-            
-            // Return updated payment info (this will reload fresh data from database)
+            // Return updated payment info (GetStudentPaymentInfoAsync will reload and recalculate)
+            // No need for manual reload/recalculation here as GetStudentPaymentInfoAsync handles it
             return await GetStudentPaymentInfoAsync(studentId) ?? currentInfo;
         }
         catch (Exception ex)
         {
+            await transaction.RollbackAsync();
             _logger?.LogError(ex, "Error processing payment for {StudentId}: {Message}", studentId, ex.Message);
             throw;
         }
@@ -488,8 +483,18 @@ public class PaymentService
         if (needsUpdate)
         {
             ledger.UpdatedAt = DateTime.Now;
-            // Note: SaveChanges will be called by the caller or we can save here
-            // For now, we'll let the caller handle saving to avoid multiple save operations
+            try
+            {
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation(
+                    "Updated ledger {LedgerId} totals: Charges={Charges}, Payments={Payments}, Balance={Balance}, Status={Status}",
+                    ledger.Id, ledger.TotalCharges, ledger.TotalPayments, ledger.Balance, ledger.Status);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error saving ledger updates for ledger {LedgerId}: {Message}", ledger.Id, ex.Message);
+                // Don't throw - continue with calculated values even if save fails
+            }
         }
 
         // Determine the correct grade level to display

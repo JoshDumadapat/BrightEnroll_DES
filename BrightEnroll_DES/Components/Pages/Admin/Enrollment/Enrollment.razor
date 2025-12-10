@@ -1461,12 +1461,27 @@
 
     private async Task HandleReEnrollmentRefresh(string studentId)
     {
-        // Refresh the re-enrollment list after a student is re-enrolled
-        // Also refresh For Enrollment tab since the student should now appear there with "For Payment" status
-        await LoadReEnrollmentStudentsAsync();
-        await LoadForEnrollmentStudentsAsync(); // Student should now appear in For Enrollment tab
-        await LoadEnrolledStudentsAsync();
-        ShowToast($"Student {studentId} has been successfully re-enrolled and moved to For Enrollment tab with 'For Payment' status.", ToastType.Success);
+        try
+        {
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
+            
+            // Refresh the re-enrollment list after a student is re-enrolled
+            // Also refresh For Enrollment tab since the student should now appear there with "For Payment" status
+            await LoadReEnrollmentStudentsAsync();
+            await LoadForEnrollmentStudentsAsync(); // Student should now appear in For Enrollment tab
+            await LoadEnrolledStudentsAsync();
+            
+            // Force UI update
+            StateHasChanged();
+            
+            ShowToast($"Student {studentId} has been successfully re-enrolled and moved to For Enrollment tab with 'For Payment' status.", ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error refreshing data after re-enrollment for student {StudentId}: {Message}", studentId, ex.Message);
+            ShowToast($"Student {studentId} has been re-enrolled, but there was an error refreshing the display. Please refresh the page.", ToastType.Error);
+        }
     }
 
     private async Task HandleReEnrollmentRefreshAll()

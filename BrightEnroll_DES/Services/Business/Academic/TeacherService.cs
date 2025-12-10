@@ -651,6 +651,13 @@ public class TeacherService
                     .FirstOrDefaultAsync();
             }
 
+            // Add null safety check for enrollment
+            if (enrollment?.Section == null)
+            {
+                _logger?.LogWarning("No enrollment found for student {StudentId}, section {SectionId}, school year {SchoolYear}", 
+                    studentId, sectionId, schoolYear);
+            }
+
             // Build address strings with null safety
             var currentAddress = BuildAddressString(
                 student.HseNo, student.Street, student.Brngy, 

@@ -248,11 +248,13 @@ public class FeeService
         if (string.IsNullOrWhiteSpace(gradeLevelName))
             return 0;
 
-        // Load grade level
+        // Load grade level - use EF Core translatable case-insensitive comparison
+        // Convert both to uppercase for case-insensitive comparison (EF Core can translate this)
+        var gradeLevelNameUpper = gradeLevelName.ToUpper();
         var gradeLevel = await _context.GradeLevels
             .AsNoTracking()
             .FirstOrDefaultAsync(g =>
-                g.GradeLevelName.Equals(gradeLevelName, StringComparison.OrdinalIgnoreCase));
+                g.GradeLevelName.ToUpper() == gradeLevelNameUpper);
 
         if (gradeLevel == null)
         {
