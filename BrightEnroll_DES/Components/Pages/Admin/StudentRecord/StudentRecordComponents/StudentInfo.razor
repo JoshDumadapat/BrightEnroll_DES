@@ -1,47 +1,112 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Services.Business.Students
+@using BrightEnroll_DES.Services.Infrastructure
+@using BrightEnroll_DES.Components
+@inject StudentService StudentService
+@inject AddressService AddressService
 @* Student Info Tab Content *@
 
 <!-- All Information in One Card -->
 <div class="overflow-hidden rounded-xl bg-white shadow">
     <div class="px-6 py-6">
+        <!-- Edit Button at Top - Applies to All Sections -->
+        <div class="mb-6 flex items-center justify-end">
+            @if (!IsEditing)
+            {
+                <button @onclick="EnableEditMode" class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit
+                </button>
+            }
+        </div>
+
         <!-- Personal Information Section -->
         <div class="mb-6">
             <h2 class="text-lg font-bold text-blue-600 mb-4">Personal Information</h2>
             
+            @if (!string.IsNullOrEmpty(ErrorMessage))
+            {
+                <div class="mb-4 rounded-lg bg-red-50 border border-red-200 p-3">
+                    <p class="text-sm text-red-600">@ErrorMessage</p>
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(SuccessMessage))
+            {
+                <div class="mb-4 rounded-lg bg-green-50 border border-green-200 p-3">
+                    <p class="text-sm text-green-600">@SuccessMessage</p>
+                </div>
+            }
+
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         First Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.FirstName
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.FirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.FirstName
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.MiddleName
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.MiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.MiddleName
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Last Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.LastName
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.LastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.LastName
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Suffix</label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @(string.IsNullOrEmpty(StudentData.Suffix) ? "N/A" : StudentData.Suffix)
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.Suffix" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            @foreach (var suffix in SuffixOptions)
+                            {
+                                <option value="@suffix">@suffix</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @(string.IsNullOrEmpty(StudentData.Suffix) ? "N/A" : StudentData.Suffix)
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
@@ -49,22 +114,36 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Birth Date <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @(StudentData.BirthDate?.ToString("M / d / yyyy") ?? "N/A")
+                    @if (IsEditing)
+                    {
+                        <input type="date" @bind="EditModel.BirthDate" @bind:format="yyyy-MM-dd" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @(StudentData.BirthDate?.ToString("M / d / yyyy") ?? "N/A")
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                    </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Place of Birth <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PlaceOfBirth
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.PlaceOfBirth" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PlaceOfBirth
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
@@ -72,11 +151,17 @@
                     </label>
                     <div class="flex items-center gap-4 sm:gap-6 pt-1 sm:pt-2">
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.Sex == "Male")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.Sex == "Male" : StudentData.Sex == "Male")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.Sex = "Male"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Male</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.Sex == "Female")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.Sex == "Female" : StudentData.Sex == "Female")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.Sex = "Female"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Female</span>
                         </label>
                     </div>
@@ -85,14 +170,26 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Mother Tongue <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @(string.IsNullOrEmpty(StudentData.MotherTongue) ? "N/A" : StudentData.MotherTongue)
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.MotherTongue" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            @foreach (var tongue in MotherTongueOptions)
+                            {
+                                <option value="@tongue">@tongue</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @(string.IsNullOrEmpty(StudentData.MotherTongue) ? "N/A" : StudentData.MotherTongue)
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -102,25 +199,38 @@
                     </label>
                     <div class="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.IsIPCommunity == "Yes")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.IsIPCommunity == "Yes" : StudentData.IsIPCommunity == "Yes")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.IsIPCommunity = "Yes"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Yes</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.IsIPCommunity == "No")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.IsIPCommunity == "No" : StudentData.IsIPCommunity == "No")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.IsIPCommunity = "No"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">No</span>
                         </label>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">If Yes, please specify:</label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @(string.IsNullOrEmpty(StudentData.IPCommunitySpecify) ? "N/A" : StudentData.IPCommunitySpecify)
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.IPCommunitySpecify" disabled="@(EditModel.IsIPCommunity != "Yes")" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @(string.IsNullOrEmpty(StudentData.IPCommunitySpecify) ? "N/A" : StudentData.IPCommunitySpecify)
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
@@ -128,22 +238,54 @@
                     </label>
                     <div class="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.Is4PsBeneficiary == "Yes")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.Is4PsBeneficiary == "Yes" : StudentData.Is4PsBeneficiary == "Yes")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.Is4PsBeneficiary = "Yes"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Yes</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.Is4PsBeneficiary == "No")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.Is4PsBeneficiary == "No" : StudentData.Is4PsBeneficiary == "No")" 
+                                   @onchange="@(() => { if (IsEditing) EditModel.Is4PsBeneficiary = "No"; })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">No</span>
                         </label>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">If Yes, 4Ps Household ID:</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.FourPsHouseholdId) ? "N/A" : StudentData.FourPsHouseholdId)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.FourPsHouseholdId" disabled="@(EditModel.Is4PsBeneficiary != "Yes")" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.FourPsHouseholdId) ? "N/A" : StudentData.FourPsHouseholdId)
+                        </div>
+                    }
                 </div>
             </div>
+
+            @if (IsEditing)
+            {
+                <div class="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4">
+                    <button @onclick="CancelEdit" class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button @onclick="SaveChanges" disabled="@IsSaving" class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        @if (IsSaving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+                    </button>
+                </div>
+            }
         </div>
 
         <hr class="my-6 sm:my-8 border-gray-200" />
@@ -155,28 +297,55 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">House No./Street</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.CurrentHouseNo) ? "N/A" : StudentData.CurrentHouseNo)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.CurrentHouseNo" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.CurrentHouseNo) ? "N/A" : StudentData.CurrentHouseNo)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Street Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.CurrentStreetName) ? "N/A" : StudentData.CurrentStreetName)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.CurrentStreetName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.CurrentStreetName) ? "N/A" : StudentData.CurrentStreetName)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Barangay <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @StudentData.CurrentBarangay
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.CurrentBarangay" @bind:after="StateHasChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">Select Barangay</option>
+                            @foreach (var barangay in AvailableBarangays)
+                            {
+                                <option value="@barangay">@barangay</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @StudentData.CurrentBarangay
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -184,33 +353,76 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Municipality/City <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.CurrentCity
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.CurrentCity" @bind:after="OnCurrentCityChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">Select City</option>
+                            @foreach (var city in AvailableCities)
+                            {
+                                <option value="@city">@city</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.CurrentCity
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Province <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.CurrentProvince
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.CurrentProvince" @bind:after="OnCurrentProvinceChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">Select Province</option>
+                            @foreach (var province in AvailableProvinces)
+                            {
+                                <option value="@province">@province</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.CurrentProvince
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Country <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.CurrentCountry
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.CurrentCountry" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="Philippines">Philippines</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.CurrentCountry
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         ZIP Code <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.CurrentZipCode
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.CurrentZipCode" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.CurrentZipCode
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -223,30 +435,60 @@
             
             <div class="mb-3 sm:mb-4">
                 <label class="flex items-center">
-                    <input type="checkbox" checked="@StudentData.SameAsCurrentAddress" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                    <input type="checkbox" checked="@(IsEditing ? EditModel.SameAsCurrentAddress : StudentData.SameAsCurrentAddress)" 
+                           @onchange="@((ChangeEventArgs e) => { if (IsEditing) { EditModel.SameAsCurrentAddress = (bool)(e.Value ?? false); OnSameAsCurrentAddressChanged(); } })" 
+                           disabled="@(!IsEditing)"
+                           class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                     <span class="ml-2 text-xs sm:text-sm font-medium text-gray-700">Same with your current Address?</span>
                 </label>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-3 sm:mb-4">
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">House No./Street</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.PermanentHouseNo) ? "N/A" : StudentData.PermanentHouseNo)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.PermanentHouseNo" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.PermanentHouseNo) ? "N/A" : StudentData.PermanentHouseNo)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Street Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.PermanentStreetName) ? "N/A" : StudentData.PermanentStreetName)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.PermanentStreetName" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.PermanentStreetName) ? "N/A" : StudentData.PermanentStreetName)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Barangay <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PermanentBarangay
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.PermanentBarangay" @bind:after="StateHasChanged" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="">Select Barangay</option>
+                            @foreach (var barangay in PermanentBarangays)
+                            {
+                                <option value="@barangay">@barangay</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PermanentBarangay
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -254,33 +496,76 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Municipality/City <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PermanentCity
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.PermanentCity" @bind:after="OnPermanentCityChanged" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="">Select City</option>
+                            @foreach (var city in PermanentCities)
+                            {
+                                <option value="@city">@city</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PermanentCity
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Province <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PermanentProvince
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.PermanentProvince" @bind:after="OnPermanentProvinceChanged" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="">Select Province</option>
+                            @foreach (var province in AvailableProvinces)
+                            {
+                                <option value="@province">@province</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PermanentProvince
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Country <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PermanentCountry
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.PermanentCountry" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="Philippines">Philippines</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PermanentCountry
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         ZIP Code <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.PermanentZipCode
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.PermanentZipCode" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.PermanentZipCode
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -296,31 +581,59 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         First Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.GuardianFirstName
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.GuardianFirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.GuardianFirstName
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @(string.IsNullOrEmpty(StudentData.GuardianMiddleName) ? "N/A" : StudentData.GuardianMiddleName)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.GuardianMiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @(string.IsNullOrEmpty(StudentData.GuardianMiddleName) ? "N/A" : StudentData.GuardianMiddleName)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Last Name <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.GuardianLastName
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.GuardianLastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.GuardianLastName
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Contact Number <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                        @StudentData.GuardianContactNumber
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.GuardianContactNumber" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                            @StudentData.GuardianContactNumber
+                        </div>
+                    }
                 </div>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -328,14 +641,27 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Relationship <span class="text-red-500">*</span>
                     </label>
-                    <div class="relative">
-                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
-                            @(string.IsNullOrEmpty(StudentData.GuardianRelationship) ? "N/A" : StudentData.GuardianRelationship)
+                    @if (IsEditing)
+                    {
+                        <select @bind="EditModel.GuardianRelationship" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="">Select Relationship</option>
+                            @foreach (var relationship in RelationshipOptions)
+                            {
+                                <option value="@relationship">@relationship</option>
+                            }
+                        </select>
+                    }
+                    else
+                    {
+                        <div class="relative">
+                            <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700">
+                                @(string.IsNullOrEmpty(StudentData.GuardianRelationship) ? "N/A" : StudentData.GuardianRelationship)
+                            </div>
+                            <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
                         </div>
-                        <svg class="absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    }
                 </div>
             </div>
         </div>
@@ -489,7 +815,291 @@
     [Parameter]
     public StudentDetailData StudentData { get; set; } = new();
 
+    [Parameter]
+    public EventCallback<StudentDetailData> OnStudentUpdated { get; set; }
+
+    private bool IsEditing { get; set; } = false;
+    private StudentEditModel EditModel { get; set; } = new();
+    private bool IsSaving { get; set; } = false;
+    private string? ErrorMessage { get; set; }
+    private string? SuccessMessage { get; set; }
+
+    // Address dropdowns
+    private List<string> AvailableProvinces { get; set; } = new();
+    private List<string> AvailableCities { get; set; } = new();
+    private List<string> AvailableBarangays { get; set; } = new();
+    private List<string> PermanentCities { get; set; } = new();
+    private List<string> PermanentBarangays { get; set; } = new();
+
+    // Suffix options
+    private readonly List<string> SuffixOptions = new() { "N/A", "Jr.", "Sr.", "II", "III", "IV" };
+
+    // Mother tongue options
+    private readonly List<string> MotherTongueOptions = new() { "Tagalog", "Cebuano", "Ilocano", "Hiligaynon", "Bicol", "Waray", "Kapampangan", "Pangasinan", "Other" };
+
+    // Relationship options
+    private readonly List<string> RelationshipOptions = new() { "Father", "Mother", "Guardian", "Grandfather", "Grandmother", "Uncle", "Aunt", "Other" };
+
     private bool IsNewStudent => string.Equals(StudentData.StudentType, "New Student", StringComparison.OrdinalIgnoreCase);
     private bool IsTransferee => string.Equals(StudentData.StudentType, "Transferee", StringComparison.OrdinalIgnoreCase);
     private bool IsReturnee => string.Equals(StudentData.StudentType, "Returnee", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        AvailableProvinces = AddressService.GetAllProvinces();
+        InitializeAddressData();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (!IsEditing)
+        {
+            InitializeAddressData();
+        }
+    }
+
+    private void InitializeAddressData()
+    {
+        // Initialize EditModel with current StudentData for address dropdowns
+        EditModel = new StudentEditModel
+        {
+            CurrentProvince = StudentData.CurrentProvince,
+            CurrentCity = StudentData.CurrentCity,
+            CurrentBarangay = StudentData.CurrentBarangay,
+            PermanentProvince = StudentData.PermanentProvince,
+            PermanentCity = StudentData.PermanentCity,
+            PermanentBarangay = StudentData.PermanentBarangay
+        };
+        
+        LoadCities();
+        LoadBarangays();
+        LoadPermanentCities();
+        LoadPermanentBarangays();
+    }
+
+    private void EnableEditMode()
+    {
+        IsEditing = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+        
+        // Initialize edit model from StudentData
+        EditModel = new StudentEditModel
+        {
+            StudentId = StudentData.Id,
+            FirstName = StudentData.FirstName,
+            MiddleName = StudentData.MiddleName,
+            LastName = StudentData.LastName,
+            Suffix = StudentData.Suffix,
+            BirthDate = StudentData.BirthDate ?? DateTime.Now.AddYears(-10),
+            Age = StudentData.BirthDate.HasValue ? (int)((DateTime.Now - StudentData.BirthDate.Value).TotalDays / 365.25) : 10,
+            PlaceOfBirth = StudentData.PlaceOfBirth,
+            Sex = StudentData.Sex,
+            MotherTongue = StudentData.MotherTongue,
+            IsIPCommunity = StudentData.IsIPCommunity,
+            IPCommunitySpecify = StudentData.IPCommunitySpecify,
+            Is4PsBeneficiary = StudentData.Is4PsBeneficiary,
+            FourPsHouseholdId = StudentData.FourPsHouseholdId,
+            CurrentHouseNo = StudentData.CurrentHouseNo,
+            CurrentStreetName = StudentData.CurrentStreetName,
+            CurrentBarangay = StudentData.CurrentBarangay,
+            CurrentCity = StudentData.CurrentCity,
+            CurrentProvince = StudentData.CurrentProvince,
+            CurrentCountry = StudentData.CurrentCountry,
+            CurrentZipCode = StudentData.CurrentZipCode,
+            SameAsCurrentAddress = StudentData.SameAsCurrentAddress,
+            PermanentHouseNo = StudentData.PermanentHouseNo,
+            PermanentStreetName = StudentData.PermanentStreetName,
+            PermanentBarangay = StudentData.PermanentBarangay,
+            PermanentCity = StudentData.PermanentCity,
+            PermanentProvince = StudentData.PermanentProvince,
+            PermanentCountry = StudentData.PermanentCountry,
+            PermanentZipCode = StudentData.PermanentZipCode,
+            GuardianFirstName = StudentData.GuardianFirstName,
+            GuardianMiddleName = StudentData.GuardianMiddleName,
+            GuardianLastName = StudentData.GuardianLastName,
+            GuardianSuffix = StudentData.GuardianSuffix,
+            GuardianContactNumber = StudentData.GuardianContactNumber,
+            GuardianRelationship = StudentData.GuardianRelationship,
+            StudentType = StudentData.StudentType,
+            GradeToEnroll = StudentData.GradeToEnroll,
+            SchoolYear = StudentData.SchoolYear,
+            Status = StudentData.Status
+        };
+
+        LoadCities();
+        LoadBarangays();
+        LoadPermanentCities();
+        LoadPermanentBarangays();
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        IsEditing = false;
+        EditModel = new StudentEditModel();
+        ErrorMessage = null;
+        SuccessMessage = null;
+        StateHasChanged();
+    }
+
+    private async Task SaveChanges()
+    {
+        if (IsSaving) return;
+
+        IsSaving = true;
+        ErrorMessage = null;
+        SuccessMessage = null;
+
+        try
+        {
+            await StudentService.UpdateStudentAsync(EditModel);
+            
+            // Update StudentData from EditModel
+            StudentData.FirstName = EditModel.FirstName;
+            StudentData.MiddleName = EditModel.MiddleName;
+            StudentData.LastName = EditModel.LastName;
+            StudentData.Suffix = EditModel.Suffix;
+            StudentData.BirthDate = EditModel.BirthDate;
+            StudentData.PlaceOfBirth = EditModel.PlaceOfBirth;
+            StudentData.Sex = EditModel.Sex;
+            StudentData.MotherTongue = EditModel.MotherTongue;
+            StudentData.IsIPCommunity = EditModel.IsIPCommunity;
+            StudentData.IPCommunitySpecify = EditModel.IPCommunitySpecify;
+            StudentData.Is4PsBeneficiary = EditModel.Is4PsBeneficiary;
+            StudentData.FourPsHouseholdId = EditModel.FourPsHouseholdId;
+            StudentData.CurrentHouseNo = EditModel.CurrentHouseNo;
+            StudentData.CurrentStreetName = EditModel.CurrentStreetName;
+            StudentData.CurrentBarangay = EditModel.CurrentBarangay;
+            StudentData.CurrentCity = EditModel.CurrentCity;
+            StudentData.CurrentProvince = EditModel.CurrentProvince;
+            StudentData.CurrentCountry = EditModel.CurrentCountry;
+            StudentData.CurrentZipCode = EditModel.CurrentZipCode;
+            StudentData.SameAsCurrentAddress = EditModel.SameAsCurrentAddress;
+            StudentData.PermanentHouseNo = EditModel.PermanentHouseNo;
+            StudentData.PermanentStreetName = EditModel.PermanentStreetName;
+            StudentData.PermanentBarangay = EditModel.PermanentBarangay;
+            StudentData.PermanentCity = EditModel.PermanentCity;
+            StudentData.PermanentProvince = EditModel.PermanentProvince;
+            StudentData.PermanentCountry = EditModel.PermanentCountry;
+            StudentData.PermanentZipCode = EditModel.PermanentZipCode;
+            StudentData.GuardianFirstName = EditModel.GuardianFirstName;
+            StudentData.GuardianMiddleName = EditModel.GuardianMiddleName;
+            StudentData.GuardianLastName = EditModel.GuardianLastName;
+            StudentData.GuardianSuffix = EditModel.GuardianSuffix;
+            StudentData.GuardianContactNumber = EditModel.GuardianContactNumber;
+            StudentData.GuardianRelationship = EditModel.GuardianRelationship;
+            StudentData.FullName = $"{EditModel.FirstName} {EditModel.MiddleName} {EditModel.LastName}".Replace("  ", " ").Trim();
+
+            SuccessMessage = "Student information updated successfully!";
+            IsEditing = false;
+
+            // Notify parent component
+            await OnStudentUpdated.InvokeAsync(StudentData);
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error updating student: {ex.Message}";
+        }
+        finally
+        {
+            IsSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private void LoadCities()
+    {
+        if (!string.IsNullOrWhiteSpace(EditModel.CurrentProvince))
+        {
+            AvailableCities = AddressService.GetCitiesByProvince(EditModel.CurrentProvince);
+        }
+        else
+        {
+            AvailableCities = new List<string>();
+        }
+    }
+
+    private void LoadBarangays()
+    {
+        if (!string.IsNullOrWhiteSpace(EditModel.CurrentProvince) && !string.IsNullOrWhiteSpace(EditModel.CurrentCity))
+        {
+            AvailableBarangays = AddressService.GetBarangaysByCity(EditModel.CurrentCity, EditModel.CurrentProvince);
+        }
+        else
+        {
+            AvailableBarangays = new List<string>();
+        }
+    }
+
+    private void LoadPermanentCities()
+    {
+        if (!string.IsNullOrWhiteSpace(EditModel.PermanentProvince))
+        {
+            PermanentCities = AddressService.GetCitiesByProvince(EditModel.PermanentProvince);
+        }
+        else
+        {
+            PermanentCities = new List<string>();
+        }
+    }
+
+    private void LoadPermanentBarangays()
+    {
+        if (!string.IsNullOrWhiteSpace(EditModel.PermanentProvince) && !string.IsNullOrWhiteSpace(EditModel.PermanentCity))
+        {
+            PermanentBarangays = AddressService.GetBarangaysByCity(EditModel.PermanentCity, EditModel.PermanentProvince);
+        }
+        else
+        {
+            PermanentBarangays = new List<string>();
+        }
+    }
+
+    private void OnCurrentProvinceChanged()
+    {
+        EditModel.CurrentCity = string.Empty;
+        EditModel.CurrentBarangay = string.Empty;
+        LoadCities();
+        LoadBarangays();
+        StateHasChanged();
+    }
+
+    private void OnCurrentCityChanged()
+    {
+        EditModel.CurrentBarangay = string.Empty;
+        LoadBarangays();
+        StateHasChanged();
+    }
+
+    private void OnPermanentProvinceChanged()
+    {
+        EditModel.PermanentCity = string.Empty;
+        EditModel.PermanentBarangay = string.Empty;
+        LoadPermanentCities();
+        LoadPermanentBarangays();
+        StateHasChanged();
+    }
+
+    private void OnPermanentCityChanged()
+    {
+        EditModel.PermanentBarangay = string.Empty;
+        LoadPermanentBarangays();
+        StateHasChanged();
+    }
+
+    private void OnSameAsCurrentAddressChanged()
+    {
+        if (EditModel.SameAsCurrentAddress)
+        {
+            EditModel.PermanentHouseNo = EditModel.CurrentHouseNo;
+            EditModel.PermanentStreetName = EditModel.CurrentStreetName;
+            EditModel.PermanentBarangay = EditModel.CurrentBarangay;
+            EditModel.PermanentCity = EditModel.CurrentCity;
+            EditModel.PermanentProvince = EditModel.CurrentProvince;
+            EditModel.PermanentCountry = EditModel.CurrentCountry;
+            EditModel.PermanentZipCode = EditModel.CurrentZipCode;
+        }
+        StateHasChanged();
+    }
 }

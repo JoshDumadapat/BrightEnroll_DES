@@ -58,9 +58,8 @@
                     </select>
                     <select @bind="DocumentStatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                         <option value="">Document Status</option>
-                        <option value="Verified">Verified</option>
-                        <option value="Not verified">Not verified</option>
-                        <option value="Pending">Pending</option>
+                        <option value="Validated">Validated</option>
+                        <option value="Not Validated">Not Validated</option>
                     </select>
                     <select @bind="GradeFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                         <option value="">Grade Level</option>
@@ -135,7 +134,16 @@
                             <td class="px-4 py-3">@student.GradeLevel</td>
                             <td class="px-4 py-3">@student.Section</td>
 
-                            <td class="cursor-pointer px-4 py-3 text-gray-900 hover:underline">@student.Documents</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">
+                                @if (student.Documents == "Validated")
+                                {
+                                    <span class="text-xs font-semibold text-green-600">Validated</span>
+                                }
+                                else
+                                {
+                                    <span class="text-xs font-semibold text-gray-400">Not Validated</span>
+                                }
+                            </td>
 
                             <td class="px-4 py-3">
                                 @if (student.Status == "Enrolled")
@@ -227,7 +235,10 @@
              s.LRN.Contains(SearchText, StringComparison.OrdinalIgnoreCase)) &&
             (string.IsNullOrWhiteSpace(GradeFilter) || s.GradeLevel == GradeFilter) &&
             (string.IsNullOrWhiteSpace(SectionFilter) || s.Section == SectionFilter) &&
-            (string.IsNullOrWhiteSpace(DocumentStatusFilter) || s.Documents == DocumentStatusFilter) &&
+            (string.IsNullOrWhiteSpace(DocumentStatusFilter) || 
+             s.Documents == DocumentStatusFilter ||
+             (DocumentStatusFilter == "Validated" && (s.Documents == "Validated" || s.Documents == "Verified")) ||
+             (DocumentStatusFilter == "Not Validated" && (s.Documents == "Not Validated" || s.Documents == "Not verified" || s.Documents == "Pending"))) &&
             (string.IsNullOrWhiteSpace(LrnStatusFilter) ||
                 (LrnStatusFilter == "Assigned" && s.LRN != "N/A") ||
                 (LrnStatusFilter == "Pending" && s.LRN == "N/A")));
@@ -263,7 +274,9 @@
     {
         try
         {
-            StudentRecords = await StudentService.GetEnrolledStudentsAsync();
+            // Use GetAllStudentRecordsAsync to show all students (with enrollment records or ledgers)
+            // This is different from GetEnrolledStudentsAsync which only shows "Enrolled" status
+            StudentRecords = await StudentService.GetAllStudentRecordsAsync(CurrentSchoolYear);
         }
         catch
         {
@@ -430,13 +443,90 @@
         StateHasChanged();
     }
 
-    private void HandleBackClick()
+    private async Task HandleBackClick()
     {
         ShowDetailView = false;
+        // Reload students list when going back
+        await LoadStudentsAsync();
         // Clear selected data when going back
         SelectedStudentData = new StudentDetailData();
         SelectedAcademicRecords = new List<AcademicRecordData>();
         SelectedEnrollmentRecords = new List<EnrollmentStatusData>();
+        StateHasChanged();
+    }
+
+    private async Task HandleStudentUpdated(StudentDetailData updatedData)
+    {
+        // Reload the student data to get the latest information
+        var entity = await StudentService.GetStudentByIdAsync(updatedData.Id);
+        if (entity != null)
+        {
+            // Rebuild SelectedStudentData with updated information
+            var fullName = $"{entity.FirstName} {entity.MiddleName} {entity.LastName}"
+                .Replace("  ", " ")
+                .Trim();
+
+            var hasRealLrn = !string.IsNullOrWhiteSpace(entity.Lrn);
+            var rawLrn = entity.Lrn ?? string.Empty;
+
+            var latestEnrollment = entity.SectionEnrollments
+                .OrderByDescending(e => e.CreatedAt)
+                .FirstOrDefault();
+
+            var sectionName = latestEnrollment?.Section?.SectionName ?? string.Empty;
+            var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty;
+            var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
+
+            SelectedStudentData = new StudentDetailData
+            {
+                Id = entity.StudentId,
+                FullName = fullName,
+                FirstName = entity.FirstName,
+                MiddleName = entity.MiddleName ?? string.Empty,
+                LastName = entity.LastName,
+                Suffix = entity.Suffix ?? string.Empty,
+                GradeLevel = gradeLevelName,
+                Section = sectionName,
+                SchoolYear = schoolYear,
+                Status = entity.Status,
+                LRN = hasRealLrn ? rawLrn : "N/A",
+                BirthDate = entity.Birthdate,
+                PlaceOfBirth = entity.PlaceOfBirth ?? string.Empty,
+                Sex = entity.Sex,
+                MotherTongue = entity.MotherTongue ?? string.Empty,
+                IsIPCommunity = entity.IpComm ? "Yes" : "No",
+                IPCommunitySpecify = entity.IpSpecify ?? string.Empty,
+                Is4PsBeneficiary = entity.FourPs ? "Yes" : "No",
+                FourPsHouseholdId = entity.FourPsHseId ?? string.Empty,
+                CurrentHouseNo = entity.HseNo ?? string.Empty,
+                CurrentStreetName = entity.Street ?? string.Empty,
+                CurrentBarangay = entity.Brngy ?? string.Empty,
+                CurrentCity = entity.City ?? string.Empty,
+                CurrentProvince = entity.Province ?? string.Empty,
+                CurrentCountry = entity.Country ?? string.Empty,
+                CurrentZipCode = entity.ZipCode ?? string.Empty,
+                PermanentHouseNo = entity.PhseNo ?? string.Empty,
+                PermanentStreetName = entity.Pstreet ?? string.Empty,
+                PermanentBarangay = entity.Pbrngy ?? string.Empty,
+                PermanentCity = entity.Pcity ?? string.Empty,
+                PermanentProvince = entity.Pprovince ?? string.Empty,
+                PermanentCountry = entity.Pcountry ?? string.Empty,
+                PermanentZipCode = entity.PzipCode ?? string.Empty,
+                GuardianFirstName = entity.Guardian?.FirstName ?? string.Empty,
+                GuardianMiddleName = entity.Guardian?.MiddleName ?? string.Empty,
+                GuardianLastName = entity.Guardian?.LastName ?? string.Empty,
+                GuardianSuffix = entity.Guardian?.Suffix ?? string.Empty,
+                GuardianContactNumber = entity.Guardian?.ContactNum ?? string.Empty,
+                GuardianRelationship = entity.Guardian?.Relationship ?? string.Empty,
+                StudentType = entity.StudentType,
+                HasLRN = hasRealLrn ? "Yes" : "No",
+                LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
+                GradeToEnroll = gradeLevelName
+            };
+        }
+        
+        // Reload students list to reflect changes
+        await LoadStudentsAsync();
         StateHasChanged();
     }
 

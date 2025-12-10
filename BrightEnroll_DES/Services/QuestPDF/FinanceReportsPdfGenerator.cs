@@ -939,6 +939,247 @@ public class FinanceReportsPdfGenerator
             .PaddingHorizontal(5);
     }
 
+    public async Task<byte[]> GenerateBalanceSheetPdfAsync(BalanceSheetReport balanceSheet, DateTime asOfDate, string? generatedBy = null)
+    {
+        var schoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+        var reportType = "Balance Sheet";
+        
+        return Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.PageColor(QuestPdfColors.White);
+                page.DefaultTextStyle(x => x.FontSize(10));
+
+                page.Header()
+                    .PaddingBottom(10)
+                    .Column(headerColumn =>
+                    {
+                        // Custom header for Balance Sheet (uses "As of" date instead of date range)
+                        var logoBytes = GetLogoBytes();
+                        headerColumn.Item().Height(50).Row(headerRow =>
+                        {
+                            // Left Side: Logo and Company Information
+                            headerRow.RelativeItem(2).Row(leftRow =>
+                            {
+                                if (logoBytes != null && logoBytes.Length > 0)
+                                {
+                                    leftRow.ConstantItem(50).Height(50).Image(logoBytes).FitArea();
+                                }
+                                
+                                leftRow.RelativeItem().PaddingLeft(10).Column(companyCol =>
+                                {
+                                    companyCol.Item().Text("BRIGHTENROL").FontSize(16).Bold().FontColor(QuestPdfColors.Blue.Darken3);
+                                    companyCol.Item().PaddingTop(2).Text("ENROLLMENT MANAGEMENT SYSTEM").FontSize(10).FontColor(QuestPdfColors.Black);
+                                    companyCol.Item().PaddingTop(3).Text("Elementary School").FontSize(9).FontColor(QuestPdfColors.Grey.Darken1);
+                                });
+                            });
+
+                            // Right Side: Department, Date, Time
+                            headerRow.RelativeItem(1).AlignRight().Column(detailsCol =>
+                            {
+                                detailsCol.Item().Text("FINANCE DEPARTMENT").FontSize(10).Bold().FontColor(QuestPdfColors.Black);
+                                detailsCol.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Date:").FontSize(9).FontColor(QuestPdfColors.Black);
+                                    row.RelativeItem().Text(DateTime.Now.ToString("MMMM dd, yyyy")).FontSize(9).FontColor(QuestPdfColors.Black);
+                                });
+                                detailsCol.Item().PaddingTop(2).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Time:").FontSize(9).FontColor(QuestPdfColors.Black);
+                                    row.RelativeItem().Text(DateTime.Now.ToString("hh:mm tt")).FontSize(9).FontColor(QuestPdfColors.Black);
+                                });
+                            });
+                        });
+                        
+                        headerColumn.Item().PaddingTop(8).BorderBottom(1).BorderColor(QuestPdfColors.Black);
+                        
+                        headerColumn.Item().PaddingTop(8).Row(detailsRow =>
+                        {
+                            detailsRow.RelativeItem().Column(leftDetailsCol =>
+                            {
+                                leftDetailsCol.Item().Row(row =>
+                                {
+                                    row.ConstantItem(80).Text("Report Type:").FontSize(9).FontColor(QuestPdfColors.Black);
+                                    row.RelativeItem().Text(reportType).FontSize(9).Bold().FontColor(QuestPdfColors.Black);
+                                });
+                                leftDetailsCol.Item().PaddingTop(2).Row(row =>
+                                {
+                                    row.ConstantItem(80).Text("As of:").FontSize(9).FontColor(QuestPdfColors.Black);
+                                    row.RelativeItem().Text($"{asOfDate:MMMM dd, yyyy}").FontSize(9).FontColor(QuestPdfColors.Black);
+                                });
+                                if (!string.IsNullOrEmpty(schoolYear))
+                                {
+                                    leftDetailsCol.Item().PaddingTop(2).Row(row =>
+                                    {
+                                        row.ConstantItem(80).Text("School Year:").FontSize(9).FontColor(QuestPdfColors.Black);
+                                        row.RelativeItem().Text(schoolYear).FontSize(9).Bold().FontColor(QuestPdfColors.Black);
+                                    });
+                                }
+                            });
+                        });
+                    });
+
+                page.Footer()
+                    .Height(20)
+                    .AlignCenter()
+                    .DefaultTextStyle(x => x.FontSize(7).FontColor(QuestPdfColors.Grey.Medium))
+                    .Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                        x.Span(" | Generated: ");
+                        x.Span(DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+                    });
+
+                page.Content()
+                    .PaddingVertical(1, Unit.Centimetre)
+                    .Column(column =>
+                    {
+                        // Title
+                        column.Item().Text("BALANCE SHEET").FontSize(16).Bold().AlignCenter();
+                        column.Item().PaddingTop(5).Text($"As of {asOfDate:MMMM dd, yyyy}").FontSize(11).AlignCenter();
+                        if (!string.IsNullOrEmpty(schoolYear))
+                        {
+                            column.Item().PaddingTop(2).Text($"School Year: {schoolYear}").FontSize(11).Bold().AlignCenter();
+                        }
+
+                        column.Item().PaddingTop(15);
+
+                        // Three Column Layout: Assets | Liabilities | Equity
+                        column.Item().Row(mainRow =>
+                        {
+                            // ASSETS Column
+                            mainRow.RelativeItem(1).Column(assetsCol =>
+                            {
+                                assetsCol.Item().Text("ASSETS").FontSize(12).Bold().FontColor(QuestPdfColors.Blue.Darken2);
+                                
+                                if (balanceSheet.Assets != null && balanceSheet.Assets.Any(a => a.Balance != 0))
+                                {
+                                    foreach (var asset in balanceSheet.Assets.Where(a => a.Balance != 0))
+                                    {
+                                        assetsCol.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Column(accountCol =>
+                                            {
+                                                accountCol.Item().Text($"{asset.AccountCode} - {asset.AccountName}").FontSize(9).FontColor(QuestPdfColors.Grey.Darken1);
+                                            });
+                                            row.ConstantItem(120).Text(FormatCurrency(asset.Balance)).FontSize(10).AlignRight();
+                                        });
+                                    }
+                                }
+                                else
+                                {
+                                    assetsCol.Item().PaddingTop(3).PaddingLeft(10).Text("No assets recorded").FontSize(9).FontColor(QuestPdfColors.Grey.Medium);
+                                }
+
+                                assetsCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(QuestPdfColors.Black);
+                                assetsCol.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Assets").FontSize(10).Bold();
+                                    row.ConstantItem(120).Text(FormatCurrency(balanceSheet.TotalAssets)).FontSize(10).Bold().AlignRight();
+                                });
+                            });
+
+                            // LIABILITIES Column
+                            mainRow.RelativeItem(1).PaddingLeft(20).Column(liabilitiesCol =>
+                            {
+                                liabilitiesCol.Item().Text("LIABILITIES").FontSize(12).Bold().FontColor(QuestPdfColors.Red.Darken2);
+                                
+                                if (balanceSheet.Liabilities != null && balanceSheet.Liabilities.Any(l => l.Balance != 0))
+                                {
+                                    foreach (var liability in balanceSheet.Liabilities.Where(l => l.Balance != 0))
+                                    {
+                                        liabilitiesCol.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Column(accountCol =>
+                                            {
+                                                accountCol.Item().Text($"{liability.AccountCode} - {liability.AccountName}").FontSize(9).FontColor(QuestPdfColors.Grey.Darken1);
+                                            });
+                                            row.ConstantItem(120).Text(FormatCurrency(liability.Balance)).FontSize(10).AlignRight();
+                                        });
+                                    }
+                                }
+                                else
+                                {
+                                    liabilitiesCol.Item().PaddingTop(3).PaddingLeft(10).Text("No liabilities recorded").FontSize(9).FontColor(QuestPdfColors.Grey.Medium);
+                                }
+
+                                liabilitiesCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(QuestPdfColors.Black);
+                                liabilitiesCol.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Liabilities").FontSize(10).Bold();
+                                    row.ConstantItem(120).Text(FormatCurrency(balanceSheet.TotalLiabilities)).FontSize(10).Bold().AlignRight();
+                                });
+                            });
+
+                            // EQUITY Column
+                            mainRow.RelativeItem(1).PaddingLeft(20).Column(equityCol =>
+                            {
+                                equityCol.Item().Text("EQUITY").FontSize(12).Bold().FontColor(QuestPdfColors.Green.Darken2);
+                                
+                                if (balanceSheet.Equity != null && balanceSheet.Equity.Any(e => e.Balance != 0))
+                                {
+                                    foreach (var equity in balanceSheet.Equity.Where(e => e.Balance != 0))
+                                    {
+                                        equityCol.Item().PaddingTop(3).Row(row =>
+                                        {
+                                            row.RelativeItem().Column(accountCol =>
+                                            {
+                                                accountCol.Item().Text($"{equity.AccountCode} - {equity.AccountName}").FontSize(9).FontColor(QuestPdfColors.Grey.Darken1);
+                                            });
+                                            row.ConstantItem(120).Text(FormatCurrency(equity.Balance)).FontSize(10).AlignRight();
+                                        });
+                                    }
+                                }
+                                else
+                                {
+                                    equityCol.Item().PaddingTop(3).PaddingLeft(10).Text("No equity recorded").FontSize(9).FontColor(QuestPdfColors.Grey.Medium);
+                                }
+
+                                equityCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(QuestPdfColors.Black);
+                                equityCol.Item().PaddingTop(3).Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Equity").FontSize(10).Bold();
+                                    row.ConstantItem(120).Text(FormatCurrency(balanceSheet.TotalEquity)).FontSize(10).Bold().AlignRight();
+                                });
+                            });
+                        });
+
+                        // Balance Check
+                        column.Item().PaddingTop(20).Row(balanceRow =>
+                        {
+                            balanceRow.RelativeItem().Column(balanceCol =>
+                            {
+                                balanceCol.Item().Row(row =>
+                                {
+                                    row.RelativeItem().Text("Total Liabilities + Equity:").FontSize(10).Bold();
+                                    row.ConstantItem(150).Text(FormatCurrency(balanceSheet.TotalLiabilities + balanceSheet.TotalEquity)).FontSize(10).Bold().AlignRight();
+                                });
+                                
+                                if (balanceSheet.IsBalanced)
+                                {
+                                    balanceCol.Item().PaddingTop(5).Text("✓ Balance Sheet is Balanced").FontSize(10).Bold().FontColor(QuestPdfColors.Green.Darken2);
+                                }
+                                else
+                                {
+                                    balanceCol.Item().PaddingTop(5).Text($"✗ Balance Sheet is Unbalanced (Difference: {FormatCurrency(Math.Abs(balanceSheet.Difference))})").FontSize(10).Bold().FontColor(QuestPdfColors.Red.Darken2);
+                                }
+                            });
+                        });
+
+                        // Generated By
+                        if (!string.IsNullOrEmpty(generatedBy))
+                        {
+                            column.Item().PaddingTop(20).AlignRight().Text($"Generated by: {generatedBy}").FontSize(8).FontColor(QuestPdfColors.Grey.Medium);
+                        }
+                    });
+            });
+        }).GeneratePdf();
+    }
+
     private string FormatCurrency(decimal amount)
     {
         return $"₱{amount:N2}";

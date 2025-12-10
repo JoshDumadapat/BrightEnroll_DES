@@ -1,6 +1,14 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Services.Business.Students
+@using BrightEnroll_DES.Data
+@using Microsoft.JSInterop
+@inject EnrollmentPdfGenerator EnrollmentPdfGenerator
+@inject StudentService StudentService
+@inject AppDbContext DbContext
+@inject IJSRuntime JSRuntime
 @* Enrollment Status Tab Content *@
 
 <!-- Filters and Table Card -->
@@ -93,8 +101,15 @@
                         <td class="px-4 py-3">@record.Grade</td>
                         <td class="px-4 py-3">@record.Section</td>
                         <td class="px-4 py-3">@record.Type</td>
-                        <td class="px-4 py-3">
-                            <span class="text-gray-900">@record.Documents</span>
+                        <td class="px-4 py-3 text-sm text-gray-700">
+                            @if (record.Documents == "Validated" || record.Documents == "Verified")
+                            {
+                                <span class="text-xs font-semibold text-green-600">Validated</span>
+                            }
+                            else
+                            {
+                                <span class="text-xs font-semibold text-gray-400">Not Validated</span>
+                            }
                         </td>
                         <td class="px-4 py-3">
                             <span class="text-xs font-medium text-gray-900">@record.PaymentStatus</span>
@@ -103,7 +118,7 @@
                             <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">@record.Status</span>
                         </td>
                         <td class="flex items-center justify-center px-4 py-3">
-                            <button class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
+                            <button @onclick="() => HandleViewClick(record)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
                                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -144,12 +159,132 @@
     </div>
 </div>
 
+<!-- Enrollment Status View Modal -->
+@if (ShowViewModal && SelectedRecord != null && StudentData != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseModal">
+        <div class="relative w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <div>
+                    <h3 class="text-xl font-bold text-white">Enrollment Status Details</h3>
+                    <p class="mt-1 text-sm text-blue-100">@StudentData.FullName</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @onclick="CloseModal" class="rounded-lg p-2 text-white transition-colors hover:bg-white hover:bg-opacity-20">
+                        <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="overflow-y-auto" style="max-height: calc(90vh - 80px);">
+                <div class="px-6 py-6 space-y-6">
+                    <!-- Student Information -->
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <h4 class="mb-3 text-lg font-semibold text-gray-800">Student Information</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Full Name</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@StudentData.FullName</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Student ID</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@StudentData.Id</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">LRN</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@StudentData.LRN</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Student Type</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@SelectedRecord.Type</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enrollment Details -->
+                    <div class="rounded-lg border border-gray-200 bg-white p-4">
+                        <h4 class="mb-3 text-lg font-semibold text-gray-800">Enrollment Details</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">School Year</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@SelectedRecord.SchoolYear</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Grade Level</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@SelectedRecord.Grade</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Section</label>
+                                <p class="mt-1 text-sm font-medium text-gray-800">@SelectedRecord.Section</p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Status</label>
+                                <p class="mt-1">
+                                    <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@SelectedRecord.Status</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Documents & Payment -->
+                    <div class="rounded-lg border border-gray-200 bg-white p-4">
+                        <h4 class="mb-3 text-lg font-semibold text-gray-800">Documents & Payment</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Documents Status</label>
+                                <p class="mt-1">
+                                    @if (SelectedRecord.Documents == "Validated" || SelectedRecord.Documents == "Verified")
+                                    {
+                                        <span class="text-xs font-semibold text-green-600">Validated</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-xs font-semibold text-gray-400">Not Validated</span>
+                                    }
+                                </p>
+                            </div>
+                            <div>
+                                <label class="text-xs font-medium text-gray-600">Payment Status</label>
+                                <p class="mt-1">
+                                    @if (SelectedRecord.PaymentStatus == "Paid" || SelectedRecord.PaymentStatus == "Fully Paid")
+                                    {
+                                        <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@SelectedRecord.PaymentStatus</span>
+                                    }
+                                    else if (SelectedRecord.PaymentStatus == "Partially Paid")
+                                    {
+                                        <span class="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">@SelectedRecord.PaymentStatus</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">@SelectedRecord.PaymentStatus</span>
+                                    }
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter]
     public List<EnrollmentStatusData>? EnrollmentRecords { get; set; }
 
     [Parameter]
+    public StudentDetailData? StudentData { get; set; }
+
+    [Parameter]
     public int RowsPerPage { get; set; } = 5;
+
+    // Modal state
+    private bool ShowViewModal { get; set; } = false;
+    private EnrollmentStatusData? SelectedRecord { get; set; }
 
     // Filter properties
     private string SearchText { get; set; } = "";
@@ -165,9 +300,89 @@
         GradeLevelFilter = "";
     }
 
-    private void ExportPDF()
+    private void HandleViewClick(EnrollmentStatusData record)
     {
-        // Export PDF logic will be implemented here
+        SelectedRecord = record;
+        ShowViewModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseModal()
+    {
+        ShowViewModal = false;
+        SelectedRecord = null;
+        StateHasChanged();
+    }
+
+    private async Task ExportPDF()
+    {
+        if (EnrollmentRecords == null || !EnrollmentRecords.Any())
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "No enrollment records to export.");
+            return;
+        }
+
+        try
+        {
+            // Export all enrollment records
+            var pdfBytes = await GenerateEnrollmentStatusPDF();
+            var fileName = $"Enrollment_Status_{StudentData?.FullName?.Replace(" ", "_") ?? "Student"}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", Convert.ToBase64String(pdfBytes));
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error exporting PDF: {ex.Message}");
+        }
+    }
+
+    private async Task ExportEnrollmentPDF()
+    {
+        if (SelectedRecord == null || StudentData == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var pdfBytes = await GenerateSingleEnrollmentPDF(SelectedRecord);
+            var fileName = $"Enrollment_Status_{StudentData.FullName.Replace(" ", "_")}_{SelectedRecord.SchoolYear}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", Convert.ToBase64String(pdfBytes));
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error exporting PDF: {ex.Message}");
+        }
+    }
+
+    private async Task<byte[]> GenerateEnrollmentStatusPDF()
+    {
+        if (StudentData == null || EnrollmentRecords == null)
+        {
+            throw new Exception("Student data or enrollment records are missing.");
+        }
+
+        return await EnrollmentPdfGenerator.GenerateEnrollmentStatusReportAsync(
+            StudentData.Id,
+            StudentData.FullName,
+            EnrollmentRecords
+        );
+    }
+
+    private async Task<byte[]> GenerateSingleEnrollmentPDF(EnrollmentStatusData record)
+    {
+        if (StudentData == null)
+        {
+            throw new Exception("Student data is missing.");
+        }
+
+        var singleRecordList = new List<EnrollmentStatusData> { record };
+        return await EnrollmentPdfGenerator.GenerateEnrollmentStatusReportAsync(
+            StudentData.Id,
+            StudentData.FullName,
+            singleRecordList
+        );
     }
 }
 

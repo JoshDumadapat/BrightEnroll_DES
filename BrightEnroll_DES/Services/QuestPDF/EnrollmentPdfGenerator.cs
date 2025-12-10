@@ -1127,5 +1127,128 @@ public class EnrollmentPdfGenerator
             .PaddingVertical(8)
             .PaddingHorizontal(10);
     }
+
+    /// <summary>
+    /// Generates a PDF report for enrollment status records
+    /// </summary>
+    public Task<byte[]> GenerateEnrollmentStatusReportAsync(string studentId, string studentName, List<Components.Pages.Admin.StudentRecord.StudentRecordCS.EnrollmentStatusData> records)
+    {
+        var logoBytes = GetLogoBytes();
+        
+        var pdfBytes = Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(1.5f, Unit.Centimetre);
+                page.PageColor(global::QuestPDF.Helpers.Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(10));
+
+                // Header
+                page.Header()
+                    .PaddingBottom(10)
+                    .Column(headerColumn =>
+                    {
+                        headerColumn.Item().Height(50).Row(headerRow =>
+                        {
+                            // Left Side: Logo and Company Information
+                            headerRow.RelativeItem(2).Row(leftRow =>
+                            {
+                                if (logoBytes != null && logoBytes.Length > 0)
+                                {
+                                    leftRow.ConstantItem(50).Height(50).Image(logoBytes).FitArea();
+                                }
+                                
+                                leftRow.RelativeItem().PaddingLeft(10).Column(companyCol =>
+                                {
+                                    companyCol.Item().Text("BRIGHTENROLL").FontSize(16).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                                    companyCol.Item().PaddingTop(2).Text("ENROLLMENT MANAGEMENT SYSTEM").FontSize(10).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    companyCol.Item().PaddingTop(3).Text("Elementary School").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Grey.Darken1);
+                                });
+                            });
+
+                            // Right Side: Date and Time
+                            headerRow.RelativeItem(1).AlignRight().Column(detailsCol =>
+                            {
+                                detailsCol.Item().Text("ENROLLMENT STATUS REPORT").FontSize(10).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                detailsCol.Item().PaddingTop(3).Text($"Date: {DateTime.Now:MMMM dd, yyyy}").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Grey.Darken1);
+                                detailsCol.Item().Text($"Time: {DateTime.Now:hh:mm tt}").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Grey.Darken1);
+                            });
+                        });
+                    });
+
+                // Content
+                page.Content()
+                    .PaddingVertical(10)
+                    .Column(contentColumn =>
+                    {
+                        // Student Information Section
+                        contentColumn.Item().PaddingBottom(15).Column(studentCol =>
+                        {
+                            studentCol.Item().Text("Student Information").FontSize(14).Bold().FontColor(global::QuestPDF.Helpers.Colors.Blue.Darken3);
+                            studentCol.Item().PaddingTop(5).Row(row =>
+                            {
+                                row.RelativeItem().Text($"Name: {studentName}").FontSize(10);
+                                row.RelativeItem().Text($"Student ID: {studentId}").FontSize(10);
+                            });
+                        });
+
+                        // Enrollment Records Table
+                        contentColumn.Item().PaddingTop(10).Table(table =>
+                        {
+                            table.ColumnsDefinition(columns =>
+                            {
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                                columns.RelativeColumn();
+                            });
+
+                            // Header
+                            table.Header(header =>
+                            {
+                                header.Cell().Element(HeaderCellStyle).Text("School Year").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Grade").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Section").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Type").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Documents").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Payment").FontSize(9).Bold();
+                                header.Cell().Element(HeaderCellStyle).Text("Status").FontSize(9).Bold();
+                            });
+
+                            // Rows
+                            foreach (var record in records)
+                            {
+                                table.Cell().Element(CellStyle).Text(record.SchoolYear).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.Grade).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.Section).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.Type).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.Documents).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.PaymentStatus).FontSize(9);
+                                table.Cell().Element(CellStyle).Text(record.Status).FontSize(9);
+                            }
+                        });
+                    });
+
+                // Footer
+                page.Footer()
+                    .AlignCenter()
+                    .PaddingTop(10)
+                    .DefaultTextStyle(x => x.FontSize(8).FontColor(global::QuestPDF.Helpers.Colors.Grey.Medium))
+                    .Text(x =>
+                    {
+                        x.Span("Page ");
+                        x.CurrentPageNumber();
+                        x.Span(" of ");
+                        x.TotalPages();
+                    });
+            });
+        }).GeneratePdf();
+        
+        return Task.FromResult(pdfBytes);
+    }
 }
 

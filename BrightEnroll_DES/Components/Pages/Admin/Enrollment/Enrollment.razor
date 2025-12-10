@@ -540,7 +540,7 @@
                         Grade = student.GradeLevel ?? "N/A",
                         Section = "N/A",
                         Type = student.StudentType ?? string.Empty,
-                        Documents = documentsVerified ? "Validated" : "Not validated",
+                        Documents = documentsVerified ? "Validated" : "Not Validated",
                         Status = student.Status ?? string.Empty
                     }
                 };
@@ -1267,15 +1267,20 @@
                 return;
             }
 
+            // Archived statuses - students with these statuses should NOT appear in re-enrollment
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            
             // Get all students who have enrollment records from PREVIOUS school years
             // These are old students who may want to re-enroll in the current school year
+            // Exclude archived students
             var previousSchoolYearEnrollments = await _context.StudentSectionEnrollments
                 .Include(e => e.Student)
                     .ThenInclude(s => s.Requirements)
                 .Include(e => e.Section)
                     .ThenInclude(s => s.GradeLevel)
                 .Where(e => e.SchoolYear != CurrentSchoolYear && 
-                           e.Status == "Enrolled") // Only completed enrollments from previous years
+                           e.Status == "Enrolled" &&
+                           !archivedStatuses.Contains(e.Student.Status ?? "")) // Only completed enrollments from previous years, exclude archived
                 .ToListAsync();
 
             // Group by student to get unique students
@@ -1401,7 +1406,7 @@
                                student.Requirements.All(r => r.IsVerified || 
                                    (!string.IsNullOrWhiteSpace(r.Status) && 
                                     r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
-                               ? "Validated" : "Not validated",
+                               ? "Validated" : "Not Validated",
                     Status = isEligible ? "Eligible" : $"Not Eligible ({eligibilityReason})",
                     TotalFee = paymentInfo?.TotalFee ?? 0,
                     AmountPaid = paymentInfo?.AmountPaid ?? 0,

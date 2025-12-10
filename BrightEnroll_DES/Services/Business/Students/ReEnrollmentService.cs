@@ -82,6 +82,10 @@ public class ReEnrollmentService
         {
             gradeNumber = 0; // Kinder = 0, promotes to Grade 1
         }
+        else if (normalized == "PRESCHOOL" || normalized == "PRE-SCHOOL" || normalized == "PRE SCHOOL")
+        {
+            gradeNumber = 0; // Pre-School = 0, promotes to Grade 1 (same as Kinder)
+        }
 
         if (!gradeNumber.HasValue)
         {
@@ -619,10 +623,12 @@ public class ReEnrollmentService
             // This will also automatically create a ledger for the current school year
             await _enrollmentStatusService.UpdateStudentStatusAsync(studentId, "For Payment");
 
-                     var ledgerExists = await _context.StudentLedgers
-                .AnyAsync(l => l.StudentId == studentId && l.SchoolYear == currentActiveSchoolYear);
+            // Check if ledger exists and update grade level if needed
+            var existingLedger = await _context.StudentLedgers
+                .Include(l => l.Charges)
+                .FirstOrDefaultAsync(l => l.StudentId == studentId && l.SchoolYear == currentActiveSchoolYear);
 
-            if (!ledgerExists)
+            if (existingLedger == null)
             {
                 // Get total fees for the NEXT grade level
                 var feeService = new FeeService(_context);
@@ -649,9 +655,93 @@ public class ReEnrollmentService
             }
             else
             {
-                _logger?.LogWarning(
-                    "Ledger for student {StudentId} in SY {SY} already exists. Skipping creation.",
-                    studentId, currentActiveSchoolYear);
+                // Ledger exists - check if grade level needs to be updated
+                if (existingLedger.GradeLevel != nextGradeLevel)
+                {
+                    _logger?.LogInformation(
+                        "Updating ledger grade level for student {StudentId} from {OldGrade} to {NewGrade}",
+                        studentId, existingLedger.GradeLevel, nextGradeLevel);
+                    
+                    // Update the ledger's grade level
+                    existingLedger.GradeLevel = nextGradeLevel;
+                    existingLedger.UpdatedAt = DateTime.Now;
+                    
+                    // If ledger has no payments yet, update charges to match new grade level
+                    if (existingLedger.TotalPayments == 0 && existingLedger.Charges.Any())
+                    {
+                        // Remove old charges
+                        _context.LedgerCharges.RemoveRange(existingLedger.Charges);
+                        
+                        // Get fees for the new grade level
+                        var feeService = new FeeService(_context);
+                        var totalFees = await feeService.CalculateTotalFeesAsync(nextGradeLevel);
+                        
+                        // Get grade level entity to find the fee
+                        // Use ToLower() for case-insensitive comparison that EF Core can translate
+                        var gradeLevel = await _context.GradeLevels
+                            .Where(g => g.GradeLevelName != null && g.GradeLevelName.ToLower() == nextGradeLevel.ToLower())
+                            .FirstOrDefaultAsync();
+                        
+                        if (gradeLevel != null)
+                        {
+                            var fee = await feeService.GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
+                            if (fee != null)
+                            {
+                                if (fee.TuitionFee > 0)
+                                {
+                                    _context.LedgerCharges.Add(new LedgerCharge
+                                    {
+                                        LedgerId = existingLedger.Id,
+                                        ChargeType = "Tuition",
+                                        Description = "Tuition Fee",
+                                        Amount = fee.TuitionFee,
+                                        CreatedAt = DateTime.Now
+                                    });
+                                }
+                                
+                                if (fee.MiscFee > 0)
+                                {
+                                    _context.LedgerCharges.Add(new LedgerCharge
+                                    {
+                                        LedgerId = existingLedger.Id,
+                                        ChargeType = "Misc",
+                                        Description = "Miscellaneous Fee",
+                                        Amount = fee.MiscFee,
+                                        CreatedAt = DateTime.Now
+                                    });
+                                }
+                                
+                                if (fee.OtherFee > 0)
+                                {
+                                    _context.LedgerCharges.Add(new LedgerCharge
+                                    {
+                                        LedgerId = existingLedger.Id,
+                                        ChargeType = "Other",
+                                        Description = "Other Fee",
+                                        Amount = fee.OtherFee,
+                                        CreatedAt = DateTime.Now
+                                    });
+                                }
+                                
+                                // Update totals
+                                existingLedger.TotalCharges = totalFees;
+                                existingLedger.Balance = totalFees - existingLedger.TotalPayments;
+                            }
+                        }
+                    }
+                    
+                    await _context.SaveChangesAsync();
+                    
+                    _logger?.LogInformation(
+                        "Updated ledger {LedgerId} grade level to {NewGrade} for student {StudentId}",
+                        existingLedger.Id, nextGradeLevel, studentId);
+                }
+                else
+                {
+                    _logger?.LogInformation(
+                        "Ledger for student {StudentId} in SY {SY} already exists with correct grade level {Grade}.",
+                        studentId, currentActiveSchoolYear, nextGradeLevel);
+                }
             }
 
 

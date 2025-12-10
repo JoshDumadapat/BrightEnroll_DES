@@ -54,7 +54,7 @@ public class PaymentService
                 var previousLedger = await _ledgerService.GetPreviousBalanceLedgerAsync(studentId, activeSchoolYear);
                 if (previousLedger != null && previousLedger.Balance > 0)
                 {
-                    return MapLedgerToPaymentInfo(student, previousLedger, hasPreviousBalance: true);
+                    return await MapLedgerToPaymentInfoAsync(student, previousLedger, hasPreviousBalance: true, activeSchoolYear);
                 }
             }
 
@@ -75,7 +75,7 @@ public class PaymentService
 
             if (currentLedger != null)
             {
-                return MapLedgerToPaymentInfo(student, currentLedger, hasPreviousBalance: false);
+                return await MapLedgerToPaymentInfoAsync(student, currentLedger, hasPreviousBalance: false, activeSchoolYear);
             }
 
             // No ledger found and no active school year to create one
@@ -185,7 +185,19 @@ public class PaymentService
                 "Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
                 studentId, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
 
-            // Return updated payment info
+            // Force reload of the ledger from database to ensure we have the latest payments and status
+            if (currentInfo.LedgerId.HasValue)
+            {
+                // Reload the ledger with fresh data from database
+                var reloadedLedger = await _ledgerService.GetLedgerByIdAsync(currentInfo.LedgerId.Value);
+                if (reloadedLedger != null)
+                {
+                    // Ensure the ledger is recalculated with latest payments
+                    await _ledgerService.RecalculateTotalsAsync(currentInfo.LedgerId.Value);
+                }
+            }
+            
+            // Return updated payment info (this will reload fresh data from database)
             return await GetStudentPaymentInfoAsync(studentId) ?? currentInfo;
         }
         catch (Exception ex)
@@ -215,6 +227,17 @@ public class PaymentService
                 {
                     result.Add(paymentInfo);
                 }
+            }
+
+            // Save any ledger updates that were made during mapping (status recalculation)
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception saveEx)
+            {
+                _logger?.LogWarning(saveEx, "Some ledger updates may not have been saved: {Message}", saveEx.Message);
+                // Continue even if save fails - the calculated status is still correct in the returned data
             }
 
             return result.OrderBy(s => s.StudentId).ToList();
@@ -331,7 +354,9 @@ public class PaymentService
                 return null;
             }
 
-            return MapLedgerToPaymentInfo(student, ledger, hasPreviousBalance: false);
+            // Get active school year to determine if this is the current school year
+            var activeSchoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+            return await MapLedgerToPaymentInfoAsync(student, ledger, hasPreviousBalance: false, activeSchoolYear);
         }
         catch (Exception ex)
         {
@@ -401,18 +426,106 @@ public class PaymentService
     /// <summary>
     /// Maps a ledger to StudentPaymentInfo
     /// </summary>
-    private StudentPaymentInfo MapLedgerToPaymentInfo(Student student, StudentLedger ledger, bool hasPreviousBalance)
+    private async Task<StudentPaymentInfo> MapLedgerToPaymentInfoAsync(Student student, StudentLedger ledger, bool hasPreviousBalance, string? activeSchoolYear = null)
     {
+        // Always reload payments and charges from database to ensure we have the latest data
+        // This is critical after payment processing to avoid stale data
+        await _context.Entry(ledger)
+            .Collection(l => l.Payments)
+            .Query()
+            .LoadAsync();
+        
+        await _context.Entry(ledger)
+            .Collection(l => l.Charges)
+            .Query()
+            .LoadAsync();
+
+        // Recalculate totals to ensure status is up-to-date based on actual payments and charges
+        var totalCharges = ledger.Charges?.Sum(c => c.Amount) ?? 0m;
+        var totalPayments = ledger.Payments?.Sum(p => p.Amount) ?? 0m;
+        var balance = totalCharges - totalPayments;
+
+        // Determine payment status based on current calculations (not stored status)
+        // This ensures the status is always accurate even if ledger.Status is stale
+        string paymentStatus;
+        if (totalPayments == 0)
+        {
+            paymentStatus = "Unpaid";
+        }
+        else if (balance > 0)
+        {
+            paymentStatus = "Partially Paid";
+        }
+        else
+        {
+            paymentStatus = "Fully Paid";
+        }
+
+        // Update ledger totals and status if they don't match calculated values
+        // This ensures the database stays in sync
+        bool needsUpdate = false;
+        if (Math.Abs(ledger.TotalCharges - totalCharges) > 0.01m)
+        {
+            ledger.TotalCharges = totalCharges;
+            needsUpdate = true;
+        }
+        if (Math.Abs(ledger.TotalPayments - totalPayments) > 0.01m)
+        {
+            ledger.TotalPayments = totalPayments;
+            needsUpdate = true;
+        }
+        if (Math.Abs(ledger.Balance - balance) > 0.01m)
+        {
+            ledger.Balance = balance;
+            needsUpdate = true;
+        }
+        if (ledger.Status != paymentStatus)
+        {
+            ledger.Status = paymentStatus;
+            needsUpdate = true;
+        }
+
+        if (needsUpdate)
+        {
+            ledger.UpdatedAt = DateTime.Now;
+            // Note: SaveChanges will be called by the caller or we can save here
+            // For now, we'll let the caller handle saving to avoid multiple save operations
+        }
+
+        // Determine the correct grade level to display
+        string gradeLevel;
+        
+        if (hasPreviousBalance)
+        {
+            // For previous balance ledgers, use the ledger's grade level (historical accuracy)
+            gradeLevel = ledger.GradeLevel ?? student.GradeLevel ?? "N/A";
+        }
+        else
+        {
+            // For current school year ledgers, prioritize student's current grade level
+            // This ensures re-enrolled students show their new grade level
+            if (!string.IsNullOrWhiteSpace(activeSchoolYear) && ledger.SchoolYear == activeSchoolYear)
+            {
+                // Current school year - use student's current grade level (may have been updated via re-enrollment)
+                gradeLevel = student.GradeLevel ?? ledger.GradeLevel ?? "N/A";
+            }
+            else
+            {
+                // Historical ledger or no active school year - use ledger's grade level
+                gradeLevel = ledger.GradeLevel ?? student.GradeLevel ?? "N/A";
+            }
+        }
+        
         return new StudentPaymentInfo
         {
             StudentId = student.StudentId,
             StudentName = $"{student.FirstName} {(!string.IsNullOrWhiteSpace(student.MiddleName) ? student.MiddleName + " " : "")}{student.LastName}{(!string.IsNullOrWhiteSpace(student.Suffix) ? " " + student.Suffix : "")}".Trim(),
-            GradeLevel = ledger.GradeLevel ?? student.GradeLevel ?? "N/A",
-            TotalFee = ledger.TotalCharges,
-            AmountPaid = ledger.TotalPayments,
-            Balance = ledger.Balance,
-            PaymentStatus = ledger.Status,
-            EnrollmentStatus = DetermineEnrollmentStatus(ledger.Status),
+            GradeLevel = gradeLevel,
+            TotalFee = totalCharges,
+            AmountPaid = totalPayments,
+            Balance = balance,
+            PaymentStatus = paymentStatus,
+            EnrollmentStatus = DetermineEnrollmentStatus(paymentStatus),
             Student = student,
             HasPreviousBalance = hasPreviousBalance,
             PreviousSchoolYear = hasPreviousBalance ? ledger.SchoolYear : null,

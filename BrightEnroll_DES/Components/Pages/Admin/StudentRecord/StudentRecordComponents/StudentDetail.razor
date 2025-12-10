@@ -61,7 +61,7 @@
     <!-- Tab Content -->
     @if (SelectedTab == TabType.StudentInfo)
     {
-        <StudentInfo @key="@($"studentinfo-{SelectedTab}")" StudentData="StudentData" />
+        <StudentInfo @key="@($"studentinfo-{SelectedTab}")" StudentData="StudentData" OnStudentUpdated="HandleStudentUpdated" />
     }
     else if (SelectedTab == TabType.AcademicRecord)
     {
@@ -69,7 +69,7 @@
     }
     else if (SelectedTab == TabType.EnrollmentStatus)
     {
-        <EnrollmentStatus @key="@($"enrollment-{SelectedTab}")" EnrollmentRecords="EnrollmentRecords" />
+        <EnrollmentStatus @key="@($"enrollment-{SelectedTab}")" EnrollmentRecords="EnrollmentRecords" StudentData="StudentData" />
     }
 </div>
 
@@ -169,6 +169,13 @@
         // Small delay to ensure DOM is ready before next operation
         await Task.Delay(100);
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleStudentUpdated(StudentDetailData updatedData)
+    {
+        StudentData = updatedData;
+        // Refresh the component to show updated data
+        StateHasChanged();
     }
 }
 

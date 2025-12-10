@@ -463,7 +463,7 @@
                 }
             }
 
-            // Filter FinalClasses by active school year - only show classes with enrollments in active school year
+            // Filter FinalClasses to show only classes with teacher assignments and schedules
             await FilterFinalClassesByActiveSchoolYear();
 
             // Normalize classroom/building info for FinalClasses using section data so that
@@ -530,45 +530,40 @@
     }
 
     /// <summary>
-    /// Filters FinalClasses to only show classes with enrollments in the active school year
+    /// Filters FinalClasses to show classes with teacher assignments and schedules.
+    /// Shows all classes regardless of enrollments, as Classes Overview should display
+    /// all configured classes even if students haven't enrolled yet.
     /// </summary>
-    private async Task FilterFinalClassesByActiveSchoolYear()
+    private Task FilterFinalClassesByActiveSchoolYear()
     {
         try
         {
-            var activeSchoolYear = CurrentSchoolYear;
-            
-            // Fallback to active school year if CurrentSchoolYear is not set
-            if (string.IsNullOrEmpty(activeSchoolYear))
-            {
-                activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
-            }
-            
-            if (string.IsNullOrEmpty(activeSchoolYear))
-            {
-                // No active school year - hide all classes
-                FinalClasses = new List<DataModels.FinalClassView>();
-                Logger.LogInformation("No active school year found, hiding all classes");
-                return;
-            }
-
-            // Use CurriculumService to get section names with enrollments (avoids DbContext concurrency issues)
-            var sectionNamesWithEnrollments = await CurriculumService.GetSectionNamesWithEnrollmentsAsync(activeSchoolYear);
-
-            // Filter FinalClasses to only include sections with enrollments
-            FinalClasses = FinalClasses
-                .Where(fc => !string.IsNullOrEmpty(fc.SectionName) && 
-                            sectionNamesWithEnrollments.Contains(fc.SectionName))
+            // Get all sections that have non-archived teacher assignments with schedules
+            // This ensures we show all configured classes, not just those with enrollments
+            var sectionsWithAssignments = DbAssignments
+                .Where(a => !a.IsArchived && a.Section != null)
+                .Select(a => a.Section!.SectionName)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .Distinct()
                 .ToList();
 
-            Logger.LogInformation("Filtered FinalClasses to {Count} classes with enrollments in school year {SchoolYear}", 
-                FinalClasses.Count, activeSchoolYear);
+            // Filter FinalClasses to only include sections that have assignments
+            // This ensures we only show classes that are actually configured
+            FinalClasses = FinalClasses
+                .Where(fc => !string.IsNullOrEmpty(fc.SectionName) && 
+                            sectionsWithAssignments.Contains(fc.SectionName))
+                .ToList();
+
+            Logger.LogInformation("Filtered FinalClasses to {Count} classes with teacher assignments (from {SectionCount} sections)", 
+                FinalClasses.Count, sectionsWithAssignments.Count);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error filtering FinalClasses by active school year: {ErrorMessage}", ex.Message);
+            Logger.LogError(ex, "Error filtering FinalClasses: {ErrorMessage}", ex.Message);
             // On error, don't filter (show all) to prevent breaking the page
         }
+        
+        return Task.CompletedTask;
     }
 
     private string GetHomeroomTeacher(int sectionId)

@@ -2,6 +2,7 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Authentication;
 using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Business.Finance;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -671,12 +672,14 @@ public class StudentService
         }
     }
 
+    /// <summary>
+    /// Gets students for the "Enrolled Student" tab - ONLY students with enrollment status "Enrolled"
+    /// Students with "For Payment", "Partially Paid", or "Fully Paid" should NOT appear here
+    /// </summary>
     public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync(string? schoolYear = null)
     {
         try
         {
-            var enrolledStatus = "Enrolled";
-            
             // Get active school year if not provided
             if (string.IsNullOrEmpty(schoolYear))
             {
@@ -687,26 +690,32 @@ public class StudentService
                 schoolYear = activeSY;
             }
             
-            // Base query from section enrollments so we can get section + grade information
-            var query = _context.StudentSectionEnrollments
+            // Archived statuses - students with these statuses should NOT appear in student records
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            
+            // CRITICAL: Only get students with enrollment records that have status "Enrolled"
+            // Students with "For Payment", "Partially Paid", or "Fully Paid" should appear in "For Enrollment" tab, NOT "Enrolled Student" tab
+            var enrollmentQuery = _context.StudentSectionEnrollments
                 .Include(e => e.Student)
                     .ThenInclude(s => s.Requirements)
                 .Include(e => e.Section)
                     .ThenInclude(sec => sec.GradeLevel)
-                .Where(e => e.Status == enrolledStatus);
+                .Where(e => e.Status == "Enrolled" && // ONLY enrolled students
+                           !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
 
             // Filter by school year if provided
             if (!string.IsNullOrEmpty(schoolYear))
             {
-                query = query.Where(e => e.SchoolYear == schoolYear);
+                enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYear == schoolYear);
             }
 
-            var enrollments = await query
+            var enrollments = await enrollmentQuery
                 .OrderByDescending(e => e.Student.DateRegistered)
                 .ToListAsync();
 
             var result = new List<EnrolledStudentDto>();
 
+            // Add ONLY students with "Enrolled" status
             foreach (var enrollment in enrollments)
             {
                 var s = enrollment.Student;
@@ -730,8 +739,8 @@ public class StudentService
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
                     GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
                     Section = enrollment.Section?.SectionName ?? "N/A",
-                    Documents = docsVerified ? "Verified" : "Pending",
-                    Status = enrollment.Status ?? s.Status ?? enrolledStatus
+                    Documents = docsVerified ? "Validated" : "Not Validated",
+                    Status = "Enrolled" // Always "Enrolled" since we filtered for this status
                 });
             }
 
@@ -741,6 +750,142 @@ public class StudentService
         {
             _logger?.LogError(ex, "Error fetching enrolled students: {Message}", ex.Message);
             throw new Exception($"Failed to fetch enrolled students: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Gets all student records for the Student Record page - includes all enrollment statuses and students with ledgers
+    /// This is different from GetEnrolledStudentsAsync which only shows "Enrolled" status
+    /// </summary>
+    public async Task<List<EnrolledStudentDto>> GetAllStudentRecordsAsync(string? schoolYear = null)
+    {
+        try
+        {
+            // Get active school year if not provided
+            if (string.IsNullOrEmpty(schoolYear))
+            {
+                var activeSY = await _context.SchoolYears
+                    .Where(sy => sy.IsActive && sy.IsOpen)
+                    .Select(sy => sy.SchoolYearName)
+                    .FirstOrDefaultAsync();
+                schoolYear = activeSY;
+            }
+            
+            // Archived statuses - students with these statuses should NOT appear in student records
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            
+            // Get students from enrollment records (all statuses, not just "Enrolled")
+            var enrollmentQuery = _context.StudentSectionEnrollments
+                .Include(e => e.Student)
+                    .ThenInclude(s => s.Requirements)
+                .Include(e => e.Section)
+                    .ThenInclude(sec => sec.GradeLevel)
+                .Where(e => !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
+
+            // Filter by school year if provided
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYear == schoolYear);
+            }
+
+            var enrollments = await enrollmentQuery
+                .OrderByDescending(e => e.Student.DateRegistered)
+                .ToListAsync();
+
+            // Get student IDs that already have enrollment records
+            var enrolledStudentIds = enrollments.Select(e => e.StudentId).Distinct().ToList();
+
+            // Also get students who have ledgers for the active school year but no enrollment records yet
+            // This ensures students with payment records (ledgers) appear in Student Record even if they haven't been assigned to a section
+            var studentsWithLedgers = new List<BrightEnroll_DES.Data.Models.Student>();
+            if (!string.IsNullOrEmpty(schoolYear))
+            {
+                var ledgerStudentIds = await _context.StudentLedgers
+                    .Where(l => l.SchoolYear == schoolYear && !enrolledStudentIds.Contains(l.StudentId))
+                    .Select(l => l.StudentId)
+                    .Distinct()
+                    .ToListAsync();
+
+                if (ledgerStudentIds.Any())
+                {
+                    studentsWithLedgers = await _context.Students
+                        .Include(s => s.Requirements)
+                        .Where(s => ledgerStudentIds.Contains(s.StudentId) && 
+                                   !archivedStatuses.Contains(s.Status ?? ""))
+                        .ToListAsync();
+                }
+            }
+
+            var result = new List<EnrolledStudentDto>();
+
+            // Add students from enrollment records (all statuses)
+            foreach (var enrollment in enrollments)
+            {
+                var s = enrollment.Student;
+
+                var fullName = $"{s.FirstName} {s.MiddleName} {s.LastName}"
+                    .Replace("  ", " ")
+                    .Trim();
+
+                var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
+                    s.Requirements, s.StudentType);
+
+                // Use grade level from enrollment's section (at enrollment time), NOT from student's main record
+                // This ensures historical accuracy - grade level at enrollment time is preserved
+                var gradeLevelAtEnrollment = enrollment.Section?.GradeLevel?.GradeLevelName ?? "N/A";
+                
+                result.Add(new EnrolledStudentDto
+                {
+                    Id = s.StudentId,
+                    Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
+                    LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
+                    Date = s.DateRegistered.ToString("dd MMM yyyy"),
+                    GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
+                    Section = enrollment.Section?.SectionName ?? "N/A",
+                    Documents = docsVerified ? "Validated" : "Not Validated",
+                    Status = enrollment.Status ?? s.Status ?? "Enrolled" // Use enrollment status, fallback to student status, then "Enrolled"
+                });
+            }
+
+            // Add students with ledgers but no enrollment records
+            foreach (var student in studentsWithLedgers)
+            {
+                // Check if already added (shouldn't happen, but safety check)
+                if (result.Any(r => r.Id == student.StudentId))
+                    continue;
+
+                var fullName = $"{student.FirstName} {student.MiddleName} {student.LastName}"
+                    .Replace("  ", " ")
+                    .Trim();
+
+                var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
+                    student.Requirements, student.StudentType);
+
+                // Get grade level from ledger or student record
+                var ledger = await _context.StudentLedgers
+                    .FirstOrDefaultAsync(l => l.StudentId == student.StudentId && l.SchoolYear == schoolYear);
+                
+                var gradeLevel = ledger?.GradeLevel ?? student.GradeLevel ?? "N/A";
+                
+                result.Add(new EnrolledStudentDto
+                {
+                    Id = student.StudentId,
+                    Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
+                    LRN = string.IsNullOrWhiteSpace(student.Lrn) ? "N/A" : student.Lrn!,
+                    Date = student.DateRegistered.ToString("dd MMM yyyy"),
+                    GradeLevel = gradeLevel,
+                    Section = "N/A", // No section assigned yet
+                    Documents = docsVerified ? "Validated" : "Not Validated",
+                    Status = student.Status ?? "For Payment" // Use student status, fallback to "For Payment"
+                });
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching all student records: {Message}", ex.Message);
+            throw new Exception($"Failed to fetch student records: {ex.Message}", ex);
         }
     }
 
@@ -849,17 +994,116 @@ public class StudentService
                 ? model.LearnerReferenceNo
                 : null;
             
-            // Only update student.SchoolYr and student.GradeLevel if this is a new student (no existing enrollments)
-            // For re-enrollments or students with existing enrollments, these should remain as historical data
+            // Update student.SchoolYr and student.GradeLevel for:
+            // 1. New students (no existing enrollments)
+            // 2. Re-enrolled students with "For Payment" status (they need grade promotion)
             var hasExistingEnrollments = student.SectionEnrollments != null && student.SectionEnrollments.Any();
+            var isReEnrolledForPayment = hasExistingEnrollments && 
+                                         (student.Status == "For Payment" || student.Status == "Partially Paid" || student.Status == "Fully Paid");
             
-            if (!hasExistingEnrollments)
+            if (!hasExistingEnrollments || isReEnrolledForPayment)
             {
-                // New student - safe to set SchoolYr and GradeLevel
-                student.SchoolYr = string.IsNullOrWhiteSpace(model.SchoolYear) ? null : model.SchoolYear;
-                student.GradeLevel = string.IsNullOrWhiteSpace(model.GradeToEnroll) ? null : model.GradeToEnroll;
+                // New student or re-enrolled student - safe to set SchoolYr and GradeLevel
+                if (!string.IsNullOrWhiteSpace(model.SchoolYear))
+                {
+                    student.SchoolYr = model.SchoolYear;
+                }
+                
+                if (!string.IsNullOrWhiteSpace(model.GradeToEnroll))
+                {
+                    var oldGradeLevel = student.GradeLevel;
+                    student.GradeLevel = model.GradeToEnroll;
+                    
+                    // If grade level changed and student has "For Payment" status, update ledger grade level
+                    if (isReEnrolledForPayment && oldGradeLevel != model.GradeToEnroll && !string.IsNullOrWhiteSpace(model.SchoolYear))
+                    {
+                        // Update ledger grade level for the current school year
+                        var ledger = await _context.StudentLedgers
+                            .FirstOrDefaultAsync(l => l.StudentId == student.StudentId && l.SchoolYear == model.SchoolYear);
+                        
+                        if (ledger != null && ledger.GradeLevel != model.GradeToEnroll)
+                        {
+                            ledger.GradeLevel = model.GradeToEnroll;
+                            ledger.UpdatedAt = DateTime.Now;
+                            
+                            // If ledger has no payments yet, update charges to match new grade level
+                            if (ledger.TotalPayments == 0)
+                            {
+                                // Remove old charges
+                                var oldCharges = await _context.LedgerCharges
+                                    .Where(c => c.LedgerId == ledger.Id)
+                                    .ToListAsync();
+                                if (oldCharges.Any())
+                                {
+                                    _context.LedgerCharges.RemoveRange(oldCharges);
+                                }
+                                
+                                // Get fees for the new grade level
+                                var feeService = new FeeService(_context);
+                                var gradeLevel = await _context.GradeLevels
+                                    .FirstOrDefaultAsync(g => g.GradeLevelName == model.GradeToEnroll);
+                                
+                                if (gradeLevel != null)
+                                {
+                                    var fee = await feeService.GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
+                                    if (fee != null)
+                                    {
+                                        decimal totalFees = 0;
+                                        
+                                        if (fee.TuitionFee > 0)
+                                        {
+                                            _context.LedgerCharges.Add(new LedgerCharge
+                                            {
+                                                LedgerId = ledger.Id,
+                                                ChargeType = "Tuition",
+                                                Description = "Tuition Fee",
+                                                Amount = fee.TuitionFee,
+                                                CreatedAt = DateTime.Now
+                                            });
+                                            totalFees += fee.TuitionFee;
+                                        }
+                                        
+                                        if (fee.MiscFee > 0)
+                                        {
+                                            _context.LedgerCharges.Add(new LedgerCharge
+                                            {
+                                                LedgerId = ledger.Id,
+                                                ChargeType = "Misc",
+                                                Description = "Miscellaneous Fee",
+                                                Amount = fee.MiscFee,
+                                                CreatedAt = DateTime.Now
+                                            });
+                                            totalFees += fee.MiscFee;
+                                        }
+                                        
+                                        if (fee.OtherFee > 0)
+                                        {
+                                            _context.LedgerCharges.Add(new LedgerCharge
+                                            {
+                                                LedgerId = ledger.Id,
+                                                ChargeType = "Other",
+                                                Description = "Other Fee",
+                                                Amount = fee.OtherFee,
+                                                CreatedAt = DateTime.Now
+                                            });
+                                            totalFees += fee.OtherFee;
+                                        }
+                                        
+                                        // Update ledger totals
+                                        ledger.TotalCharges = totalFees;
+                                        ledger.Balance = totalFees - ledger.TotalPayments;
+                                    }
+                                }
+                            }
+                            
+                            _logger?.LogInformation(
+                                "Updated ledger {LedgerId} grade level from {OldGrade} to {NewGrade} for student {StudentId}",
+                                ledger.Id, oldGradeLevel, model.GradeToEnroll, student.StudentId);
+                        }
+                    }
+                }
             }
-            // For existing students, do NOT update SchoolYr or GradeLevel - they should remain as historical data
+            // For existing students with other statuses, do NOT update SchoolYr or GradeLevel - they should remain as historical data
 
             // Update section enrollment (assignment to a section for a specific school year)
             if (model.SectionId.HasValue && !string.IsNullOrWhiteSpace(model.SchoolYear))

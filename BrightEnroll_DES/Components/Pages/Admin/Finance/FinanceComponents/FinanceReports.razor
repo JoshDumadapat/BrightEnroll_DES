@@ -157,6 +157,13 @@
                 </svg>
                 <span class="text-xs font-medium">General Ledger</span>
             </button>
+            <button @onclick='() => SetActiveReport("BalanceSheet")' 
+                    class="@GetReportButtonClasses("BalanceSheet")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span class="text-xs font-medium">Balance Sheet</span>
+            </button>
         </div>
     </div>
 
@@ -168,7 +175,14 @@
             <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
                     <div>
                         <h2 class="text-xl font-bold text-gray-800">@GetReportTitle()</h2>
-                        <p class="mt-1 text-sm text-gray-600">Period: @fromDate.ToString("MMM dd, yyyy") - @toDate.ToString("MMM dd, yyyy")</p>
+                        @if (activeReport == "BalanceSheet")
+                        {
+                            <p class="mt-1 text-sm text-gray-600">As of: @toDate.ToString("MMM dd, yyyy")</p>
+                        }
+                        else
+                        {
+                            <p class="mt-1 text-sm text-gray-600">Period: @fromDate.ToString("MMM dd, yyyy") - @toDate.ToString("MMM dd, yyyy")</p>
+                        }
                 </div>
             </div>
 
@@ -241,6 +255,7 @@
     private ExpenseAnalysisReport? expenseAnalysis;
     private GeneralLedgerData? generalLedger;
     private List<RevenueBreakdownItem>? revenueBreakdown;
+    private BalanceSheetReport? balanceSheetReport;
 
     protected override async Task OnInitializedAsync()
     {
@@ -301,6 +316,7 @@
             "PaymentHistory" => "Payment History Report",
             "ExpenseAnalysis" => "Expense Analysis Report",
             "GeneralLedger" => "General Ledger",
+            "BalanceSheet" => "Balance Sheet",
             _ => "Financial Report"
         };
     }
@@ -375,6 +391,9 @@
                 case "GeneralLedger":
                     generalLedger = await GetGeneralLedgerAsync(fromDate, toDate);
                     break;
+                case "BalanceSheet":
+                    balanceSheetReport = await AccountingReportService.GetBalanceSheetAsync(toDate);
+                    break;
             }
 
             reportGenerated = true;
@@ -413,6 +432,7 @@
             "PaymentHistory" => paymentHistory?.Count ?? 0,
             "ExpenseAnalysis" => expenseAnalysis?.TotalCount ?? 0,
             "GeneralLedger" => generalLedger?.Entries.Count ?? 0,
+            "BalanceSheet" => balanceSheetReport != null ? 1 : 0,
             _ => 0
         };
     }
@@ -514,6 +534,21 @@
                         RenderKPICard(builder, "Total Debits", totalDebits, "text-red-600", "");
                         RenderKPICard(builder, "Net Balance", finalBalance, finalBalance >= 0 ? "text-blue-600" : "text-red-600", "");
                         RenderKPICard(builder, "Transactions", generalLedger.Entries.Count, "text-gray-600", "transactions");
+                    }
+                    else
+                    {
+                        RenderEmptyKPICards(builder, 4);
+                    }
+                    break;
+
+                case "BalanceSheet":
+                    if (balanceSheetReport != null)
+                    {
+                        RenderKPICard(builder, "Total Assets", balanceSheetReport.TotalAssets, "text-blue-600", "");
+                        RenderKPICard(builder, "Total Liabilities", balanceSheetReport.TotalLiabilities, "text-red-600", "");
+                        RenderKPICard(builder, "Total Equity", balanceSheetReport.TotalEquity, "text-green-600", "");
+                        var balanceStatus = balanceSheetReport.IsBalanced ? "Balanced" : "Unbalanced";
+                        RenderKPICard(builder, "Status", balanceSheetReport.IsBalanced ? 1 : 0, balanceSheetReport.IsBalanced ? "text-green-600" : "text-red-600", balanceStatus);
                     }
                     else
                     {
@@ -1137,6 +1172,186 @@
                     builder.OpenElement(252, "p");
                     builder.AddAttribute(253, "class", "text-sm font-medium text-gray-600");
                     builder.AddContent(254, "No general ledger data available for the selected period");
+                    builder.CloseElement();
+                    builder.CloseElement();
+                }
+                break;
+
+            case "BalanceSheet":
+                if (balanceSheetReport != null)
+                {
+                    builder.OpenElement(300, "div");
+                    builder.AddAttribute(301, "class", "grid grid-cols-1 gap-6 md:grid-cols-3");
+                    
+                    // Assets Section
+                    builder.OpenElement(302, "div");
+                    builder.AddAttribute(303, "class", "rounded-lg border border-blue-200 bg-blue-50 p-4");
+                    builder.OpenElement(304, "h3");
+                    builder.AddAttribute(305, "class", "mb-4 text-lg font-semibold text-blue-800");
+                    builder.AddContent(306, "Assets");
+                    builder.CloseElement();
+                    builder.OpenElement(307, "div");
+                    builder.AddAttribute(308, "class", "space-y-2");
+                    if (balanceSheetReport.Assets != null && balanceSheetReport.Assets.Any())
+                    {
+                        foreach (var asset in balanceSheetReport.Assets.Where(a => a.Balance != 0))
+                        {
+                            builder.OpenElement(309, "div");
+                            builder.AddAttribute(310, "class", "flex items-center justify-between rounded bg-white p-3");
+                            builder.OpenElement(311, "div");
+                            builder.OpenElement(312, "span");
+                            builder.AddAttribute(313, "class", "block text-xs font-medium text-gray-600");
+                            builder.AddContent(314, asset.AccountCode);
+                            builder.CloseElement();
+                            builder.OpenElement(315, "span");
+                            builder.AddAttribute(316, "class", "block text-sm font-medium text-gray-700");
+                            builder.AddContent(317, asset.AccountName);
+                            builder.CloseElement();
+                            builder.CloseElement();
+                            builder.OpenElement(318, "span");
+                            builder.AddAttribute(319, "class", "font-semibold text-blue-600");
+                            builder.AddContent(320, FormatCurrency(asset.Balance));
+                            builder.CloseElement();
+                            builder.CloseElement();
+                        }
+                    }
+                    builder.OpenElement(321, "div");
+                    builder.AddAttribute(322, "class", "mt-3 flex items-center justify-between rounded bg-blue-100 p-3 border-t-2 border-blue-300");
+                    builder.OpenElement(323, "span");
+                    builder.AddAttribute(324, "class", "font-bold text-blue-800");
+                    builder.AddContent(325, "Total Assets");
+                    builder.CloseElement();
+                    builder.OpenElement(326, "span");
+                    builder.AddAttribute(327, "class", "font-bold text-blue-800");
+                    builder.AddContent(328, FormatCurrency(balanceSheetReport.TotalAssets));
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+
+                    // Liabilities Section
+                    builder.OpenElement(330, "div");
+                    builder.AddAttribute(331, "class", "rounded-lg border border-red-200 bg-red-50 p-4");
+                    builder.OpenElement(332, "h3");
+                    builder.AddAttribute(333, "class", "mb-4 text-lg font-semibold text-red-800");
+                    builder.AddContent(334, "Liabilities");
+                    builder.CloseElement();
+                    builder.OpenElement(335, "div");
+                    builder.AddAttribute(336, "class", "space-y-2");
+                    if (balanceSheetReport.Liabilities != null && balanceSheetReport.Liabilities.Any())
+                    {
+                        foreach (var liability in balanceSheetReport.Liabilities.Where(l => l.Balance != 0))
+                        {
+                            builder.OpenElement(337, "div");
+                            builder.AddAttribute(338, "class", "flex items-center justify-between rounded bg-white p-3");
+                            builder.OpenElement(339, "div");
+                            builder.OpenElement(340, "span");
+                            builder.AddAttribute(341, "class", "block text-xs font-medium text-gray-600");
+                            builder.AddContent(342, liability.AccountCode);
+                            builder.CloseElement();
+                            builder.OpenElement(343, "span");
+                            builder.AddAttribute(344, "class", "block text-sm font-medium text-gray-700");
+                            builder.AddContent(345, liability.AccountName);
+                            builder.CloseElement();
+                            builder.CloseElement();
+                            builder.OpenElement(346, "span");
+                            builder.AddAttribute(347, "class", "font-semibold text-red-600");
+                            builder.AddContent(348, FormatCurrency(liability.Balance));
+                            builder.CloseElement();
+                            builder.CloseElement();
+                        }
+                    }
+                    builder.OpenElement(349, "div");
+                    builder.AddAttribute(350, "class", "mt-3 flex items-center justify-between rounded bg-red-100 p-3 border-t-2 border-red-300");
+                    builder.OpenElement(351, "span");
+                    builder.AddAttribute(352, "class", "font-bold text-red-800");
+                    builder.AddContent(353, "Total Liabilities");
+                    builder.CloseElement();
+                    builder.OpenElement(354, "span");
+                    builder.AddAttribute(355, "class", "font-bold text-red-800");
+                    builder.AddContent(356, FormatCurrency(balanceSheetReport.TotalLiabilities));
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+
+                    // Equity Section
+                    builder.OpenElement(360, "div");
+                    builder.AddAttribute(361, "class", "rounded-lg border border-green-200 bg-green-50 p-4");
+                    builder.OpenElement(362, "h3");
+                    builder.AddAttribute(363, "class", "mb-4 text-lg font-semibold text-green-800");
+                    builder.AddContent(364, "Equity");
+                    builder.CloseElement();
+                    builder.OpenElement(365, "div");
+                    builder.AddAttribute(366, "class", "space-y-2");
+                    if (balanceSheetReport.Equity != null && balanceSheetReport.Equity.Any())
+                    {
+                        foreach (var equity in balanceSheetReport.Equity.Where(e => e.Balance != 0))
+                        {
+                            builder.OpenElement(367, "div");
+                            builder.AddAttribute(368, "class", "flex items-center justify-between rounded bg-white p-3");
+                            builder.OpenElement(369, "div");
+                            builder.OpenElement(370, "span");
+                            builder.AddAttribute(371, "class", "block text-xs font-medium text-gray-600");
+                            builder.AddContent(372, equity.AccountCode);
+                            builder.CloseElement();
+                            builder.OpenElement(373, "span");
+                            builder.AddAttribute(374, "class", "block text-sm font-medium text-gray-700");
+                            builder.AddContent(375, equity.AccountName);
+                            builder.CloseElement();
+                            builder.CloseElement();
+                            builder.OpenElement(376, "span");
+                            builder.AddAttribute(377, "class", "font-semibold text-green-600");
+                            builder.AddContent(378, FormatCurrency(equity.Balance));
+                            builder.CloseElement();
+                            builder.CloseElement();
+                        }
+                    }
+                    builder.OpenElement(379, "div");
+                    builder.AddAttribute(380, "class", "mt-3 flex items-center justify-between rounded bg-green-100 p-3 border-t-2 border-green-300");
+                    builder.OpenElement(381, "span");
+                    builder.AddAttribute(382, "class", "font-bold text-green-800");
+                    builder.AddContent(383, "Total Equity");
+                    builder.CloseElement();
+                    builder.OpenElement(384, "span");
+                    builder.AddAttribute(385, "class", "font-bold text-green-800");
+                    builder.AddContent(386, FormatCurrency(balanceSheetReport.TotalEquity));
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    builder.CloseElement();
+
+                    // Balance Check
+                    builder.OpenElement(390, "div");
+                    builder.AddAttribute(391, "class", "mt-6 rounded-lg border-2 p-4 " + (balanceSheetReport.IsBalanced ? "border-green-300 bg-green-50" : "border-red-300 bg-red-50"));
+                    builder.OpenElement(392, "div");
+                    builder.AddAttribute(393, "class", "flex items-center justify-between");
+                    builder.OpenElement(394, "span");
+                    builder.AddAttribute(395, "class", "font-bold " + (balanceSheetReport.IsBalanced ? "text-green-800" : "text-red-800"));
+                    builder.AddContent(396, balanceSheetReport.IsBalanced ? "✓ Balance Sheet is Balanced" : "✗ Balance Sheet is Unbalanced");
+                    builder.CloseElement();
+                    builder.OpenElement(397, "span");
+                    builder.AddAttribute(398, "class", "font-bold " + (balanceSheetReport.IsBalanced ? "text-green-800" : "text-red-800"));
+                    builder.AddContent(399, $"Assets = Liabilities + Equity: {FormatCurrency(balanceSheetReport.TotalAssets)} = {FormatCurrency(balanceSheetReport.TotalLiabilities + balanceSheetReport.TotalEquity)}");
+                    builder.CloseElement();
+                    builder.CloseElement();
+                    if (!balanceSheetReport.IsBalanced)
+                    {
+                        builder.OpenElement(400, "div");
+                        builder.AddAttribute(401, "class", "mt-2 text-sm " + (balanceSheetReport.Difference > 0 ? "text-red-700" : "text-red-700"));
+                        builder.AddContent(402, $"Difference: {FormatCurrency(Math.Abs(balanceSheetReport.Difference))}");
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement();
+                }
+                else
+                {
+                    builder.OpenElement(410, "div");
+                    builder.AddAttribute(411, "class", "rounded-lg border border-gray-200 bg-gray-50 p-8 text-center");
+                    builder.OpenElement(412, "p");
+                    builder.AddAttribute(413, "class", "text-sm font-medium text-gray-600");
+                    builder.AddContent(414, "No balance sheet data available");
                     builder.CloseElement();
                     builder.CloseElement();
                 }
@@ -2037,6 +2252,7 @@
             "PaymentHistory" => paymentHistory != null && paymentHistory.Any(),
             "ExpenseAnalysis" => expenseAnalysis != null,
             "GeneralLedger" => generalLedger != null && generalLedger.Entries.Any(),
+            "BalanceSheet" => balanceSheetReport != null,
             _ => false
         };
     }
@@ -2141,6 +2357,16 @@
                     };
                     pdfBytes = await PdfGenerator.GenerateGeneralLedgerPdfAsync(ledgerDto, fromDate, toDate, generatedBy);
                     fileName = $"General_Ledger_{fromDate:yyyyMMdd}_{toDate:yyyyMMdd}.pdf";
+                    break;
+
+                case "BalanceSheet":
+                    if (balanceSheetReport == null)
+                    {
+                        ShowToast("No balance sheet data to export.", ToastType.Error);
+                        return;
+                    }
+                    pdfBytes = await PdfGenerator.GenerateBalanceSheetPdfAsync(balanceSheetReport, toDate, generatedBy);
+                    fileName = $"Balance_Sheet_{toDate:yyyyMMdd}.pdf";
                     break;
 
                 default:
