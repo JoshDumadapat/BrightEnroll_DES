@@ -34,9 +34,12 @@
                 </svg>
                 Clear
             </button>
-            <button @onclick="OnAddAssignment" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
-                + Add Assignment
-            </button>
+            @if (CanEdit)
+            {
+                <button @onclick="OnAddAssignment" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                    + Add Assignment
+                </button>
+            }
         </div>
     </div>
 </div>
@@ -84,13 +87,16 @@
                             </svg>
                             <span class="hidden sm:inline">View</span>
                         </button>
-                        <button @onclick="() => OnArchiveAssignment.InvokeAsync(assignment)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
-                            </svg>
-                            <span class="hidden sm:inline">Archive</span>
-                        </button>
+                        @if (CanEdit)
+                        {
+                            <button @onclick="() => OnArchiveAssignment.InvokeAsync(assignment)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                          d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
+                                </svg>
+                                <span class="hidden sm:inline">Archive</span>
+                            </button>
+                        }
                     </td>
                 </tr>
             }
@@ -122,6 +128,7 @@
 
 @code {
     [Parameter] public List<TeacherAssignmentModel> Assignments { get; set; } = new();
+    [Parameter] public bool CanEdit { get; set; } = true;
     [Parameter] public EventCallback OnAddAssignment { get; set; }
     [Parameter] public EventCallback<TeacherAssignmentModel> OnEditAssignment { get; set; }
     [Parameter] public EventCallback<TeacherAssignmentModel> OnArchiveAssignment { get; set; }

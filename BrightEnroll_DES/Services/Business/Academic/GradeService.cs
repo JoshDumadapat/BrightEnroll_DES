@@ -50,9 +50,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Ensures tbl_Grades table exists before querying
-    /// </summary>
+    // Ensures grades table exists before querying
     private async Task EnsureGradesTableExistsAsync()
     {
         // Double-check locking pattern to avoid multiple initializations
@@ -227,9 +225,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets all students enrolled in a section for a specific school year
-    /// </summary>
+    // Gets all students enrolled in a section for a specific school year
     public async Task<List<StudentGradeDto>> GetStudentsForGradeEntryAsync(int sectionId, string schoolYear)
     {
         try
@@ -256,9 +252,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets existing grades for students in a section/subject/period
-    /// </summary>
+    // Gets existing grades for students in a section/subject/period
     public async Task<Dictionary<string, Grade>> GetExistingGradesAsync(int sectionId, int subjectId, string schoolYear, string gradingPeriod)
     {
         try
@@ -629,9 +623,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets all grades for a specific student
-    /// </summary>
+    // Gets all grades for a specific student
     public async Task<List<Grade>> GetStudentGradesAsync(string studentId, string schoolYear)
     {
         try
@@ -654,9 +646,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets a specific grade by ID
-    /// </summary>
+    // Gets a specific grade by ID
     public async Task<Grade?> GetGradeByIdAsync(int gradeId)
     {
         try
@@ -677,9 +667,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets all grades for a section (all subjects, all quarters)
-    /// </summary>
+    // Gets all grades for a section (all subjects, all quarters)
     public async Task<List<Grade>> GetAllGradesForSectionAsync(int sectionId, string schoolYear)
     {
         try
@@ -699,9 +687,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets grade records for a teacher, filtered by assignments
-    /// </summary>
+    // Gets grade records for a teacher, filtered by assignments
     public async Task<List<GradeRecordDto>> GetGradeRecordsAsync(int teacherId, string? schoolYear = null, int? sectionId = null, int? subjectId = null, string? searchTerm = null)
     {
         try
@@ -822,9 +808,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets grade weights for a subject, or returns DepEd defaults if not configured
-    /// </summary>
+    // Gets grade weights for a subject, or returns DepEd defaults if not configured
     public async Task<GradeWeightDto> GetGradeWeightsAsync(int subjectId)
     {
         try
@@ -866,9 +850,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets grade history for a grade
-    /// </summary>
+    // Gets grade history for a grade
     public async Task<List<GradeHistory>> GetGradeHistoryAsync(int gradeId)
     {
         try
@@ -886,9 +868,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets DepEd transmuted grade from raw grade
-    /// Minimum passing grade: 60 (transmuted to 75 on report card)
+    // Gets DepEd transmuted grade from raw grade (minimum passing: 60 → 75)
     /// </summary>
     public decimal GetTransmutedGrade(decimal rawGrade)
     {
@@ -907,9 +887,7 @@ public class GradeService
         return 75.00m; // Default minimum (DepEd standard: minimum passing is 60, transmuted to 75)
     }
 
-    /// <summary>
-    /// Gets DepEd descriptive rating from transmuted grade
-    /// </summary>
+    // Gets DepEd descriptive rating from transmuted grade
     public string GetDescriptiveRating(decimal transmutedGrade)
     {
         if (transmutedGrade >= 90.00m && transmutedGrade <= 100.00m) return "Outstanding";
@@ -920,13 +898,7 @@ public class GradeService
         return "Did Not Meet Expectations";
     }
 
-    /// <summary>
-    /// Calculates general average for a student across all subjects
-    /// DepEd Formula:
-    /// 1. For each subject: Final Grade = Average of Q1, Q2, Q3, Q4 (all 4 quarters must be complete)
-    /// 2. General Average = Average of all subject final grades
-    /// Note: Only subjects with all 4 quarters complete are included in the general average
-    /// </summary>
+    // Calculates general average: average of all subject final grades (only subjects with all 4 quarters)
     public async Task<decimal> CalculateGeneralAverageAsync(string studentId, int sectionId, string schoolYear)
     {
         try
@@ -969,9 +941,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets report card data for a section
-    /// </summary>
+    // Gets report card data for a section
     public async Task<List<ReportCardDto>> GetReportCardsAsync(int sectionId, string schoolYear)
     {
         try
@@ -1122,9 +1092,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Calculates quarterly grade using DepEd formula: (WW × 20%) + (PT × 60%) + (QA × 20%)
-    /// </summary>
+    // Calculates quarterly grade using DepEd formula: (WW × 20%) + (PT × 60%) + (QA × 20%)
     private decimal CalculateQuarterlyGrade(decimal? writtenWork, decimal? performanceTasks, decimal? quarterlyAssessment)
     {
         if (!writtenWork.HasValue || !performanceTasks.HasValue || !quarterlyAssessment.HasValue)
@@ -1136,9 +1104,7 @@ public class GradeService
                (quarterlyAssessment.Value * 0.20m);
     }
 
-    /// <summary>
-    /// Calculates final grade as average of all four quarters
-    /// DepEd Requirement: Final grade only computed when all 4 quarters are complete
+    // Calculates final grade as average of all four quarters (all 4 quarters must be complete)
     /// </summary>
     private decimal CalculateFinalGrade(decimal? q1, decimal? q2, decimal? q3, decimal? q4)
     {

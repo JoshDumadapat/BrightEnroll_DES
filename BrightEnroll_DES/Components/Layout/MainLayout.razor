@@ -254,15 +254,25 @@
             
         try
         {
+            // Use IServiceScopeFactory to create new scope for each operation
+            // This prevents concurrency errors by using a separate DbContext instance
+            using var scope = ServiceScopeFactory.CreateScope();
+            
             // Try to use NotificationService first, fallback to ApprovalNotificationService
-            // Use await directly - we're already on the UI thread
-            if (NotificationService != null)
+            var notificationService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
+            var approvalNotificationService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService>();
+            
+            if (notificationService != null)
             {
-                notificationCount = await NotificationService.GetUnreadCountAsync();
+                notificationCount = await notificationService.GetUnreadCountAsync();
+            }
+            else if (approvalNotificationService != null)
+            {
+                notificationCount = await approvalNotificationService.GetPendingApprovalsCountAsync();
             }
             else
             {
-                notificationCount = await ApprovalNotificationService.GetPendingApprovalsCountAsync();
+                notificationCount = 0;
             }
         }
         catch (Exception)

@@ -1,24 +1,15 @@
 namespace BrightEnroll_DES.Services.RoleBase
 {
-    /// <summary>
-    /// Service that defines role-to-permission mappings.
-    /// Maps each role to its allowed permissions based on the project flow.
-    /// </summary>
+    // Defines role-to-permission mappings
     public interface IRolePermissionService
     {
-        /// <summary>
-        /// Gets all permissions for a specific role.
-        /// </summary>
+        // Gets all permissions for a role
         List<string> GetPermissionsForRole(string roleName);
 
-        /// <summary>
-        /// Checks if a role has a specific permission.
-        /// </summary>
+        // Checks if a role has a specific permission
         bool RoleHasPermission(string roleName, string permission);
 
-        /// <summary>
-        /// Gets all roles that have a specific permission.
-        /// </summary>
+        // Gets all roles that have a specific permission
         List<string> GetRolesWithPermission(string permission);
     }
 
@@ -31,9 +22,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             _rolePermissions = InitializeRolePermissions();
         }
 
-        /// <summary>
-        /// Initializes role-to-permission mappings based on the project flow.
-        /// </summary>
+        // Initializes role-to-permission mappings
         private Dictionary<string, List<string>> InitializeRolePermissions()
         {
             return new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
@@ -100,8 +89,8 @@ namespace BrightEnroll_DES.Services.RoleBase
                     Permissions.ViewStudentRecord, Permissions.CreateStudentRecord, Permissions.EditStudentRecord, Permissions.ViewAcademicRecord,
                     // Removed: DeleteStudentRecord - Registrar should only archive, not delete
                     Permissions.CreateStudentRegistration, // Student Registration in sidebar
-                    Permissions.ViewCurriculum, // To see sections/subjects for enrollment
-                    Permissions.ViewFinance, // To check payment status for enrollment
+                    Permissions.ViewCurriculum, // To see sections/subjects for enrollment (view only)
+                    // Removed: ViewFinance - Registrar should not access finance module
                     Permissions.ViewArchive, // To view archived students
                     Permissions.ViewProfile, Permissions.EditProfile
                 },

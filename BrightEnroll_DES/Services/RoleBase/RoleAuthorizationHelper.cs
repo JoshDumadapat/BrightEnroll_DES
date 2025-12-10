@@ -3,15 +3,10 @@ using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.RoleBase
 {
-    /// <summary>
-    /// Helper class providing static methods for easy role and permission checking.
-    /// Can be used in Razor components and other parts of the application.
-    /// </summary>
+    // Helper class for role and permission checking
     public static class RoleAuthorizationHelper
     {
-        /// <summary>
-        /// Checks if a user has a specific permission.
-        /// </summary>
+        // Checks if a user has a specific permission
         public static bool UserHasPermission(User? user, IRolePermissionService rolePermissionService, string permission)
         {
             if (user == null || string.IsNullOrWhiteSpace(user.user_role) || rolePermissionService == null)
@@ -22,9 +17,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return rolePermissionService.RoleHasPermission(user.user_role, permission);
         }
 
-        /// <summary>
-        /// Checks if a user has a specific role.
-        /// </summary>
+        // Checks if a user has a specific role
         public static bool UserHasRole(User? user, string roleName)
         {
             if (user == null || string.IsNullOrWhiteSpace(roleName))
@@ -35,9 +28,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return string.Equals(user.user_role, roleName, StringComparison.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// Checks if a user has any of the specified roles.
-        /// </summary>
+        // Checks if a user has any of the specified roles
         public static bool UserHasAnyRole(User? user, params string[] roleNames)
         {
             if (user == null || roleNames == null || roleNames.Length == 0)
@@ -53,9 +44,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return roleNames.Any(role => string.Equals(role, user.user_role, StringComparison.OrdinalIgnoreCase));
         }
 
-        /// <summary>
-        /// Gets all permissions for a user.
-        /// </summary>
+        // Gets all permissions for a user
         public static List<string> GetUserPermissions(User? user, IRolePermissionService rolePermissionService)
         {
             if (user == null || string.IsNullOrWhiteSpace(user.user_role) || rolePermissionService == null)
@@ -66,9 +55,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return rolePermissionService.GetPermissionsForRole(user.user_role);
         }
 
-        /// <summary>
-        /// Checks if the current authenticated user has permission (requires IAuthService and IAuthorizationService).
-        /// </summary>
+        // Checks if the current authenticated user has permission
         public static bool CurrentUserHasPermission(IAuthService authService, IAuthorizationService authorizationService, string permission)
         {
             if (authService == null || authorizationService == null)
@@ -79,9 +66,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return authorizationService.HasPermission(permission);
         }
 
-        /// <summary>
-        /// Checks if the current authenticated user has role (requires IAuthService and IAuthorizationService).
-        /// </summary>
+        // Checks if the current authenticated user has role
         public static bool CurrentUserHasRole(IAuthService authService, IAuthorizationService authorizationService, string roleName)
         {
             if (authService == null || authorizationService == null)
@@ -92,9 +77,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             return authorizationService.HasRole(roleName);
         }
 
-        /// <summary>
-        /// Gets a display-friendly role name.
-        /// </summary>
+        // Gets a display-friendly role name
         public static string GetRoleDisplayName(string roleName)
         {
             if (string.IsNullOrWhiteSpace(roleName))
@@ -116,9 +99,7 @@ namespace BrightEnroll_DES.Services.RoleBase
             };
         }
 
-        /// <summary>
-        /// Gets all available roles in the system.
-        /// </summary>
+        // Gets all available roles in the system
         public static List<string> GetAllRoles()
         {
             return new List<string>

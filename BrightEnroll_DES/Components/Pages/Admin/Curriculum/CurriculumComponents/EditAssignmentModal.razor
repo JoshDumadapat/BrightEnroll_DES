@@ -13,7 +13,7 @@
         <div id="edit-assignment-modal" class="w-full max-w-5xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-hidden flex flex-col" @onclick:stopPropagation="true">
             <!-- Modal Header -->
             <div class="flex items-center justify-center rounded-t-2xl bg-yellow-500 px-6 py-3 flex-shrink-0">
-                <h3 class="text-lg font-semibold text-white">Edit Assigned Teacher</h3>
+                <h3 class="text-lg font-semibold text-white">@(CanEdit ? "Edit Assigned Teacher" : "View Assigned Teacher")</h3>
             </div>
 
             <!-- Modal Body -->
@@ -27,7 +27,8 @@
                                 Grade Level <span class="text-red-500">*</span>
                             </label>
                             <select @bind="SelectedGradeLevel" @bind:after="@(() => OnGradeLevelChanged())"
-                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20"
+                                    disabled="@(!CanEdit)"
+                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed"
                                     required>
                                 <option value="">Select Grade Level</option>
                                 @foreach (var gradeLevel in GradeLevels)
@@ -43,8 +44,8 @@
                                 Section <span class="text-red-500">*</span>
                             </label>
                             <select @bind="SelectedSection" @bind:after="@(() => OnSectionChanged())"
-                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20"
-                                    disabled="@string.IsNullOrEmpty(SelectedGradeLevel)"
+                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed"
+                                    disabled="@(string.IsNullOrEmpty(SelectedGradeLevel) || !CanEdit)"
                                     required>
                                 <option value="">Select Section</option>
                                 @foreach (var sec in FilteredSections)
@@ -68,8 +69,8 @@
                                 Adviser <span class="text-red-500">*</span>
                             </label>
                             <select @bind="SelectedAdviserId" @bind:after="OnAdviserChanged"
-                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20"
-                                    disabled="@string.IsNullOrEmpty(SelectedSection)">
+                                    class="w-full rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-all duration-200 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed"
+                                    disabled="@(string.IsNullOrEmpty(SelectedSection) || !CanEdit)">
                                 <option value="">Select Adviser</option>
                                 @foreach (var teacher in Teachers)
                                 {
@@ -82,12 +83,15 @@
                     @if (!string.IsNullOrEmpty(SelectedSection) && !string.IsNullOrEmpty(SelectedGradeLevel))
                     {
                         <!-- Add Assignment Button -->
-                        <div class="mb-4 flex justify-end">
-                            <button type="button" @onclick="StartAddingAssignment"
-                                    class="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600">
-                                + Add Assignment
-                            </button>
-                        </div>
+                        @if (CanEdit)
+                        {
+                            <div class="mb-4 flex justify-end">
+                                <button type="button" @onclick="StartAddingAssignment"
+                                        class="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-600">
+                                    + Add Assignment
+                                </button>
+                            </div>
+                        }
 
                         <!-- Inline Editor (for Add/Edit) -->
                         @if (IsAddingRow || IsEditingRow)
@@ -98,22 +102,24 @@
                                 <!-- Assignment mode toggle -->
                                 <div class="mb-4 flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-700">
                                     <span class="mr-2">Assignment Type:</span>
-                                    <label class="inline-flex items-center gap-1 cursor-pointer">
+                                    <label class="inline-flex items-center gap-1 @(CanEdit ? "cursor-pointer" : "cursor-not-allowed")">
                                         <input type="radio"
                                                name="edit-assignmentMode"
                                                value="adviser-only"
                                                checked="@IsAdviserOnlyMode"
                                                @onchange="OnAssignmentModeChanged"
-                                               class="h-3 w-3 text-yellow-600 border-gray-300 focus:ring-yellow-500" />
+                                               disabled="@(!CanEdit)"
+                                               class="h-3 w-3 text-yellow-600 border-gray-300 focus:ring-yellow-500 disabled:cursor-not-allowed" />
                                         <span>Adviser for all subjects</span>
                                     </label>
-                                    <label class="inline-flex items-center gap-1 cursor-pointer">
+                                    <label class="inline-flex items-center gap-1 @(CanEdit ? "cursor-pointer" : "cursor-not-allowed")">
                                         <input type="radio"
                                                name="edit-assignmentMode"
                                                value="mixed"
                                                checked="@(!IsAdviserOnlyMode)"
                                                @onchange="OnAssignmentModeChanged"
-                                               class="h-3 w-3 text-yellow-600 border-gray-300 focus:ring-yellow-500" />
+                                               disabled="@(!CanEdit)"
+                                               class="h-3 w-3 text-yellow-600 border-gray-300 focus:ring-yellow-500 disabled:cursor-not-allowed" />
                                         <span>Adviser and subject teachers</span>
                                     </label>
                                 </div>
@@ -126,7 +132,8 @@
                                             Subject <span class="text-red-500">*</span>
                                         </label>
                                         <select @bind="WorkingRow.SubjectId"
-                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20">
+                                                disabled="@(!CanEdit)"
+                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed">
                                             <option value="0">Select Subject</option>
                                             @foreach (var subject in GetSelectableSubjects())
                                             {
@@ -141,7 +148,8 @@
                                             Start Time <span class="text-red-500">*</span>
                                         </label>
                                         <TimePicker @bind-TimeValue="WorkingRow.StartTime"
-                                                    OnTimeChanged="OnWorkingRowChanged" />
+                                                    OnTimeChanged="OnWorkingRowChanged"
+                                                    IsDisabled="@(!CanEdit)" />
                                     </div>
 
                                     <!-- End Time -->
@@ -150,7 +158,8 @@
                                             End Time <span class="text-red-500">*</span>
                                         </label>
                                         <TimePicker @bind-TimeValue="WorkingRow.EndTime"
-                                                    OnTimeChanged="OnWorkingRowChanged" />
+                                                    OnTimeChanged="OnWorkingRowChanged"
+                                                    IsDisabled="@(!CanEdit)" />
                                     </div>
 
                                     <!-- Days -->
@@ -165,6 +174,7 @@
                                                     <input type="checkbox"
                                                            checked="@WorkingRow.Days.Contains(day)"
                                                            @onchange="(_ => ToggleDay(day))"
+                                                           disabled="@(!CanEdit)"
                                                            class="peer sr-only" />
                                                     <div class="flex items-center rounded-lg border-2 border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-all duration-200 peer-checked:border-yellow-500 peer-checked:bg-yellow-50 peer-checked:text-yellow-700 hover:border-yellow-300 hover:bg-gray-50">
                                                         <span>@day</span>
@@ -180,8 +190,8 @@
                                             Teacher <span class="text-red-500">*</span>
                                         </label>
                                         <select @bind="WorkingRow.TeacherId"
-                                                disabled="@IsAdviserOnlyMode"
-                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200">
+                                                disabled="@(IsAdviserOnlyMode || !CanEdit)"
+                                                class="w-full rounded-lg border-2 border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none hover:border-yellow-300 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:bg-gray-100 disabled:text-gray-500 disabled:border-gray-200 disabled:cursor-not-allowed">
                                             <option value="0">
                                                 @(IsAdviserOnlyMode
                                                     ? (SelectedAdviserId.HasValue ? "Adviser (auto-selected)" : "Select adviser first")
@@ -250,23 +260,30 @@
                                                     </td>
                                                     <td class="px-3 py-2.5 text-gray-800">@row.TeacherName</td>
                                                     <td class="px-3 py-2.5 text-center">
-                                                        <div class="flex items-center justify-center gap-2">
-                                                            <button type="button"
-                                                                    @onclick="@(() => StartEditingAssignment(rowIndex))"
-                                                                    class="inline-flex items-center justify-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100">
-                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                                </svg>
-                                                            </button>
-                                                            <button type="button"
-                                                                    @onclick="@(() => RemoveAssignmentRow(rowIndex))"
-                                                                    class="inline-flex items-center justify-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100">
-                                                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                                          d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
-                                                                </svg>
-                                                            </button>
-                                                        </div>
+                                                        @if (CanEdit)
+                                                        {
+                                                            <div class="flex items-center justify-center gap-2">
+                                                                <button type="button"
+                                                                        @onclick="@(() => StartEditingAssignment(rowIndex))"
+                                                                        class="inline-flex items-center justify-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600 hover:bg-blue-100">
+                                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                                    </svg>
+                                                                </button>
+                                                                <button type="button"
+                                                                        @onclick="@(() => RemoveAssignmentRow(rowIndex))"
+                                                                        class="inline-flex items-center justify-center rounded-md bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100">
+                                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                                              d="M9 3h6m-7 4h8l-1 11a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12M10 11v6m4-6v6" />
+                                                                    </svg>
+                                                                </button>
+                                                            </div>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-xs text-gray-400">View Only</span>
+                                                        }
                                                     </td>
                                                 </tr>
                                             }
@@ -291,12 +308,15 @@
 
                     <div class="mt-6 flex justify-end gap-3 flex-shrink-0">
                         <button type="button" @onclick="ShowCancelConfirm" class="rounded-lg border border-gray-300 bg-transparent px-6 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                            Cancel
+                            @(CanEdit ? "Cancel" : "Close")
                         </button>
-                        <button type="button" @onclick="ShowSubmitConfirm" disabled="@(!CanSubmit)"
-                                class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
-                            Update Class
-                        </button>
+                        @if (CanEdit)
+                        {
+                            <button type="button" @onclick="ShowSubmitConfirm" disabled="@(!CanSubmit)"
+                                    class="rounded-lg bg-yellow-500 px-6 py-2 text-sm font-medium text-white hover:bg-yellow-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                                Update Class
+                            </button>
+                        }
                     </div>
                 </form>
             </div>
@@ -387,6 +407,7 @@
 @code {
     [Parameter] public bool Show { get; set; }
     [Parameter] public TeacherAssignmentModel Assignment { get; set; } = new();
+    [Parameter] public bool CanEdit { get; set; } = true;
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback OnSubmit { get; set; }
 

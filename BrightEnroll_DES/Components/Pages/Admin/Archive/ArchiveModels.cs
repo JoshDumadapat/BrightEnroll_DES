@@ -10,6 +10,8 @@ public class ArchivedStudent
     public string Status { get; set; } = ""; // Archive reason: "Rejected by School", "Application Withdrawn", "Withdrawn", "Graduated", "Transferred"
     public string ArchivedDate { get; set; } = "";
     public string ArchivedReason { get; set; } = "";
+    public string DroppedBy { get; set; } = ""; // Name of user who dropped/archived the student
+    public string DroppedByRole { get; set; } = ""; // Role of user who dropped the student
 }
 
 public class ArchivedEmployee

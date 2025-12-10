@@ -327,12 +327,9 @@
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Total student each type</h3>
             <div class="mt-1">
                 @{
-                    var studentTypeSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+                    var studentTypeYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int sty) ? sty : DateTime.Now.Year;
                 }
-                @if (!string.IsNullOrEmpty(studentTypeSchoolYear))
-                {
-                    <p class="text-xs text-gray-500 md:text-sm">S.Y. @studentTypeSchoolYear</p>
-                }
+                <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @studentTypeYear</p>
             </div>
         </div>
 
@@ -366,6 +363,12 @@
             <div>
                 <p class="mb-0.5 text-left text-xs font-semibold text-gray-600 md:text-sm">Tuition Fees</p>
                 <h3 class="text-base font-bold text-gray-800 md:text-lg">@(TuitionFeesList?.Count ?? 0) Grades</h3>
+                <div class="mt-1">
+                    @{
+                        var tuitionFeesYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int tfy) ? tfy : DateTime.Now.Year;
+                    }
+                    <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @tuitionFeesYear</p>
+                </div>
             </div>
             <div class="rounded-lg bg-indigo-100 p-1.5 transition-colors duration-200 hover:bg-indigo-200 md:p-2">
                 <svg class="h-4 w-4 text-indigo-600 md:h-5 md:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -413,9 +416,9 @@
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Payment Status</h3>
             <div class="mt-1">
                 @{
-                    var paymentStatusSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                    var paymentStatusYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int psy) ? psy : DateTime.Now.Year;
                 }
-                <p class="text-xs text-gray-500 md:text-sm">S.Y. @paymentStatusSchoolYear</p>
+                <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @paymentStatusYear</p>
             </div>
         </div>
 
@@ -432,9 +435,9 @@
             <h3 class="text-base font-bold text-gray-800 md:text-lg">Enrollment by Grade</h3>
             <div class="mt-1">
                 @{
-                    var enrollmentSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : (!string.IsNullOrEmpty(CurrentSchoolYear) ? CurrentSchoolYear : "N/A");
+                    var enrollmentYear = !string.IsNullOrEmpty(SelectedYear) && SelectedYear != "current" && SelectedYear != "previous" && int.TryParse(SelectedYear, out int ey) ? ey : DateTime.Now.Year;
                 }
-                <p class="text-xs text-gray-500 md:text-sm">S.Y. @enrollmentSchoolYear</p>
+                <p class="text-xs font-medium text-gray-600 md:text-sm">Year: @enrollmentYear</p>
             </div>
         </div>
 
@@ -519,8 +522,10 @@
             
             if (canConnect)
             {
-                // Load available school years
+                // Load available school years FIRST
                 await LoadAvailableSchoolYears();
+                // Load current school year BEFORE loading statistics
+                await LoadCurrentSchoolYear();
                 // Load dashboard data inline (no loading screen)
                 await LoadDashboardStatistics();
                 _hasInitialized = true;
@@ -530,6 +535,7 @@
                 // If database is not ready, retry after a delay
                 await Task.Delay(500);
                 await LoadAvailableSchoolYears();
+                await LoadCurrentSchoolYear();
                 await LoadDashboardStatistics();
                 _hasInitialized = true;
             }
@@ -543,6 +549,7 @@
             {
                 await Task.Delay(1000);
                 await LoadAvailableSchoolYears();
+                await LoadCurrentSchoolYear();
                 await LoadDashboardStatistics();
                 _hasInitialized = true;
             }
@@ -645,9 +652,19 @@
                 .CountAsync();
 
             // Get student type statistics from vw_StudentData
-            var allStudents = await Context.StudentDataViews
+            // Filter by current school year if no filter is applied
+            var allStudentsQuery = Context.StudentDataViews
                 .FromSqlRaw(@"SELECT StudentId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, LRN, GradeLevel, SchoolYear, DateRegistered, Status, StudentType FROM [dbo].[vw_StudentData]")
-                .ToListAsync();
+                .AsQueryable();
+            
+            // Filter by school year if provided or use current school year
+            var effectiveSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+            if (!string.IsNullOrEmpty(effectiveSchoolYear))
+            {
+                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == effectiveSchoolYear);
+            }
+            
+            var allStudents = await allStudentsQuery.ToListAsync();
 
             TotalStudentCount = allStudents.Count;
             NewStudentCount = allStudents.Count(s => s.StudentType != null && s.StudentType.ToLower().Contains("new"));
@@ -661,9 +678,50 @@
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of all student payments
-            TotalTuitionCollected = await Context.StudentPayments
-                .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
+            // Calculate TotalTuitionCollected - sum of all student payments from StudentPayments table
+            // This ensures we fetch actual payment records (read-only query, no transactions affected)
+            // Filter by current school year if no filter is applied
+            try
+            {
+                var paymentsQuery = Context.StudentPayments.AsQueryable();
+                
+                // Filter by current school year if no school year filter is selected
+                if (string.IsNullOrEmpty(SelectedSchoolYear) && !string.IsNullOrEmpty(CurrentSchoolYear))
+                {
+                    // Get student IDs for the current school year
+                    var studentIdsForSchoolYear = await Context.StudentSectionEnrollments
+                        .Where(e => e.SchoolYear == CurrentSchoolYear)
+                        .Select(e => e.StudentId)
+                        .Distinct()
+                        .ToListAsync();
+                    
+                    paymentsQuery = paymentsQuery.Where(p => studentIdsForSchoolYear.Contains(p.StudentId));
+                }
+                else if (!string.IsNullOrEmpty(SelectedSchoolYear))
+                {
+                    // Get student IDs for the selected school year
+                    var studentIdsForSchoolYear = await Context.StudentSectionEnrollments
+                        .Where(e => e.SchoolYear == SelectedSchoolYear)
+                        .Select(e => e.StudentId)
+                        .Distinct()
+                        .ToListAsync();
+                    
+                    paymentsQuery = paymentsQuery.Where(p => studentIdsForSchoolYear.Contains(p.StudentId));
+                }
+                
+                var paymentCount = await paymentsQuery.CountAsync();
+                System.Diagnostics.Debug.WriteLine($"Dashboard: Found {paymentCount} payment records in StudentPayments table for School Year: {SelectedSchoolYear ?? CurrentSchoolYear}");
+                
+                TotalTuitionCollected = await paymentsQuery
+                    .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
+                
+                System.Diagnostics.Debug.WriteLine($"Dashboard: TotalTuitionCollected = {TotalTuitionCollected}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Dashboard: Error fetching TotalTuitionCollected: {ex.Message}");
+                TotalTuitionCollected = 0.00m;
+            }
 
             // Load tuition fees
             await LoadTuitionFees();
@@ -690,10 +748,14 @@
     {
         try
         {
-            // For the income chart, always use monthly period and ensure full year coverage
+            // For the income chart, always use monthly period
             string period = "monthly";
             
-            // Determine date range for the chart - default to current year if no filters
+            // Determine school year filter - use selected school year or current school year
+            var effectiveSchoolYear = !string.IsNullOrEmpty(SelectedSchoolYear) ? SelectedSchoolYear : CurrentSchoolYear;
+            
+            // Determine date range for the chart
+            // If filters are set, use them; otherwise default to current school year data
             DateTime? chartFromDate = FromDate;
             DateTime? chartToDate = ToDate;
             
@@ -703,22 +765,26 @@
                 chartFromDate = new DateTime(year, 1, 1);
                 chartToDate = new DateTime(year, 12, 31);
             }
-            // If no date filters, default to current year
-            else if (!FromDate.HasValue || !ToDate.HasValue)
-            {
-                var currentYear = DateTime.Now.Year;
-                chartFromDate = new DateTime(currentYear, 1, 1);
-                chartToDate = new DateTime(currentYear, 12, 31);
-            }
+            // If no date filters and no school year filter, use current school year
+            // This ensures we show relevant data by default
 
-            // Load financial time series data
-            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(chartFromDate, chartToDate, period);
+            // Load financial time series data from StudentPayments and Expenses tables
+            // Pass school year filter to ensure we only get data for the selected school year
+            var financialData = await FinancialReportService.GetFinancialTimeSeriesAsync(chartFromDate, chartToDate, period, effectiveSchoolYear);
+            
+            System.Diagnostics.Debug.WriteLine($"Dashboard Chart: Loaded {financialData.Count} financial data points for School Year: {effectiveSchoolYear}");
+            if (financialData.Any())
+            {
+                var totalCollections = financialData.Sum(d => d.Collections);
+                var totalExpenses = financialData.Sum(d => d.Expenses);
+                System.Diagnostics.Debug.WriteLine($"Dashboard Chart: Total Collections = {totalCollections}, Total Expenses = {totalExpenses}");
+            }
             
             // Load enrollment by grade for bar chart
             var enrollmentByGrade = await EnrollmentReportService.GetEnrollmentByGradeAsync();
             
-            // Load payment status distribution
-            var paymentStatus = await FinancialReportService.GetPaymentStatusDistributionAsync(FromDate, ToDate);
+            // Load payment status distribution - pass school year filter
+            var paymentStatus = await FinancialReportService.GetPaymentStatusDistributionAsync(FromDate, ToDate, effectiveSchoolYear);
 
             // Render charts using JavaScript
             await RenderCharts(financialData, enrollmentByGrade, paymentStatus);
@@ -802,6 +868,14 @@
                 d => new { Year = d.PeriodKey.Year, Month = d.PeriodKey.Month }, 
                 d => d);
             
+            // Debug: Log available financial data
+            System.Diagnostics.Debug.WriteLine($"Dashboard Chart: Available financial data periods:");
+            foreach (var data in financialData.OrderBy(d => d.PeriodKey))
+            {
+                System.Diagnostics.Debug.WriteLine($"  {data.PeriodKey:yyyy-MM} - Collections: {data.Collections}, Expenses: {data.Expenses}");
+            }
+            System.Diagnostics.Debug.WriteLine($"Dashboard Chart: School Year: {schoolYearLabel}, Start Year: {startYear}, End Year: {endYear}");
+            
             // Build complete school year dataset (June to March)
             var incomeLabels = new List<string>();
             var incomeCollections = new List<double>();
@@ -824,11 +898,13 @@
                 {
                     incomeCollections.Add((double)monthData.Collections);
                     incomeExpenses.Add((double)monthData.Expenses);
+                    System.Diagnostics.Debug.WriteLine($"Dashboard Chart: Found data for {monthAbbr} {targetYearForMonth}: Collections={monthData.Collections}, Expenses={monthData.Expenses}");
                 }
                 else
                 {
                     incomeCollections.Add(0);
                     incomeExpenses.Add(0);
+                    System.Diagnostics.Debug.WriteLine($"Dashboard Chart: No data found for {monthAbbr} {targetYearForMonth}");
                 }
             }
 
@@ -1125,10 +1201,11 @@
                     s.DateRegistered.Value.Date <= toDate.Value.Date);
             }
 
-            // Apply school year filter if provided
-            if (!string.IsNullOrEmpty(schoolYear))
+            // Apply school year filter - use provided schoolYear or default to CurrentSchoolYear
+            var effectiveSchoolYear = !string.IsNullOrEmpty(schoolYear) ? schoolYear : CurrentSchoolYear;
+            if (!string.IsNullOrEmpty(effectiveSchoolYear))
             {
-                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == schoolYear);
+                allStudentsQuery = allStudentsQuery.Where(s => s.SchoolYear == effectiveSchoolYear);
             }
 
             var allStudents = await allStudentsQuery.ToListAsync();
@@ -1145,19 +1222,23 @@
                  s.Status.Equals("Fully Paid", StringComparison.OrdinalIgnoreCase) ||
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
-            // Calculate TotalTuitionCollected - sum of all student payments (with date filter if provided)
+            // Calculate TotalTuitionCollected - sum of all student payments from StudentPayments table
+            // This ensures we fetch actual payment records (read-only query, no transactions affected)
+            // Use date-only comparison to ensure we capture all payments for the full day
             var paymentsQuery = Context.StudentPayments.AsQueryable();
             if (fromDate.HasValue && toDate.HasValue)
             {
+                var fromDateOnly = fromDate.Value.Date;
+                var toDateOnly = toDate.Value.Date.AddDays(1).AddTicks(-1); // End of day
                 paymentsQuery = paymentsQuery.Where(p => 
-                    p.CreatedAt.Date >= fromDate.Value.Date && 
-                    p.CreatedAt.Date <= toDate.Value.Date);
+                    p.CreatedAt >= fromDateOnly && 
+                    p.CreatedAt <= toDateOnly);
             }
             
             // Apply school year filter to payments if provided
             if (!string.IsNullOrEmpty(schoolYear))
             {
-                // Get student IDs for the selected school year
+                // Get student IDs for the selected school year (read-only query)
                 var studentIdsForSchoolYear = await Context.StudentSectionEnrollments
                     .Where(e => e.SchoolYear == schoolYear)
                     .Select(e => e.StudentId)
@@ -1167,6 +1248,7 @@
                 paymentsQuery = paymentsQuery.Where(p => studentIdsForSchoolYear.Contains(p.StudentId));
             }
             
+            // Sum all payments (read-only aggregation, no data modification)
             TotalTuitionCollected = await paymentsQuery
                 .SumAsync(p => (decimal?)p.Amount) ?? 0.00m;
 
@@ -1208,9 +1290,17 @@
                 .ToListAsync();
             
             AvailableSchoolYears = schoolYears;
+            
+            // If CurrentSchoolYear is empty and we have school years, set it to the first one
+            if (string.IsNullOrEmpty(CurrentSchoolYear) && AvailableSchoolYears.Any())
+            {
+                CurrentSchoolYear = AvailableSchoolYears.FirstOrDefault() ?? string.Empty;
+                StateHasChanged();
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Dashboard: Error loading available school years: {ex.Message}");
             AvailableSchoolYears = new List<string>();
         }
     }
@@ -1382,22 +1472,37 @@
             if (!string.IsNullOrEmpty(SelectedSchoolYear))
             {
                 CurrentSchoolYear = SelectedSchoolYear;
+                StateHasChanged(); // Trigger UI update
                 return;
             }
 
-            // Otherwise, get the most common school year from StudentSectionEnrollment
-            var mostCommonSchoolYear = await Context.StudentSectionEnrollments
+            // Otherwise, get the most recent school year (by year number) from StudentSectionEnrollment
+            // This ensures we show the most current school year data by default
+            var mostRecentSchoolYear = await Context.StudentSectionEnrollments
                 .Where(e => !string.IsNullOrEmpty(e.SchoolYear))
-                .GroupBy(e => e.SchoolYear)
-                .OrderByDescending(g => g.Count())
-                .Select(g => g.Key)
+                .Select(e => e.SchoolYear)
+                .Distinct()
+                .OrderByDescending(sy => sy) // Order by string descending (e.g., "2025-2026" > "2024-2025")
                 .FirstOrDefaultAsync();
 
-            CurrentSchoolYear = mostCommonSchoolYear ?? string.Empty;
+            // If no school year found in enrollments, try to get from AvailableSchoolYears
+            if (string.IsNullOrEmpty(mostRecentSchoolYear) && AvailableSchoolYears != null && AvailableSchoolYears.Any())
+            {
+                mostRecentSchoolYear = AvailableSchoolYears.OrderByDescending(sy => sy).FirstOrDefault() ?? string.Empty;
+            }
+
+            CurrentSchoolYear = mostRecentSchoolYear ?? string.Empty;
+            
+            System.Diagnostics.Debug.WriteLine($"Dashboard: Current School Year = {CurrentSchoolYear}");
+            
+            // Trigger UI update to show school year
+            StateHasChanged();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"Dashboard: Error loading current school year: {ex.Message}");
             CurrentSchoolYear = string.Empty;
+            StateHasChanged();
         }
     }
 

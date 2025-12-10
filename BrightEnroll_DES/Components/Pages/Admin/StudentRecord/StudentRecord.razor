@@ -10,6 +10,9 @@
 @inject StudentService StudentService
 @inject GradeService GradeService
 @inject SchoolYearService SchoolYearService
+@inject ArchiveService ArchiveService
+@inject BrightEnroll_DES.Services.Business.Audit.AuditLogService AuditLogService
+@inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
 
 <PageTitle>Student Record</PageTitle>
 
@@ -156,7 +159,7 @@
                                 }
                             </td>
 
-                            <td class="flex items-center justify-center px-4 py-3">
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
                                 <!-- View Button -->
                                 <button @onclick="() => HandleViewClick(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,6 +167,13 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
                                     <span class="hidden sm:inline">View</span>
+                                </button>
+                                <!-- Drop Button -->
+                                <button @onclick="() => HandleDropClick(student)" class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Drop</span>
                                 </button>
                             </td>
                         </tr>
@@ -196,6 +206,77 @@
     </div>
     }
 </div>
+
+<!-- Drop Student Confirmation Modal -->
+@if (ShowDropModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleDropModalBackdropClick">
+        <div id="drop-student-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Confirm Drop Student</h3>
+                <button @onclick="CloseDropModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">
+                    Are you sure you want to drop <strong>@SelectedStudentForDrop?.Name</strong>? This action will move the student to the archive module and cannot be undone.
+                </p>
+                
+                @{
+                    var currentUser = AuthService.CurrentUser;
+                    var droppedByName = currentUser != null 
+                        ? $"{currentUser.first_name} {currentUser.last_name}".Trim()
+                        : "Unknown";
+                    var droppedByRole = currentUser?.user_role ?? "Unknown";
+                }
+                
+                @if (currentUser != null)
+                {
+                    <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p class="text-xs font-medium text-blue-800">
+                            <span class="font-semibold">Dropped by:</span> @droppedByName (@droppedByRole)
+                        </p>
+                    </div>
+                }
+
+                <div class="mb-4">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">
+                        Reason for Dropping <span class="text-red-500">*</span>
+                    </label>
+                    <textarea @bind="DropReason" 
+                              @bind:event="oninput"
+                              maxlength="500"
+                              placeholder="Enter reason for dropping this student..."
+                              class="w-full rounded-lg border border-blue-200 px-4 py-2 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-400 resize-none"
+                              rows="4"></textarea>
+                    <p class="mt-1 text-xs text-gray-500">@DropReason.Length/500 characters</p>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button type="button" @onclick="CloseDropModal"
+                            class="rounded-lg border border-gray-300 bg-transparent px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="ConfirmDropStudent"
+                            disabled="@(string.IsNullOrWhiteSpace(DropReason))"
+                            class="rounded-lg px-4 py-2 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style="background-color: #ec4899;">
+                        Confirm Drop
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
 @code {
     private bool ShowDetailView { get; set; } = false;
@@ -250,6 +331,16 @@
     private string CurrentSchoolYear { get; set; } = "";
 
     private bool _hasInitialized = false;
+
+    // Drop Student Modal State
+    private bool ShowDropModal { get; set; } = false;
+    private EnrolledStudentDto? SelectedStudentForDrop { get; set; }
+    private string DropReason { get; set; } = string.Empty;
+
+    // Toast Notification State
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private ToastType toastType = ToastType.Success;
 
     protected override async Task OnInitializedAsync()
     {
@@ -675,6 +766,100 @@
             System.Diagnostics.Debug.WriteLine($"Error loading academic records: {ex.Message}");
             SelectedAcademicRecords = new List<AcademicRecordData>();
         }
+    }
+
+    private void HandleDropClick(EnrolledStudentDto student)
+    {
+        SelectedStudentForDrop = student;
+        DropReason = string.Empty;
+        ShowDropModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDropModal()
+    {
+        ShowDropModal = false;
+        SelectedStudentForDrop = null;
+        DropReason = string.Empty;
+        StateHasChanged();
+    }
+
+    private void HandleDropModalBackdropClick()
+    {
+        CloseDropModal();
+    }
+
+    private async Task ConfirmDropStudent()
+    {
+        if (SelectedStudentForDrop == null || string.IsNullOrWhiteSpace(DropReason))
+        {
+            ShowToast("Please provide a reason for dropping the student.", ToastType.Error);
+            return;
+        }
+
+        try
+        {
+            // Get current user information for audit logging
+            var currentUser = AuthService.CurrentUser;
+            var droppedByName = currentUser != null 
+                ? $"{currentUser.first_name} {currentUser.last_name}".Trim()
+                : "Unknown";
+            var droppedById = currentUser?.user_ID;
+            var droppedByRole = currentUser?.user_role ?? "Unknown";
+
+            // Archive the student with status "Withdrawn" and the provided reason
+            await ArchiveService.ArchiveStudentAsync(
+                studentId: SelectedStudentForDrop.Id,
+                archiveReason: "Withdrawn", // Status
+                reason: DropReason.Trim() // Archive reason
+            );
+
+            // Create audit log entry for dropping the student
+            if (AuditLogService != null)
+            {
+                try
+                {
+                    await AuditLogService.CreateStudentDropLogAsync(
+                        studentId: SelectedStudentForDrop.Id,
+                        studentName: SelectedStudentForDrop.Name,
+                        archiveReason: "Withdrawn",
+                        droppedBy: droppedByName,
+                        droppedById: droppedById,
+                        userRole: droppedByRole,
+                        ipAddress: null
+                    );
+                }
+                catch
+                {
+                    // Don't fail the drop operation if audit logging fails
+                }
+            }
+
+            ShowToast($"Student {SelectedStudentForDrop.Name} has been dropped and moved to archive.", ToastType.Success);
+            
+            // Close modal and reload students
+            CloseDropModal();
+            await LoadStudentsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error dropping student: {ex.Message}", ToastType.Error);
+        }
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
     }
 
 }

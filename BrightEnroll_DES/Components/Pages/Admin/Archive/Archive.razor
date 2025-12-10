@@ -3,6 +3,9 @@
 @inject NavigationManager NavigationManager
 @using BrightEnroll_DES.Components.Pages.Admin.ArchiveComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Archive
+@using BrightEnroll_DES.Services.RoleBase
+@using static BrightEnroll_DES.Services.RoleBase.Permissions
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Archive</PageTitle>
 
@@ -15,10 +18,13 @@
                     class="@GetTabClasses(TabType.StudentArchive)">
                 Student Archive
             </button>
-            <button @onclick="() => SelectedTab = TabType.EmployeeArchive" 
-                    class="@GetTabClasses(TabType.EmployeeArchive)">
-                Employee Archive
-            </button>
+            @if (CanViewEmployeeArchive())
+            {
+                <button @onclick="() => SelectedTab = TabType.EmployeeArchive" 
+                        class="@GetTabClasses(TabType.EmployeeArchive)">
+                    Employee Archive
+                </button>
+            }
         </div>
     </div>
 
@@ -75,7 +81,7 @@
 
         if (query.TryGetValue("tab", out var tabValue))
         {
-            if (string.Equals(tabValue, "employee", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tabValue, "employee", StringComparison.OrdinalIgnoreCase) && CanViewEmployeeArchive())
             {
                 SelectedTab = TabType.EmployeeArchive;
             }
@@ -86,7 +92,17 @@
         }
 
         await LoadArchivedStudentsAsync();
-        await LoadArchivedEmployeesAsync();
+        if (CanViewEmployeeArchive())
+        {
+            await LoadArchivedEmployeesAsync();
+        }
+    }
+
+    private bool CanViewEmployeeArchive()
+    {
+        // Registrar should only see Student Archive tab
+        // Check if user has ArchiveEmployee permission (which Registrar doesn't have)
+        return AuthorizationService.HasPermission(ArchiveEmployee);
     }
 
     private async Task LoadArchivedStudentsAsync()

@@ -222,9 +222,142 @@
         // Export PDF logic will be implemented here
     }
 
+    private bool ShowViewModal { get; set; } = false;
+    private BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent? SelectedStudent { get; set; }
+
     private void ViewStudent(BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent student)
     {
-        // View student details logic will be implemented here
+        SelectedStudent = student;
+        ShowViewModal = true;
+        StateHasChanged();
     }
+
+    private void CloseViewModal()
+    {
+        ShowViewModal = false;
+        SelectedStudent = null;
+        StateHasChanged();
+    }
+
+    private void HandleViewBackdropClick()
+    {
+        CloseViewModal();
+    }
+}
+
+<!-- View Student Modal -->
+@if (ShowViewModal && SelectedStudent != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleViewBackdropClick">
+        <div id="view-student-modal" class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="sticky top-0 flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Student Information</h3>
+                <button @onclick="CloseViewModal" class="text-white hover:text-gray-200 transition-colors">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-6">
+                <!-- Personal Information Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Personal Information</h4>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Student ID</label>
+                            <p class="text-sm text-gray-900">@SelectedStudent.Id</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Full Name</label>
+                            <p class="text-sm text-gray-900">@SelectedStudent.Name</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">LRN (Learner Reference Number)</label>
+                            <p class="text-sm text-gray-900">@(SelectedStudent.LRN == "N/A" ? "-" : SelectedStudent.LRN)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Date Registered</label>
+                            <p class="text-sm text-gray-900">@SelectedStudent.Date</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Archive Information Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Archive Information</h4>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Status</label>
+                            <div class="mt-1">
+                                @if (SelectedStudent.Status == "Graduated")
+                                {
+                                    <span class="inline-block rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">@SelectedStudent.Status</span>
+                                }
+                                else if (SelectedStudent.Status == "Transferred")
+                                {
+                                    <span class="inline-block rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">@SelectedStudent.Status</span>
+                                }
+                                else if (SelectedStudent.Status == "Withdrawn" || SelectedStudent.Status == "Application Withdrawn")
+                                {
+                                    <span class="inline-block rounded-md bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">@SelectedStudent.Status</span>
+                                }
+                                else if (SelectedStudent.Status == "Rejected by School")
+                                {
+                                    <span class="inline-block rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">@SelectedStudent.Status</span>
+                                }
+                                else
+                                {
+                                    <span class="inline-block rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">@SelectedStudent.Status</span>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Archived Date</label>
+                            <p class="text-sm text-gray-900">@SelectedStudent.ArchivedDate</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Audit Trail Section -->
+                @if (!string.IsNullOrWhiteSpace(SelectedStudent.DroppedBy))
+                {
+                    <div class="mb-6">
+                        <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Audit Trail</h4>
+                        <div class="rounded-lg border border-blue-100 bg-blue-50 p-4">
+                            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">Dropped By</label>
+                                    <p class="text-sm font-medium text-blue-900">@SelectedStudent.DroppedBy</p>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-blue-700 uppercase tracking-wide mb-1">Role</label>
+                                    <p class="text-sm font-medium text-blue-900">@(string.IsNullOrWhiteSpace(SelectedStudent.DroppedByRole) ? "-" : SelectedStudent.DroppedByRole)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <!-- Archive Reason Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Archive Reason</h4>
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <p class="text-sm text-gray-700 whitespace-pre-wrap">@(string.IsNullOrWhiteSpace(SelectedStudent.Reason) ? "No reason provided." : SelectedStudent.Reason)</p>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex justify-end border-t border-gray-200 pt-4">
+                    <button @onclick="CloseViewModal" 
+                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 

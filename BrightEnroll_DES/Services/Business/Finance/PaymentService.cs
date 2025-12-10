@@ -28,10 +28,7 @@ public class PaymentService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Search for a student by ID and get their payment information using ledger system.
-    /// Priority: previous ledger with balance > 0, otherwise current/open school year ledger (if exists).
-    /// </summary>
+    // Gets student payment info, prioritizing previous balance ledger if available
     public async Task<StudentPaymentInfo?> GetStudentPaymentInfoAsync(string studentId)
     {
         try
@@ -89,10 +86,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Process a payment for a student using ledger system (no enrollment/status side effects)
-    /// Uses database transaction to ensure atomicity of all operations
-    /// </summary>
+    // Processes a payment for a student using the ledger system
     public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string orNumber, string? processedBy = null)
     {
         // Use database transaction to ensure atomicity
@@ -133,7 +127,43 @@ public class PaymentService
             }
 
             // Add payment to the target ledger (no status or enrollment changes)
-            await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, paymentAmount, orNumber, paymentMethod, processedBy);
+            var ledgerPayment = await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, paymentAmount, orNumber, paymentMethod, processedBy);
+
+            // CRITICAL: Also save payment to tbl_StudentPayments for reports and analytics
+            // Reports fetch revenue from tbl_StudentPayments, so this must be saved
+            // Check if OR number already exists in StudentPayments
+            var existingStudentPayment = await _context.StudentPayments
+                .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
+
+            if (existingStudentPayment == null)
+            {
+                // Get ledger to retrieve school year
+                var ledger = await _ledgerService.GetLedgerByIdAsync(currentInfo.LedgerId.Value);
+                
+                var studentPayment = new StudentPayment
+                {
+                    StudentId = studentId,
+                    Amount = paymentAmount,
+                    PaymentMethod = paymentMethod,
+                    OrNumber = orNumber,
+                    ProcessedBy = processedBy,
+                    SchoolYear = ledger?.SchoolYear,
+                    CreatedAt = ledgerPayment.CreatedAt // Use same timestamp as ledger payment
+                };
+
+                _context.StudentPayments.Add(studentPayment);
+                // Note: SaveChangesAsync will be called later in the transaction
+                
+                _logger?.LogInformation(
+                    "Added payment to tbl_StudentPayments for student {StudentId}: Amount {Amount}, OR {OrNumber}",
+                    studentId, paymentAmount, orNumber);
+            }
+            else
+            {
+                _logger?.LogWarning(
+                    "Payment with OR {OrNumber} already exists in tbl_StudentPayments, skipping duplicate entry",
+                    orNumber);
+            }
 
             // For current/active school year payments (not previous-balance cases), update student.Status and enrollment records
             if (!currentInfo.HasPreviousBalance)
@@ -202,9 +232,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get all students with their payment status
-    /// </summary>
+    // Gets all students with their payment status
     public async Task<List<StudentPaymentInfo>> GetAllStudentsWithPaymentStatusAsync()
     {
         try
@@ -244,9 +272,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Determine enrollment status based on payment status (display only)
-    /// </summary>
+    // Maps payment status to enrollment status for display
     private string DetermineEnrollmentStatus(string paymentStatus)
     {
         return paymentStatus switch
@@ -258,9 +284,7 @@ public class PaymentService
         };
     }
 
-    /// <summary>
-    /// Get all payments for a specific student from all ledgers
-    /// </summary>
+    // Gets all payments for a student from all ledgers
     public async Task<List<LedgerPayment>> GetPaymentsByStudentIdAsync(string studentId)
     {
         try
@@ -282,9 +306,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get the latest payment for a specific student
-    /// </summary>
+    // Gets the most recent payment for a student
     public async Task<LedgerPayment?> GetLatestPaymentAsync(string studentId)
     {
         try
@@ -299,9 +321,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get payment by OR number (for receipt lookup)
-    /// </summary>
+    // Finds a payment by OR number for receipt lookup
     public async Task<LedgerPayment?> GetPaymentByOrNumberAsync(string orNumber)
     {
         try
@@ -326,9 +346,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get payment information for a student for a specific school year using ledger system
-    /// </summary>
+    // Gets payment info for a student for a specific school year
     public async Task<StudentPaymentInfo?> GetStudentPaymentInfoBySchoolYearAsync(string studentId, string schoolYear)
     {
         try
@@ -360,9 +378,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Helper method to calculate next grade level (e.g., Grade 1 → Grade 2)
-    /// </summary>
+    // Calculates the next grade level (e.g., Grade 1 → Grade 2)
     private string? CalculateNextGradeLevel(string? currentGradeLevel)
     {
         if (string.IsNullOrWhiteSpace(currentGradeLevel))
@@ -418,9 +434,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Maps a ledger to StudentPaymentInfo
-    /// </summary>
+    // Maps a ledger to StudentPaymentInfo DTO
     private async Task<StudentPaymentInfo> MapLedgerToPaymentInfoAsync(Student student, StudentLedger ledger, bool hasPreviousBalance, string? activeSchoolYear = null)
     {
         // Always reload payments and charges from database to ensure we have the latest data
@@ -540,9 +554,7 @@ public class PaymentService
     }
 }
 
-/// <summary>
-/// Student payment information DTO
-/// </summary>
+// Student payment information data transfer object
 public class StudentPaymentInfo
 {
     public string StudentId { get; set; } = string.Empty;

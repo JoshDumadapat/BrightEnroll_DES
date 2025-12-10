@@ -13,6 +13,7 @@
 @inject CurriculumService CurriculumService
 @inject SchoolYearService SchoolYearService
 @inject ILogger<Curriculum> Logger
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Curriculum</PageTitle>
 
@@ -62,6 +63,7 @@
         @if (ActiveTab == "classrooms")
         {
             <Classrooms ClassroomsList="Classrooms" 
+                       CanEdit="@CanEditCurriculum()"
                        OnAddClassroom="OpenAddClassroomModal" 
                        OnEditClassroom="OpenEditClassroomModal" 
                        OnToggleStatus="ToggleClassroomStatus" />
@@ -69,6 +71,7 @@
         else if (ActiveTab == "sections")
         {
             <Sections SectionsList="Sections" 
+                     CanEdit="@CanEditCurriculum()"
                      OnAddSection="OpenAddSectionModal" 
                      OnEditSection="OpenEditSectionModal"
                      OnDeleteSection="OpenDeleteSectionModal" />
@@ -77,6 +80,7 @@
         {
             <Subjects SubjectsList="Subjects" 
                      GradeLevels="GradeLevels.Select(g => g.GradeLevelName).ToList()"
+                     CanEdit="@CanEditCurriculum()"
                      OnAddSubject="OpenAddSubjectModal" 
                      OnEditSubject="OpenEditSubjectModal"
                      OnDeleteSubject="OpenDeleteSubjectModal" />
@@ -84,6 +88,7 @@
         else if (ActiveTab == "teachers")
         {
             <TeacherAssignment Assignments="Assignments" 
+                              CanEdit="@CanEditCurriculum()"
                               OnAddAssignment="OpenAddAssignmentModal" 
                               OnEditAssignment="@((TeacherAssignmentModel assignment) => OpenEditAssignmentModal(assignment))"
                               OnArchiveAssignment="@((TeacherAssignmentModel assignment) => OpenArchiveAssignmentModal(assignment))" />
@@ -141,6 +146,7 @@
 
 <EditAssignmentModal Show="ShowEditAssignmentModal" 
                      Assignment="EditingAssignment" 
+                     CanEdit="@CanEditCurriculum()"
                      OnClose="CloseEditAssignmentModal" 
                      OnSubmit="HandleEditAssignment" />
 
@@ -1861,6 +1867,20 @@
         showToast = false;
         toastMessage = "";
         StateHasChanged();
+    }
+
+    // Check if user can edit curriculum (has any edit/create/delete permissions)
+    private bool CanEditCurriculum()
+    {
+        return AuthorizationService.HasAnyPermission(
+            Permissions.EditCurriculum,
+            Permissions.CreateCurriculum,
+            Permissions.DeleteCurriculum,
+            Permissions.ManageSections,
+            Permissions.ManageSubjects,
+            Permissions.ManageClassrooms,
+            Permissions.AssignTeachers
+        );
     }
 
     // Build FinalClasses from assignments if view doesn't exist or is empty

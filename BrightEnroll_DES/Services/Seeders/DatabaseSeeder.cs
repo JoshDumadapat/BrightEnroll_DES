@@ -861,9 +861,7 @@ namespace BrightEnroll_DES.Services.Seeders
             }
         }
 
-        /// <summary>
-        /// Seeds all required roles in the system.
-        /// </summary>
+        // Seeds all required roles in the system
         public async Task SeedAllRolesAsync()
         {
             try
@@ -1006,10 +1004,7 @@ namespace BrightEnroll_DES.Services.Seeders
             }
         }
 
-        /// <summary>
-        /// Verifies and creates finance tables if they don't exist.
-        /// This method ensures all finance-related tables are present in the database.
-        /// </summary>
+        // Verifies and creates finance tables if they don't exist
         public async Task EnsureFinanceTablesExistAsync()
         {
             try
@@ -1126,9 +1121,7 @@ namespace BrightEnroll_DES.Services.Seeders
             }
         }
 
-        /// <summary>
-        /// Seeds the Chart of Accounts with standard accounts for double-entry bookkeeping
-        /// </summary>
+        // Seeds the Chart of Accounts with standard accounts
         public async Task SeedChartOfAccountsAsync()
         {
             try

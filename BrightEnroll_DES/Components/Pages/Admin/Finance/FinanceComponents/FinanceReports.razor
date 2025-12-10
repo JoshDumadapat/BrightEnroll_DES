@@ -1788,10 +1788,15 @@
 
     private async Task<List<RevenueBreakdownItem>> GetRevenueBreakdownAsync(DateTime fromDate, DateTime toDate)
     {
-        // Get all payments in the period with student information
+        // Get all payments in the period from StudentPayments table (read-only query)
+        // This ensures we fetch actual payment records - no transactions affected
+        // Use date-only comparison to ensure we capture all payments for the full day
+        var fromDateOnly = fromDate.Date;
+        var toDateOnly = toDate.Date.AddDays(1).AddTicks(-1); // End of day
+        
         var payments = await DbContext.StudentPayments
             .Include(p => p.Student)
-            .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+            .Where(p => p.CreatedAt >= fromDateOnly && p.CreatedAt <= toDateOnly)
             .ToListAsync();
 
         // Get fee structures for all grade levels with grade level names
@@ -1952,13 +1957,79 @@
         // If we have payroll transactions without journal entries, we'll include them in fallback
         var hasPayrollWithoutJournalEntries = payrollInDateRange.Any(ptId => !payrollWithJournalEntries.Contains(ptId));
 
-        // If we have journal entries OR if we have payroll without journal entries, use journal entries first
-        // Then supplement with payroll transactions that don't have journal entries
+        // Always include StudentPayments in General Ledger, regardless of journal entries
+        // This ensures all payment data is visible in the ledger
+        var accountBalances = new Dictionary<int, decimal>(); // AccountId -> Running Balance
+
+        // First, add StudentPayments entries (Revenue/Credits)
+        // ALWAYS include all payments - check if they have journal entries to avoid duplicates
+        var paymentsInDateRange = await DbContext.StudentPayments
+            .Where(p => p.CreatedAt >= fromDateOnly && p.CreatedAt <= toDateOnly)
+            .OrderBy(p => p.CreatedAt)
+            .ToListAsync();
+
+        // Get journal entries that reference payments (to avoid duplicates)
+        // Journal entries for payments use PaymentId as ReferenceId (stored as int?)
+        var paymentJournalEntryReferenceIds = await DbContext.JournalEntries
+            .Where(je => je.ReferenceType == "Payment" && 
+                        je.Status == "Posted" &&
+                        je.EntryDate >= fromDateOnly && 
+                        je.EntryDate <= toDateOnly)
+            .Select(je => je.ReferenceId)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToListAsync();
+
+        // Get revenue account once (Account Code 4000) to avoid multiple queries
+        var revenueAccount = await DbContext.ChartOfAccounts
+            .Where(a => a.AccountCode == "4000" && a.IsActive)
+            .FirstOrDefaultAsync();
+        int revenueAccountId = revenueAccount?.AccountId ?? 0;
+
+        // ALWAYS add ALL payments from StudentPayments table to ensure no payment data is missed
+        // Even if they have journal entries, we show them here to ensure visibility
+        // (Journal entries will show the double-entry version, but this ensures we see the source payment)
+        foreach (var payment in paymentsInDateRange)
+        {
+            // Initialize account balance if needed (revenueAccountId was already fetched above)
+            if (revenueAccountId > 0 && !accountBalances.ContainsKey(revenueAccountId))
+            {
+                accountBalances[revenueAccountId] = 0;
+            }
+
+            // Update account balance
+            if (revenueAccountId > 0)
+            {
+                accountBalances[revenueAccountId] += payment.Amount;
+            }
+
+            // Check if this payment has a journal entry (for reference, but we still show the payment)
+            bool hasJournalEntry = paymentJournalEntryReferenceIds != null && 
+                                   paymentJournalEntryReferenceIds.Contains(payment.PaymentId);
+            
+            string description = hasJournalEntry 
+                ? $"Payment from Student {payment.StudentId} - OR: {payment.OrNumber} (Also in Journal Entry)"
+                : $"Payment from Student {payment.StudentId} - OR: {payment.OrNumber}";
+
+            ledger.Entries.Add(new LedgerEntry
+            {
+                Date = payment.CreatedAt,
+                EntryNumber = $"PMT-{payment.PaymentId}",
+                AccountCode = "4000",
+                AccountName = "Tuition Fee Revenue",
+                Description = description,
+                Type = "Payment",
+                Credit = payment.Amount,
+                Debit = 0,
+                Balance = accountBalances.GetValueOrDefault(revenueAccountId, 0)
+            });
+        }
+
+        // If we have journal entries OR if we have payroll without journal entries, use journal entries
+        // Journal entries will include payments that have been posted to the ledger
         if (journalEntryLines.Any() || hasPayrollWithoutJournalEntries)
         {
             // Use journal entries - proper double-entry bookkeeping
-            var accountBalances = new Dictionary<int, decimal>(); // AccountId -> Running Balance
-
             foreach (var line in journalEntryLines)
             {
                 // Calculate running balance per account
@@ -2009,11 +2080,13 @@
         {
             // Fallback to old method (backward compatibility) - Single-entry
             // This includes payroll transactions that may not have journal entries yet
+            // All queries are read-only and do not affect transactions
             decimal runningBalance = 0;
 
-            // Get all payments (Credits - Revenue)
+            // Get all payments from StudentPayments table (Credits - Revenue) - read-only query
+            // Use date-only comparison to ensure we capture all payments for the full day
             var payments = await DbContext.StudentPayments
-                .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                .Where(p => p.CreatedAt >= fromDateOnly && p.CreatedAt <= toDateOnly)
                 .OrderBy(p => p.CreatedAt)
                 .ToListAsync();
 
@@ -2034,9 +2107,10 @@
                 });
             }
 
-            // Get all expenses (Debits - Expenses)
+            // Get all expenses from Expenses table (Debits - Expenses) - read-only query
+            // Use date-only comparison to ensure we capture all expenses for the full day
             var expenses = await DbContext.Expenses
-                .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                .Where(e => e.ExpenseDate >= fromDateOnly && e.ExpenseDate <= toDateOnly && e.Status == "Approved")
                 .OrderBy(e => e.ExpenseDate)
                 .ToListAsync();
 

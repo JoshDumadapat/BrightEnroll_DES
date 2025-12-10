@@ -161,6 +161,65 @@ public class AuditLogService
     }
 
     /// <summary>
+    /// Creates an audit log entry for dropping/archiving a student.
+    /// </summary>
+    public async Task CreateStudentDropLogAsync(
+        string studentId,
+        string studentName,
+        string archiveReason,
+        string? droppedBy = null,
+        int? droppedById = null,
+        string? userRole = null,
+        string? ipAddress = null)
+    {
+        try
+        {
+            // Check if the audit logs table exists before attempting to save
+            if (!await TableExistsAsync("tbl_audit_logs"))
+            {
+                _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Skipping audit log creation. Please ensure database initialization runs.");
+                return;
+            }
+
+            var description = $"Student dropped/archived: {studentName} (ID: {studentId}, Status: {archiveReason})";
+            
+            var log = new AuditLog
+            {
+                Timestamp = DateTime.Now,
+                Action = "Drop Student",
+                Module = "Student Record",
+                Description = description,
+                UserName = droppedBy,
+                UserRole = userRole,
+                UserId = droppedById,
+                StudentId = studentId,
+                StudentName = studentName,
+                StudentStatus = archiveReason,
+                IpAddress = ipAddress,
+                Status = "Success",
+                Severity = "Medium"
+            };
+
+            _context.AuditLogs.Add(log);
+            await _context.SaveChangesAsync();
+            
+            _logger?.LogInformation(
+                "Student drop audit log created: Student {StudentId} ({StudentName}) dropped by {DroppedBy} (ID: {DroppedById})",
+                studentId, studentName, droppedBy ?? "Unknown", droppedById);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
+        {
+            _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Skipping audit log creation. Error: {Message}", sqlEx.Message);
+            // Don't throw - audit logging should not break the main operation
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error creating student drop audit log: {Message}", ex.Message);
+            // Don't throw - audit logging should not break the main operation
+        }
+    }
+
+    /// <summary>
     /// Gets audit logs with optional filtering.
     /// </summary>
     public async Task<List<AuditLog>> GetAuditLogsAsync(
@@ -213,6 +272,27 @@ public class AuditLogService
         {
             _logger?.LogError(ex, "Error retrieving audit logs: {Message}", ex.Message);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Gets the audit log entry for dropping a specific student.
+    /// </summary>
+    public async Task<AuditLog?> GetStudentDropLogAsync(string studentId)
+    {
+        try
+        {
+            var log = await _context.AuditLogs
+                .Where(l => l.StudentId == studentId && l.Action == "Drop Student")
+                .OrderByDescending(l => l.Timestamp)
+                .FirstOrDefaultAsync();
+
+            return log;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error retrieving student drop audit log for {StudentId}: {Message}", studentId, ex.Message);
+            return null;
         }
     }
 }

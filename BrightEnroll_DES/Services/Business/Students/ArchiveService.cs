@@ -3,6 +3,7 @@ using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Linq;
+using BrightEnroll_DES.Services.Business.Audit;
 
 namespace BrightEnroll_DES.Services.Business.Students;
 
@@ -11,11 +12,13 @@ public class ArchiveService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ArchiveService>? _logger;
+    private readonly AuditLogService? _auditLogService;
 
-    public ArchiveService(AppDbContext context, ILogger<ArchiveService>? logger = null)
+    public ArchiveService(AppDbContext context, ILogger<ArchiveService>? logger = null, AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     // Gets all archived students
@@ -27,10 +30,37 @@ public class ArchiveService
             // Include both "Application Withdrawn" and "Application Withdraw" (truncated version) for compatibility
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
-            var archivedStudents = await _context.Students
+            var students = await _context.Students
                 .Where(s => archivedStatuses.Contains(s.Status ?? ""))
-                .OrderByDescending(s => s.DateRegistered)
-                .Select(s => new Components.Pages.Admin.Archive.ArchivedStudent
+                .OrderByDescending(s => s.UpdatedAt ?? s.DateRegistered)
+                .ToListAsync();
+
+            var archivedStudents = new List<Components.Pages.Admin.Archive.ArchivedStudent>();
+
+            foreach (var s in students)
+            {
+                // Get audit log entry for who dropped this student
+                string droppedBy = "";
+                string droppedByRole = "";
+                
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        var dropLog = await _auditLogService.GetStudentDropLogAsync(s.StudentId);
+                        if (dropLog != null)
+                        {
+                            droppedBy = dropLog.UserName ?? "";
+                            droppedByRole = dropLog.UserRole ?? "";
+                        }
+                    }
+                    catch
+                    {
+                        // If audit log retrieval fails, continue without it
+                    }
+                }
+
+                archivedStudents.Add(new Components.Pages.Admin.Archive.ArchivedStudent
                 {
                     Id = s.StudentId,
                     Name = $"{s.FirstName} {s.MiddleName} {s.LastName}".Replace("  ", " ").Trim(),
@@ -38,9 +68,11 @@ public class ArchiveService
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
                     Status = s.Status ?? "N/A",
                     Reason = s.ArchiveReason ?? "", // Get archive reason from database
-                    ArchivedDate = s.DateRegistered.ToString("dd MMM yyyy")
-                })
-                .ToListAsync();
+                    ArchivedDate = (s.UpdatedAt ?? s.DateRegistered).ToString("dd MMM yyyy"), // Use UpdatedAt if available, otherwise DateRegistered
+                    DroppedBy = droppedBy,
+                    DroppedByRole = droppedByRole
+                });
+            }
 
             return archivedStudents;
         }
@@ -134,6 +166,27 @@ public class ArchiveService
             if (student == null)
                 return null;
 
+            // Get audit log entry for who dropped this student
+            string droppedBy = "";
+            string droppedByRole = "";
+            
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    var dropLog = await _auditLogService.GetStudentDropLogAsync(student.StudentId);
+                    if (dropLog != null)
+                    {
+                        droppedBy = dropLog.UserName ?? "";
+                        droppedByRole = dropLog.UserRole ?? "";
+                    }
+                }
+                catch
+                {
+                    // If audit log retrieval fails, continue without it
+                }
+            }
+
             return new Components.Pages.Admin.Archive.ArchivedStudent
             {
                 Id = student.StudentId,
@@ -142,7 +195,9 @@ public class ArchiveService
                 Date = student.DateRegistered.ToString("dd MMM yyyy"),
                 Status = student.Status ?? "N/A",
                 Reason = student.ArchiveReason ?? "", // Get archive reason from database
-                ArchivedDate = student.DateRegistered.ToString("dd MMM yyyy")
+                ArchivedDate = (student.UpdatedAt ?? student.DateRegistered).ToString("dd MMM yyyy"), // Use UpdatedAt if available, otherwise DateRegistered
+                DroppedBy = droppedBy,
+                DroppedByRole = droppedByRole
             };
         }
         catch (Exception ex)
@@ -243,6 +298,7 @@ public class ArchiveService
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
                     student.ArchiveReason = reason;
+                    student.UpdatedAt = DateTime.Now; // Update timestamp even if status unchanged
                     await _context.SaveChangesAsync();
                     _logger?.LogInformation("Archive reason saved for student {StudentId} (status already archived)", studentId);
                 }
@@ -263,6 +319,26 @@ public class ArchiveService
             {
                 student.ArchiveReason = reason;
                 _logger?.LogInformation("Archive reason saved for student {StudentId}", studentId);
+            }
+            
+            // Update the UpdatedAt timestamp
+            student.UpdatedAt = DateTime.Now;
+            
+            // Update enrollment records status to match student status
+            var enrollments = await _context.StudentSectionEnrollments
+                .Where(e => e.StudentId == studentId && e.Status == "Enrolled")
+                .ToListAsync();
+            
+            foreach (var enrollment in enrollments)
+            {
+                enrollment.Status = statusToSet;
+                enrollment.UpdatedAt = DateTime.Now;
+            }
+            
+            if (enrollments.Any())
+            {
+                _logger?.LogInformation("Updated {Count} enrollment record(s) for student {StudentId} to status '{Status}'", 
+                    enrollments.Count, studentId, statusToSet);
             }
             
             try

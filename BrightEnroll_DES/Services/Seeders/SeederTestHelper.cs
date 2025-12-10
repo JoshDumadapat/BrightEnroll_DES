@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Seeders;
 
-/// <summary>
-/// Helper class to manually test and run database seeding
-/// </summary>
+// Helper class to manually test and run database seeding
 public class SeederTestHelper
 {
     private readonly DatabaseSeeder _seeder;
@@ -27,9 +25,7 @@ public class SeederTestHelper
         _logger = logger;
     }
 
-    /// <summary>
-    /// Manually run the seeder and return detailed results
-    /// </summary>
+    // Manually runs the seeder and returns detailed results
     public async Task<SeederTestResult> RunSeederManuallyAsync()
     {
         var result = new SeederTestResult();
