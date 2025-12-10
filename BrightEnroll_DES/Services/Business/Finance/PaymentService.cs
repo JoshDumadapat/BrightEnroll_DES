@@ -1,5 +1,6 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Business.Academic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -9,19 +10,27 @@ public class PaymentService
 {
     private readonly AppDbContext _context;
     private readonly FeeService _feeService;
-    private readonly JournalEntryService _journalEntryService;
+    private readonly StudentLedgerService _ledgerService;
+    private readonly SchoolYearService _schoolYearService;
     private readonly ILogger<PaymentService>? _logger;
 
-    public PaymentService(AppDbContext context, FeeService feeService, JournalEntryService journalEntryService, ILogger<PaymentService>? logger = null)
+    public PaymentService(
+        AppDbContext context, 
+        FeeService feeService, 
+        StudentLedgerService ledgerService,
+        SchoolYearService schoolYearService,
+        ILogger<PaymentService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _feeService = feeService ?? throw new ArgumentNullException(nameof(feeService));
-        _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
+        _ledgerService = ledgerService ?? throw new ArgumentNullException(nameof(ledgerService));
+        _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _logger = logger;
     }
 
     /// <summary>
-    /// Search for a student by ID and get their payment information
+    /// Search for a student by ID and get their payment information using ledger system.
+    /// Priority: previous ledger with balance > 0, otherwise current/open school year ledger (if exists).
     /// </summary>
     public async Task<StudentPaymentInfo?> GetStudentPaymentInfoAsync(string studentId)
     {
@@ -37,70 +46,41 @@ public class PaymentService
                 return null;
             }
 
-            // Get fee for student's grade level
-            decimal totalFee = 0;
-            if (!string.IsNullOrWhiteSpace(student.GradeLevel))
-            {
-                // Try to find grade level by name - handle various formats
-                var gradeLevels = await _feeService.GetAllGradeLevelsAsync();
-                var studentGradeLevel = student.GradeLevel.Trim();
-                
-                var gradeLevel = gradeLevels.FirstOrDefault(g => 
-                {
-                    var gradeName = g.GradeLevelName.Trim();
-                    // Exact match
-                    if (gradeName.Equals(studentGradeLevel, StringComparison.OrdinalIgnoreCase))
-                        return true;
-                    
-                    // Match without "Grade " prefix
-                    var gradeNameNoPrefix = gradeName.Replace("Grade ", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    var studentGradeNoPrefix = studentGradeLevel.Replace("Grade ", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    if (gradeNameNoPrefix.Equals(studentGradeNoPrefix, StringComparison.OrdinalIgnoreCase))
-                        return true;
-                    
-                    // Match just the number (e.g., "1" matches "Grade 1")
-                    if (int.TryParse(gradeNameNoPrefix, out var gradeNum) && 
-                        int.TryParse(studentGradeNoPrefix, out var studentNum) && 
-                        gradeNum == studentNum)
-                        return true;
-                    
-                    return false;
-                });
+            var activeSchoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
 
-                if (gradeLevel != null)
+            // 1) If previous ledger has balance, show that
+            if (!string.IsNullOrEmpty(activeSchoolYear))
+            {
+                var previousLedger = await _ledgerService.GetPreviousBalanceLedgerAsync(studentId, activeSchoolYear);
+                if (previousLedger != null && previousLedger.Balance > 0)
                 {
-                    var fee = await _feeService.GetFeeByGradeLevelIdAsync(gradeLevel.GradeLevelId);
-                    if (fee != null)
-                    {
-                        totalFee = fee.TuitionFee + fee.MiscFee + fee.OtherFee;
-                    }
-                }
-                else
-                {
-                    _logger?.LogWarning("Fee not found for grade level: {GradeLevel} (Student ID: {StudentId})", 
-                        student.GradeLevel, student.StudentId);
+                    return MapLedgerToPaymentInfo(student, previousLedger, hasPreviousBalance: true);
                 }
             }
 
-            decimal amountPaid = student.AmountPaid;
-            decimal balance = totalFee - amountPaid;
-            string paymentStatus = student.PaymentStatus ?? "Unpaid";
-
-            // Determine enrollment status based on payment
-            string enrollmentStatus = DetermineEnrollmentStatus(paymentStatus);
-
-            return new StudentPaymentInfo
+            // 2) Otherwise show current/open school year ledger (if exists, or create if needed)
+            StudentLedger? currentLedger = null;
+            if (!string.IsNullOrEmpty(activeSchoolYear))
             {
-                StudentId = student.StudentId,
-                StudentName = $"{student.FirstName} {(!string.IsNullOrWhiteSpace(student.MiddleName) ? student.MiddleName + " " : "")}{student.LastName}{(!string.IsNullOrWhiteSpace(student.Suffix) ? " " + student.Suffix : "")}".Trim(),
-                GradeLevel = student.GradeLevel ?? "N/A",
-                TotalFee = totalFee,
-                AmountPaid = amountPaid,
-                Balance = balance,
-                PaymentStatus = paymentStatus,
-                EnrollmentStatus = enrollmentStatus,
-                Student = student
-            };
+                currentLedger = await _ledgerService.GetLedgerBySchoolYearAsync(studentId, activeSchoolYear);
+                
+                // If no ledger exists for the current school year, create one automatically
+                if (currentLedger == null)
+                {
+                    _logger?.LogInformation("No ledger found for student {StudentId} for school year {SchoolYear}. Creating new ledger.", studentId, activeSchoolYear);
+                    currentLedger = await _ledgerService.GetOrCreateLedgerForCurrentSYAsync(studentId, student.GradeLevel);
+                    _logger?.LogInformation("Created new ledger {LedgerId} for student {StudentId} for school year {SchoolYear}.", currentLedger.Id, studentId, activeSchoolYear);
+                }
+            }
+
+            if (currentLedger != null)
+            {
+                return MapLedgerToPaymentInfo(student, currentLedger, hasPreviousBalance: false);
+            }
+
+            // No ledger found and no active school year to create one
+            _logger?.LogWarning("No ledger found for student {StudentId} and no active school year available.", studentId);
+            return null;
         }
         catch (Exception ex)
         {
@@ -110,19 +90,14 @@ public class PaymentService
     }
 
     /// <summary>
-    /// Process a payment for a student
+    /// Process a payment for a student using ledger system (no enrollment/status side effects)
     /// </summary>
     public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string orNumber, string? processedBy = null)
     {
         try
         {
-            var student = await _context.Students
-                .FirstOrDefaultAsync(s => s.StudentId == studentId);
-
-            if (student == null)
-            {
-                throw new Exception($"Student with ID {studentId} not found.");
-            }
+            var student = await _context.Students.FirstOrDefaultAsync(s => s.StudentId == studentId)
+                ?? throw new Exception($"Student with ID {studentId} not found.");
 
             if (paymentAmount <= 0)
             {
@@ -134,27 +109,18 @@ public class PaymentService
                 throw new Exception("OR number is required.");
             }
 
-            // Validate OR number uniqueness
-            var existingPayment = await _context.StudentPayments
-                .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
-
-            if (existingPayment != null)
-            {
-                throw new Exception($"OR number {orNumber} already exists. Please use a different OR number.");
-            }
-
-            // Minimum payment validation
+            // Minimum payment validation (retain existing behavior)
             const decimal MINIMUM_PAYMENT = 1700m;
             if (paymentAmount < MINIMUM_PAYMENT)
             {
                 throw new Exception($"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.");
             }
 
-            // Get current payment info to calculate new balance
+            // Get current payment info to determine which ledger to use
             var currentInfo = await GetStudentPaymentInfoAsync(studentId);
-            if (currentInfo == null)
+            if (currentInfo == null || !currentInfo.LedgerId.HasValue)
             {
-                throw new Exception($"Could not retrieve payment information for student {studentId}.");
+                throw new Exception($"Could not retrieve a payable ledger for student {studentId}.");
             }
 
             // Check if payment exceeds balance
@@ -163,60 +129,61 @@ public class PaymentService
                 throw new Exception($"Payment amount (Php {paymentAmount:N2}) exceeds balance (Php {currentInfo.Balance:N2}).");
             }
 
-            // Create payment record
-            var payment = new StudentPayment
-            {
-                StudentId = studentId,
-                Amount = paymentAmount,
-                PaymentMethod = paymentMethod,
-                OrNumber = orNumber,
-                ProcessedBy = processedBy,
-                CreatedAt = DateTime.Now
-            };
+            // Add payment to the target ledger (no status or enrollment changes)
+            await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, paymentAmount, orNumber, paymentMethod, processedBy);
 
-            _context.StudentPayments.Add(payment);
-
-            // Update student payment information
-            student.AmountPaid += paymentAmount;
-            
-            // Update payment status
-            decimal newBalance = currentInfo.Balance - paymentAmount;
-            if (newBalance <= 0)
+            // For current/active school year payments (not previous-balance cases), update student.Status and enrollment records to reflect paid state
+            if (!currentInfo.HasPreviousBalance)
             {
-                student.PaymentStatus = "Fully Paid";
-                student.Status = "Fully Paid"; // Update enrollment status
-            }
-            else if (student.AmountPaid > 0)
-            {
-                student.PaymentStatus = "Partially Paid";
-                student.Status = "Partially Paid"; // Update enrollment status
-            }
+                var activeSchoolYear = await _schoolYearService.GetActiveSchoolYearNameAsync();
+                var updatedLedger = await _ledgerService.GetLedgerByIdAsync(currentInfo.LedgerId.Value);
 
-            await _context.SaveChangesAsync();
-
-            // Create journal entry for double-entry bookkeeping
-            try
-            {
-                // Get user ID if processedBy is provided
-                int? createdBy = null;
-                if (!string.IsNullOrWhiteSpace(processedBy))
+                if (updatedLedger != null && !string.IsNullOrWhiteSpace(activeSchoolYear) &&
+                    string.Equals(updatedLedger.SchoolYear, activeSchoolYear, StringComparison.OrdinalIgnoreCase))
                 {
-                    var user = await _context.Users
-                        .FirstOrDefaultAsync(u => u.Email == processedBy || u.SystemId == processedBy);
-                    createdBy = user?.UserId;
+                    var newStatus = updatedLedger.Status; // "Unpaid", "Partially Paid", "Fully Paid"
+                    
+                    // Update student.Status to match ledger status
+                    if (!string.Equals(student.Status, newStatus, StringComparison.OrdinalIgnoreCase))
+                    {
+                        student.Status = newStatus;
+                    }
+
+                    // Update StudentSectionEnrollment status for current school year to match payment status
+                    var enrollments = await _context.StudentSectionEnrollments
+                        .Where(e => e.StudentId == studentId && 
+                                   e.SchoolYear == activeSchoolYear &&
+                                   (e.Status == "For Payment" || e.Status == "Pending" || 
+                                    e.Status == "Partially Paid" || e.Status == "Fully Paid" || 
+                                    e.Status == "Unpaid"))
+                        .ToListAsync();
+
+                    foreach (var enrollment in enrollments)
+                    {
+                        // Update enrollment status to match ledger payment status
+                        // Map ledger status to enrollment status
+                        var enrollmentStatus = newStatus switch
+                        {
+                            "Fully Paid" => "Fully Paid",
+                            "Partially Paid" => "Partially Paid",
+                            "Unpaid" => "For Payment",
+                            _ => enrollment.Status // Keep existing if unknown status
+                        };
+
+                        if (!string.Equals(enrollment.Status, enrollmentStatus, StringComparison.OrdinalIgnoreCase))
+                        {
+                            enrollment.Status = enrollmentStatus;
+                            enrollment.UpdatedAt = DateTime.Now;
+                        }
+                    }
+
+                    await _context.SaveChangesAsync();
                 }
-
-                await _journalEntryService.CreatePaymentJournalEntryAsync(payment, createdBy);
-                _logger?.LogInformation("Journal entry created for payment {PaymentId}", payment.PaymentId);
-            }
-            catch (Exception ex)
-            {
-                // Log but don't fail the payment if journal entry creation fails
-                _logger?.LogWarning(ex, "Failed to create journal entry for payment {PaymentId}: {Message}", payment.PaymentId, ex.Message);
             }
 
-            _logger?.LogInformation("Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}", 
-                studentId, paymentAmount, paymentMethod, orNumber);
+            _logger?.LogInformation(
+                "Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
+                studentId, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
 
             // Return updated payment info
             return await GetStudentPaymentInfoAsync(studentId) ?? currentInfo;
@@ -260,7 +227,7 @@ public class PaymentService
     }
 
     /// <summary>
-    /// Determine enrollment status based on payment status
+    /// Determine enrollment status based on payment status (display only)
     /// </summary>
     private string DetermineEnrollmentStatus(string paymentStatus)
     {
@@ -274,16 +241,21 @@ public class PaymentService
     }
 
     /// <summary>
-    /// Get all payments for a specific student
+    /// Get all payments for a specific student from all ledgers
     /// </summary>
-    public async Task<List<StudentPayment>> GetPaymentsByStudentIdAsync(string studentId)
+    public async Task<List<LedgerPayment>> GetPaymentsByStudentIdAsync(string studentId)
     {
         try
         {
-            return await _context.StudentPayments
-                .Where(p => p.StudentId == studentId)
-                .OrderByDescending(p => p.CreatedAt)
-                .ToListAsync();
+            var ledgers = await _ledgerService.GetAllLedgersAsync(studentId);
+            var allPayments = new List<LedgerPayment>();
+            
+            foreach (var ledger in ledgers)
+            {
+                allPayments.AddRange(ledger.Payments);
+            }
+            
+            return allPayments.OrderByDescending(p => p.CreatedAt).ToList();
         }
         catch (Exception ex)
         {
@@ -295,14 +267,12 @@ public class PaymentService
     /// <summary>
     /// Get the latest payment for a specific student
     /// </summary>
-    public async Task<StudentPayment?> GetLatestPaymentAsync(string studentId)
+    public async Task<LedgerPayment?> GetLatestPaymentAsync(string studentId)
     {
         try
         {
-            return await _context.StudentPayments
-                .Where(p => p.StudentId == studentId)
-                .OrderByDescending(p => p.CreatedAt)
-                .FirstOrDefaultAsync();
+            var payments = await GetPaymentsByStudentIdAsync(studentId);
+            return payments.FirstOrDefault();
         }
         catch (Exception ex)
         {
@@ -314,19 +284,141 @@ public class PaymentService
     /// <summary>
     /// Get payment by OR number (for receipt lookup)
     /// </summary>
-    public async Task<StudentPayment?> GetPaymentByOrNumberAsync(string orNumber)
+    public async Task<LedgerPayment?> GetPaymentByOrNumberAsync(string orNumber)
     {
         try
         {
-            return await _context.StudentPayments
-                .Include(p => p.Student)
+            var payment = await _context.LedgerPayments
+                .Include(p => p.Ledger)
                 .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
+            
+            if (payment?.Ledger != null)
+            {
+                await _context.Entry(payment.Ledger)
+                    .Reference(l => l.Student)
+                    .LoadAsync();
+            }
+            
+            return payment;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error getting payment by OR number {OrNumber}: {Message}", orNumber, ex.Message);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Get payment information for a student for a specific school year using ledger system
+    /// </summary>
+    public async Task<StudentPaymentInfo?> GetStudentPaymentInfoBySchoolYearAsync(string studentId, string schoolYear)
+    {
+        try
+        {
+            var student = await _context.Students
+                .Include(s => s.Guardian)
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+            {
+                _logger?.LogWarning("Student not found: {StudentId}", studentId);
+                return null;
+            }
+
+            var ledger = await _ledgerService.GetLedgerBySchoolYearAsync(studentId, schoolYear);
+            if (ledger == null)
+            {
+                return null;
+            }
+
+            return MapLedgerToPaymentInfo(student, ledger, hasPreviousBalance: false);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting student payment info for {StudentId} in school year {SchoolYear}: {Message}", studentId, schoolYear, ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Helper method to calculate next grade level (e.g., Grade 1 → Grade 2)
+    /// </summary>
+    private string? CalculateNextGradeLevel(string? currentGradeLevel)
+    {
+        if (string.IsNullOrWhiteSpace(currentGradeLevel))
+            return null;
+
+        // Check if original format contains "Grade" (case-insensitive)
+        bool isGradeFormat = currentGradeLevel.Contains("Grade", StringComparison.OrdinalIgnoreCase);
+
+        // Normalize the grade level
+        var normalized = currentGradeLevel.ToUpper()
+            .Replace(" ", "")
+            .Replace("GRADE", "")
+            .Trim();
+
+        // Extract the grade number
+        int? gradeNumber = null;
+        if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^\d+$"))
+        {
+            if (int.TryParse(normalized, out int num))
+            {
+                gradeNumber = num;
+            }
+        }
+        else if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^G\d+$"))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(normalized, @"\d+");
+            if (match.Success && int.TryParse(match.Value, out int num))
+            {
+                gradeNumber = num;
+            }
+        }
+        else if (normalized == "KINDER" || normalized == "K")
+        {
+            gradeNumber = 0; // Kinder = 0, promotes to Grade 1
+        }
+
+        if (!gradeNumber.HasValue)
+            return null;
+
+        int nextGradeNum = gradeNumber.Value + 1;
+
+        if (nextGradeNum > 6)
+            return null; // Beyond Grade 6 - graduated
+
+        // Return in the same format as input
+        if (isGradeFormat)
+        {
+            return $"Grade {nextGradeNum}";
+        }
+        else
+        {
+            return $"G{nextGradeNum}";
+        }
+    }
+
+    /// <summary>
+    /// Maps a ledger to StudentPaymentInfo
+    /// </summary>
+    private StudentPaymentInfo MapLedgerToPaymentInfo(Student student, StudentLedger ledger, bool hasPreviousBalance)
+    {
+        return new StudentPaymentInfo
+        {
+            StudentId = student.StudentId,
+            StudentName = $"{student.FirstName} {(!string.IsNullOrWhiteSpace(student.MiddleName) ? student.MiddleName + " " : "")}{student.LastName}{(!string.IsNullOrWhiteSpace(student.Suffix) ? " " + student.Suffix : "")}".Trim(),
+            GradeLevel = ledger.GradeLevel ?? student.GradeLevel ?? "N/A",
+            TotalFee = ledger.TotalCharges,
+            AmountPaid = ledger.TotalPayments,
+            Balance = ledger.Balance,
+            PaymentStatus = ledger.Status,
+            EnrollmentStatus = DetermineEnrollmentStatus(ledger.Status),
+            Student = student,
+            HasPreviousBalance = hasPreviousBalance,
+            PreviousSchoolYear = hasPreviousBalance ? ledger.SchoolYear : null,
+            SchoolYearForPayment = ledger.SchoolYear,
+            LedgerId = ledger.Id
+        };
     }
 }
 
@@ -344,5 +436,12 @@ public class StudentPaymentInfo
     public string PaymentStatus { get; set; } = "Unpaid";
     public string EnrollmentStatus { get; set; } = "For Payment";
     public Student? Student { get; set; }
+    
+    // Properties for handling previous school year balances
+    public bool HasPreviousBalance { get; set; } = false;
+    public string? PreviousSchoolYear { get; set; }
+    public string? SchoolYearForPayment { get; set; } // The school year this payment info is for
+    
+    // Ledger system properties
+    public int? LedgerId { get; set; }
 }
-

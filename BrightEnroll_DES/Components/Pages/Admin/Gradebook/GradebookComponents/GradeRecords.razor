@@ -173,6 +173,8 @@
     private string errorMessage = "";
     private bool isLoading = false;
 
+    private bool _hasInitialized = false;
+
     protected override async Task OnInitializedAsync()
     {
         var currentUser = AuthService.CurrentUser;
@@ -214,6 +216,28 @@
 
         await LoadFiltersAsync();
         await LoadGradeRecordsAsync();
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Refresh data when component parameters change (e.g., when switching tabs)
+        if (_hasInitialized)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure JavaScript is ready after first render
+            await Task.Delay(100);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadFiltersAsync()
@@ -309,7 +333,7 @@
         try
         {
             isLoading = true;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
 
             // Generate PDF
             var pdfBytes = await PdfGenerator.GenerateGradeFormAsync(
@@ -319,6 +343,14 @@
                 teacherId
             );
 
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Error: PDF generation returned empty data.");
+                isLoading = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
             // Create filename
             var sectionName = availableSections.FirstOrDefault(s => s.SectionId == selectedSectionId)?.SectionName ?? "Section";
             var subjectName = availableSubjects.FirstOrDefault(s => s.SubjectId == selectedSubjectId)?.SubjectName ?? "Subject";
@@ -327,17 +359,23 @@
             // Convert to base64 for download
             var base64Content = Convert.ToBase64String(pdfBytes);
             
-            // Download the file
+            // Download the file - the JavaScript function will handle errors
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Microsoft.JSInterop.JSException jsEx)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"JavaScript error: {jsEx.Message}");
+            Console.WriteLine($"JS Error: {jsEx.Message}\n{jsEx.StackTrace}");
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"Error generating grade form PDF: {ex.Message}");
+            Console.WriteLine($"Error: {ex.Message}\n{ex.StackTrace}");
         }
         finally
         {
             isLoading = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 }

@@ -120,7 +120,8 @@
                             </td>
                             <td class="flex items-center justify-center gap-2 px-4 py-3">
                                 <button @onclick="() => DownloadReportCard(card)" 
-                                        class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100">
+                                        disabled="@isLoading"
+                                        class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
@@ -146,6 +147,8 @@
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+
+    private bool _hasInitialized = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -187,6 +190,28 @@
         }
 
         await LoadSectionsAsync();
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Refresh data when component parameters change (e.g., when switching tabs)
+        if (_hasInitialized)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure JavaScript is ready after first render
+            await Task.Delay(100);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task LoadSectionsAsync()
@@ -220,6 +245,7 @@
         try
         {
             isLoading = true;
+            reportCards.Clear(); // Clear previous results
             StateHasChanged();
 
             reportCards = await GradeService.GetReportCardsAsync(selectedSectionId, selectedSchoolYear);
@@ -231,6 +257,7 @@
             else
             {
                 ShowToast("No grades found for this section. Please ensure grades have been entered.", ToastType.Error);
+                reportCards.Clear();
             }
         }
         catch (Exception ex)
@@ -241,41 +268,68 @@
         finally
         {
             isLoading = false;
-            StateHasChanged();
+            // Force UI update to ensure download buttons are immediately available
+            await InvokeAsync(StateHasChanged);
+            // Small delay to ensure DOM is fully updated
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     private async Task DownloadReportCard(ReportCardDto card)
     {
+        if (card == null)
+        {
+            ShowToast("Invalid report card data.", ToastType.Error);
+            return;
+        }
+
         try
         {
             isLoading = true;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
 
             var section = availableSections.FirstOrDefault(s => s.SectionName == card.Section);
             if (section == null)
             {
                 ShowToast("Section not found.", ToastType.Error);
+                isLoading = false;
+                await InvokeAsync(StateHasChanged);
                 return;
             }
 
             var pdfBytes = await PdfGenerator.GenerateReportCardAsync(card.StudentId, section.SectionId, card.SchoolYear);
             
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                ShowToast("Error: PDF generation returned empty data.", ToastType.Error);
+                isLoading = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            
             var fileName = $"ReportCard_{card.StudentId}_{card.SchoolYear.Replace("-", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
             var base64Content = Convert.ToBase64String(pdfBytes);
             
+            // Call download function - the JavaScript function will handle errors
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
             
             ShowToast("Report card PDF generated successfully.", ToastType.Success);
         }
+        catch (Microsoft.JSInterop.JSException jsEx)
+        {
+            ShowToast($"JavaScript error: {jsEx.Message}", ToastType.Error);
+            Console.WriteLine($"JS Error: {jsEx.Message}\n{jsEx.StackTrace}");
+        }
         catch (Exception ex)
         {
             ShowToast($"Error generating report card PDF: {ex.Message}", ToastType.Error);
+            Console.WriteLine($"Error: {ex.Message}\n{ex.StackTrace}");
         }
         finally
         {
             isLoading = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 

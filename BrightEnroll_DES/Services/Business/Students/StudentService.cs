@@ -729,7 +729,7 @@ public class StudentService
                     LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
                     GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
-                    Section = enrollment.Section.SectionName ?? "N/A",
+                    Section = enrollment.Section?.SectionName ?? "N/A",
                     Documents = docsVerified ? "Verified" : "Pending",
                     Status = enrollment.Status ?? s.Status ?? enrolledStatus
                 });

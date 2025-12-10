@@ -5,6 +5,7 @@
 @using BrightEnroll_DES.Services
 @inject IAuthorizationService AuthorizationService
 @inject ILoadingService LoadingService
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
 
 <PageTitle>Gradebook</PageTitle>
 
@@ -35,32 +36,88 @@
     <div class="overflow-hidden rounded-xl bg-white shadow">
         @if (activeTab == "entry")
         {
-            <GradeEntry />
+            <GradeEntry @key="@($"entry-{_componentKey}")" />
         }
         else if (activeTab == "records")
         {
-            <GradeRecords />
+            <GradeRecords @key="@($"records-{_componentKey}")" />
         }
         else if (activeTab == "reportcards")
         {
-            <ReportCards />
+            <ReportCards @key="@($"reportcards-{_componentKey}")" />
         }
     </div>
 </div>
 
 @code {
     private string activeTab = "entry";
+    private string _componentKey = Guid.NewGuid().ToString();
 
     protected override void OnInitialized()
     {
         // Hide loading screen immediately when page loads
         // This ensures smooth transition from login without showing loading overlay
         LoadingService.HideLoading();
+        
+        // Check for tab parameter in URL
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            var validTabs = new[] { "entry", "records", "reportcards" };
+            if (validTabs.Contains(tabValue, StringComparer.OrdinalIgnoreCase))
+            {
+                activeTab = tabValue.ToLower();
+            }
+        }
     }
 
-    private void SetActiveTab(string tab)
+    protected override async Task OnParametersSetAsync()
     {
+        // Handle navigation changes (e.g., when coming from notification or URL changes)
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            var validTabs = new[] { "entry", "records", "reportcards" };
+            if (validTabs.Contains(tabValue, StringComparer.OrdinalIgnoreCase))
+            {
+                var newTab = tabValue.ToLower();
+                if (activeTab != newTab)
+                {
+                    activeTab = newTab;
+                    // Force component refresh by changing key
+                    _componentKey = Guid.NewGuid().ToString();
+                    StateHasChanged();
+                    
+                    // Small delay to ensure DOM is ready
+                    await Task.Delay(100);
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task SetActiveTab(string tab)
+    {
+        if (activeTab == tab) return;
+        
         activeTab = tab;
+        // Force component refresh by changing key
+        _componentKey = Guid.NewGuid().ToString();
+        
+        // Update URL without navigation
+        var uri = new Uri(Navigation.Uri);
+        var baseUri = uri.GetLeftPart(UriPartial.Path);
+        Navigation.NavigateTo($"{baseUri}?tab={tab}", forceLoad: false);
+        
+        StateHasChanged();
+        
+        // Small delay to ensure DOM is ready before next operation
+        await Task.Delay(100);
+        StateHasChanged();
     }
 
     private string GetTabClasses(string tab)
@@ -71,6 +128,32 @@
             return $"{baseClasses} border-blue-600 text-blue-600";
         }
         return $"{baseClasses} border-transparent text-gray-600 hover:text-gray-800";
+    }
+
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (string.IsNullOrWhiteSpace(queryString))
+            return result;
+        
+        // Remove leading '?' if present
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                result[key] = value;
+            }
+        }
+        
+        return result;
     }
 }
 

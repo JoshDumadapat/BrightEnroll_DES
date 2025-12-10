@@ -290,7 +290,15 @@
         {
             var userRole = AuthorizationService.GetUserRole();
             var redirectPath = GetRedirectPathForRole(userRole);
-            Navigation.NavigateTo(redirectPath);
+            
+            // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+            if (!string.IsNullOrWhiteSpace(userRole) && 
+                string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                redirectPath = "/teacher-dashboard";
+            }
+            
+            Navigation.NavigateTo(redirectPath, forceLoad: true);
         }
     }
 
@@ -349,6 +357,14 @@
             {
                 var userRole = AuthorizationService.GetUserRole();
                 var redirectPath = GetRedirectPathForRole(userRole);
+                
+                // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+                if (!string.IsNullOrWhiteSpace(userRole) && 
+                    string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
+                {
+                    redirectPath = "/teacher-dashboard";
+                }
+                
                 Navigation.NavigateTo(redirectPath, forceLoad: true);
             }
         }
@@ -413,12 +429,27 @@
                     // Get role directly from AuthService to ensure it's available
                     var currentUser = AuthService.CurrentUser;
                     var userRole = currentUser?.user_role;
+                    
+                    // Debug: Log the role for troubleshooting
+                    Console.WriteLine($"[Login] User role: '{userRole}'");
+                    
                     var redirectPath = GetRedirectPathForRole(userRole);
                     
-                    // Small delay to ensure state is updated before navigation
-                    await Task.Delay(100);
+                    // Debug: Log the redirect path
+                    Console.WriteLine($"[Login] Redirecting to: '{redirectPath}'");
                     
-                    // Navigate to the appropriate page
+                    // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+                    if (!string.IsNullOrWhiteSpace(userRole) && 
+                        string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
+                    {
+                        redirectPath = "/teacher-dashboard";
+                        Console.WriteLine($"[Login] FORCING teacher redirect to: '{redirectPath}'");
+                    }
+                    
+                    // Small delay to ensure state is updated before navigation
+                    await Task.Delay(150);
+                    
+                    // Navigate to the appropriate page with forceLoad to prevent any cached redirects
                     Navigation.NavigateTo(redirectPath, forceLoad: true);
                 }
                 catch (Exception ex)
@@ -503,21 +534,27 @@
     {
         if (string.IsNullOrWhiteSpace(role))
         {
+            Console.WriteLine("[GetRedirectPathForRole] Role is null or empty, defaulting to /dashboard");
             return "/dashboard";
         }
 
         // Redirect based on role - you can customize these paths
         var roleLower = role.ToLower().Trim();
-        return roleLower switch
+        Console.WriteLine($"[GetRedirectPathForRole] Normalized role: '{roleLower}'");
+        
+        var redirectPath = roleLower switch
         {
             "cashier" => "/finance", // Cashier goes to Finance page
             "registrar" => "/enrollment", // Registrar goes to Enrollment page
             "hr" => "/human-resource", // HR goes to HR page
-            "teacher" => "/gradebook", // Teacher goes to Gradebook page
+            "teacher" => "/teacher-dashboard", // Teacher goes to Teacher Dashboard first
             "admin" => "/dashboard",
             "superadmin" => "/dashboard", // SuperAdmin goes to dashboard
             _ => "/dashboard" // Default to dashboard for other roles
         };
+        
+        Console.WriteLine($"[GetRedirectPathForRole] Selected redirect path: '{redirectPath}'");
+        return redirectPath;
     }
 
     public void Dispose()

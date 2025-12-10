@@ -493,15 +493,65 @@
         
         try
         {
-            // Load available school years
-            await LoadAvailableSchoolYears();
-            // Load dashboard data inline (no loading screen)
-            await LoadDashboardStatistics();
-            _hasInitialized = true;
+            // Ensure database context is ready before querying
+            // Add a small delay to ensure the context is fully initialized
+            await Task.Delay(100);
+            
+            // Test database connection asynchronously
+            bool canConnect = false;
+            try
+            {
+                canConnect = await Context.Database.CanConnectAsync();
+            }
+            catch
+            {
+                // If CanConnectAsync fails, wait and try again
+                await Task.Delay(500);
+                try
+                {
+                    canConnect = await Context.Database.CanConnectAsync();
+                }
+                catch
+                {
+                    canConnect = false;
+                }
+            }
+            
+            if (canConnect)
+            {
+                // Load available school years
+                await LoadAvailableSchoolYears();
+                // Load dashboard data inline (no loading screen)
+                await LoadDashboardStatistics();
+                _hasInitialized = true;
+            }
+            else
+            {
+                // If database is not ready, retry after a delay
+                await Task.Delay(500);
+                await LoadAvailableSchoolYears();
+                await LoadDashboardStatistics();
+                _hasInitialized = true;
+            }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Error handled inline - no loading screen needed
+            // Log error for debugging
+            System.Diagnostics.Debug.WriteLine($"Error in OnInitializedAsync: {ex.Message}");
+            // Retry loading after a delay
+            try
+            {
+                await Task.Delay(1000);
+                await LoadAvailableSchoolYears();
+                await LoadDashboardStatistics();
+                _hasInitialized = true;
+            }
+            catch (Exception retryEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error on retry: {retryEx.Message}");
+                // Ensure UI updates even if data loading fails
+                StateHasChanged();
+            }
         }
     }
 
@@ -510,10 +560,26 @@
         if (firstRender)
         {
             // Ensure DOM is fully rendered before loading charts
-            await Task.Delay(200);
+            await Task.Delay(300);
+            
+            // Ensure data is loaded before rendering charts
+            if (!_hasInitialized)
+            {
+                try
+                {
+                    await LoadDashboardStatistics();
+                    _hasInitialized = true;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading data in OnAfterRenderAsync: {ex.Message}");
+                }
+            }
+            
             StateHasChanged();
-            await Task.Delay(200);
+            await Task.Delay(300);
             await LoadChartData();
+            StateHasChanged();
         }
     }
 
@@ -544,6 +610,28 @@
     {
         try
         {
+            // Ensure database is ready - test connection with a simple query
+            try
+            {
+                // Test connection with a lightweight query
+                await Context.Database.ExecuteSqlRawAsync("SELECT 1");
+            }
+            catch
+            {
+                // If connection fails, wait and retry once
+                await Task.Delay(500);
+                try
+                {
+                    await Context.Database.ExecuteSqlRawAsync("SELECT 1");
+                }
+                catch
+                {
+                    System.Diagnostics.Debug.WriteLine("Database connection not available after retry");
+                    StateHasChanged();
+                    return;
+                }
+            }
+
             // Get total employee count from vw_EmployeeData
             TotalEmployees = await Context.EmployeeDataViews
                 .FromSqlRaw(@"SELECT UserId, SystemId, FirstName, MiddleName, LastName, Suffix, FullName, BirthDate, Age, Gender, ContactNumber, Role, Email, DateHired, Status, FormattedAddress FROM [dbo].[vw_EmployeeData]")
@@ -583,12 +671,18 @@
             // Load current school year
             await LoadCurrentSchoolYear();
 
+            // Always call StateHasChanged to ensure UI updates
             StateHasChanged();
         }
         catch (Exception ex)
         {
             // Log error but don't crash the dashboard
             System.Diagnostics.Debug.WriteLine($"Error loading dashboard statistics: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            
+            // Ensure UI updates even if data loading fails
+            // This prevents the dashboard from appearing empty
+            StateHasChanged();
         }
     }
 

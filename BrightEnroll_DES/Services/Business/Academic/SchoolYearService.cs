@@ -89,10 +89,28 @@ public class SchoolYearService
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(schoolYear))
+                return false;
+
             var sy = await _context.SchoolYears
                 .FirstOrDefaultAsync(s => s.SchoolYearName == schoolYear);
             
-            return sy?.IsOpen ?? false;
+            // If school year exists in database, return its IsOpen status
+            if (sy != null)
+            {
+                return sy.IsOpen;
+            }
+            
+            // If school year doesn't exist, check if it's the active school year
+            // This handles cases where the school year might be calculated but not yet in DB
+            var activeSchoolYear = await GetActiveSchoolYearAsync();
+            if (activeSchoolYear != null && activeSchoolYear.SchoolYearName == schoolYear)
+            {
+                return activeSchoolYear.IsOpen;
+            }
+            
+            // Default to false if school year doesn't exist and isn't active
+            return false;
         }
         catch (Exception ex)
         {

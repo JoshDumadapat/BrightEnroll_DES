@@ -3,6 +3,7 @@ using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Models;
 using BrightEnroll_DES.Services.DataAccess.Repositories;
 using BrightEnroll_DES.Services.Business.Academic;
+using BrightEnroll_DES.Services.Business.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,14 +14,16 @@ public class EmployeeService
     private readonly AppDbContext _context;
     private readonly IUserRepository _userRepository;
     private readonly SchoolYearService _schoolYearService;
+    private readonly NotificationService? _notificationService;
     private readonly ILogger<EmployeeService>? _logger;
 
-    public EmployeeService(AppDbContext context, IUserRepository userRepository, SchoolYearService schoolYearService, ILogger<EmployeeService>? logger = null)
+    public EmployeeService(AppDbContext context, IUserRepository userRepository, SchoolYearService schoolYearService, ILogger<EmployeeService>? logger = null, NotificationService? notificationService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<int> RegisterEmployeeAsync(EmployeeRegistrationData employeeData)
@@ -598,8 +601,11 @@ public class EmployeeService
                     _context.EmployeeEmergencyContacts.Add(emergencyContact);
                 }
 
-                // Handle salary update if provided
-                if (updateData.BaseSalary.HasValue || updateData.Allowance.HasValue)
+                // Handle salary update ONLY if salary values were actually provided AND changed
+                // Check if salary fields were explicitly provided (not just default values)
+                bool salaryWasEdited = updateData.BaseSalary.HasValue || updateData.Allowance.HasValue;
+                
+                if (salaryWasEdited)
                 {
                     var currentSalary = await _context.SalaryInfos
                         .FirstOrDefaultAsync(s => s.UserId == userId && s.IsActive);
@@ -609,96 +615,169 @@ public class EmployeeService
                         var newBaseSalary = updateData.BaseSalary ?? currentSalary.BaseSalary;
                         var newAllowance = updateData.Allowance ?? currentSalary.Allowance;
 
-                        // Check if salary change requires approval (threshold check - cumulative approach)
-                        // Threshold is dynamically loaded from Payroll module (tbl_roles.threshold_percentage)
-                        // CUMULATIVE APPROACH: Always compares new salary to role base * (1 + threshold%)
-                        // If threshold is 0%, no approval needed (no limit on salary increase)
-                        var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == updateData.Role);
-                        decimal defaultBaseSalary = role?.BaseSalary ?? currentSalary.BaseSalary;
-                        decimal defaultAllowance = role?.Allowance ?? currentSalary.Allowance;
-                        decimal thresholdPercentage = role?.ThresholdPercentage ?? 0.00m;
+                        // IMPORTANT: Only process salary update if values actually changed
+                        // This prevents creating log entries when salary wasn't edited
+                        bool salaryActuallyChanged = (newBaseSalary != currentSalary.BaseSalary) || 
+                                                    (newAllowance != currentSalary.Allowance);
                         
-                        bool requiresApproval = false;
-                        
-                        // If threshold is 0%, no approval needed - allow any salary increase
-                        if (thresholdPercentage == 0.00m)
+                        if (!salaryActuallyChanged)
                         {
-                            _logger?.LogInformation(
-                                "Salary threshold check for {UserId} ({Role}): " +
-                                "Threshold is 0% - No approval required. Allowing direct update.",
-                                userId, updateData.Role);
-                            requiresApproval = false;
+                            // Salary values are the same - skip salary update entirely
+                            // Only update other employee info fields
+                            _logger?.LogInformation("Salary values unchanged for user {UserId}, skipping salary update", userId);
                         }
                         else
                         {
-                            // Threshold > 0% - check if exceeds threshold using CUMULATIVE approach
-                            // Compare new salary to role base * (1 + threshold%)
-                            decimal salaryThresholdPercentage = thresholdPercentage / 100m;
-
-                            // Calculate threshold amounts (CUMULATIVE: always based on role base, not current salary)
-                            var thresholdBaseSalary = defaultBaseSalary * (1 + salaryThresholdPercentage);
-                            var thresholdAllowance = defaultAllowance * (1 + salaryThresholdPercentage);
-
-                            // CUMULATIVE CHECK: Compare new salary to role base + threshold
-                            // This ensures threshold doesn't restart - if previous increase used 7% of 10%,
-                            // remaining threshold is still 3% (new salary must be <= role base * 1.10)
-                            bool baseSalaryExceeds = newBaseSalary > thresholdBaseSalary;
-                            bool allowanceExceeds = newAllowance > thresholdAllowance;
+                            // Salary values changed - proceed with salary update logic
+                            // Check if salary change requires approval (threshold check - cumulative approach)
+                            // Threshold is dynamically loaded from Payroll module (tbl_roles.threshold_percentage)
+                            // CUMULATIVE APPROACH: Always compares new salary to role base * (1 + threshold%)
+                            // If threshold is 0%, no approval needed (no limit on salary increase)
+                            var role = await _context.Roles.FirstOrDefaultAsync(r => r.RoleName == updateData.Role);
+                            decimal defaultBaseSalary = role?.BaseSalary ?? currentSalary.BaseSalary;
+                            decimal defaultAllowance = role?.Allowance ?? currentSalary.Allowance;
+                            decimal thresholdPercentage = role?.ThresholdPercentage ?? 0.00m;
                             
-                            if (baseSalaryExceeds || allowanceExceeds)
+                            bool requiresApproval = false;
+                            
+                            // If threshold is 0%, no approval needed - allow any salary increase
+                            if (thresholdPercentage == 0.00m)
                             {
-                                requiresApproval = true;
                                 _logger?.LogInformation(
                                     "Salary threshold check for {UserId} ({Role}): " +
-                                    "Base Salary: {NewBase:N2} > {ThresholdBase:N2} (role base: {RoleBase:N2} + {Threshold}% threshold) = {BaseExceeds}, " +
-                                    "Allowance: {NewAllowance:N2} > {ThresholdAllowance:N2} (role base: {RoleAllowance:N2} + {Threshold}% threshold) = {AllowanceExceeds}",
-                                    userId, updateData.Role, newBaseSalary, thresholdBaseSalary, defaultBaseSalary, thresholdPercentage, baseSalaryExceeds,
-                                    newAllowance, thresholdAllowance, defaultAllowance, thresholdPercentage, allowanceExceeds);
+                                    "Threshold is 0% - No approval required. Allowing direct update.",
+                                    userId, updateData.Role);
+                                requiresApproval = false;
                             }
                             else
                             {
-                                _logger?.LogInformation(
-                                    "Salary threshold check for {UserId} ({Role}): " +
-                                    "Within threshold ({Threshold}%) - No approval required.",
-                                    userId, updateData.Role, thresholdPercentage);
-                            }
-                        }
+                                // Threshold > 0% - check if exceeds threshold using CUMULATIVE approach
+                                // Compare new salary to role base * (1 + threshold%)
+                                decimal salaryThresholdPercentage = thresholdPercentage / 100m;
 
-                        if (requiresApproval)
-                        {
-                            // Create salary change request instead of directly updating
-                            if (requestedByUserId.HasValue)
-                            {
-                                var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
-                                var salaryRequest = new SalaryChangeRequest
+                                // Calculate threshold amounts (CUMULATIVE: always based on role base, not current salary)
+                                var thresholdBaseSalary = defaultBaseSalary * (1 + salaryThresholdPercentage);
+                                var thresholdAllowance = defaultAllowance * (1 + salaryThresholdPercentage);
+
+                                // CUMULATIVE CHECK: Compare new salary to role base + threshold
+                                // This ensures threshold doesn't restart - if previous increase used 7% of 10%,
+                                // remaining threshold is still 3% (new salary must be <= role base * 1.10)
+                                bool baseSalaryExceeds = newBaseSalary > thresholdBaseSalary;
+                                bool allowanceExceeds = newAllowance > thresholdAllowance;
+                                
+                                if (baseSalaryExceeds || allowanceExceeds)
                                 {
-                                    UserId = userId,
-                                    CurrentBaseSalary = currentSalary.BaseSalary,
-                                    CurrentAllowance = currentSalary.Allowance,
-                                    RequestedBaseSalary = newBaseSalary,
-                                    RequestedAllowance = newAllowance,
-                                    Reason = "Salary update from employee profile edit",
-                                    Status = "Pending",
-                                    RequestedBy = requestedByUserId.Value, // Current logged-in HR user ID
-                                    RequestedAt = DateTime.Now,
-                                    SchoolYear = currentSchoolYear,
-                                    IsInitialRegistration = false
-                                };
-                                _context.SalaryChangeRequests.Add(salaryRequest);
-                                _logger?.LogInformation("Salary change request created for user {UserId} due to threshold", userId);
+                                    requiresApproval = true;
+                                    _logger?.LogInformation(
+                                        "Salary threshold check for {UserId} ({Role}): " +
+                                        "Base Salary: {NewBase:N2} > {ThresholdBase:N2} (role base: {RoleBase:N2} + {Threshold}% threshold) = {BaseExceeds}, " +
+                                        "Allowance: {NewAllowance:N2} > {ThresholdAllowance:N2} (role base: {RoleAllowance:N2} + {Threshold}% threshold) = {AllowanceExceeds}",
+                                        userId, updateData.Role, newBaseSalary, thresholdBaseSalary, defaultBaseSalary, thresholdPercentage, baseSalaryExceeds,
+                                        newAllowance, thresholdAllowance, defaultAllowance, thresholdPercentage, allowanceExceeds);
+                                }
+                                else
+                                {
+                                    _logger?.LogInformation(
+                                        "Salary threshold check for {UserId} ({Role}): " +
+                                        "Within threshold ({Threshold}%) - No approval required.",
+                                        userId, updateData.Role, thresholdPercentage);
+                                }
+                            }
+
+                            if (requiresApproval)
+                            {
+                                // IMPORTANT: Create a NEW salary change request - each change creates a separate log entry
+                                // This ensures a complete audit trail - never updates existing records
+                                if (requestedByUserId.HasValue)
+                                {
+                                    var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
+                                    // Create a NEW salary change request record for this change
+                                    var salaryRequest = new SalaryChangeRequest
+                                    {
+                                        UserId = userId,
+                                        CurrentBaseSalary = currentSalary.BaseSalary,
+                                        CurrentAllowance = currentSalary.Allowance,
+                                        RequestedBaseSalary = newBaseSalary,
+                                        RequestedAllowance = newAllowance,
+                                        Reason = "Salary update from employee profile edit",
+                                        Status = "Pending",
+                                        RequestedBy = requestedByUserId.Value, // Current logged-in HR user ID
+                                        RequestedAt = DateTime.Now,
+                                        SchoolYear = currentSchoolYear,
+                                        IsInitialRegistration = false
+                                    };
+                                    // Add new record to log - this creates a separate entry for this salary change
+                                    _context.SalaryChangeRequests.Add(salaryRequest);
+                                    _logger?.LogInformation("Salary change request created for user {UserId} due to threshold", userId);
+                                }
+                                else
+                                {
+                                    _logger?.LogWarning("Salary change requires approval but no requestedByUserId provided. Skipping salary update.");
+                                }
                             }
                             else
                             {
-                                _logger?.LogWarning("Salary change requires approval but no requestedByUserId provided. Skipping salary update.");
+                                // Direct update if within threshold
+                                var oldBaseSalary = currentSalary.BaseSalary;
+                                var oldAllowance = currentSalary.Allowance;
+                                
+                                currentSalary.BaseSalary = newBaseSalary;
+                                currentSalary.Allowance = newAllowance;
+                                _context.SalaryInfos.Update(currentSalary);
+                                
+                                // IMPORTANT: Record the salary change in the salary change log (auto-approved since below threshold)
+                                // Each salary change creates a NEW log entry - never updates existing records
+                                // This ensures a complete audit trail of all salary changes over time
+                                // Note: We already checked salaryActuallyChanged above, so this will always be true here
+                                if (requestedByUserId.HasValue)
+                                {
+                                    var currentSchoolYear = _schoolYearService.GetCurrentSchoolYear();
+                                    // Create a NEW salary change request record - this is a log entry, not an update
+                                    var salaryChangeRequest = new SalaryChangeRequest
+                                    {
+                                        UserId = userId,
+                                        CurrentBaseSalary = oldBaseSalary,
+                                        CurrentAllowance = oldAllowance,
+                                        RequestedBaseSalary = newBaseSalary,
+                                        RequestedAllowance = newAllowance,
+                                        Reason = "Salary update from employee profile edit (below threshold - auto-approved)",
+                                        Status = "Approved", // Auto-approved since below threshold
+                                        RequestedBy = requestedByUserId.Value,
+                                        ApprovedBy = requestedByUserId.Value, // Same user since auto-approved
+                                        RequestedAt = DateTime.Now,
+                                        ApprovedAt = DateTime.Now,
+                                        EffectiveDate = DateTime.Today,
+                                        SchoolYear = currentSchoolYear,
+                                        IsInitialRegistration = false
+                                    };
+                                    // Add new record to log - this creates a separate entry for this salary change
+                                    _context.SalaryChangeRequests.Add(salaryChangeRequest);
+                                    await _context.SaveChangesAsync(); // Save to get the RequestId
+                                    
+                                    // Get employee info for notification
+                                    var employee = await _context.Users.FindAsync(userId);
+                                    var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "Unknown";
+                                    
+                                    // Create notification for salary change log
+                                    if (_notificationService != null)
+                                    {
+                                        await _notificationService.CreateNotificationAsync(
+                                            notificationType: "SalaryChange",
+                                            title: "Salary Updated (Auto-Approved)",
+                                            message: $"Salary for {employeeName} has been updated directly (below threshold). New salary: ₱{newBaseSalary:N2} + ₱{newAllowance:N2}",
+                                            referenceType: "SalaryChangeRequest",
+                                            referenceId: salaryChangeRequest.RequestId,
+                                            actionUrl: "/human-resource?tab=SalaryChangeLog",
+                                            priority: "Normal",
+                                            createdBy: requestedByUserId.Value
+                                        );
+                                    }
+                                    
+                                    _logger?.LogInformation("Salary change recorded in log for user {UserId} (auto-approved, below threshold)", userId);
+                                }
+                                
+                                _logger?.LogInformation("Salary updated directly for user {UserId} (within threshold)", userId);
                             }
-                        }
-                        else
-                        {
-                            // Direct update if within threshold
-                            currentSalary.BaseSalary = newBaseSalary;
-                            currentSalary.Allowance = newAllowance;
-                            _context.SalaryInfos.Update(currentSalary);
-                            _logger?.LogInformation("Salary updated directly for user {UserId} (within threshold)", userId);
                         }
                     }
                 }

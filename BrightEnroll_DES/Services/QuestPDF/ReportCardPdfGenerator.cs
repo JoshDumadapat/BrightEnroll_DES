@@ -273,17 +273,14 @@ public class ReportCardPdfGenerator
                 {
                     sealCol.Item().Text("Republic of the Philippines")
                         .FontSize(5)
-                        .AlignCenter()
-                        .WrapAnywhere();
+                        .AlignCenter();
                     sealCol.Item().PaddingTop(1).Text("Department of Education")
                         .FontSize(5.5f)
                         .Bold()
-                        .AlignCenter()
-                        .WrapAnywhere();
+                        .AlignCenter();
                     sealCol.Item().PaddingTop(1).Text(region)
                         .FontSize(5)
-                        .AlignCenter()
-                        .WrapAnywhere();
+                        .AlignCenter();
                 });
 
             // Center: School Information - Flexible, takes remaining space
@@ -292,8 +289,7 @@ public class ReportCardPdfGenerator
                 schoolCol.Item().Text(schoolName.ToUpper())
                     .FontSize(9)
                     .Bold()
-                    .AlignCenter()
-                    .WrapAnywhere();
+                    .AlignCenter();
                 schoolCol.Item().PaddingTop(1).Text($"School ID: {schoolId}")
                     .FontSize(7)
                     .AlignCenter();
@@ -306,13 +302,11 @@ public class ReportCardPdfGenerator
                 {
                     sealCol.Item().Text("Kagawaran ng Edukasyon")
                         .FontSize(5)
-                        .AlignCenter()
-                        .WrapAnywhere();
+                        .AlignCenter();
                     sealCol.Item().PaddingTop(1).Text("Department of Education")
                         .FontSize(5.5f)
                         .Bold()
-                        .AlignCenter()
-                        .WrapAnywhere();
+                        .AlignCenter();
                 });
         });
 
@@ -320,14 +314,11 @@ public class ReportCardPdfGenerator
         column.Item().PaddingTop(2).Row(infoRow =>
         {
             infoRow.RelativeItem().Text($"Region: {region}")
-                .FontSize(6)
-                .WrapAnywhere();
+                .FontSize(6);
             infoRow.RelativeItem().Text($"Division: {division}")
-                .FontSize(6)
-                .WrapAnywhere();
+                .FontSize(6);
             infoRow.RelativeItem().Text($"District: {district}")
-                .FontSize(6)
-                .WrapAnywhere();
+                .FontSize(6);
         });
     }
 
@@ -741,7 +732,7 @@ public class ReportCardPdfGenerator
         return reportCardData;
     }
 
-    private async Task<SubjectGradeData?> ProcessSubjectGradesAsync(
+    private Task<SubjectGradeData?> ProcessSubjectGradesAsync(
         Subject subject, 
         List<Grade> gradesForSection)
     {
@@ -771,7 +762,7 @@ public class ReportCardPdfGenerator
             remarks = "Incomplete";
         }
 
-        return new SubjectGradeData
+        var result = new SubjectGradeData
         {
             SubjectName = subject.SubjectName,
             Q1 = q1 > 0 ? q1 : (decimal?)null,
@@ -781,9 +772,11 @@ public class ReportCardPdfGenerator
             FinalRating = finalRating > 0 ? finalRating : (decimal?)null,
             Remarks = remarks
         };
+        
+        return Task.FromResult<SubjectGradeData?>(result);
     }
 
-    private async Task<SubjectGradeData?> AggregateMAPEHAsync(
+    private Task<SubjectGradeData?> AggregateMAPEHAsync(
         List<Subject> mapehComponents, 
         List<Grade> gradesForSection)
     {
@@ -826,7 +819,7 @@ public class ReportCardPdfGenerator
             remarks = "Incomplete";
         }
 
-        return new SubjectGradeData
+        var result = new SubjectGradeData
         {
             SubjectName = "MAPEH",
             Q1 = q1Avg.HasValue ? q1Avg.Value : null,
@@ -836,6 +829,8 @@ public class ReportCardPdfGenerator
             FinalRating = finalRating > 0 ? finalRating : null,
             Remarks = remarks
         };
+        
+        return Task.FromResult<SubjectGradeData?>(result);
     }
 
     private async Task<Dictionary<int, AttendanceMonthData>> GetAttendanceByMonthAsync(

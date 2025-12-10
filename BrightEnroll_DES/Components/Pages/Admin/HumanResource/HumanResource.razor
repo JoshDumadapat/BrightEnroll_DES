@@ -471,10 +471,25 @@
 
     protected override Task OnParametersSetAsync()
     {
-        // Check for toast parameter when parameters change (e.g., query string changes)
+        // Handle navigation changes (e.g., when coming from notification)
         var uri = new Uri(NavigationManager.Uri);
         var query = ParseQueryString(uri.Query);
         
+        // Handle tab parameter for navigation from notifications
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            var validTabs = new[] { "Employees", "SalaryChangeLog", "TimeRecords", "HRAnalytics" };
+            if (validTabs.Contains(tabValue, StringComparer.OrdinalIgnoreCase))
+            {
+                if (activeTab != tabValue)
+                {
+                    activeTab = tabValue;
+                    StateHasChanged();
+                }
+            }
+        }
+        
+        // Check for toast parameter when parameters change (e.g., query string changes)
         if (query.TryGetValue("toast", out var toastValue))
         {
             if (toastValue == "employee_added" && !showToast)

@@ -907,6 +907,61 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Ensures tbl_Grades table exists (for existing databases that might not have it)
+        public async Task<bool> EnsureGradesTableExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // Check if table exists
+                string checkTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_Grades' 
+                    AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkCommand = new SqlCommand(checkTableQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var tableExists = result != null ? (int)result : 0;
+
+                if (tableExists == 0)
+                {
+                    // Get grades table definition and create it
+                    var gradesTableDef = TableDefinitions.GetGradesTableDefinition();
+                    
+                    using var createCommand = new SqlCommand(gradesTableDef.CreateTableScript, connection);
+                    await createCommand.ExecuteNonQueryAsync();
+
+                    // Create indexes
+                    if (gradesTableDef.CreateIndexesScripts != null)
+                    {
+                        foreach (var indexScript in gradesTableDef.CreateIndexesScripts)
+                        {
+                            if (!string.IsNullOrWhiteSpace(indexScript))
+                            {
+                                using var indexCommand = new SqlCommand(indexScript, connection);
+                                await indexCommand.ExecuteNonQueryAsync();
+                            }
+                        }
+                    }
+
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         // Ensures tbl_audit_logs table exists (for existing databases that might not have it)
         public async Task<bool> EnsureAuditLogsTableExistsAsync()
         {

@@ -145,6 +145,98 @@
             OnPageChanged="HandlePageChanged"
             OnRowsPerPageChanged="HandleRowsPerPageChanged" />
 
+<!-- View Employee Modal -->
+@if (ShowViewModal && SelectedEmployee != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleViewBackdropClick">
+        <div id="view-employee-modal" class="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="sticky top-0 flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Employee Information</h3>
+                <button @onclick="CloseViewModal" class="text-white hover:text-gray-200 transition-colors">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-6">
+                <!-- Personal Information Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Personal Information</h4>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Employee ID</label>
+                            <p class="text-sm text-gray-900">@SelectedEmployee.Id</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Full Name</label>
+                            <p class="text-sm text-gray-900">@SelectedEmployee.Name</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Email</label>
+                            <p class="text-sm text-gray-900">@(string.IsNullOrWhiteSpace(SelectedEmployee.Email) ? "-" : SelectedEmployee.Email)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Contact</label>
+                            <p class="text-sm text-gray-900">@(string.IsNullOrWhiteSpace(SelectedEmployee.Contact) ? "-" : SelectedEmployee.Contact)</p>
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Address</label>
+                            <p class="text-sm text-gray-900">@(string.IsNullOrWhiteSpace(SelectedEmployee.Address) ? "-" : SelectedEmployee.Address)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Employment Information Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Employment Information</h4>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Role</label>
+                            <p class="text-sm text-gray-900">@SelectedEmployee.Role</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Status</label>
+                            <span class="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                                @SelectedEmployee.Status
+                            </span>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">Archived Date</label>
+                            <p class="text-sm text-gray-900">@SelectedEmployee.ArchivedDate</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Archive Reason Section -->
+                <div class="mb-6">
+                    <h4 class="mb-4 text-base font-semibold text-gray-800 border-b border-gray-200 pb-2">Archive Reason</h4>
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        @if (!string.IsNullOrWhiteSpace(SelectedEmployee.ArchivedReason))
+                        {
+                            <p class="text-sm text-gray-700 whitespace-pre-wrap">@SelectedEmployee.ArchivedReason</p>
+                        }
+                        else
+                        {
+                            <p class="text-sm text-gray-400 italic">No reason provided</p>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="sticky bottom-0 flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <button @onclick="CloseViewModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 <!-- Activate Employee Modal -->
 @if (ShowActivateModal)
 {
@@ -248,6 +340,8 @@
 
     // Activate modal state
     private bool ShowActivateModal { get; set; } = false;
+    // View modal state
+    private bool ShowViewModal { get; set; } = false;
     private ArchivedEmployee? SelectedEmployee { get; set; }
     private bool isReactivating = false;
     private string? toastMessage;
@@ -331,7 +425,21 @@
 
     private void ViewEmployee(ArchivedEmployee employee)
     {
-        // View employee details logic will be implemented here
+        SelectedEmployee = employee;
+        ShowViewModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseViewModal()
+    {
+        ShowViewModal = false;
+        SelectedEmployee = null;
+        StateHasChanged();
+    }
+
+    private void HandleViewBackdropClick()
+    {
+        CloseViewModal();
     }
 
     private void OpenActivateModal(ArchivedEmployee employee)

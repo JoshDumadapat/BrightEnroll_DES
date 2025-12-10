@@ -501,11 +501,17 @@
                 <button @onclick="CloseReceiptModal" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     Close
                 </button>
-                <button @onclick="PrintReceipt" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <button @onclick="PrintReceiptBrowser" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                     </svg>
-                    Print Receipt
+                    Print
+                </button>
+                <button @onclick="DownloadReceiptPdf" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Download PDF
                 </button>
             </div>
         </div>
@@ -517,6 +523,17 @@
         body * {
             visibility: hidden;
         }
+        #payment-receipt-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            margin: 0;
+            max-width: 100%;
+            box-shadow: none;
+            background: white;
+        }
         #receipt-content, #receipt-content * {
             visibility: visible;
         }
@@ -526,9 +543,14 @@
             top: 0;
             width: 100%;
             padding: 20px;
+            background: white;
         }
         .no-print {
             display: none !important;
+        }
+        @@page {
+            margin: 0.5cm;
+            size: A4;
         }
     }
 </style>
@@ -1108,7 +1130,23 @@
         // Don't close on backdrop click for receipt (user should explicitly close or print)
     }
 
-    private async Task PrintReceipt()
+    private async Task PrintReceiptBrowser()
+    {
+        try
+        {
+            // Use browser's print functionality
+            await JSRuntime.InvokeVoidAsync("window.print");
+            Logger?.LogInformation("Payment receipt print dialog opened");
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error opening print dialog: {Message}", ex.Message);
+            searchErrorMessage = "Error opening print dialog. Please try again.";
+            StateHasChanged();
+        }
+    }
+
+    private async Task DownloadReceiptPdf()
     {
         try
         {

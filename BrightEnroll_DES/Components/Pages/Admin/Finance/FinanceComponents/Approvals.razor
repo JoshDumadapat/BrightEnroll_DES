@@ -1471,6 +1471,35 @@
                     Logger.LogWarning(notifEx, "Failed to mark notification as read");
                 }
 
+                // Create notification for the person who created the payroll (ProcessedBy)
+                try
+                {
+                    var processedBy = transactions.First().ProcessedBy;
+                    if (processedBy > 0)
+                    {
+                        var employeeCount = transactions.Select(t => t.UserId).Distinct().Count();
+                        var totalNetPay = transactions.Sum(t => t.NetSalary);
+                        var payPeriod = transactions.First().PayPeriod;
+                        var approver = await DbContext.Users.FindAsync(currentUserId.Value);
+                        var approverName = approver != null ? $"{approver.FirstName} {approver.LastName}" : "Finance";
+
+                        await NotificationService.CreateNotificationAsync(
+                            notificationType: "Payroll",
+                            title: "Payroll Batch Approved",
+                            message: $"Your batch payroll for {employeeCount} employee(s) - Pay Period: {payPeriod} - Total: ₱{totalNetPay:N2} has been approved by {approverName}.",
+                            referenceType: "Payroll",
+                            referenceId: transactions.First().TransactionId,
+                            actionUrl: "/payroll?tab=Records",
+                            priority: "Normal",
+                            createdBy: currentUserId.Value
+                        );
+                    }
+                }
+                catch (Exception notifEx)
+                {
+                    Logger.LogWarning(notifEx, "Failed to create approval notification");
+                }
+
                 toastMessage = $"Batch payroll approved successfully. {transactions.Count} transaction(s) processed.";
                 toastType = ToastType.Success;
                 showToast = true;
@@ -1515,6 +1544,33 @@
                 catch (Exception notifEx)
                 {
                     Logger.LogWarning(notifEx, "Failed to mark notification as read");
+                }
+
+                // Create notification for the person who created the payroll (ProcessedBy)
+                try
+                {
+                    if (transaction.ProcessedBy > 0)
+                    {
+                        var employee = await DbContext.Users.FindAsync(transaction.UserId);
+                        var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : $"User {transaction.UserId}";
+                        var approver = await DbContext.Users.FindAsync(currentUserId.Value);
+                        var approverName = approver != null ? $"{approver.FirstName} {approver.LastName}" : "Finance";
+
+                        await NotificationService.CreateNotificationAsync(
+                            notificationType: "Payroll",
+                            title: "Payroll Transaction Approved",
+                            message: $"Payroll for {employeeName} - Pay Period: {transaction.PayPeriod} - Net Pay: ₱{transaction.NetSalary:N2} has been approved by {approverName}.",
+                            referenceType: "Payroll",
+                            referenceId: transaction.TransactionId,
+                            actionUrl: "/payroll?tab=Records",
+                            priority: "Normal",
+                            createdBy: currentUserId.Value
+                        );
+                    }
+                }
+                catch (Exception notifEx)
+                {
+                    Logger.LogWarning(notifEx, "Failed to create approval notification");
                 }
 
                 toastMessage = "Payroll transaction approved successfully.";
@@ -1574,6 +1630,33 @@
             catch (Exception notifEx)
             {
                 Logger.LogWarning(notifEx, "Failed to mark notification as read");
+            }
+
+            // Create notification for the person who created the payroll (ProcessedBy)
+            try
+            {
+                if (transaction.ProcessedBy > 0)
+                {
+                    var employee = await DbContext.Users.FindAsync(transaction.UserId);
+                    var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : $"User {transaction.UserId}";
+                    var rejector = await DbContext.Users.FindAsync(currentUserId.Value);
+                    var rejectorName = rejector != null ? $"{rejector.FirstName} {rejector.LastName}" : "Finance";
+
+                    await NotificationService.CreateNotificationAsync(
+                        notificationType: "Payroll",
+                        title: "Payroll Transaction Rejected",
+                        message: $"Payroll for {employeeName} - Pay Period: {transaction.PayPeriod} - Net Pay: ₱{transaction.NetSalary:N2} has been rejected by {rejectorName}.",
+                        referenceType: "Payroll",
+                        referenceId: transaction.TransactionId,
+                        actionUrl: "/payroll?tab=Records",
+                        priority: "High",
+                        createdBy: currentUserId.Value
+                    );
+                }
+            }
+            catch (Exception notifEx)
+            {
+                Logger.LogWarning(notifEx, "Failed to create rejection notification");
             }
 
             toastMessage = "Payroll transaction rejected.";

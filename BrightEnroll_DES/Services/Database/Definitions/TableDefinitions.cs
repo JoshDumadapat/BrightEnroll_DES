@@ -1596,7 +1596,6 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-<<<<<<< HEAD
         // Creates tbl_TeacherActivityLogs table - must be created after tbl_Users
         public static TableDefinition GetTeacherActivityLogsTableDefinition()
         {
@@ -1703,7 +1702,22 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
                         [opened_at] DATETIME NULL,
                         [closed_at] DATETIME NULL
-=======
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_school_year' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE UNIQUE INDEX IX_tbl_SchoolYear_school_year ON [dbo].[tbl_SchoolYear]([school_year])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_active' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE INDEX IX_tbl_SchoolYear_is_active ON [dbo].[tbl_SchoolYear]([is_active])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_open' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
+                        CREATE INDEX IX_tbl_SchoolYear_is_open ON [dbo].[tbl_SchoolYear]([is_open])"
+                }
+            };
+        }
+
         // Creates tbl_ChartOfAccounts table - Foundation of double-entry bookkeeping
         public static TableDefinition GetChartOfAccountsTableDefinition()
         {
@@ -1727,21 +1741,10 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                             REFERENCES [dbo].[tbl_ChartOfAccounts]([account_id]) ON DELETE NO ACTION,
                         CONSTRAINT CK_tbl_ChartOfAccounts_AccountType CHECK ([account_type] IN ('Asset', 'Liability', 'Equity', 'Revenue', 'Expense')),
                         CONSTRAINT CK_tbl_ChartOfAccounts_NormalBalance CHECK ([normal_balance] IN ('Debit', 'Credit'))
->>>>>>> origin/dumadapat
                     )",
                 CreateIndexesScripts = new List<string>
                 {
                     @"
-<<<<<<< HEAD
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_school_year' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
-                        CREATE UNIQUE INDEX IX_tbl_SchoolYear_school_year ON [dbo].[tbl_SchoolYear]([school_year])",
-                    @"
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_active' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
-                        CREATE INDEX IX_tbl_SchoolYear_is_active ON [dbo].[tbl_SchoolYear]([is_active])",
-                    @"
-                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolYear_is_open' AND object_id = OBJECT_ID('dbo.tbl_SchoolYear'))
-                        CREATE INDEX IX_tbl_SchoolYear_is_open ON [dbo].[tbl_SchoolYear]([is_open])"
-=======
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_ChartOfAccounts_AccountCode' AND object_id = OBJECT_ID('dbo.tbl_ChartOfAccounts'))
                         CREATE UNIQUE INDEX IX_tbl_ChartOfAccounts_AccountCode ON [dbo].[tbl_ChartOfAccounts]([account_code])",
                     @"
@@ -1922,7 +1925,6 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_ReferenceId' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
                         CREATE INDEX IX_tbl_Notifications_ReferenceId ON [dbo].[tbl_Notifications]([reference_id])"
->>>>>>> origin/dumadapat
                 }
             };
         }

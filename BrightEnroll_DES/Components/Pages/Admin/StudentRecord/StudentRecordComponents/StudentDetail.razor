@@ -9,16 +9,16 @@
         <!-- Tabs Card -->
         <div class="overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
             <div class="flex items-center gap-6">
-                <button @onclick="() => SelectedTab = TabType.StudentInfo" 
+                <button @onclick="() => SetActiveTab(TabType.StudentInfo)" 
                         class="@GetTabClasses(TabType.StudentInfo)"
                         style="@GetStudentInfoStyle()">
                     Student Info
                 </button>
-                <button @onclick="() => SelectedTab = TabType.AcademicRecord" 
+                <button @onclick="() => SetActiveTab(TabType.AcademicRecord)" 
                         class="@GetTabClasses(TabType.AcademicRecord)">
                     Academic Record
                 </button>
-                <button @onclick="() => SelectedTab = TabType.EnrollmentStatus" 
+                <button @onclick="() => SetActiveTab(TabType.EnrollmentStatus)" 
                         class="@GetTabClasses(TabType.EnrollmentStatus)">
                     Enrollment Status
                 </button>
@@ -61,15 +61,15 @@
     <!-- Tab Content -->
     @if (SelectedTab == TabType.StudentInfo)
     {
-        <StudentInfo StudentData="StudentData" />
+        <StudentInfo @key="@($"studentinfo-{SelectedTab}")" StudentData="StudentData" />
     }
     else if (SelectedTab == TabType.AcademicRecord)
     {
-        <AcademicRecord AcademicRecords="AcademicRecords" StudentData="StudentData" />
+        <AcademicRecord @key="@($"academic-{SelectedTab}")" AcademicRecords="AcademicRecords" StudentData="StudentData" />
     }
     else if (SelectedTab == TabType.EnrollmentStatus)
     {
-        <EnrollmentStatus EnrollmentRecords="EnrollmentRecords" />
+        <EnrollmentStatus @key="@($"enrollment-{SelectedTab}")" EnrollmentRecords="EnrollmentRecords" />
     }
 </div>
 
@@ -94,6 +94,33 @@
     }
 
     private TabType SelectedTab { get; set; } = TabType.StudentInfo;
+    private bool _hasInitialized = false;
+
+    protected override void OnInitialized()
+    {
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Refresh component when parameters change (e.g., when switching tabs)
+        if (_hasInitialized)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure JavaScript is ready after first render
+            await Task.Delay(100);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private string GetStudentInfoStyle()
     {
@@ -130,6 +157,18 @@
     private async Task OnBack()
     {
         await OnBackClick.InvokeAsync();
+    }
+
+    private async Task SetActiveTab(TabType tab)
+    {
+        if (SelectedTab == tab) return;
+        
+        SelectedTab = tab;
+        StateHasChanged();
+        
+        // Small delay to ensure DOM is ready before next operation
+        await Task.Delay(100);
+        await InvokeAsync(StateHasChanged);
     }
 }
 

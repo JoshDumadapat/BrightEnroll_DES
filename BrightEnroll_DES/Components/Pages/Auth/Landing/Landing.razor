@@ -1,7 +1,11 @@
 ﻿@page "/"
 @layout Components.Layout.AuthLayout
 @using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.RoleBase
 @inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
 
 <!-- Toast Notification -->
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="3000" />
@@ -30,6 +34,23 @@
 
     protected override void OnInitialized()
     {
+        // If already logged in, redirect based on role
+        if (AuthService.IsAuthenticated)
+        {
+            var userRole = AuthorizationService.GetUserRole();
+            var redirectPath = GetRedirectPathForRole(userRole);
+            
+            // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+            if (!string.IsNullOrWhiteSpace(userRole) && 
+                string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                redirectPath = "/teacher-dashboard";
+            }
+            
+            Navigation.NavigateTo(redirectPath, forceLoad: true);
+            return;
+        }
+        
         // Check for toast parameter in query string (only for success/error, not for cancel)
         var uri = new Uri(Navigation.Uri);
         var query = ParseQueryString(uri.Query);
@@ -46,6 +67,26 @@
             
             // Handle other toast types (success/error) if needed in the future
         }
+    }
+    
+    private string GetRedirectPathForRole(string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role))
+        {
+            return "/dashboard";
+        }
+
+        var roleLower = role.ToLower().Trim();
+        return roleLower switch
+        {
+            "cashier" => "/finance",
+            "registrar" => "/enrollment",
+            "hr" => "/human-resource",
+            "teacher" => "/teacher-dashboard",
+            "admin" => "/dashboard",
+            "superadmin" => "/dashboard",
+            _ => "/dashboard"
+        };
     }
 
     private Dictionary<string, string> ParseQueryString(string queryString)

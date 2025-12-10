@@ -132,7 +132,7 @@
 
         <!-- Footer with Pagination -->
     <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        <span>@($"{FilteredRecords.Count()} of {FilteredRecords.Count()} academic records")</span>
+        <span>@($"{FilteredRecords?.Count() ?? 0} of {FilteredRecords?.Count() ?? 0} academic records")</span>
         <div class="flex items-center gap-2">
             <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
             <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
@@ -243,6 +243,33 @@
     }
 
     private bool isExporting = false;
+    private bool _hasInitialized = false;
+
+    protected override void OnInitialized()
+    {
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Refresh component when parameters change (e.g., when switching tabs)
+        if (_hasInitialized)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure JavaScript is ready after first render
+            await Task.Delay(100);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
 
     private async Task ExportPDF()
     {
@@ -263,10 +290,18 @@
         try
         {
             isExporting = true;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
 
             // Generate Form 137 PDF
             var pdfBytes = await Form137PdfGenerator.GenerateForm137Async(StudentData, AcademicRecords);
+
+            if (pdfBytes == null || pdfBytes.Length == 0)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "Error: PDF generation returned empty data.");
+                isExporting = false;
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
 
             // Create filename
             var fileName = $"Form137_{StudentData.FullName.Replace(" ", "_")}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
@@ -274,17 +309,23 @@
             // Convert to base64 for download
             var base64Content = Convert.ToBase64String(pdfBytes);
             
-            // Download the file
+            // Download the file - the JavaScript function will handle errors
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Microsoft.JSInterop.JSException jsEx)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"JavaScript error: {jsEx.Message}");
+            Console.WriteLine($"JS Error: {jsEx.Message}\n{jsEx.StackTrace}");
         }
         catch (Exception ex)
         {
             await JSRuntime.InvokeVoidAsync("alert", $"Error generating Form 137 PDF: {ex.Message}");
+            Console.WriteLine($"Error: {ex.Message}\n{ex.StackTrace}");
         }
         finally
         {
             isExporting = false;
-            StateHasChanged();
+            await InvokeAsync(StateHasChanged);
         }
     }
 }

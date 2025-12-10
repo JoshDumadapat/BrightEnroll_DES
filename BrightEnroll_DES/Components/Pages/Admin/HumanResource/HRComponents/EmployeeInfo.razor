@@ -1209,7 +1209,40 @@
                 currentUserId = currentUser.user_ID;
             }
 
-            var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, editData, currentUserId);
+            // IMPORTANT: Only include salary fields if salary was actually changed
+            // This prevents creating 0% change log entries when only other fields are updated
+            var updateData = new EmployeeUpdateData
+            {
+                FirstName = editData.FirstName,
+                MiddleName = editData.MiddleName,
+                LastName = editData.LastName,
+                Suffix = editData.Suffix,
+                BirthDate = editData.BirthDate,
+                Age = editData.Age,
+                Sex = editData.Sex,
+                ContactNumber = editData.ContactNumber,
+                Email = editData.Email,
+                Role = editData.Role,
+                HouseNo = editData.HouseNo,
+                StreetName = editData.StreetName,
+                Barangay = editData.Barangay,
+                City = editData.City,
+                Province = editData.Province,
+                Country = editData.Country,
+                ZipCode = editData.ZipCode,
+                EmergencyContactFirstName = editData.EmergencyContactFirstName,
+                EmergencyContactMiddleName = editData.EmergencyContactMiddleName,
+                EmergencyContactLastName = editData.EmergencyContactLastName,
+                EmergencyContactSuffix = editData.EmergencyContactSuffix,
+                EmergencyContactRelationship = editData.EmergencyContactRelationship,
+                EmergencyContactNumber = editData.EmergencyContactNumber,
+                EmergencyContactAddress = editData.EmergencyContactAddress,
+                // Only include salary fields if salary was actually changed
+                BaseSalary = hasSalaryChange ? editData.BaseSalary : null,
+                Allowance = hasSalaryChange ? editData.Allowance : null
+            };
+
+            var success = await EmployeeService.UpdateEmployeeInfoAsync(EmployeeData.UserId, updateData, currentUserId);
 
             if (success)
             {

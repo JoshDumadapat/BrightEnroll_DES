@@ -200,15 +200,15 @@
 
     private List<ReEnrollmentStudent> ReEnrollmentStudents = new()
     {
-        new() { Id = "00001", Name = "Christine Brooks", LRN = "129706182734", Date = "04 Sep 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00002", Name = "Rosie Pearson", LRN = "129706182712", Date = "28 May 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "129706182715", Date = "05 Feb 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00005", Name = "Alan Cain", LRN = "129706182748", Date = "29 Jul 2025", Type = "Eligible", GradeLevel = "G4", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00006", Name = "Alfred Murray", LRN = "129706182719", Date = "15 Aug 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706182733", Date = "21 Dec 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706182732", Date = "30 Apr 2025", Type = "Eligible", GradeLevel = "G5", Documents = "Verified", Status = "Pending" },
-        new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2025", Type = "Eligible", GradeLevel = "G3", Documents = "Verified", Status = "Pending" }
+        new() { Id = "00001", Name = "Christine Brooks", LRN = "129706182734", Date = "04 Sep 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00002", Name = "Rosie Pearson", LRN = "129706182712", Date = "28 May 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00003", Name = "Darrell Caldwell", LRN = "129706182737", Date = "23 Nov 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00004", Name = "Gilbert Johnston", LRN = "129706182715", Date = "05 Feb 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00005", Name = "Alan Cain", LRN = "129706182748", Date = "29 Jul 2025", Type = "Eligible", GradeLevel = "G4", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00006", Name = "Alfred Murray", LRN = "129706182719", Date = "15 Aug 2025", Type = "Eligible", GradeLevel = "Kinder", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00007", Name = "Maggie Sullivan", LRN = "129706182733", Date = "21 Dec 2025", Type = "Eligible", GradeLevel = "G1", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00008", Name = "Rosie Todd", LRN = "129706182732", Date = "30 Apr 2025", Type = "Eligible", GradeLevel = "G5", Documents = "Validated", Status = "Pending" },
+        new() { Id = "00009", Name = "Dollie Hines", LRN = "129706182721", Date = "09 Jan 2025", Type = "Eligible", GradeLevel = "G3", Documents = "Validated", Status = "Pending" }
     };
 
     private List<EnrolledStudent> EnrolledStudents = new();
@@ -540,7 +540,7 @@
                         Grade = student.GradeLevel ?? "N/A",
                         Section = "N/A",
                         Type = student.StudentType ?? string.Empty,
-                        Documents = documentsVerified ? "Verified" : "Not verified",
+                        Documents = documentsVerified ? "Validated" : "Not validated",
                         Status = student.Status ?? string.Empty
                     }
                 };
@@ -716,7 +716,7 @@
                 await _context.Entry(student).Collection(s => s.SectionEnrollments).LoadAsync();
                 
                 // Determine school year and grade level for enrollment
-                string schoolYearForEnrollment = CurrentSchoolYear; // Use active school year
+                string schoolYearForEnrollment = CurrentSchoolYear; // Use active school year by default
                 string gradeToEnroll = student.GradeLevel ?? string.Empty;
                 
                 // If student has previous enrollments, calculate next grade level
@@ -1401,7 +1401,7 @@
                                student.Requirements.All(r => r.IsVerified || 
                                    (!string.IsNullOrWhiteSpace(r.Status) && 
                                     r.Status.Equals("verified", StringComparison.OrdinalIgnoreCase))) 
-                               ? "Verified" : "Not verified",
+                               ? "Validated" : "Not validated",
                     Status = isEligible ? "Eligible" : $"Not Eligible ({eligibilityReason})",
                     TotalFee = paymentInfo?.TotalFee ?? 0,
                     AmountPaid = paymentInfo?.AmountPaid ?? 0,

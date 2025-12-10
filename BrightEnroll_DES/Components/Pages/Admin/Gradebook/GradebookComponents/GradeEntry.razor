@@ -207,6 +207,7 @@
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
     private bool isSchoolYearOpen = true;
+    private bool _hasInitialized = false;
 
     private class GradeStudent
     {
@@ -247,6 +248,28 @@
 
         teacherId = currentUser.user_ID;
         await InitializeDataAsync();
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Refresh data when component parameters change (e.g., when switching tabs)
+        if (_hasInitialized)
+        {
+            // Small delay to ensure DOM is ready
+            await Task.Delay(50);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Ensure JavaScript is ready after first render
+            await Task.Delay(100);
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task InitializeDataAsync()
@@ -288,6 +311,14 @@
             {
                 isSchoolYearOpen = await SchoolYearService.IsSchoolYearOpenAsync(selectedSchoolYear);
             }
+            else
+            {
+                // Default to true if no school year is selected
+                isSchoolYearOpen = true;
+            }
+
+            // Ensure UI updates after status check
+            StateHasChanged();
 
             await LoadAssignedSectionsAsync();
         }
@@ -337,6 +368,9 @@
         {
             isSchoolYearOpen = true;
         }
+        
+        // Ensure UI updates after status check
+        StateHasChanged();
         
         await LoadAssignedSectionsAsync();
     }

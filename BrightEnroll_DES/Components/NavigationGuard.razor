@@ -29,6 +29,14 @@
         {
             var userRole = AuthorizationService.GetUserRole();
             var redirectPath = GetRedirectPathForRole(userRole);
+            
+            // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+            if (!string.IsNullOrWhiteSpace(userRole) && 
+                string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
+            {
+                redirectPath = "/teacher-dashboard";
+            }
+            
             Navigation.NavigateTo(redirectPath, forceLoad: true);
         }
     }
@@ -47,7 +55,7 @@
             "cashier" => "/finance",
             "registrar" => "/enrollment",
             "hr" => "/human-resource",
-            "teacher" => "/gradebook",
+            "teacher" => "/teacher-dashboard", // Teacher goes to Teacher Dashboard first
             "admin" => "/dashboard",
             "superadmin" => "/dashboard",
             _ => "/dashboard" // Default for other roles

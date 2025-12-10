@@ -14,6 +14,7 @@
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Services.Business.HR.SalaryChangeRequestService SalaryChangeRequestService
 @inject ILogger<Payroll> Logger
+@inject NavigationManager Navigation
 
 <PageTitle>Payroll</PageTitle>
 
@@ -542,6 +543,52 @@
     {
         await LoadPayrollData();
         await LoadPendingApprovalsCount();
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Handle navigation changes (e.g., when coming from notification)
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            var validTabs = new[] { "SalaryConfig", "AddRole", "GeneratePayslip", "Records", "Approvals", "Reports" };
+            if (validTabs.Contains(tabValue, StringComparer.OrdinalIgnoreCase))
+            {
+                if (activeTab != tabValue)
+                {
+                    activeTab = tabValue;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+    
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        
+        if (string.IsNullOrWhiteSpace(queryString))
+            return result;
+        
+        // Remove leading '?' if present
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                result[key] = value;
+            }
+        }
+        
+        return result;
     }
 
 

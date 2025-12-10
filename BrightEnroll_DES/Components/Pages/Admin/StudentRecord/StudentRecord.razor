@@ -238,11 +238,25 @@
 
     private string CurrentSchoolYear { get; set; } = "";
 
+    private bool _hasInitialized = false;
+
     protected override async Task OnInitializedAsync()
     {
         // Load current school year
         CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
         await LoadStudentsAsync();
+        _hasInitialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Reload data when parameters change (e.g., when navigating back to this page)
+        if (_hasInitialized && !ShowDetailView)
+        {
+            // Reload students list if not in detail view
+            await LoadStudentsAsync();
+            StateHasChanged();
+        }
     }
 
     private async Task LoadStudentsAsync()
@@ -413,11 +427,17 @@
             .ToList();
 
         ShowDetailView = true;
+        StateHasChanged();
     }
 
     private void HandleBackClick()
     {
         ShowDetailView = false;
+        // Clear selected data when going back
+        SelectedStudentData = new StudentDetailData();
+        SelectedAcademicRecords = new List<AcademicRecordData>();
+        SelectedEnrollmentRecords = new List<EnrollmentStatusData>();
+        StateHasChanged();
     }
 
     /// <summary>

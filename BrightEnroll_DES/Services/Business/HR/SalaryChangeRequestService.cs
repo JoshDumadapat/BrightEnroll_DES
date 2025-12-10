@@ -2,6 +2,7 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Business.Academic;
 using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Business.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -12,17 +13,20 @@ public class SalaryChangeRequestService
     private readonly AppDbContext _context;
     private readonly SchoolYearService _schoolYearService;
     private readonly AuditLogService _auditLogService;
+    private readonly NotificationService _notificationService;
     private readonly ILogger<SalaryChangeRequestService>? _logger;
 
     public SalaryChangeRequestService(
         AppDbContext context,
         SchoolYearService schoolYearService,
         AuditLogService auditLogService,
+        NotificationService notificationService,
         ILogger<SalaryChangeRequestService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+        _notificationService = notificationService ?? throw new ArgumentNullException(nameof(notificationService));
         _logger = logger;
     }
 
@@ -43,6 +47,9 @@ public class SalaryChangeRequestService
             _logger?.LogInformation("DEBUG: Creating salary change request - UserId={UserId}, CurrentBase={CurrentBase}, RequestedBase={RequestedBase}", 
                 userId, currentBaseSalary, requestedBaseSalary);
 
+            // IMPORTANT: Create a NEW salary change request - each change creates a separate log entry
+            // This ensures a complete audit trail - never updates existing records
+            // Even if the same employee has multiple salary changes, each creates a new record
             var request = new SalaryChangeRequest
             {
                 UserId = userId,
@@ -207,14 +214,36 @@ public class SalaryChangeRequestService
                 .OrderByDescending(s => s.SalaryId)
                 .FirstOrDefaultAsync();
 
+            // Check if effective date is in the future
+            bool isFutureEffectiveDate = finalEffectiveDate.Date > DateTime.Today;
+
             if (existingSalary != null)
             {
-                // Update existing salary record (activate it if it was pending)
-                existingSalary.BaseSalary = request.RequestedBaseSalary;
-                existingSalary.Allowance = request.RequestedAllowance;
-                existingSalary.DateEffective = finalEffectiveDate.Date; // Use the effective date from approval
-                existingSalary.IsActive = true; // Activate the salary
-                existingSalary.SchoolYear = request.SchoolYear;
+                if (isFutureEffectiveDate)
+                {
+                    // If effective date is in the future, create a NEW salary record
+                    // Keep the old salary record active so it can be used for periods before the effective date
+                    var newSalary = new SalaryInfo
+                    {
+                        UserId = request.UserId,
+                        BaseSalary = request.RequestedBaseSalary,
+                        Allowance = request.RequestedAllowance,
+                        DateEffective = finalEffectiveDate.Date,
+                        IsActive = true,
+                        SchoolYear = request.SchoolYear
+                    };
+                    _context.SalaryInfos.Add(newSalary);
+                    // Keep existing salary record as-is (don't update or deactivate it)
+                }
+                else
+                {
+                    // If effective date is today or in the past, update the existing salary record
+                    existingSalary.BaseSalary = request.RequestedBaseSalary;
+                    existingSalary.Allowance = request.RequestedAllowance;
+                    existingSalary.DateEffective = finalEffectiveDate.Date;
+                    existingSalary.IsActive = true;
+                    existingSalary.SchoolYear = request.SchoolYear;
+                }
             }
             else
             {
@@ -232,6 +261,36 @@ public class SalaryChangeRequestService
             }
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
+
+            // Get employee and approver info for notification
+            var employee = await _context.Users.FindAsync(request.UserId);
+            var approver = await _context.Users.FindAsync(approvedBy);
+            var employeeName = employee != null ? $"{employee.FirstName} {employee.LastName}" : "Unknown";
+            var approverName = approver != null ? $"{approver.FirstName} {approver.LastName}" : "Unknown";
+
+            // Create notification for the HR user who requested the change
+            await _notificationService.CreateNotificationAsync(
+                notificationType: "SalaryChange",
+                title: "Salary Change Request Approved",
+                message: $"Salary change request for {employeeName} has been approved. New salary: ₱{request.RequestedBaseSalary:N2} + ₱{request.RequestedAllowance:N2}. Effective Date: {finalEffectiveDate:yyyy-MM-dd}",
+                referenceType: "SalaryChangeRequest",
+                referenceId: requestId,
+                actionUrl: "/human-resource?tab=SalaryChangeLog",
+                priority: "Normal",
+                createdBy: approvedBy
+            );
+
+            // Create audit log
+            await _auditLogService.CreateLogAsync(
+                action: "Salary Change Request Approved",
+                module: "Payroll",
+                description: $"Approved salary change for {employeeName}. Previous: ₱{request.CurrentBaseSalary:N2} + ₱{request.CurrentAllowance:N2}, New: ₱{request.RequestedBaseSalary:N2} + ₱{request.RequestedAllowance:N2}. Effective Date: {finalEffectiveDate:yyyy-MM-dd}. School Year: {request.SchoolYear}. Request ID: {requestId}",
+                userName: approverName,
+                userRole: approver?.UserRole ?? "Unknown",
+                userId: approvedBy,
+                status: "Success",
+                severity: "Medium"
+            );
 
             _logger?.LogInformation("Salary change request approved: RequestId={RequestId}, UserId={UserId}",
                 requestId, request.UserId);
@@ -269,6 +328,18 @@ public class SalaryChangeRequestService
         request.RejectionReason = rejectionReason;
 
         await _context.SaveChangesAsync();
+
+        // Create notification for the HR user who requested the change
+        await _notificationService.CreateNotificationAsync(
+            notificationType: "SalaryChange",
+            title: "Salary Change Request Rejected",
+            message: $"Salary change request for {employeeName} has been rejected. Reason: {rejectionReason}",
+            referenceType: "SalaryChangeRequest",
+            referenceId: requestId,
+            actionUrl: "/human-resource?tab=SalaryChangeLog",
+            priority: "Normal",
+            createdBy: rejectedBy
+        );
 
         // Create audit log
         await _auditLogService.CreateLogAsync(
@@ -535,7 +606,13 @@ public class SalaryChangeRequestService
             });
         }
 
-            var result = logEntries.OrderByDescending(e => e.EffectiveDate).ThenByDescending(e => e.RequestedAt).ToList();
+            // Order by most recent first - prioritize request/approval date to show latest changes at top
+            // This ensures the latest salary changes appear at the top of the log
+            var result = logEntries
+                .OrderByDescending(e => e.RequestedAt) // Primary: Most recent requests first
+                .ThenByDescending(e => e.ApprovalDate ?? DateTime.MinValue) // Secondary: Approved changes after pending
+                .ThenByDescending(e => e.EffectiveDate) // Tertiary: Effective date for tie-breaking
+                .ToList();
             _logger?.LogInformation("DEBUG: GetSalaryChangeLogAsync - Processing completed, returning {Count} log entries", result.Count);
             return result;
         }

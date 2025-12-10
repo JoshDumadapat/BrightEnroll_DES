@@ -1113,6 +1113,7 @@ public class GradeService
             };
 
             _context.GradeHistories.Add(history);
+            await _context.SaveChangesAsync();
         }
         catch (Exception ex)
         {
@@ -1151,11 +1152,11 @@ public class GradeService
         return (q1.Value + q2.Value + q3.Value + q4.Value) / 4.0m;
     }
 
-    private async Task<string> GetCurrentSchoolYearAsync()
+    private Task<string> GetCurrentSchoolYearAsync()
     {
         var currentYear = DateTime.Now.Year;
         var nextYear = currentYear + 1;
-        return $"{currentYear}-{nextYear}";
+        return Task.FromResult($"{currentYear}-{nextYear}");
     }
 
     #endregion
