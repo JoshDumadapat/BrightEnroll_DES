@@ -276,6 +276,16 @@
                 }
             }
             
+            // Reload sections for the current school year
+            await LoadAssignedSectionsAsync();
+            
+            // If a section is selected, reload subjects and students
+            if (selectedSectionId > 0)
+            {
+                await LoadAssignedSubjectsAsync();
+                await LoadStudentsAsync();
+            }
+            
             // Small delay to ensure DOM is ready
             await Task.Delay(50);
             await InvokeAsync(StateHasChanged);
@@ -671,6 +681,10 @@
             if (result)
             {
                 ShowToast($"Successfully saved grades for {students.Count} record(s).", ToastType.Success);
+                
+                // Small delay to ensure database changes are committed
+                await Task.Delay(100);
+                
                 // Reload to refresh general averages and remarks
                 await LoadStudentsAsync();
             }

@@ -220,7 +220,19 @@ public class SalaryChangeRequestService
             var finalEffectiveDate = effectiveDate ?? DateTime.Today;
             request.EffectiveDate = finalEffectiveDate.Date;
 
-            // Find existing salary record (could be inactive if from initial registration)
+            // CRITICAL FIX: Deactivate ALL other active salary records for this user FIRST
+            // This prevents duplicate employee records in the view when multiple active salary records exist
+            var allActiveSalaries = await _context.SalaryInfos
+                .Where(s => s.UserId == request.UserId && s.IsActive)
+                .ToListAsync();
+            
+            // Deactivate all active salary records to prevent duplicates
+            foreach (var salary in allActiveSalaries)
+            {
+                salary.IsActive = false;
+            }
+
+            // Find the most recent salary record (now inactive) to update, or create new one
             var existingSalary = await _context.SalaryInfos
                 .Where(s => s.UserId == request.UserId)
                 .OrderByDescending(s => s.SalaryId)
@@ -229,43 +241,24 @@ public class SalaryChangeRequestService
             // Check if effective date is in the future
             bool isFutureEffectiveDate = finalEffectiveDate.Date > DateTime.Today;
 
-            if (existingSalary != null)
+            if (existingSalary != null && !isFutureEffectiveDate)
             {
-                if (isFutureEffectiveDate)
-                {
-                    // If effective date is in the future, create a NEW salary record
-                    // Keep the old salary record active so it can be used for periods before the effective date
-                    var newSalary = new SalaryInfo
-                    {
-                        UserId = request.UserId,
-                        BaseSalary = request.RequestedBaseSalary,
-                        Allowance = request.RequestedAllowance,
-                        DateEffective = finalEffectiveDate.Date,
-                        IsActive = true,
-                        SchoolYear = request.SchoolYear
-                    };
-                    _context.SalaryInfos.Add(newSalary);
-                    // Keep existing salary record as-is (don't update or deactivate it)
-                }
-                else
-                {
-                    // If effective date is today or in the past, update the existing salary record
-                    existingSalary.BaseSalary = request.RequestedBaseSalary;
-                    existingSalary.Allowance = request.RequestedAllowance;
-                    existingSalary.DateEffective = finalEffectiveDate.Date;
-                    existingSalary.IsActive = true;
-                    existingSalary.SchoolYear = request.SchoolYear;
-                }
+                // If effective date is today or in the past, update the existing salary record
+                existingSalary.BaseSalary = request.RequestedBaseSalary;
+                existingSalary.Allowance = request.RequestedAllowance;
+                existingSalary.DateEffective = finalEffectiveDate.Date;
+                existingSalary.IsActive = true; // Reactivate this one
+                existingSalary.SchoolYear = request.SchoolYear;
             }
             else
             {
-                // Create new salary record with approved amounts (shouldn't happen, but safety check)
+                // Create new salary record (either no existing record, or future effective date)
                 var newSalary = new SalaryInfo
                 {
                     UserId = request.UserId,
                     BaseSalary = request.RequestedBaseSalary,
                     Allowance = request.RequestedAllowance,
-                    DateEffective = finalEffectiveDate.Date, // Use the effective date from approval
+                    DateEffective = finalEffectiveDate.Date,
                     IsActive = true,
                     SchoolYear = request.SchoolYear
                 };

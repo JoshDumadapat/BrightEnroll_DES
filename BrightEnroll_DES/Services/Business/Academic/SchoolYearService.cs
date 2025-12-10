@@ -294,47 +294,6 @@ public class SchoolYearService
         }
     }
 
-    // Legacy synchronous methods for backward compatibility
-    // NOTE: These methods should be avoided in Blazor - use async versions instead
-    // They use Task.Run to minimize deadlock risk, but async/await is preferred
-    public List<string> GetAvailableSchoolYears()
-    {
-        try
-        {
-            // Use Task.Run to avoid deadlock in Blazor context
-            return Task.Run(async () => await GetAvailableSchoolYearsAsync()).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            return new List<string> { GetCurrentSchoolYear() };
-        }
-    }
-
-    public bool AddSchoolYear(string schoolYear)
-    {
-        try
-        {
-            // Use Task.Run to avoid deadlock in Blazor context
-            return Task.Run(async () => await AddSchoolYearAsync(schoolYear)).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    public bool RemoveSchoolYear(string schoolYear)
-    {
-        try
-        {
-            // Use Task.Run to avoid deadlock in Blazor context
-            return Task.Run(async () => await RemoveSchoolYearAsync(schoolYear)).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            return false;
-        }
-    }
 
     /// <summary>
     /// Removes finished school years (those that have ended)
@@ -390,20 +349,4 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Legacy synchronous method for backward compatibility
-    /// NOTE: Uses Task.Run to avoid deadlocks in Blazor
-    /// </summary>
-    public void RemoveFinishedSchoolYears()
-    {
-        try
-        {
-            // Use Task.Run to avoid deadlock in Blazor context
-            Task.Run(async () => await RemoveFinishedSchoolYearsAsync()).GetAwaiter().GetResult();
-        }
-        catch
-        {
-            // Silently fail for backward compatibility
-        }
-    }
 }

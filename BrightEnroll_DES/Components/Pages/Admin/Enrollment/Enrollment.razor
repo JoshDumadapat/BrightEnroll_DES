@@ -1073,11 +1073,20 @@
             
             ShowEditModal = false;
 
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
+            
+            // Small delay to ensure database changes are committed
+            await Task.Delay(100);
+
             // Refresh tables so changes reflect in UI
             await LoadNewApplicantsAsync();
             await LoadForEnrollmentStudentsAsync();
             await LoadReEnrollmentStudentsAsync();
             await LoadEnrolledStudentsAsync();
+            
+            // Force UI update
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -1090,6 +1099,9 @@
     {
         try
         {
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
+            
             // STRICT FILTERING: Only get students with enrollment records for the ACTIVE school year
             // This ensures closed school years don't show students from other years
             
@@ -1258,6 +1270,9 @@
     {
         try
         {
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
+            
             // NEW DESIGN: Show students from PREVIOUS school years (old students who want to re-enroll)
             // The re-enrollment tab shows students from any previous school year, not just the immediate previous
             
@@ -1486,9 +1501,18 @@
 
     private async Task HandleReEnrollmentRefreshAll()
     {
+        // Clear EF Core change tracker to ensure fresh data is loaded
+        _context.ChangeTracker.Clear();
+        
+        // Small delay to ensure database changes are committed
+        await Task.Delay(100);
+        
         // Refresh all lists after marking students eligible
         await LoadReEnrollmentStudentsAsync();
         await LoadEnrolledStudentsAsync();
+        
+        // Force UI update
+        StateHasChanged();
     }
 
     private async Task ShowEnrollmentHistoryAsync(string studentId)

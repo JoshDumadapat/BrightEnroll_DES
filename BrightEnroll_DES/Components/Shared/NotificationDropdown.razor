@@ -2,8 +2,10 @@
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services.Business.Notifications
 @using System.Linq
+@using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject NotificationService NotificationService
+@inject IServiceScopeFactory ServiceScopeFactory
 @inject NavigationManager Navigation
 
 <div class="relative">
@@ -153,7 +155,8 @@
                     {
                         if (!_isDisposed && isOpen && hasDataLoaded && !isLoading && !_isLoadingInProgress)
                         {
-                            await LoadNotificationsInternal(silent: true);
+                            // Use IServiceScopeFactory to create new scope for background operation
+                            await LoadNotificationsInternalWithScope(silent: true);
                         }
                     });
                 }
@@ -228,6 +231,12 @@
 
     private async Task LoadNotificationsInternal(bool silent = false)
     {
+        // Use injected service for UI thread operations
+        await LoadNotificationsInternalWithScope(silent, useInjectedService: true);
+    }
+
+    private async Task LoadNotificationsInternalWithScope(bool silent = false, bool useInjectedService = false)
+    {
         // Prevent concurrent loads
         if (_isDisposed || _isLoadingInProgress)
             return;
@@ -252,8 +261,20 @@
                 await InvokeAsync(StateHasChanged);
             }
 
-            // Load notifications - optimized query
-            var allNotifications = await NotificationService.GetAllNotificationsAsync(limit: 5);
+            // Load notifications - use new scope for background operations, injected service for UI thread
+            List<Notification> allNotifications;
+            if (useInjectedService)
+            {
+                // UI thread - use injected service (safe)
+                allNotifications = await NotificationService.GetAllNotificationsAsync(limit: 5);
+            }
+            else
+            {
+                // Background thread - create new scope to prevent concurrency errors
+                using var scope = ServiceScopeFactory.CreateScope();
+                var notificationService = scope.ServiceProvider.GetRequiredService<NotificationService>();
+                allNotifications = await notificationService.GetAllNotificationsAsync(limit: 5);
+            }
             
             if (!_isDisposed)
             {

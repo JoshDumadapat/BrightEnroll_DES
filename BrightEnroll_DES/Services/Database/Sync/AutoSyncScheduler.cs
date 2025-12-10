@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using BrightEnroll_DES.Services.Infrastructure;
 
 namespace BrightEnroll_DES.Services.Database.Sync;
@@ -11,7 +12,7 @@ namespace BrightEnroll_DES.Services.Database.Sync;
 /// </summary>
 public class AutoSyncScheduler : BackgroundService
 {
-    private readonly IDatabaseSyncService _syncService;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IConnectivityService _connectivityService;
     private readonly ILogger<AutoSyncScheduler> _logger;
     private readonly IConfiguration _configuration;
@@ -21,13 +22,13 @@ public class AutoSyncScheduler : BackgroundService
     private readonly object _syncLock = new object();
 
     public AutoSyncScheduler(
-        IDatabaseSyncService syncService,
+        IServiceScopeFactory serviceScopeFactory,
         IConnectivityService connectivityService,
         ISyncStatusService syncStatusService,
         ILogger<AutoSyncScheduler> logger,
         IConfiguration configuration)
     {
-        _syncService = syncService;
+        _serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
         _connectivityService = connectivityService;
         _syncStatusService = syncStatusService;
         _logger = logger;
@@ -113,8 +114,13 @@ public class AutoSyncScheduler : BackgroundService
             _logger.LogInformation("Starting automatic sync");
             _syncStatusService.SetSyncing(true);
 
+            // Create new scope for sync operation to prevent concurrency errors
+            // BackgroundService is Singleton, so we must create new scope for each operation
+            using var scope = _serviceScopeFactory.CreateScope();
+            var syncService = scope.ServiceProvider.GetRequiredService<IDatabaseSyncService>();
+
             // Perform incremental sync (push local changes, then pull cloud changes)
-            var result = await _syncService.FullSyncAsync();
+            var result = await syncService.FullSyncAsync();
 
             if (result.Success)
             {

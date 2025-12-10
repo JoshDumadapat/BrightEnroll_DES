@@ -955,46 +955,80 @@
         {
             await StudentService.UpdateStudentAsync(EditModel);
             
-            // Update StudentData from EditModel
-            StudentData.FirstName = EditModel.FirstName;
-            StudentData.MiddleName = EditModel.MiddleName;
-            StudentData.LastName = EditModel.LastName;
-            StudentData.Suffix = EditModel.Suffix;
-            StudentData.BirthDate = EditModel.BirthDate;
-            StudentData.PlaceOfBirth = EditModel.PlaceOfBirth;
-            StudentData.Sex = EditModel.Sex;
-            StudentData.MotherTongue = EditModel.MotherTongue;
-            StudentData.IsIPCommunity = EditModel.IsIPCommunity;
-            StudentData.IPCommunitySpecify = EditModel.IPCommunitySpecify;
-            StudentData.Is4PsBeneficiary = EditModel.Is4PsBeneficiary;
-            StudentData.FourPsHouseholdId = EditModel.FourPsHouseholdId;
-            StudentData.CurrentHouseNo = EditModel.CurrentHouseNo;
-            StudentData.CurrentStreetName = EditModel.CurrentStreetName;
-            StudentData.CurrentBarangay = EditModel.CurrentBarangay;
-            StudentData.CurrentCity = EditModel.CurrentCity;
-            StudentData.CurrentProvince = EditModel.CurrentProvince;
-            StudentData.CurrentCountry = EditModel.CurrentCountry;
-            StudentData.CurrentZipCode = EditModel.CurrentZipCode;
-            StudentData.SameAsCurrentAddress = EditModel.SameAsCurrentAddress;
-            StudentData.PermanentHouseNo = EditModel.PermanentHouseNo;
-            StudentData.PermanentStreetName = EditModel.PermanentStreetName;
-            StudentData.PermanentBarangay = EditModel.PermanentBarangay;
-            StudentData.PermanentCity = EditModel.PermanentCity;
-            StudentData.PermanentProvince = EditModel.PermanentProvince;
-            StudentData.PermanentCountry = EditModel.PermanentCountry;
-            StudentData.PermanentZipCode = EditModel.PermanentZipCode;
-            StudentData.GuardianFirstName = EditModel.GuardianFirstName;
-            StudentData.GuardianMiddleName = EditModel.GuardianMiddleName;
-            StudentData.GuardianLastName = EditModel.GuardianLastName;
-            StudentData.GuardianSuffix = EditModel.GuardianSuffix;
-            StudentData.GuardianContactNumber = EditModel.GuardianContactNumber;
-            StudentData.GuardianRelationship = EditModel.GuardianRelationship;
-            StudentData.FullName = $"{EditModel.FirstName} {EditModel.MiddleName} {EditModel.LastName}".Replace("  ", " ").Trim();
+            // Small delay to ensure database changes are committed
+            await Task.Delay(100);
+            
+            // Reload student data from database to ensure we have the latest information
+            // This ensures we get any computed values or related data that may have changed
+            var updatedEntity = await StudentService.GetStudentByIdAsync(EditModel.StudentId);
+            
+            if (updatedEntity != null)
+            {
+                // Rebuild StudentData from the reloaded entity
+                var fullName = $"{updatedEntity.FirstName} {updatedEntity.MiddleName} {updatedEntity.LastName}"
+                    .Replace("  ", " ")
+                    .Trim();
+                
+                var hasRealLrn = !string.IsNullOrWhiteSpace(updatedEntity.Lrn);
+                var rawLrn = updatedEntity.Lrn ?? string.Empty;
+                
+                var latestEnrollment = updatedEntity.SectionEnrollments
+                    .OrderByDescending(e => e.CreatedAt)
+                    .FirstOrDefault();
+                
+                var sectionName = latestEnrollment?.Section?.SectionName ?? string.Empty;
+                var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? updatedEntity.GradeLevel ?? string.Empty;
+                var schoolYear = latestEnrollment?.SchoolYear ?? updatedEntity.SchoolYr ?? string.Empty;
+                
+                // Update StudentData with fresh data from database
+                StudentData.FirstName = updatedEntity.FirstName;
+                StudentData.MiddleName = updatedEntity.MiddleName ?? string.Empty;
+                StudentData.LastName = updatedEntity.LastName;
+                StudentData.Suffix = updatedEntity.Suffix ?? string.Empty;
+                StudentData.BirthDate = updatedEntity.Birthdate;
+                StudentData.PlaceOfBirth = updatedEntity.PlaceOfBirth ?? string.Empty;
+                StudentData.Sex = updatedEntity.Sex;
+                StudentData.MotherTongue = updatedEntity.MotherTongue ?? string.Empty;
+                StudentData.IsIPCommunity = updatedEntity.IpComm ? "Yes" : "No";
+                StudentData.IPCommunitySpecify = updatedEntity.IpSpecify ?? string.Empty;
+                StudentData.Is4PsBeneficiary = updatedEntity.FourPs ? "Yes" : "No";
+                StudentData.FourPsHouseholdId = updatedEntity.FourPsHseId ?? string.Empty;
+                StudentData.CurrentHouseNo = updatedEntity.HseNo ?? string.Empty;
+                StudentData.CurrentStreetName = updatedEntity.Street ?? string.Empty;
+                StudentData.CurrentBarangay = updatedEntity.Brngy ?? string.Empty;
+                StudentData.CurrentCity = updatedEntity.City ?? string.Empty;
+                StudentData.CurrentProvince = updatedEntity.Province ?? string.Empty;
+                StudentData.CurrentCountry = updatedEntity.Country ?? string.Empty;
+                StudentData.CurrentZipCode = updatedEntity.ZipCode ?? string.Empty;
+                StudentData.PermanentHouseNo = updatedEntity.PhseNo ?? string.Empty;
+                StudentData.PermanentStreetName = updatedEntity.Pstreet ?? string.Empty;
+                StudentData.PermanentBarangay = updatedEntity.Pbrngy ?? string.Empty;
+                StudentData.PermanentCity = updatedEntity.Pcity ?? string.Empty;
+                StudentData.PermanentProvince = updatedEntity.Pprovince ?? string.Empty;
+                StudentData.PermanentCountry = updatedEntity.Pcountry ?? string.Empty;
+                StudentData.PermanentZipCode = updatedEntity.PzipCode ?? string.Empty;
+                StudentData.GuardianFirstName = updatedEntity.Guardian?.FirstName ?? string.Empty;
+                StudentData.GuardianMiddleName = updatedEntity.Guardian?.MiddleName ?? string.Empty;
+                StudentData.GuardianLastName = updatedEntity.Guardian?.LastName ?? string.Empty;
+                StudentData.GuardianSuffix = updatedEntity.Guardian?.Suffix ?? string.Empty;
+                StudentData.GuardianContactNumber = updatedEntity.Guardian?.ContactNum ?? string.Empty;
+                StudentData.GuardianRelationship = updatedEntity.Guardian?.Relationship ?? string.Empty;
+                StudentData.FullName = fullName;
+                StudentData.GradeLevel = gradeLevelName;
+                StudentData.Section = sectionName;
+                StudentData.SchoolYear = schoolYear;
+                StudentData.Status = updatedEntity.Status;
+                StudentData.LRN = hasRealLrn ? rawLrn : "N/A";
+                StudentData.HasLRN = hasRealLrn ? "Yes" : "No";
+                StudentData.LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A";
+                StudentData.StudentType = updatedEntity.StudentType;
+                StudentData.GradeToEnroll = gradeLevelName;
+            }
 
             SuccessMessage = "Student information updated successfully!";
             IsEditing = false;
 
-            // Notify parent component
+            // Notify parent component with updated data
             await OnStudentUpdated.InvokeAsync(StudentData);
         }
         catch (Exception ex)

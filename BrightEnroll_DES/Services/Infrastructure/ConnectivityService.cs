@@ -1,6 +1,7 @@
 using Microsoft.JSInterop;
 using System.Runtime.InteropServices;
 using BrightEnroll_DES.Services.Database.Sync;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace BrightEnroll_DES.Services.Infrastructure;
 
@@ -12,8 +13,8 @@ public interface IConnectivityService
     Task<bool> CheckConnectivityAsync();
     Task<bool> CheckCloudConnectivityAsync();
     void SetJSRuntime(Microsoft.JSInterop.IJSRuntime jsRuntime);
-    void StartMonitoring();
-    void StopMonitoring();
+    Task StartMonitoringAsync();
+    Task StopMonitoringAsync();
 }
 
 public class ConnectivityService : IConnectivityService, IDisposable
@@ -25,6 +26,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
     private readonly object _lockObject = new object();
     private ISyncStatusService? _syncStatusService;
     private IDatabaseSyncService? _syncService;
+    private IServiceScopeFactory? _serviceScopeFactory;
 
     public bool IsConnected
     {
@@ -57,6 +59,12 @@ public class ConnectivityService : IConnectivityService, IDisposable
     {
         _syncStatusService = syncStatusService;
         _syncService = syncService;
+    }
+
+    // Set service scope factory for background operations
+    public void SetServiceScopeFactory(IServiceScopeFactory? serviceScopeFactory)
+    {
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     // Set JS Runtime (called from components that have access to it)
@@ -112,7 +120,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
         }
     }
 
-    public async void StartMonitoring()
+    public async Task StartMonitoringAsync()
     {
         if (_isMonitoring) return;
         
@@ -151,7 +159,13 @@ public class ConnectivityService : IConnectivityService, IDisposable
         }
     }
 
-    public async void StopMonitoring()
+    // Legacy method for backward compatibility - calls async version
+    public void StartMonitoring()
+    {
+        _ = StartMonitoringAsync();
+    }
+
+    public async Task StopMonitoringAsync()
     {
         if (!_isMonitoring) return;
 
@@ -179,33 +193,51 @@ public class ConnectivityService : IConnectivityService, IDisposable
         }
     }
 
+    // Legacy method for backward compatibility - calls async version
+    public void StopMonitoring()
+    {
+        _ = StopMonitoringAsync();
+    }
+
     [JSInvokable]
     public async void OnConnectivityChanged(bool isOnline)
     {
         // This method is called from JavaScript when connectivity changes
-        // Verify with actual cloud connection
-        var cloudOnline = await CheckCloudConnectivityAsync();
-        var finalStatus = isOnline && cloudOnline;
-        
-        IsConnected = finalStatus;
-        _syncStatusService?.SetOnline(finalStatus);
-
-        // If we just came back online, trigger a sync
-        if (finalStatus && _syncService != null)
+        // Note: Must remain async void for JSInvokable, but we handle it carefully
+        try
         {
-            try
+            // Verify with actual cloud connection
+            var cloudOnline = await CheckCloudConnectivityAsync();
+            var finalStatus = isOnline && cloudOnline;
+            
+            IsConnected = finalStatus;
+            _syncStatusService?.SetOnline(finalStatus);
+
+            // If we just came back online, trigger a sync using IServiceScopeFactory
+            if (finalStatus && _serviceScopeFactory != null)
             {
-                // Trigger sync in background (don't await)
+                // Trigger sync in background with new scope to prevent concurrency errors
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(2000); // Wait 2 seconds for connection to stabilize
-                    await _syncService.FullSyncAsync();
+                    try
+                    {
+                        await Task.Delay(2000); // Wait 2 seconds for connection to stabilize
+                        
+                        // Create new scope for sync operation
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var syncService = scope.ServiceProvider.GetRequiredService<IDatabaseSyncService>();
+                        await syncService.FullSyncAsync();
+                    }
+                    catch
+                    {
+                        // Ignore errors in background sync
+                    }
                 });
             }
-            catch
-            {
-                // Ignore errors in background sync
-            }
+        }
+        catch
+        {
+            // Ignore errors - don't break connectivity monitoring
         }
     }
 

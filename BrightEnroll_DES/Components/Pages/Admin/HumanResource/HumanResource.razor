@@ -522,9 +522,14 @@
             StateHasChanged();
             
             // Add a small delay on retry to allow DbContext to be available
+            // Also add small delay on first call to ensure any pending database changes are committed
             if (retryCount > 0)
             {
                 await Task.Delay(retryDelayMs * retryCount);
+            }
+            else
+            {
+                await Task.Delay(50);
             }
             
             Employees = await EmployeeService.GetAllEmployeesAsync();
@@ -724,6 +729,9 @@
                     // Update local state
                     SelectedEmployee.Status = "Inactive";
                     
+                    // Small delay to ensure database changes are committed
+                    await Task.Delay(100);
+                    
                     // Reload employees to get fresh data
                     await LoadEmployeesAsync();
                     
@@ -778,6 +786,9 @@
 
             if (success)
             {
+                // Small delay to ensure database changes are committed
+                await Task.Delay(100);
+                
                 // Reload employees to get fresh data
                 await LoadEmployeesAsync();
                 

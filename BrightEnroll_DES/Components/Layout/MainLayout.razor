@@ -10,6 +10,7 @@
 @inject BrightEnroll_DES.Services.Database.Sync.ISyncStatusService SyncStatusService
 @inject BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService ApprovalNotificationService
 @inject BrightEnroll_DES.Services.Business.Notifications.NotificationService NotificationService
+@inject IServiceScopeFactory ServiceScopeFactory
 @inject IJSRuntime JSRuntime
 
 <!-- Loading Screen -->
@@ -205,8 +206,24 @@
                     {
                         if (!_isDisposed)
                         {
-                            await LoadNotificationCount();
-                            StateHasChanged();
+                            // Use IServiceScopeFactory to create new scope for background operation
+                            // This prevents concurrency errors by using a separate DbContext instance
+                            using var scope = ServiceScopeFactory.CreateScope();
+                            var notificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
+                            
+                            try
+                            {
+                                notificationCount = await notificationService.GetUnreadCountAsync();
+                                StateHasChanged();
+                            }
+                            catch (Exception)
+                            {
+                                // Silently fail - don't break the layout
+                                if (!_isDisposed)
+                                {
+                                    notificationCount = 0;
+                                }
+                            }
                         }
                     });
                 }
@@ -219,14 +236,15 @@
         // Set JS Runtime and ensure connectivity monitoring is started
         ConnectivityService.SetJSRuntime(JSRuntime);
         
-        // Connect ConnectivityService with SyncStatusService
+        // Connect ConnectivityService with SyncStatusService and ServiceScopeFactory
         var connectivityService = ConnectivityService as BrightEnroll_DES.Services.Infrastructure.ConnectivityService;
         if (connectivityService != null)
         {
             connectivityService.SetSyncServices(SyncStatusService, DatabaseSyncService);
+            connectivityService.SetServiceScopeFactory(ServiceScopeFactory);
         }
         
-        ConnectivityService.StartMonitoring();
+        await ConnectivityService.StartMonitoringAsync();
     }
 
     private async Task LoadNotificationCount()

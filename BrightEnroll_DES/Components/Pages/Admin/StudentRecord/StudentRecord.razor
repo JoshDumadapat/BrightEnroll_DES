@@ -274,6 +274,9 @@
     {
         try
         {
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(50);
+            
             // Use GetAllStudentRecordsAsync to show all students (with enrollment records or ledgers)
             // This is different from GetEnrolledStudentsAsync which only shows "Enrolled" status
             StudentRecords = await StudentService.GetAllStudentRecordsAsync(CurrentSchoolYear);
@@ -457,6 +460,9 @@
 
     private async Task HandleStudentUpdated(StudentDetailData updatedData)
     {
+        // Small delay to ensure database changes are committed
+        await Task.Delay(100);
+        
         // Reload the student data to get the latest information
         var entity = await StudentService.GetStudentByIdAsync(updatedData.Id);
         if (entity != null)

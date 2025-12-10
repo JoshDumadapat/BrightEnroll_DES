@@ -18,7 +18,7 @@ public interface IOfflineQueueService
     Task<List<QueuedOperation>> GetPendingOperationsAsync();
     Task<int> ProcessPendingOperationsAsync();
     Task ClearProcessedOperationsAsync();
-    int GetPendingCount();
+    Task<int> GetPendingCountAsync();
 }
 
 public class QueuedOperation
@@ -185,11 +185,13 @@ public class OfflineQueueService : IOfflineQueueService
         _logger?.LogInformation("Cleared {Count} processed operations", toRemove.Count);
     }
 
-    public int GetPendingCount()
+    public async Task<int> GetPendingCountAsync()
     {
         // Return count of pending operations
-        return GetPendingOperationsAsync().Result.Count(o => !o.IsProcessed);
+        var operations = await GetPendingOperationsAsync();
+        return operations.Count(o => !o.IsProcessed);
     }
+
 
     private async Task SaveQueuedOperationAsync(QueuedOperation operation)
     {

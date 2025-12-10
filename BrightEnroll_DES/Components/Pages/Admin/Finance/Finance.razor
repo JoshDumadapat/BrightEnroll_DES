@@ -534,6 +534,9 @@
         {
             try
             {
+                // Small delay to ensure any pending database changes are committed
+                await Task.Delay(50);
+                
                 var expenses = await ExpenseService.GetExpensesAsync();
 
                 ExpenseRecords = expenses.Select(e => new ExpenseRecord
@@ -739,6 +742,9 @@
     
     private async Task HandleApprovalProcessed()
     {
+        // Small delay to ensure database changes are committed
+        await Task.Delay(100);
+        
         // Refresh pending approvals count immediately
         await LoadPendingApprovalsCount();
         
@@ -746,14 +752,6 @@
         await LoadExpensesAsync();
         
         // Force UI update
-        StateHasChanged();
-        
-        // Small delay to ensure database changes are committed, then refresh again
-        await Task.Delay(300);
-        
-        // Final refresh to ensure all data is synced
-        await LoadPendingApprovalsCount();
-        await LoadExpensesAsync();
         StateHasChanged();
     }
     
@@ -946,8 +944,8 @@
                 toastType = ToastType.Success;
                 showToast = true;
                 
-                // Small delay to ensure notification is created in database
-                await Task.Delay(300);
+                // Small delay to ensure database changes are committed
+                await Task.Delay(100);
                 
                 // Refresh pending approvals count immediately after expense creation
                 await LoadPendingApprovalsCount();
@@ -955,6 +953,7 @@
                 // Refresh expenses list to show the new expense
                 await LoadExpensesAsync();
                 
+                // Force UI update
                 StateHasChanged();
             }
             else
@@ -979,6 +978,9 @@
                 toastType = ToastType.Success;
                 showToast = true;
             }
+
+            // Small delay to ensure database changes are committed
+            await Task.Delay(100);
 
             // Refresh expenses list after add or update
             await LoadExpensesAsync();
