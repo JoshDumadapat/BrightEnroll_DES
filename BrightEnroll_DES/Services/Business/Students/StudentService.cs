@@ -754,8 +754,8 @@ public class StudentService
     }
 
     /// <summary>
-    /// Gets all student records for the Student Record page - includes all enrollment statuses and students with ledgers
-    /// This is different from GetEnrolledStudentsAsync which only shows "Enrolled" status
+    /// Gets all student records for the Student Record page - ONLY shows enrolled students (status = "Enrolled")
+    /// This should NOT include applicants or students with "For Payment", "Partially Paid", or "Fully Paid" status
     /// </summary>
     public async Task<List<EnrolledStudentDto>> GetAllStudentRecordsAsync(string? schoolYear = null)
     {
@@ -774,13 +774,16 @@ public class StudentService
             // Archived statuses - students with these statuses should NOT appear in student records
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
-            // Get students from enrollment records (all statuses, not just "Enrolled")
+            // CRITICAL: Only get students with enrollment records that have status "Enrolled"
+            // Students with "For Payment", "Partially Paid", or "Fully Paid" should NOT appear in Student Record
+            // This matches the behavior of GetEnrolledStudentsAsync
             var enrollmentQuery = _context.StudentSectionEnrollments
                 .Include(e => e.Student)
                     .ThenInclude(s => s.Requirements)
                 .Include(e => e.Section)
                     .ThenInclude(sec => sec.GradeLevel)
-                .Where(e => !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
+                .Where(e => e.Status == "Enrolled" && // ONLY enrolled students
+                           !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
 
             // Filter by school year if provided
             if (!string.IsNullOrEmpty(schoolYear))
@@ -792,33 +795,12 @@ public class StudentService
                 .OrderByDescending(e => e.Student.DateRegistered)
                 .ToListAsync();
 
-            // Get student IDs that already have enrollment records
-            var enrolledStudentIds = enrollments.Select(e => e.StudentId).Distinct().ToList();
-
-            // Also get students who have ledgers for the active school year but no enrollment records yet
-            // This ensures students with payment records (ledgers) appear in Student Record even if they haven't been assigned to a section
-            var studentsWithLedgers = new List<BrightEnroll_DES.Data.Models.Student>();
-            if (!string.IsNullOrEmpty(schoolYear))
-            {
-                var ledgerStudentIds = await _context.StudentLedgers
-                    .Where(l => l.SchoolYear == schoolYear && !enrolledStudentIds.Contains(l.StudentId))
-                    .Select(l => l.StudentId)
-                    .Distinct()
-                    .ToListAsync();
-
-                if (ledgerStudentIds.Any())
-                {
-                    studentsWithLedgers = await _context.Students
-                        .Include(s => s.Requirements)
-                        .Where(s => ledgerStudentIds.Contains(s.StudentId) && 
-                                   !archivedStatuses.Contains(s.Status ?? ""))
-                        .ToListAsync();
-                }
-            }
+            // NOTE: Removed students with ledgers but no enrollment records
+            // Student Record should ONLY show enrolled students, not applicants or students in payment process
 
             var result = new List<EnrolledStudentDto>();
 
-            // Add students from enrollment records (all statuses)
+            // Add students from enrollment records (only "Enrolled" status)
             foreach (var enrollment in enrollments)
             {
                 var s = enrollment.Student;
@@ -844,39 +826,6 @@ public class StudentService
                     Section = enrollment.Section?.SectionName ?? "N/A",
                     Documents = docsVerified ? "Validated" : "Not Validated",
                     Status = enrollment.Status ?? s.Status ?? "Enrolled" // Use enrollment status, fallback to student status, then "Enrolled"
-                });
-            }
-
-            // Add students with ledgers but no enrollment records
-            foreach (var student in studentsWithLedgers)
-            {
-                // Check if already added (shouldn't happen, but safety check)
-                if (result.Any(r => r.Id == student.StudentId))
-                    continue;
-
-                var fullName = $"{student.FirstName} {student.MiddleName} {student.LastName}"
-                    .Replace("  ", " ")
-                    .Trim();
-
-                var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
-                    student.Requirements, student.StudentType);
-
-                // Get grade level from ledger or student record
-                var ledger = await _context.StudentLedgers
-                    .FirstOrDefaultAsync(l => l.StudentId == student.StudentId && l.SchoolYear == schoolYear);
-                
-                var gradeLevel = ledger?.GradeLevel ?? student.GradeLevel ?? "N/A";
-                
-                result.Add(new EnrolledStudentDto
-                {
-                    Id = student.StudentId,
-                    Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
-                    LRN = string.IsNullOrWhiteSpace(student.Lrn) ? "N/A" : student.Lrn!,
-                    Date = student.DateRegistered.ToString("dd MMM yyyy"),
-                    GradeLevel = gradeLevel,
-                    Section = "N/A", // No section assigned yet
-                    Documents = docsVerified ? "Validated" : "Not Validated",
-                    Status = student.Status ?? "For Payment" // Use student status, fallback to "For Payment"
                 });
             }
 
