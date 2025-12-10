@@ -4,6 +4,7 @@
 @using BrightEnroll_DES.Services.QuestPDF
 @using BrightEnroll_DES.Services.Business.Students
 @using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Services.Authentication
 @using Microsoft.JSInterop
 @using Microsoft.Extensions.Logging
 @inject EnrollmentPdfGenerator PdfGenerator
@@ -11,6 +12,7 @@
 @inject ReEnrollmentService ReEnrollmentService
 @inject SchoolYearService SchoolYearService
 @inject ILogger<ReEnrollment> Logger
+@inject IAuthService AuthService
 @* Re-enrollment Component with Filters *@
 
 <!-- Action Bar with Mark Eligible Button -->
@@ -431,7 +433,8 @@
         
         try
         {
-            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("ReEnrollment");
+            var userName = GetUserDisplayName();
+            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("ReEnrollment", userName);
             var fileName = $"Re_Enrollment_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
             var base64Content = Convert.ToBase64String(pdfBytes);
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
@@ -570,5 +573,20 @@
 
         // If all parsing fails, return original string
         return dateString;
+    }
+
+    private string GetUserDisplayName()
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null) return "System";
+        
+        var nameParts = new List<string> { user.first_name };
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        nameParts.Add(user.last_name);
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+        
+        return string.Join(" ", nameParts);
     }
 }

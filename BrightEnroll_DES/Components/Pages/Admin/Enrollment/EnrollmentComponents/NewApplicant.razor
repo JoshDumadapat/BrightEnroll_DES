@@ -2,9 +2,11 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
 @using BrightEnroll_DES.Components.Pages.Admin
 @using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Services.Authentication
 @using Microsoft.JSInterop
 @inject EnrollmentPdfGenerator PdfGenerator
 @inject IJSRuntime JSRuntime
+@inject IAuthService AuthService
 @* New Applicants Component with Filters *@
 
 <!-- Filters -->
@@ -352,7 +354,8 @@
         
         try
         {
-            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("NewApplicants");
+            var userName = GetUserDisplayName();
+            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("NewApplicants", userName);
             var fileName = $"New_Applicants_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
             var base64Content = Convert.ToBase64String(pdfBytes);
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
@@ -399,6 +402,21 @@
 
         // If all parsing fails, return original string
         return dateString;
+    }
+
+    private string GetUserDisplayName()
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null) return "System";
+        
+        var nameParts = new List<string> { user.first_name };
+        if (!string.IsNullOrWhiteSpace(user.mid_name))
+            nameParts.Add(user.mid_name);
+        nameParts.Add(user.last_name);
+        if (!string.IsNullOrWhiteSpace(user.suffix))
+            nameParts.Add(user.suffix);
+        
+        return string.Join(" ", nameParts);
     }
 
     public class Student
