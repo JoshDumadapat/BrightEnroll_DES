@@ -10,6 +10,7 @@
 @inject StudentService StudentService
 @inject GradeService GradeService
 @inject SchoolYearService SchoolYearService
+@inject ArchiveService ArchiveService
 
 <PageTitle>Student Record</PageTitle>
 
@@ -156,7 +157,7 @@
                                 }
                             </td>
 
-                            <td class="flex items-center justify-center px-4 py-3">
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
                                 <!-- View Button -->
                                 <button @onclick="() => HandleViewClick(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
                                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -164,6 +165,13 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
                                     <span class="hidden sm:inline">View</span>
+                                </button>
+                                <!-- Drop Button -->
+                                <button @onclick="() => HandleDropClick(student)" class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-100">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Drop</span>
                                 </button>
                             </td>
                         </tr>
@@ -196,6 +204,55 @@
     </div>
     }
 </div>
+
+<!-- Drop Confirmation Modal -->
+@if (ShowDropConfirmationModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseDropConfirmationModal">
+        <div id="drop-student-confirmation-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Confirm Drop Student</h3>
+                <button @onclick="CloseDropConfirmationModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+ 
+            <!-- Modal Body -->
+            <div class="rounded-b-2xl bg-white px-6 py-4">
+                <p class="mb-4 text-sm text-gray-700">
+                    Are you sure you want to drop <strong>@StudentToDrop?.Name</strong>? 
+                    This action will move the student to the archive module and cannot be undone.
+                </p>
+
+                <div class="mb-4">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Reason for Dropping <span class="text-red-500">*</span></label>
+                    <textarea @bind="DropReason" 
+                              placeholder="Enter reason for dropping this student..."
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400"
+                              rows="3"
+                              maxlength="500"></textarea>
+                    <p class="mt-1 text-xs text-gray-500">@DropReason.Length / 500 characters</p>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button type="button" @onclick="CloseDropConfirmationModal"
+                            class="rounded-lg border border-gray-300 bg-transparent px-3 py-1.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button type="button" @onclick="ConfirmDropStudent"
+                            class="rounded-lg px-3 py-1.5 text-sm font-medium text-white transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                            style="background-color: #ef4444;"
+                            disabled="@(string.IsNullOrWhiteSpace(DropReason))">
+                        Confirm Drop
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private bool ShowDetailView { get; set; } = false;
@@ -250,6 +307,11 @@
     private string CurrentSchoolYear { get; set; } = "";
 
     private bool _hasInitialized = false;
+
+    // Drop confirmation modal state
+    private bool ShowDropConfirmationModal { get; set; } = false;
+    private EnrolledStudentDto? StudentToDrop { get; set; }
+    private string DropReason { get; set; } = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -674,6 +736,62 @@
             // Log error but don't crash - just show empty list
             System.Diagnostics.Debug.WriteLine($"Error loading academic records: {ex.Message}");
             SelectedAcademicRecords = new List<AcademicRecordData>();
+        }
+    }
+
+    private void HandleDropClick(EnrolledStudentDto student)
+    {
+        StudentToDrop = student;
+        DropReason = string.Empty; // Reset reason when opening modal
+        ShowDropConfirmationModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDropConfirmationModal()
+    {
+        ShowDropConfirmationModal = false;
+        StudentToDrop = null;
+        DropReason = string.Empty; // Clear reason when closing modal
+        StateHasChanged();
+    }
+
+    private async Task ConfirmDropStudent()
+    {
+        if (StudentToDrop == null)
+        {
+            CloseDropConfirmationModal();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(DropReason))
+        {
+            return; // Don't proceed if reason is empty
+        }
+
+        try
+        {
+            // Archive the student with "Withdrawn" status and the provided reason
+            await ArchiveService.ArchiveStudentAsync(
+                StudentToDrop.Id,
+                "Withdrawn",
+                notes: null,
+                archivedBy: null,
+                reason: DropReason.Trim()
+            );
+
+            // Close the modal
+            CloseDropConfirmationModal();
+
+            // Reload the student list to reflect the change
+            await LoadStudentsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Log error (in a real app, you might want to show an error message to the user)
+            System.Diagnostics.Debug.WriteLine($"Error dropping student: {ex.Message}");
+            CloseDropConfirmationModal();
+            // You might want to show an error notification here
         }
     }
 
