@@ -932,6 +932,74 @@ public class StudentService
                 }
             }
             
+            // If GradeToEnroll is changed but SectionId is not provided, update the enrollment section to match the new grade level
+            if (!model.SectionId.HasValue && !string.IsNullOrWhiteSpace(model.GradeToEnroll) && !string.IsNullOrWhiteSpace(model.SchoolYear))
+            {
+                // Get existing enrollment for this student and school year
+                var existingEnrollment = await _context.StudentSectionEnrollments
+                    .Include(e => e.Section)
+                        .ThenInclude(s => s!.GradeLevel)
+                    .FirstOrDefaultAsync(e => e.StudentId == student.StudentId
+                                              && e.SchoolYear == model.SchoolYear);
+                
+                if (existingEnrollment != null)
+                {
+                    // Check if the current section's grade level matches the new grade level
+                    var currentGradeLevel = existingEnrollment.Section?.GradeLevel?.GradeLevelName;
+                    if (currentGradeLevel != model.GradeToEnroll)
+                    {
+                        // Find a section that matches the new grade level
+                        var gradeLevel = await _context.GradeLevels
+                            .FirstOrDefaultAsync(g => g.GradeLevelName == model.GradeToEnroll);
+                        
+                        if (gradeLevel != null)
+                        {
+                            // Find a section for this grade level (prefer one with available capacity)
+                            var sectionsForGrade = await _context.Sections
+                                .Where(s => s.GradeLevelId == gradeLevel.GradeLevelId)
+                                .ToListAsync();
+                            
+                            if (sectionsForGrade.Any())
+                            {
+                                // Check if school year is closed before updating enrollment
+                                var schoolYearEntity = await _context.SchoolYears
+                                    .FirstOrDefaultAsync(sy => sy.SchoolYearName == model.SchoolYear);
+                                
+                                if (schoolYearEntity != null && !schoolYearEntity.IsOpen)
+                                {
+                                    throw new Exception($"Cannot update enrollment for closed school year {model.SchoolYear}. " +
+                                                        $"This school year was closed on {schoolYearEntity.ClosedAt:MMM dd, yyyy}. " +
+                                                        $"Enrollment records for closed school years are read-only.");
+                                }
+                                
+                                // Find a section with available capacity
+                                Section? targetSection = null;
+                                foreach (var section in sectionsForGrade)
+                                {
+                                    var currentEnrolledCount = await _context.StudentSectionEnrollments
+                                        .CountAsync(e => e.SectionId == section.SectionId
+                                                         && e.SchoolYear == model.SchoolYear
+                                                         && e.Status == "Enrolled");
+                                    
+                                    if (currentEnrolledCount < section.Capacity)
+                                    {
+                                        targetSection = section;
+                                        break;
+                                    }
+                                }
+                                
+                                // If no section with capacity, use the first one (will show capacity warning elsewhere)
+                                targetSection ??= sectionsForGrade.First();
+                                
+                                // Update the enrollment section
+                                existingEnrollment.SectionId = targetSection.SectionId;
+                                existingEnrollment.UpdatedAt = DateTime.Now;
+                            }
+                        }
+                    }
+                }
+            }
+            
             if (!string.IsNullOrWhiteSpace(model.Status) && model.Status.Length > 20)
             {
                 student.Status = model.Status.Substring(0, 20);

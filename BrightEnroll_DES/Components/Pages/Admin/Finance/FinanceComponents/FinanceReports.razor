@@ -62,7 +62,7 @@
                     }
                 </button>
                 <button @onclick="ExportToPdf" 
-                        disabled="@isLoading || isExporting || !reportGenerated"
+                        disabled="@isLoading || isExporting || !HasReportData()"
                         class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:bg-gray-200 disabled:cursor-not-allowed">
                     @if (isExporting)
                     {
@@ -2027,9 +2027,23 @@
         return ledger;
     }
 
+    private bool HasReportData()
+    {
+        return activeReport switch
+        {
+            "IncomeStatement" => incomeStatement != null,
+            "CashFlow" => cashFlowReport != null,
+            "AccountsReceivable" => arRecords != null && arRecords.Any(),
+            "PaymentHistory" => paymentHistory != null && paymentHistory.Any(),
+            "ExpenseAnalysis" => expenseAnalysis != null,
+            "GeneralLedger" => generalLedger != null && generalLedger.Entries.Any(),
+            _ => false
+        };
+    }
+
     private async Task ExportToPdf()
     {
-        if (!reportGenerated)
+        if (!HasReportData())
         {
             ShowToast("Please generate a report first before exporting.", ToastType.Error);
             return;
