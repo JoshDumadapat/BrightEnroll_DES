@@ -2,9 +2,7 @@ using System.Collections.Concurrent;
 
 namespace BrightEnroll_DES.Services.Database.Sync;
 
-/// <summary>
-/// Service to track and expose sync status to UI components.
-/// </summary>
+// Service to track and expose sync status to UI components
 public interface ISyncStatusService
 {
     bool IsOnline { get; }

@@ -1,8 +1,11 @@
-@page "/cloud-management"
+﻿@page "/cloud-management"
 @layout Components.Layout.MainLayout
 @inject IConnectivityService ConnectivityService
 @inject ILoadingService LoadingService
 @inject IDatabaseSyncService SyncService
+@inject ISyncStatusService SyncStatusService
+@inject IConfiguration Configuration
+@using Microsoft.Extensions.Configuration
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.Database.Sync
@@ -21,25 +24,61 @@
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
                 <h5 class="text-lg font-bold text-gray-800">Connection Status</h5>
-            </div>
-            
-            <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2">
-                    @if (isConnected)
+                <button @onclick="TestConnection" 
+                        disabled="@isTestingConnection"
+                        class="rounded-lg bg-blue-100 px-3 py-1 text-sm text-blue-700 transition-colors hover:bg-blue-200">
+                    @if (isTestingConnection)
                     {
-                        <div class="h-3 w-3 rounded-full bg-green-500"></div>
-                        <span class="font-medium text-gray-700">Connected</span>
+                        <span>Testing...</span>
                     }
                     else
                     {
-                        <div class="h-3 w-3 rounded-full bg-red-500"></div>
-                        <span class="font-medium text-gray-700">Disconnected</span>
+                        <span>Test Connection</span>
+                    }
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        @if (isConnected)
+                        {
+                            <div class="h-3 w-3 animate-pulse rounded-full bg-green-500"></div>
+                            <span class="font-medium text-gray-700">Connected to Cloud</span>
+                        }
+                        else
+                        {
+                            <div class="h-3 w-3 rounded-full bg-red-500"></div>
+                            <span class="font-medium text-gray-700">Disconnected - Using Local Database</span>
+                        }
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-500">Last Sync:</span>
+                        <span class="ml-2 font-medium text-gray-700">@(string.IsNullOrEmpty(lastSyncTime) ? "Never" : lastSyncTime)</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Auto-Sync:</span>
+                        <span class="ml-2 @(autoSyncEnabled ? "text-green-600" : "text-gray-500") font-medium">
+                            @(autoSyncEnabled ? $"Every {autoSyncInterval} minutes" : "Disabled")
+                        </span>
+                    </div>
+                    @if (SyncStatusService.IsSyncing)
+                    {
+                        <div class="col-span-2">
+                            <span class="text-gray-500">Status:</span>
+                            <span class="ml-2 font-medium text-blue-600">Syncing in progress...</span>
+                        </div>
                     }
                 </div>
                 
-                @if (!string.IsNullOrEmpty(lastSyncTime))
+                @if (!string.IsNullOrEmpty(connectionTestResult))
                 {
-                    <span class="text-sm text-gray-500">Last sync: @lastSyncTime</span>
+                    <div class="mt-2 rounded p-2 @(connectionTestResult.Contains("successful", StringComparison.OrdinalIgnoreCase) ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700") text-sm">
+                        @connectionTestResult
+                    </div>
                 }
             </div>
         </div>
@@ -56,15 +95,15 @@
                 <!-- Sync Now Button (Full Sync) -->
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div class="mb-3">
-                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Full Synchronization</h6>
+                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Full Synchronization</h6>
                         <p class="text-xs text-gray-500">Syncs all data bidirectionally between local and cloud databases</p>
                     </div>
                     <button @onclick="SyncNow" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
                         @if (isSyncing)
                         {
-                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -83,15 +122,15 @@
                 <!-- Sync To Cloud Button -->
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div class="mb-3">
-                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Push to Cloud</h6>
+                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Push to Cloud</h6>
                         <p class="text-xs text-gray-500">Uploads all local changes to the cloud database</p>
                     </div>
                     <button @onclick="SyncToCloud" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
                         @if (isSyncing && syncType == "toCloud")
                         {
-                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -110,15 +149,15 @@
                 <!-- Sync From Cloud Button -->
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div class="mb-3">
-                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Pull from Cloud</h6>
+                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Pull from Cloud</h6>
                         <p class="text-xs text-gray-500">Downloads all cloud data to the local database</p>
                     </div>
                     <button @onclick="SyncFromCloud" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
                         @if (isSyncing && syncType == "fromCloud")
                         {
-                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -137,15 +176,15 @@
                 <!-- Sync Reference Data Button -->
                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <div class="mb-3">
-                        <h6 class="text-sm font-semibold text-gray-700 mb-1">Sync Reference Data</h6>
+                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Sync Reference Data</h6>
                         <p class="text-xs text-gray-500">Syncs reference data (grade levels, fees, etc.) from cloud to local</p>
                     </div>
                     <button @onclick="SyncReferenceData" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="w-full rounded-lg @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700") px-4 py-2 text-sm font-medium text-white transition-all flex items-center justify-center gap-2">
+                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
                         @if (isSyncing && syncType == "reference")
                         {
-                            <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -165,17 +204,61 @@
     </div>
 
     <!-- Sync Status Card -->
-    @if (!string.IsNullOrEmpty(syncStatusMessage))
+    @if (!string.IsNullOrEmpty(syncStatusMessage) || syncLogs.Any())
     {
         <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
             <div class="px-6 py-6">
                 <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                    <h5 class="text-lg font-bold text-gray-800">Sync Status</h5>
+                    <h5 class="text-lg font-bold text-gray-800">Sync Status & Logs</h5>
+                    @if (syncLogs.Count > 0)
+                    {
+                        <button @onclick="ClearLogs" class="text-sm text-gray-500 hover:text-gray-700">
+                            Clear Logs
+                        </button>
+                    }
                 </div>
                 
-                <div class="@(syncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") rounded-lg p-4">
-                    <p class="text-sm @(syncStatusType == "error" ? "text-red-700" : "text-green-700")">@syncStatusMessage</p>
-                </div>
+                @if (!string.IsNullOrEmpty(syncStatusMessage))
+                {
+                    <div class="@(syncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") mb-4 rounded-lg p-4">
+                        <p class="text-sm @(syncStatusType == "error" ? "text-red-700" : "text-green-700")">@syncStatusMessage</p>
+                        @if (resultDetails != null)
+                        {
+                            <div class="mt-2 text-xs @(syncStatusType == "error" ? "text-red-600" : "text-green-600")">
+                                <div>Records Pushed: @resultDetails.RecordsPushed</div>
+                                <div>Records Pulled: @resultDetails.RecordsPulled</div>
+                                @if (resultDetails.Errors.Any())
+                                {
+                                    <div class="mt-2">
+                                        <strong>Errors:</strong>
+                                        <ul class="list-inside list-disc">
+                                            @foreach (var error in resultDetails.Errors)
+                                            {
+                                                <li>@error</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                
+                @if (syncLogs.Any())
+                {
+                    <div class="max-h-64 space-y-2 overflow-y-auto">
+                        @foreach (var log in syncLogs.OrderByDescending(l => l.Timestamp).Take(20))
+                        {
+                            <div class="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
+                                <div class="mb-1 flex items-center justify-between">
+                                    <span class="font-medium text-gray-700">@log.Type</span>
+                                    <span class="text-gray-500">@log.Timestamp.ToString("HH:mm:ss")</span>
+                                </div>
+                                <div class="text-gray-600">@log.Message</div>
+                            </div>
+                        }
+                    </div>
+                }
             </div>
         </div>
     }
@@ -184,25 +267,112 @@
 @code {
     private bool isConnected = false;
     private bool isSyncing = false;
+    private bool isTestingConnection = false;
     private string syncType = "";
     private string lastSyncTime = "";
     private string syncStatusMessage = "";
     private string syncStatusType = "success"; // "success" or "error"
+    private string connectionTestResult = "";
+    private SyncResult? resultDetails = null;
+    private bool autoSyncEnabled = true;
+    private int autoSyncInterval = 5;
+    
+    // Sync logs
+    private List<SyncLogEntry> syncLogs = new();
     
     // Toast notification
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+    
+    private class SyncLogEntry
+    {
+        public DateTime Timestamp { get; set; } = DateTime.Now;
+        public string Type { get; set; } = "";
+        public string Message { get; set; } = "";
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        // Check initial connectivity
-        isConnected = ConnectivityService.IsConnected;
+        // Check initial connectivity - actively test cloud connection
+        isConnected = await ConnectivityService.CheckCloudConnectivityAsync();
+        
+        // Get auto-sync settings
+        autoSyncInterval = Configuration.GetValue<int>("Sync:AutoSyncIntervalMinutes", 5);
+        autoSyncEnabled = Configuration.GetValue<bool>("Sync:PrioritizeCloud", true);
+        
+        // Get last sync time from sync status service
+        if (SyncStatusService.LastSyncTime.HasValue)
+        {
+            lastSyncTime = SyncStatusService.LastSyncTime.Value.ToString("yyyy-MM-dd HH:mm:ss");
+        }
         
         // Subscribe to connectivity changes
         ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
+        SyncStatusService.StatusChanged += OnSyncStatusChanged;
+        
+        AddLog("System", "Cloud Management page initialized");
         
         await base.OnInitializedAsync();
+    }
+    
+    private void OnSyncStatusChanged(object? sender, SyncStatusChangedEventArgs e)
+    {
+        if (e.LastSyncTime.HasValue)
+        {
+            lastSyncTime = e.LastSyncTime.Value.ToString("yyyy-MM-dd HH:mm:ss");
+        }
+        InvokeAsync(StateHasChanged);
+    }
+    
+    private async Task TestConnection()
+    {
+        isTestingConnection = true;
+        connectionTestResult = "";
+        StateHasChanged();
+        
+        try
+        {
+            var connected = await SyncService.TestCloudConnectionAsync();
+            isConnected = connected;
+            connectionTestResult = connected 
+                ? "✓ Connection test successful! Cloud database is accessible." 
+                : "✗ Connection test failed! Please check your connection settings.";
+            
+            AddLog("Connection Test", connectionTestResult);
+        }
+        catch (Exception ex)
+        {
+            connectionTestResult = $"✗ Connection test error: {ex.Message}";
+            AddLog("Connection Test", $"Error: {ex.Message}");
+        }
+        finally
+        {
+            isTestingConnection = false;
+            StateHasChanged();
+        }
+    }
+    
+    private void AddLog(string type, string message)
+    {
+        syncLogs.Add(new SyncLogEntry
+        {
+            Type = type,
+            Message = message,
+            Timestamp = DateTime.Now
+        });
+        
+        // Keep only last 50 logs
+        if (syncLogs.Count > 50)
+        {
+            syncLogs.RemoveAt(0);
+        }
+    }
+    
+    private void ClearLogs()
+    {
+        syncLogs.Clear();
+        StateHasChanged();
     }
 
     private void OnConnectivityChanged(object? sender, bool connected)
@@ -218,6 +388,9 @@
         isSyncing = true;
         syncType = "full";
         syncStatusMessage = "";
+        resultDetails = null;
+        
+        AddLog("Full Sync", "Starting full synchronization...");
         
         // Show loading toast instead of full screen loading
         toastMessage = "Synchronizing data with cloud...";
@@ -228,6 +401,7 @@
         try
         {
             var result = await SyncService.FullSyncAsync();
+            resultDetails = result;
             
             if (result.Success)
             {
@@ -236,6 +410,7 @@
                 toastMessage = $"Sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                AddLog("Full Sync", $"Success: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled");
             }
             else
             {
@@ -243,6 +418,11 @@
                 syncStatusType = "error";
                 toastMessage = $"Sync failed: {result.Message}";
                 toastType = ToastType.Error;
+                AddLog("Full Sync", $"Failed: {result.Message}");
+                foreach (var error in result.Errors)
+                {
+                    AddLog("Error", error);
+                }
             }
         }
         catch (Exception ex)
@@ -251,6 +431,7 @@
             syncStatusType = "error";
             toastMessage = $"Sync error: {ex.Message}";
             toastType = ToastType.Error;
+            AddLog("Full Sync", $"Exception: {ex.Message}");
         }
         finally
         {
@@ -267,6 +448,9 @@
         isSyncing = true;
         syncType = "toCloud";
         syncStatusMessage = "";
+        resultDetails = null;
+        
+        AddLog("Push to Cloud", "Starting upload to cloud...");
         
         // Show loading toast instead of full screen loading
         toastMessage = "Uploading data to cloud...";
@@ -277,6 +461,7 @@
         try
         {
             var result = await SyncService.SyncToCloudAsync();
+            resultDetails = result;
             
             if (result.Success)
             {
@@ -285,6 +470,7 @@
                 toastMessage = $"Successfully uploaded {result.RecordsPushed} records to cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                AddLog("Push to Cloud", $"Success: {result.RecordsPushed} records uploaded");
             }
             else
             {
@@ -292,6 +478,7 @@
                 syncStatusType = "error";
                 toastMessage = $"Upload failed: {result.Message}";
                 toastType = ToastType.Error;
+                AddLog("Push to Cloud", $"Failed: {result.Message}");
             }
         }
         catch (Exception ex)
@@ -300,6 +487,7 @@
             syncStatusType = "error";
             toastMessage = $"Upload error: {ex.Message}";
             toastType = ToastType.Error;
+            AddLog("Push to Cloud", $"Exception: {ex.Message}");
         }
         finally
         {
@@ -316,6 +504,9 @@
         isSyncing = true;
         syncType = "fromCloud";
         syncStatusMessage = "";
+        resultDetails = null;
+        
+        AddLog("Pull from Cloud", "Starting download from cloud...");
         
         // Show loading toast instead of full screen loading
         toastMessage = "Downloading data from cloud...";
@@ -326,6 +517,7 @@
         try
         {
             var result = await SyncService.SyncFromCloudAsync();
+            resultDetails = result;
             
             if (result.Success)
             {
@@ -334,6 +526,7 @@
                 toastMessage = $"Successfully downloaded {result.RecordsPulled} records from cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                AddLog("Pull from Cloud", $"Success: {result.RecordsPulled} records downloaded");
             }
             else
             {
@@ -341,6 +534,7 @@
                 syncStatusType = "error";
                 toastMessage = $"Download failed: {result.Message}";
                 toastType = ToastType.Error;
+                AddLog("Pull from Cloud", $"Failed: {result.Message}");
             }
         }
         catch (Exception ex)
@@ -349,6 +543,7 @@
             syncStatusType = "error";
             toastMessage = $"Download error: {ex.Message}";
             toastType = ToastType.Error;
+            AddLog("Pull from Cloud", $"Exception: {ex.Message}");
         }
         finally
         {
@@ -418,6 +613,7 @@
     public void Dispose()
     {
         ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
+        SyncStatusService.StatusChanged -= OnSyncStatusChanged;
     }
 }
 

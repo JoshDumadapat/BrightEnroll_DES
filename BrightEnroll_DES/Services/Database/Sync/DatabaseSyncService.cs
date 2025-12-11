@@ -79,19 +79,66 @@ public class DatabaseSyncService : IDatabaseSyncService
             await cloudConnection.OpenAsync();
 
             // Sync in order: Parents first, then dependent tables
+            // Core reference data
+            result.RecordsPushed += await SyncTableToCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "SchoolYearId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Role>(cloudConnection, "tbl_roles", "RoleId");
             result.RecordsPushed += await SyncTableToCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID");
-            result.RecordsPushed += await SyncTableToCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPushed += await SyncTableToCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID");
+            
+            // Employee data
+            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "EmergencyId");
+            result.RecordsPushed += await SyncTableToCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "SalaryId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "DeductionId");
+            result.RecordsPushed += await SyncTableToCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "RequestId");
+            result.RecordsPushed += await SyncTableToCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "TimeRecordId");
+            result.RecordsPushed += await SyncTableToCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "TransactionId");
+            
+            // Student data
+            result.RecordsPushed += await SyncTableToCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPushed += await SyncTableToCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "Id");
+            result.RecordsPushed += await SyncTableToCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "Id");
+            result.RecordsPushed += await SyncTableToCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "Id");
+            
+            // Finance data
             result.RecordsPushed += await SyncTableToCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "BreakdownId");
             result.RecordsPushed += await SyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "AccountId");
+            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "JournalEntryId");
+            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "LineId");
+            result.RecordsPushed += await SyncTableToCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "PeriodId");
+            
+            // Curriculum data
+            result.RecordsPushed += await SyncTableToCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingId");
             result.RecordsPushed += await SyncTableToCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
             result.RecordsPushed += await SyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
             result.RecordsPushed += await SyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "Id");
+            result.RecordsPushed += await SyncTableToCloudAsync<SubjectSchedule>(cloudConnection, "tbl_SubjectSchedule", "ScheduleID");
+            result.RecordsPushed += await SyncTableToCloudAsync<TeacherSectionAssignment>(cloudConnection, "tbl_TeacherSectionAssignment", "AssignmentID");
+            result.RecordsPushed += await SyncTableToCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleId");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
+            
+            // Grade data
+            result.RecordsPushed += await SyncTableToCloudAsync<Grade>(cloudConnection, "tbl_Grades", "GradeId");
+            result.RecordsPushed += await SyncTableToCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "WeightId");
+            result.RecordsPushed += await SyncTableToCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "HistoryId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Attendance>(cloudConnection, "tbl_Attendance", "AttendanceID");
+            
+            // Inventory & Assets
+            result.RecordsPushed += await SyncTableToCloudAsync<Asset>(cloudConnection, "tbl_Assets", "AssetId");
+            result.RecordsPushed += await SyncTableToCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "ItemId");
+            result.RecordsPushed += await SyncTableToCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "AssignmentId");
+            
+            // Logs and notifications
+            result.RecordsPushed += await SyncTableToCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "NotificationId");
+            result.RecordsPushed += await SyncTableToCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "LogId");
+            result.RecordsPushed += await SyncTableToCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "LogId");
+            result.RecordsPushed += await SyncTableToCloudAsync<TeacherActivityLog>(cloudConnection, "tbl_TeacherActivityLogs", "id");
 
             result.Message = $"Successfully synced {result.RecordsPushed} records to cloud.";
             _logger?.LogInformation("Sync to cloud completed: {Count} records", result.RecordsPushed);
@@ -125,19 +172,66 @@ public class DatabaseSyncService : IDatabaseSyncService
             await cloudConnection.OpenAsync();
 
             // Sync in order: Parents first, then dependent tables
+            // Core reference data
+            result.RecordsPulled += await SyncTableFromCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "SchoolYearId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Role>(cloudConnection, "tbl_roles", "RoleId");
             result.RecordsPulled += await SyncTableFromCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID");
+            
+            // Employee data
+            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "EmergencyId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "SalaryId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "DeductionId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "RequestId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "TimeRecordId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "TransactionId");
+            
+            // Student data
+            result.RecordsPulled += await SyncTableFromCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "Id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "Id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "Id");
+            
+            // Finance data
             result.RecordsPulled += await SyncTableFromCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "BreakdownId");
             result.RecordsPulled += await SyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "AccountId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "JournalEntryId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "LineId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "PeriodId");
+            
+            // Curriculum data
+            result.RecordsPulled += await SyncTableFromCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingId");
             result.RecordsPulled += await SyncTableFromCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
             result.RecordsPulled += await SyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "Id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SubjectSchedule>(cloudConnection, "tbl_SubjectSchedule", "ScheduleID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<TeacherSectionAssignment>(cloudConnection, "tbl_TeacherSectionAssignment", "AssignmentID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleId");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
+            
+            // Grade data
+            result.RecordsPulled += await SyncTableFromCloudAsync<Grade>(cloudConnection, "tbl_Grades", "GradeId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "WeightId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "HistoryId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Attendance>(cloudConnection, "tbl_Attendance", "AttendanceID");
+            
+            // Inventory & Assets
+            result.RecordsPulled += await SyncTableFromCloudAsync<Asset>(cloudConnection, "tbl_Assets", "AssetId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "ItemId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "AssignmentId");
+            
+            // Logs and notifications
+            result.RecordsPulled += await SyncTableFromCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "NotificationId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "LogId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "LogId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<TeacherActivityLog>(cloudConnection, "tbl_TeacherActivityLogs", "id");
 
             result.Message = $"Successfully synced {result.RecordsPulled} records from cloud.";
             _logger?.LogInformation("Sync from cloud completed: {Count} records", result.RecordsPulled);
