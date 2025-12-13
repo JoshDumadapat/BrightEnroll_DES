@@ -1,8 +1,9 @@
-@page "/settings/school-year"
+﻿@page "/settings/school-year"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Components.Pages.Admin
 @using Microsoft.Extensions.Logging
 @implements IDisposable
 @inject SchoolYearService SchoolYearService
@@ -25,7 +26,7 @@
         <div class="flex items-center gap-2">
             <button @onclick="RefreshData" 
                     disabled="@isLoading"
-                    class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                    class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50">
                 <svg class="h-4 w-4 @(isLoading ? "animate-spin" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
@@ -90,33 +91,153 @@
             <h2 class="text-lg font-bold text-gray-800">Add New School Year</h2>
         </div>
         <div class="px-6 py-4">
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <!-- School Year Selection -->
+                <div class="flex flex-col">
                     <label class="mb-2 block text-sm font-medium text-gray-700">School Year *</label>
-                    <input type="text" @bind="newSchoolYear" @bind:event="oninput" 
-                           placeholder="2024-2025"
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
-                    @if (!string.IsNullOrEmpty(schoolYearError))
+                    <div class="grid grid-cols-2 gap-2 mt-0">
+                        <select @bind="selectedStartYear" @bind:after="OnStartYearChanged"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                                title="Start Year">
+                            <option value="" disabled selected>Start Year</option>
+                            @foreach (var year in availableStartYears)
+                            {
+                                <option value="@year">@year</option>
+                            }
+                        </select>
+                        <select @bind="selectedEndYear" @bind:after="ValidateSchoolYearSelection"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                                disabled="@(string.IsNullOrWhiteSpace(selectedStartYear))"
+                                title="End Year">
+                            <option value="" disabled selected>End Year</option>
+                            @if (!string.IsNullOrWhiteSpace(selectedStartYear) && int.TryParse(selectedStartYear, out int start))
+                            {
+                                <option value="@(start + 1)">@(start + 1)</option>
+                            }
+                        </select>
+                    </div>
+                    @if (showValidationErrors && string.IsNullOrWhiteSpace(selectedStartYear))
+                    {
+                        <p class="mt-1 text-xs text-red-600">Start Year is required</p>
+                    }
+                    @if (showValidationErrors && string.IsNullOrWhiteSpace(selectedEndYear) && !string.IsNullOrWhiteSpace(selectedStartYear))
+                    {
+                        <p class="mt-1 text-xs text-red-600">End Year is required</p>
+                    }
+                    @if (showValidationErrors && !string.IsNullOrEmpty(startYearError))
+                    {
+                        <p class="mt-1 text-xs text-red-600">@startYearError</p>
+                    }
+                    @if (showValidationErrors && !string.IsNullOrEmpty(endYearError))
+                    {
+                        <p class="mt-1 text-xs text-red-600">@endYearError</p>
+                    }
+                    @if (showValidationErrors && !string.IsNullOrEmpty(schoolYearError))
                     {
                         <p class="mt-1 text-xs text-red-600">@schoolYearError</p>
                     }
-                    <p class="mt-1 text-xs text-gray-500">Format: YYYY-YYYY (e.g., 2024-2025)</p>
                 </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">Start Date</label>
-                    <input type="date" @bind="newStartDate" 
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                
+                <!-- Start Date -->
+                <div class="flex flex-col">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">Start Date *</label>
+                    <div class="grid grid-cols-3 gap-2 mt-0">
+                        <select @bind="startDateMonth" @bind:after="UpdateStartDate"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                                disabled="@(string.IsNullOrWhiteSpace(selectedStartYear))">
+                            <option value="" disabled selected>Month</option>
+                            <option value="1">Jan</option>
+                            <option value="2">Feb</option>
+                            <option value="3">Mar</option>
+                            <option value="4">Apr</option>
+                            <option value="5">May</option>
+                            <option value="6">Jun</option>
+                            <option value="7">Jul</option>
+                            <option value="8">Aug</option>
+                            <option value="9">Sep</option>
+                            <option value="10">Oct</option>
+                            <option value="11">Nov</option>
+                            <option value="12">Dec</option>
+                        </select>
+                        <input type="number" 
+                               min="1" 
+                               max="31" 
+                               @bind="startDateDay" 
+                               @bind:after="UpdateStartDate"
+                               placeholder="Day"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                               disabled="@(string.IsNullOrWhiteSpace(selectedStartYear))" />
+                        <input type="text" 
+                               value="@(string.IsNullOrWhiteSpace(selectedStartYear) ? "" : selectedStartYear)"
+                               readonly
+                               class="w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-center text-sm font-medium text-gray-600" />
+                    </div>
+                    @if (showValidationErrors && string.IsNullOrWhiteSpace(selectedStartYear))
+                    {
+                        <p class="mt-1 text-xs text-red-600">Please select a school year first</p>
+                    }
+                    else if (showValidationErrors && (!startDateMonth.HasValue || !startDateDay.HasValue))
+                    {
+                        <p class="mt-1 text-xs text-red-600">Start Date is required</p>
+                    }
+                    @if (showValidationErrors && !string.IsNullOrEmpty(startDateError))
+                    {
+                        <p class="mt-1 text-xs text-red-600">@startDateError</p>
+                    }
                 </div>
-                <div>
-                    <label class="mb-2 block text-sm font-medium text-gray-700">End Date</label>
-                    <input type="date" @bind="newEndDate" 
-                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                
+                <!-- End Date -->
+                <div class="flex flex-col">
+                    <label class="mb-2 block text-sm font-medium text-gray-700">End Date *</label>
+                    <div class="grid grid-cols-3 gap-2 mt-0">
+                        <select @bind="endDateMonth" @bind:after="UpdateEndDate"
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                                disabled="@(string.IsNullOrWhiteSpace(selectedEndYear))">
+                            <option value="" disabled selected>Month</option>
+                            <option value="1">Jan</option>
+                            <option value="2">Feb</option>
+                            <option value="3">Mar</option>
+                            <option value="4">Apr</option>
+                            <option value="5">May</option>
+                            <option value="6">Jun</option>
+                            <option value="7">Jul</option>
+                            <option value="8">Aug</option>
+                            <option value="9">Sep</option>
+                            <option value="10">Oct</option>
+                            <option value="11">Nov</option>
+                            <option value="12">Dec</option>
+                        </select>
+                        <input type="number" 
+                               min="1" 
+                               max="31" 
+                               @bind="endDateDay" 
+                               @bind:after="UpdateEndDate"
+                               placeholder="Day"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-center text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400"
+                               disabled="@(string.IsNullOrWhiteSpace(selectedEndYear))" />
+                        <input type="text" 
+                               value="@(string.IsNullOrWhiteSpace(selectedEndYear) ? "" : selectedEndYear)"
+                               readonly
+                               class="w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-center text-sm font-medium text-gray-600" />
+                    </div>
+                    @if (showValidationErrors && string.IsNullOrWhiteSpace(selectedEndYear))
+                    {
+                        <p class="mt-1 text-xs text-red-600">Please select a school year first</p>
+                    }
+                    else if (showValidationErrors && (!endDateMonth.HasValue || !endDateDay.HasValue))
+                    {
+                        <p class="mt-1 text-xs text-red-600">End Date is required</p>
+                    }
+                    @if (showValidationErrors && !string.IsNullOrEmpty(endDateError))
+                    {
+                        <p class="mt-1 text-xs text-red-600">@endDateError</p>
+                    }
                 </div>
             </div>
-            <div class="mt-4 flex justify-end">
+            <div class="mt-6 flex justify-end">
                 <button @onclick="AddSchoolYear" 
-                        disabled="@(isProcessing || string.IsNullOrWhiteSpace(newSchoolYear))"
-                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        disabled="@isProcessing"
+                        class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
                     @if (isProcessing)
                     {
                         <span class="flex items-center gap-2">
@@ -176,7 +297,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
-                        @foreach (var sy in schoolYears)
+                        @foreach (var sy in PaginatedSchoolYears)
                         {
                             <tr class="transition hover:bg-gray-50">
                                 <td class="px-6 py-4">
@@ -266,6 +387,17 @@
                 </table>
             }
         </div>
+        
+        <!-- Pagination -->
+        @if (!isLoading && schoolYears.Count > 0)
+        {
+            <Pagination TotalItems="@schoolYears.Count" 
+                       CurrentPage="@CurrentPage" 
+                       RowsPerPage="@RowsPerPage"
+                       ItemName="school years"
+                       OnPageChanged="HandlePageChanged"
+                       OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+        }
     </div>
 </div>
 
@@ -275,11 +407,38 @@
     private bool isLoading = true;
     private bool isProcessing = false;
     
-    // Add school year form
+    // Add school year form - Updated to use dropdowns
     private string newSchoolYear = string.Empty;
+    private string selectedStartYear = string.Empty;
+    private string selectedEndYear = string.Empty;
+    private List<int> availableStartYears = new();
     private DateTime? newStartDate;
     private DateTime? newEndDate;
+    private int? startDateMonth;
+    private int? startDateDay;
+    private int? endDateMonth;
+    private int? endDateDay;
     private string schoolYearError = string.Empty;
+    private string dateError = string.Empty;
+    private string startYearError = string.Empty;
+    private string endYearError = string.Empty;
+    private string startDateError = string.Empty;
+    private string endDateError = string.Empty;
+    private bool isValidSchoolYearFormat = false;
+    private bool showValidationErrors = false; // Only show errors after Add button is clicked
+    
+    // Pagination
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 5;
+    
+    private List<SchoolYear> PaginatedSchoolYears
+    {
+        get
+        {
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return schoolYears.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
     
     // Toast notification
     private bool showToast = false;
@@ -339,8 +498,15 @@
         
         try
         {
+            // Add a small delay to ensure database changes are committed
+            await Task.Delay(100);
+            
             schoolYears = await SchoolYearService.GetAllSchoolYearsAsync();
             activeSchoolYear = await SchoolYearService.GetActiveSchoolYearAsync();
+            LoadAvailableStartYears(); // Load available start years for dropdown
+            
+            // Force UI update
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -354,28 +520,285 @@
         }
     }
 
-    private async Task AddSchoolYear()
+    private void LoadAvailableStartYears()
     {
-        schoolYearError = string.Empty;
+        availableStartYears.Clear();
         
-        // Validate format
-        if (!System.Text.RegularExpressions.Regex.IsMatch(newSchoolYear, @"^\d{4}-\d{4}$"))
+        // Get current year
+        var currentYear = DateTime.Now.Year;
+        
+        // First year should be the year before the current year
+        // Start from 2024, but ensure we include the year before current year
+        int startFromYear = 2024;
+        int yearBeforeCurrent = currentYear - 1;
+        
+        // Ensure we start from at least 2024, but include year before current if it's before 2024
+        int firstYear = Math.Min(startFromYear, yearBeforeCurrent);
+        
+        // Get all existing school year start years to filter them out
+        var existingStartYears = new HashSet<int>();
+        foreach (var sy in schoolYears)
         {
-            schoolYearError = "Invalid format. Please use YYYY-YYYY (e.g., 2024-2025)";
+            if (string.IsNullOrWhiteSpace(sy.SchoolYearName)) continue;
+            var parts = sy.SchoolYearName.Split('-');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int existingStart))
+            {
+                existingStartYears.Add(existingStart);
+            }
+        }
+        
+        // Generate years starting from the first year, filtering out already added ones
+        // Limit to 5 available options
+        int count = 0;
+        for (int year = firstYear; year <= currentYear + 20 && count < 5; year++)
+        {
+            // Only add if this year hasn't been used as a start year yet
+            if (!existingStartYears.Contains(year))
+            {
+                availableStartYears.Add(year);
+                count++;
+            }
+        }
+    }
+
+    private void OnStartYearChanged()
+    {
+        startYearError = "";
+        // Auto-set end year to start year + 1
+        if (!string.IsNullOrWhiteSpace(selectedStartYear) && int.TryParse(selectedStartYear, out int start))
+        {
+            selectedEndYear = (start + 1).ToString();
+            ValidateSchoolYearSelection();
+            UpdateStartDate(); // Auto-update start date year
+            UpdateEndDate(); // Auto-update end date year
             StateHasChanged();
+        }
+        else
+        {
+            selectedEndYear = "";
+            isValidSchoolYearFormat = false;
+            newSchoolYear = "";
+            newStartDate = null;
+            newEndDate = null;
+            startDateMonth = null;
+            startDateDay = null;
+            endDateMonth = null;
+            endDateDay = null;
+        }
+    }
+    
+    private void UpdateStartDate()
+    {
+        startDateError = "";
+        if (!string.IsNullOrWhiteSpace(selectedStartYear) && int.TryParse(selectedStartYear, out int year))
+        {
+            if (startDateMonth.HasValue && startDateDay.HasValue)
+            {
+                try
+                {
+                    newStartDate = new DateTime(year, startDateMonth.Value, startDateDay.Value);
+                    startDateError = "";
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    startDateError = "Invalid date. Please check month (1-12) and day (1-31) values.";
+                    newStartDate = null;
+                }
+                catch
+                {
+                    startDateError = "Invalid date. Please check month and day.";
+                    newStartDate = null;
+                }
+            }
+            else
+            {
+                newStartDate = null;
+            }
+        }
+        else
+        {
+            newStartDate = null;
+        }
+        StateHasChanged();
+    }
+    
+    private void UpdateEndDate()
+    {
+        endDateError = "";
+        if (!string.IsNullOrWhiteSpace(selectedEndYear) && int.TryParse(selectedEndYear, out int year))
+        {
+            if (endDateMonth.HasValue && endDateDay.HasValue)
+            {
+                try
+                {
+                    newEndDate = new DateTime(year, endDateMonth.Value, endDateDay.Value);
+                    endDateError = "";
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    endDateError = "Invalid date. Please check month (1-12) and day (1-31) values.";
+                    newEndDate = null;
+                }
+                catch
+                {
+                    endDateError = "Invalid date. Please check month and day.";
+                    newEndDate = null;
+                }
+            }
+            else
+            {
+                newEndDate = null;
+            }
+        }
+        else
+        {
+            newEndDate = null;
+        }
+        StateHasChanged();
+    }
+
+    private void ValidateSchoolYearSelection()
+    {
+        isValidSchoolYearFormat = false;
+        schoolYearError = "";
+        newSchoolYear = "";
+
+        // Check if both fields are filled
+        if (string.IsNullOrWhiteSpace(selectedStartYear) || string.IsNullOrWhiteSpace(selectedEndYear))
+        {
             return;
         }
 
-        // Validate year sequence
-        var parts = newSchoolYear.Split('-');
-        if (parts.Length == 2 && int.TryParse(parts[0], out int startYear) && int.TryParse(parts[1], out int endYear))
+        // Check if both are valid years
+        if (!int.TryParse(selectedStartYear, out int start))
         {
-            if (endYear != startYear + 1)
+            schoolYearError = "Start Year must be a valid year";
+            return;
+        }
+
+        if (!int.TryParse(selectedEndYear, out int end))
+        {
+            schoolYearError = "End Year must be a valid year";
+            return;
+        }
+
+        // Validation: End Year - Start Year must equal 1
+        int yearGap = end - start;
+        if (yearGap != 1)
+        {
+            schoolYearError = "End Year must be exactly 1 year after Start Year (e.g., 2026-2027)";
+            return;
+        }
+
+        // Check if school year already exists
+        var proposedSchoolYear = $"{start}-{end}";
+        if (schoolYears.Any(sy => sy.SchoolYearName == proposedSchoolYear))
+        {
+            schoolYearError = "This school year already exists";
+            return;
+        }
+
+        // All validations passed
+        isValidSchoolYearFormat = true;
+        newSchoolYear = proposedSchoolYear;
+        
+        // Auto-update date years when school year is selected
+        UpdateStartDate();
+        UpdateEndDate();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+    
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1; // Reset to first page when rows per page changes
+        StateHasChanged();
+    }
+
+    private async Task AddSchoolYear()
+    {
+        // Show validation errors only after Add button is clicked
+        showValidationErrors = true;
+        
+        // Clear all previous errors
+        schoolYearError = string.Empty;
+        dateError = string.Empty;
+        startYearError = string.Empty;
+        endYearError = string.Empty;
+        startDateError = string.Empty;
+        endDateError = string.Empty;
+        
+        bool hasErrors = false;
+        
+        // Validate Start Year
+        if (string.IsNullOrWhiteSpace(selectedStartYear))
+        {
+            startYearError = "Start Year is required";
+            hasErrors = true;
+        }
+        
+        // Validate End Year
+        if (string.IsNullOrWhiteSpace(selectedEndYear))
+        {
+            endYearError = "End Year is required";
+            hasErrors = true;
+        }
+        
+        // Validate school year format
+        if (!isValidSchoolYearFormat || string.IsNullOrWhiteSpace(newSchoolYear))
+        {
+            if (string.IsNullOrWhiteSpace(schoolYearError))
             {
-                schoolYearError = "End year must be one year after start year (e.g., 2024-2025)";
-                StateHasChanged();
-                return;
+                schoolYearError = "Please select valid Start Year and End Year";
             }
+            hasErrors = true;
+        }
+        
+        // Validate Start Date
+        if (!newStartDate.HasValue)
+        {
+            if (string.IsNullOrWhiteSpace(selectedStartYear))
+            {
+                startDateError = "Please select a school year first";
+            }
+            else if (!startDateMonth.HasValue || !startDateDay.HasValue)
+            {
+                startDateError = "Start Date is required. Please select month and day.";
+            }
+            else
+            {
+                startDateError = "Invalid Start Date. Please check month and day values.";
+            }
+            hasErrors = true;
+        }
+        
+        // Validate End Date
+        if (!newEndDate.HasValue)
+        {
+            if (string.IsNullOrWhiteSpace(selectedEndYear))
+            {
+                endDateError = "Please select a school year first";
+            }
+            else if (!endDateMonth.HasValue || !endDateDay.HasValue)
+            {
+                endDateError = "End Date is required. Please select month and day.";
+            }
+            else
+            {
+                endDateError = "Invalid End Date. Please check month and day values.";
+            }
+            hasErrors = true;
+        }
+        
+        if (hasErrors)
+        {
+            StateHasChanged();
+            return;
         }
 
         isProcessing = true;
@@ -388,19 +811,37 @@
             if (success)
             {
                 ShowToast($"School year {newSchoolYear} added successfully", ToastType.Success);
+                // Reset form
                 newSchoolYear = string.Empty;
+                selectedStartYear = string.Empty;
+                selectedEndYear = string.Empty;
                 newStartDate = null;
                 newEndDate = null;
-                await LoadSchoolYearsAsync();
+                startDateMonth = null;
+                startDateDay = null;
+                endDateMonth = null;
+                endDateDay = null;
+                isValidSchoolYearFormat = false;
+                schoolYearError = string.Empty;
+                dateError = string.Empty;
+                startYearError = string.Empty;
+                endYearError = string.Empty;
+                startDateError = string.Empty;
+                endDateError = string.Empty;
+                showValidationErrors = false; // Reset validation errors display
+                CurrentPage = 1; // Reset to first page after adding
+                await LoadSchoolYearsAsync(); // This will refresh available years and remove the added one
             }
             else
             {
+                schoolYearError = "Failed to add school year. It may already exist.";
                 ShowToast($"Failed to add school year. It may already exist.", ToastType.Error);
             }
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error adding school year: {Message}", ex.Message);
+            schoolYearError = $"Error adding school year: {ex.Message}";
             ShowToast($"Error adding school year: {ex.Message}", ToastType.Error);
         }
         finally
@@ -423,11 +864,6 @@
             {
                 ShowToast($"School year {schoolYear} opened successfully. All other school years have been closed.", ToastType.Success);
                 await LoadSchoolYearsAsync();
-                
-                // Show confirmation dialog
-                await JSRuntime.InvokeVoidAsync("alert", 
-                    $"School year {schoolYear} is now active!\n\n" +
-                    "All enrollments, grades, and reports will now filter by this school year.");
             }
             else
             {
@@ -503,6 +939,9 @@
             if (success)
             {
                 ShowToast($"School year {schoolYear} deleted successfully", ToastType.Success);
+                // Reset pagination to first page
+                CurrentPage = 1;
+                // Reload school years - this will refresh available start years and add the deleted one back
                 await LoadSchoolYearsAsync();
             }
             else
@@ -539,8 +978,29 @@
 
     private async Task RefreshData()
     {
-        await LoadSchoolYearsAsync();
-        ShowToast("Data refreshed successfully", ToastType.Success);
+        isLoading = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Force a complete refresh by clearing any cached state
+            schoolYears.Clear();
+            activeSchoolYear = null;
+            
+            // Reload all data
+            await LoadSchoolYearsAsync();
+            ShowToast("Data refreshed successfully", ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error refreshing data: {Message}", ex.Message);
+            ShowToast("Error refreshing data. Please try again.", ToastType.Error);
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private void GoBack()

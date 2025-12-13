@@ -1,17 +1,20 @@
-﻿@page "/finance"
+@page "/finance"
 @layout Components.Layout.MainLayout
 @using Microsoft.JSInterop
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
-@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.RoleBase
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Data
 @using Microsoft.Extensions.Logging
+@using Microsoft.EntityFrameworkCore
 @inject IJSRuntime JSRuntime
 @inject NavigationManager Navigation
+@inject AppDbContext _context
 @inject BrightEnroll_DES.Services.Business.Finance.FeeService FeeService
+@inject BrightEnroll_DES.Services.Business.Finance.DiscountService DiscountService
 @inject BrightEnroll_DES.Services.Business.Finance.ExpenseService ExpenseService
 @inject BrightEnroll_DES.Services.Business.Finance.PaymentService PaymentService
 @inject BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService ApprovalNotificationService
@@ -25,8 +28,6 @@
 
 <RoleAuthorizeView RequiredPermission="@Permissions.ViewFinance">
 
-<!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Finance</h1>
@@ -36,7 +37,7 @@
         <div class="flex items-center gap-6">
             @if (AuthorizationService.HasPermission(Permissions.CreateFee) || AuthorizationService.HasPermission(Permissions.EditFee))
             {
-                <button @onclick='() => SetActiveTab("FeeSetup")' 
+                <button @onclick='async () => await SetActiveTab("FeeSetup")' 
                         class="@GetTabClasses("FeeSetup")"
                         style="@GetFeeSetupStyle()">
                     Fee Setup
@@ -44,26 +45,26 @@
             }
             @if (AuthorizationService.HasPermission(Permissions.ManageExpenses))
             {
-                <button @onclick='() => SetActiveTab("Expenses")' 
+                <button @onclick='async () => await SetActiveTab("Expenses")' 
                         class="@GetTabClasses("Expenses")">
                     Expenses
                 </button>
             }
-            <button @onclick='() => SetActiveTab("Payments")' 
+            <button @onclick='async () => await SetActiveTab("Payments")' 
                     class="@GetTabClasses("Payments")">
                 Payments
             </button>
-            <button @onclick='() => SetActiveTab("Records")' 
+            <button @onclick='async () => await SetActiveTab("Records")' 
                     class="@GetTabClasses("Records")">
                 Records
             </button>
-            <button @onclick='() => SetActiveTab("Reports")' 
+            <button @onclick='async () => await SetActiveTab("Reports")' 
                     class="@GetTabClasses("Reports")">
                 Reports
             </button>
             @if (AuthorizationService.HasPermission(Permissions.ManageExpenses))
             {
-                <button @onclick='() => SetActiveTab("Approvals")' 
+                <button @onclick='async () => await SetActiveTab("Approvals")' 
                         class="@GetTabClasses("Approvals") relative">
                     Approvals
                     @if (pendingApprovalsCount > 0)
@@ -84,7 +85,12 @@
             <FeeSetup FeeList="FeeList" 
                       IsLoading="isLoadingFees"
                       OnFeeAdded="HandleFeeAdded" 
-                      OnFeeUpdated="HandleFeeUpdated" />
+                      OnFeeUpdated="HandleFeeUpdated"
+                      DiscountList="DiscountList"
+                      IsLoadingDiscounts="isLoadingDiscounts"
+                      OnDiscountAdded="HandleDiscountAdded"
+                      OnDiscountUpdated="HandleDiscountUpdated"
+                      OnDiscountDeleted="HandleDiscountDeleted" />
         }
         else if (activeTab == "Expenses")
         {
@@ -246,10 +252,10 @@
     private List<FeeModel> FeeList = new();
     private bool isLoadingFees = true; // Inline loading state
     
-    // Toast notification
-    private bool showToast = false;
-    private string toastMessage = "";
-    private ToastType toastType = ToastType.Success;
+    // Discount Setup Data
+    private List<DiscountModel> DiscountList = new();
+    private bool isLoadingDiscounts = false;
+    
     
     // Prevent concurrent submissions
     private bool _isProcessingFee = false;
@@ -286,8 +292,11 @@
     private bool ShowPaymentDetailsModal = false;
     private PaymentRecord? SelectedPaymentRecord = null;
     private List<Data.Models.LedgerPayment> PaymentHistory = new();
+    
+    // Payment search state (used when switching to Payments tab)
+    // Note: These fields were previously used but are no longer needed
 
-    private void SetActiveTab(string tab)
+    private async Task SetActiveTab(string tab)
     {
         // Prevent Cashier from accessing restricted tabs
         if (tab == "FeeSetup" && !AuthorizationService.HasPermission(Permissions.CreateFee) && !AuthorizationService.HasPermission(Permissions.EditFee))
@@ -300,10 +309,58 @@
         }
         activeTab = tab;
         
+        // Clear EF Core change tracker before loading data for the tab
+        _context.ChangeTracker.Clear();
+        
+        // Load data when switching to specific tabs
+        if (tab == "FeeSetup")
+        {
+            // Always load discounts when switching to Fee Setup (they might have been added/updated)
+            await LoadDiscountsAsync();
+            await LoadFeesAsync();
+        }
+        
+        if (tab == "Records")
+        {
+            // Always reload payment records when switching to Records tab
+            await LoadPaymentRecordsAsync();
+        }
+        
+        if (tab == "Expenses")
+        {
+            // Always reload expenses when switching to Expenses tab
+            await LoadExpensesAsync();
+        }
+        
+        if (tab == "Payments")
+        {
+            // Clear payment data when switching to Payments tab to ensure fresh search
+            PaymentData = new PaymentDataModel
+            {
+                StudentId = "",
+                StudentName = "",
+                GradeLevel = "",
+                TotalFee = 0,
+                AmountPaid = 0,
+                Balance = 0,
+                PaymentStatus = "",
+                NewPaymentAmount = 0,
+                PaymentMethod = "Cash"
+            };
+            // Reset search state when switching tabs
+        }
+        
+        if (tab == "Reports")
+        {
+            // Clear change tracker when switching to Reports tab to ensure fresh data
+            // Reports are generated on-demand, so no need to pre-load
+            // But clearing change tracker ensures fresh data when generating reports
+        }
+        
         // Refresh approval count when switching to Approvals or Expenses tab
         if (tab == "Approvals" || tab == "Expenses")
         {
-            _ = LoadPendingApprovalsCount();
+            await LoadPendingApprovalsCount();
         }
         
         StateHasChanged();
@@ -393,9 +450,6 @@
         {
             Logger?.LogError(ex, "Error loading fees: {Message}", ex.Message);
             FeeList = new List<FeeModel>();
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load fees: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
         }
         finally
         {
@@ -411,9 +465,20 @@
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load expenses: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
+        }
+
+        // Load discounts if Fee Setup is the active tab
+        if (activeTab == "FeeSetup")
+        {
+            try
+            {
+                await LoadDiscountsAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger?.LogError(ex, "Error loading discounts: {Message}", ex.Message);
+                DiscountList = new List<DiscountModel>();
+            }
         }
 
         // Load payment records
@@ -449,16 +514,10 @@
                     // Retry loading payment records after creating tables
                     await LoadPaymentRecordsAsync();
                     
-                    toastMessage = "Finance tables created successfully. Please refresh if needed.";
-                    toastType = ToastType.Success;
-                    showToast = true;
                 }
                 catch (Exception createEx)
                 {
                     Logger?.LogError(createEx, "Failed to create finance tables: {Message}", createEx.Message);
-                    toastMessage = "Database table not found. Please ensure the database is properly initialized.";
-                    toastType = ToastType.Error;
-                    showToast = true;
                 }
             }
             // Don't show error toast for other payment record errors as it's not critical on initial load
@@ -484,6 +543,12 @@
         {
             try
             {
+                // Clear EF Core change tracker to ensure fresh data is loaded
+                _context.ChangeTracker.Clear();
+                
+                // Small delay to ensure any pending database changes are committed
+                await Task.Delay(50);
+                
                 var fees = await FeeService.GetAllFeesAsync();
                 
                 // Map Fee entities to FeeModel for UI
@@ -534,8 +599,11 @@
         {
             try
             {
+                // Clear EF Core change tracker to ensure fresh data is loaded
+                _context.ChangeTracker.Clear();
+                
                 // Small delay to ensure any pending database changes are committed
-                await Task.Delay(50);
+                await Task.Delay(100);
                 
                 var expenses = await ExpenseService.GetExpensesAsync();
 
@@ -583,9 +651,6 @@
             if (gradeLevel == null)
             {
                 Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
-                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found. Please select a valid grade level.");
-                toastType = ToastType.Error;
-                showToast = true;
                 StateHasChanged();
                 return;
             }
@@ -626,20 +691,13 @@
             // Reload fees from database
             await LoadFeesAsync();
             
-            // Show success toast
-            toastMessage = $"Fee for {fee.GradeLevel} added successfully!";
-            toastType = ToastType.Success;
-            showToast = true;
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error adding fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
             
-            // Show error toast
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to add fee: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
+            Logger?.LogError(ex, "Error adding fee: {Message}", ex.Message);
             StateHasChanged();
         }
         finally
@@ -660,9 +718,6 @@
             if (gradeLevel == null)
             {
                 Logger?.LogError("Grade level not found: {GradeLevel}", fee.GradeLevel);
-                toastMessage = ErrorMessageHelper.ToHumanReadable($"Grade level '{fee.GradeLevel}' not found.");
-                toastType = ToastType.Error;
-                showToast = true;
                 StateHasChanged();
                 return;
             }
@@ -673,9 +728,6 @@
             if (existingFee == null)
             {
                 Logger?.LogError("Fee not found for grade level: {GradeLevel}", fee.GradeLevel);
-                toastMessage = ErrorMessageHelper.ToHumanReadable($"Fee not found for {fee.GradeLevel}.");
-                toastType = ToastType.Error;
-                showToast = true;
                 StateHasChanged();
                 return;
             }
@@ -715,29 +767,144 @@
             // Reload fees from database
             await LoadFeesAsync();
             
-            // Show success toast
-            toastMessage = $"Fee for {fee.GradeLevel} updated successfully!";
-            toastType = ToastType.Success;
-            showToast = true;
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error updating fee: {Message}. Stack trace: {StackTrace}", ex.Message, ex.StackTrace);
             
-            // Show error toast
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to update fee: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
+            Logger?.LogError(ex, "Error updating fee: {Message}", ex.Message);
             StateHasChanged();
         }
     }
-    
-    private void CloseToast()
+
+    // Discount Handlers
+    private async Task LoadDiscountsAsync()
     {
-        showToast = false;
-        toastMessage = "";
+        isLoadingDiscounts = true;
         StateHasChanged();
+        
+        try
+        {
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
+            
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(50);
+            
+            var discounts = await DiscountService.GetAllDiscountsAsync();
+            
+            DiscountList = discounts.Select(d => new DiscountModel
+            {
+                DiscountId = d.DiscountId,
+                DiscountType = d.DiscountType,
+                DiscountName = d.DiscountName,
+                RateOrValue = d.RateOrValue,
+                IsPercentage = d.IsPercentage,
+                MaxAmount = d.MaxAmount,
+                MinAmount = d.MinAmount,
+                Description = d.Description,
+                IsActive = d.IsActive
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading discounts: {Message}", ex.Message);
+            DiscountList = new List<DiscountModel>();
+        }
+        finally
+        {
+            isLoadingDiscounts = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDiscountAdded(DiscountModel discount)
+    {
+        try
+        {
+            var request = new CreateDiscountRequest
+            {
+                DiscountType = discount.DiscountType,
+                DiscountName = discount.DiscountName,
+                RateOrValue = discount.RateOrValue,
+                IsPercentage = discount.IsPercentage,
+                MaxAmount = discount.MaxAmount,
+                MinAmount = discount.MinAmount,
+                Description = discount.Description,
+                IsActive = discount.IsActive
+            };
+
+            await DiscountService.CreateDiscountAsync(request);
+            
+            // Reload discounts from database
+            await LoadDiscountsAsync();
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error adding discount: {Message}", ex.Message);
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDiscountUpdated(DiscountModel discount)
+    {
+        try
+        {
+            var existingDiscount = await DiscountService.GetDiscountByIdAsync(discount.DiscountId);
+            
+            if (existingDiscount == null)
+            {
+                Logger?.LogError("Discount not found: {DiscountId}", discount.DiscountId);
+                StateHasChanged();
+                return;
+            }
+
+            var request = new UpdateDiscountRequest
+            {
+                DiscountType = discount.DiscountType,
+                DiscountName = discount.DiscountName,
+                RateOrValue = discount.RateOrValue,
+                IsPercentage = discount.IsPercentage,
+                MaxAmount = discount.MaxAmount,
+                MinAmount = discount.MinAmount,
+                Description = discount.Description,
+                IsActive = discount.IsActive
+            };
+
+            await DiscountService.UpdateDiscountAsync(discount.DiscountId, request);
+            
+            // Reload discounts from database
+            await LoadDiscountsAsync();
+            
+            // Show success toast
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error updating discount: {Message}", ex.Message);
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleDiscountDeleted(DiscountModel discount)
+    {
+        try
+        {
+            await DiscountService.DeleteDiscountAsync(discount.DiscountId);
+            
+            // Reload discounts from database
+            await LoadDiscountsAsync();
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error removing discount: {Message}", ex.Message);
+            StateHasChanged();
+        }
     }
     
     private async Task HandleApprovalProcessed()
@@ -757,9 +924,15 @@
     
     protected override async Task OnParametersSetAsync()
     {
-        // Handle navigation changes (e.g., when coming from notification)
+        // Handle navigation changes (e.g., when coming from notification or Enrollment page)
         var uri = new Uri(Navigation.Uri);
         var query = ParseQueryString(uri.Query);
+        
+        // Clear EF Core change tracker to ensure fresh data when navigating back
+        _context.ChangeTracker.Clear();
+        
+        // Small delay to ensure any pending database changes are committed
+        await Task.Delay(100);
         
         if (query.TryGetValue("tab", out var tabValue))
         {
@@ -781,25 +954,45 @@
                 }
             }
         }
+        else
+        {
+            // If no tab in URL, refresh current tab data to ensure it's up-to-date
+            // This is important when navigating back from Enrollment or Student Record pages
+            await RefreshDataForTab(activeTab);
+        }
     }
     
     private async Task RefreshDataForTab(string tab)
     {
         try
         {
+            // Clear EF Core change tracker before refreshing
+            _context.ChangeTracker.Clear();
+            
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(50);
+            
             switch (tab)
             {
+                case "FeeSetup":
+                    await LoadFeesAsync();
+                    await LoadDiscountsAsync();
+                    break;
                 case "Expenses":
                     await LoadExpensesAsync();
+                    await LoadPendingApprovalsCount();
                     break;
                 case "Approvals":
                     await LoadPendingApprovalsCount();
                     break;
                 case "Payments":
-                    await LoadPaymentRecordsAsync();
+                    // Payments tab loads data on-demand when searching, no pre-load needed
                     break;
                 case "Records":
                     await LoadPaymentRecordsAsync();
+                    break;
+                case "Reports":
+                    // Reports are generated on-demand, no pre-load needed
                     break;
             }
         }
@@ -838,21 +1031,26 @@
     {
         try
         {
+            // Clear EF Core change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
+            // Small delay to ensure database changes are committed
+            await Task.Delay(150);
+            
             // Reload payment records to get updated data
             await LoadPaymentRecordsAsync();
             
-            // Show success toast
-            toastMessage = $"Payment of Php {paymentData.NewPaymentAmount:N2} processed successfully for {paymentData.StudentName}";
-            toastType = ToastType.Success;
-            showToast = true;
+            // Also refresh expenses if needed (in case payment affects expense approvals)
+            if (activeTab == "Expenses")
+            {
+                await LoadExpensesAsync();
+            }
+            
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error handling payment processed: {Message}", ex.Message);
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Error updating payment records: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
             StateHasChanged();
         }
     }
@@ -861,27 +1059,65 @@
     {
         try
         {
-            var studentsWithPayments = await PaymentService.GetAllStudentsWithPaymentStatusAsync();
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            _context.ChangeTracker.Clear();
             
-            // Get latest payment for each student to get ProcessedBy
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(100);
+            
+            // Get all active students (exclude archived students)
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            var allStudents = await _context.Students
+                .Include(s => s.Guardian)
+                .Where(s => s.Status == null || !archivedStatuses.Contains(s.Status))
+                .ToListAsync();
+            
             var paymentRecords = new List<PaymentRecord>();
             
-            foreach (var student in studentsWithPayments)
+            foreach (var student in allStudents)
             {
-                var latestPayment = await PaymentService.GetLatestPaymentAsync(student.StudentId);
+                // Try to get payment info for this student
+                var paymentInfo = await PaymentService.GetStudentPaymentInfoAsync(student.StudentId);
                 
-                paymentRecords.Add(new PaymentRecord
+                // Get latest payment for ProcessedBy info
+                var latestPayment = paymentInfo != null 
+                    ? await PaymentService.GetLatestPaymentAsync(student.StudentId)
+                    : null;
+                
+                // If student has payment info, use it; otherwise show as unpaid
+                if (paymentInfo != null)
                 {
-                    StudentId = student.StudentId,
-                    Name = student.StudentName,
-                    Grade = student.GradeLevel,
-                    TotalFee = student.TotalFee,
-                    AmountPaid = student.AmountPaid,
-                    Balance = student.Balance,
-                    PaymentStatus = student.PaymentStatus,
-                    ProcessedBy = latestPayment?.ProcessedBy ?? "N/A",
-                    LastPaymentDate = latestPayment?.CreatedAt
-                });
+                    paymentRecords.Add(new PaymentRecord
+                    {
+                        StudentId = student.StudentId,
+                        Name = paymentInfo.StudentName,
+                        Grade = paymentInfo.GradeLevel ?? student.GradeLevel ?? "N/A",
+                        TotalFee = paymentInfo.TotalFee,
+                        AmountPaid = paymentInfo.AmountPaid,
+                        Balance = paymentInfo.Balance,
+                        PaymentStatus = paymentInfo.PaymentStatus,
+                        ProcessedBy = latestPayment?.ProcessedBy ?? "N/A",
+                        LastPaymentDate = latestPayment?.CreatedAt
+                    });
+                }
+                else
+                {
+                    // Student has no ledger yet - show as unpaid
+                    var studentName = $"{student.FirstName} {(!string.IsNullOrWhiteSpace(student.MiddleName) ? student.MiddleName + " " : "")}{student.LastName}{(!string.IsNullOrWhiteSpace(student.Suffix) ? " " + student.Suffix : "")}".Trim();
+                    
+                    paymentRecords.Add(new PaymentRecord
+                    {
+                        StudentId = student.StudentId,
+                        Name = studentName,
+                        Grade = student.GradeLevel ?? "N/A",
+                        TotalFee = 0,
+                        AmountPaid = 0,
+                        Balance = 0,
+                        PaymentStatus = "Unpaid",
+                        ProcessedBy = "N/A",
+                        LastPaymentDate = null
+                    });
+                }
             }
             
             // Sort by latest payment date (most recent first), then by student ID for consistency
@@ -889,11 +1125,14 @@
                 .OrderByDescending(p => p.LastPaymentDate ?? DateTime.MinValue)
                 .ThenByDescending(p => p.StudentId)
                 .ToList();
+            
+            Logger?.LogInformation("Loaded {Count} payment records (out of {TotalStudents} students)", PaymentRecords.Count, allStudents.Count);
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
             PaymentRecords = new List<PaymentRecord>();
+            Logger?.LogError(ex, "Error loading payment records: {Message}", ex.Message);
         }
     }
 
@@ -940,9 +1179,6 @@
 
                 await ExpenseService.CreateExpenseAsync(createRequest);
 
-                toastMessage = "Expense added successfully.";
-                toastType = ToastType.Success;
-                showToast = true;
                 
                 // Small delay to ensure database changes are committed
                 await Task.Delay(100);
@@ -974,9 +1210,6 @@
 
                 await ExpenseService.UpdateExpenseAsync(expenseForm.ExpenseId, updateRequest);
 
-                toastMessage = "Expense updated successfully.";
-                toastType = ToastType.Success;
-                showToast = true;
             }
 
             // Small delay to ensure database changes are committed
@@ -991,9 +1224,6 @@
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error saving expense: {Message}", ex.Message);
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to save expense: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
             StateHasChanged();
         }
         finally
@@ -1023,16 +1253,10 @@
             await ExpenseService.ArchiveExpenseAsync(expenseId);
             await LoadExpensesAsync();
 
-            toastMessage = "Expense archived successfully.";
-            toastType = ToastType.Success;
-            showToast = true;
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error archiving expense: {Message}", ex.Message);
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to archive expense: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
         }
     }
 
@@ -1048,9 +1272,6 @@
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading payment details: {Message}", ex.Message);
-            toastMessage = ErrorMessageHelper.ToHumanReadable($"Failed to load payment details: {ex.Message}");
-            toastType = ToastType.Error;
-            showToast = true;
         }
     }
 

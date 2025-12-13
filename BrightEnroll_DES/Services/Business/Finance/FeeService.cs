@@ -20,10 +20,15 @@ public class FeeService
     {
         try
         {
+            // Use AsNoTracking for read-only query to avoid concurrency issues
+            // Combine queries into a single operation to avoid multiple concurrent DbContext operations
             var fees = await _context.Fees
+                .AsNoTracking()
                 .Include(f => f.GradeLevel)
                 .Include(f => f.Breakdowns)
-                .Where(f => f.IsActive)
+                .Where(f => f.IsActive && 
+                           f.GradeLevel != null && 
+                           f.GradeLevel.IsActive) // Filter directly in query instead of separate call
                 .OrderBy(f => f.GradeLevelId)
                 .ToListAsync();
 
@@ -41,6 +46,16 @@ public class FeeService
     {
         try
         {
+            // Verify the grade level exists before querying fees
+            var gradeLevelExists = await _context.GradeLevels
+                .AnyAsync(g => g.GradeLevelId == gradeLevelId && g.IsActive);
+
+            if (!gradeLevelExists)
+            {
+                _logger?.LogWarning("GradeLevel with ID {GradeLevelId} does not exist or is inactive", gradeLevelId);
+                return null;
+            }
+
             return await _context.Fees
                 .Include(f => f.GradeLevel)
                 .Include(f => f.Breakdowns)
@@ -224,10 +239,21 @@ public class FeeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Fee updated successfully: Fee ID {FeeId}", feeId);
-                return await _context.Fees
+                
+                // Reload fee with includes, but verify GradeLevel exists first
+                var updatedFee = await _context.Fees
                     .Include(f => f.GradeLevel)
                     .Include(f => f.Breakdowns)
-                    .FirstOrDefaultAsync(f => f.FeeId == feeId) ?? fee;
+                    .FirstOrDefaultAsync(f => f.FeeId == feeId);
+                
+                // If reload failed or GradeLevel is null, return the fee we already have
+                if (updatedFee == null || updatedFee.GradeLevel == null)
+                {
+                    _logger?.LogWarning("Could not reload fee {FeeId} with includes, returning fee from context", feeId);
+                    return fee;
+                }
+                
+                return updatedFee;
             }
             catch (Exception ex)
             {

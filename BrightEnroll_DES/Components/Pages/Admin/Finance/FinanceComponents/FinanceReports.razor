@@ -198,14 +198,6 @@
                             class="@GetBreakdownTabClasses("Overview")">
                         Overview
                     </button>
-                    <button @onclick='() => SetActiveBreakdown("ByGrade")' 
-                            class="@GetBreakdownTabClasses("ByGrade")">
-                        By Grade
-                    </button>
-                    <button @onclick='() => SetActiveBreakdown("ByMonth")' 
-                            class="@GetBreakdownTabClasses("ByMonth")">
-                        By Month
-                    </button>
                     <button @onclick='() => SetActiveBreakdown("Details")' 
                             class="@GetBreakdownTabClasses("Details")">
                         Details
@@ -256,6 +248,12 @@
     private GeneralLedgerData? generalLedger;
     private List<RevenueBreakdownItem>? revenueBreakdown;
     private BalanceSheetReport? balanceSheetReport;
+    
+    // Details tab data
+    private List<PaymentHistoryRecord>? incomeStatementPayments;
+    private List<Data.Models.Expense>? incomeStatementExpenses;
+    private List<PaymentHistoryRecord>? cashFlowInflows;
+    private List<Data.Models.Expense>? cashFlowOutflows;
 
     protected override async Task OnInitializedAsync()
     {
@@ -370,14 +368,32 @@
 
         try
         {
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            DbContext.ChangeTracker.Clear();
+            
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(100);
+            
             switch (activeReport)
             {
                 case "IncomeStatement":
                     incomeStatement = await AccountingReportService.GetIncomeStatementAsync(fromDate, toDate);
                     revenueBreakdown = await GetRevenueBreakdownAsync(fromDate, toDate);
+                    // Load details data
+                    incomeStatementPayments = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                    incomeStatementExpenses = await DbContext.Expenses
+                        .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                        .OrderByDescending(e => e.ExpenseDate)
+                        .ToListAsync();
                     break;
                 case "CashFlow":
                     cashFlowReport = await AccountingReportService.GetCashFlowReportAsync(fromDate, toDate);
+                    // Load details data
+                    cashFlowInflows = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                    cashFlowOutflows = await DbContext.Expenses
+                        .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                        .OrderByDescending(e => e.ExpenseDate)
+                        .ToListAsync();
                     break;
                 case "AccountsReceivable":
                     arRecords = await AccountingReportService.GetAccountsReceivableAsync(toDate);
@@ -529,10 +545,11 @@
                     {
                         var totalCredits = generalLedger.Entries.Sum(e => e.Credit);
                         var totalDebits = generalLedger.Entries.Sum(e => e.Debit);
-                        var finalBalance = generalLedger.Entries.LastOrDefault()?.Balance ?? 0;
+                        // FIXED: Net Balance should be Total Debits - Total Credits (should always be 0 for balanced ledger)
+                        var netBalance = totalDebits - totalCredits;
                         RenderKPICard(builder, "Total Credits", totalCredits, "text-green-600", "");
                         RenderKPICard(builder, "Total Debits", totalDebits, "text-red-600", "");
-                        RenderKPICard(builder, "Net Balance", finalBalance, finalBalance >= 0 ? "text-blue-600" : "text-red-600", "");
+                        RenderKPICard(builder, "Net Balance", netBalance, Math.Abs(netBalance) < 0.01m ? "text-green-600" : "text-red-600", "");
                         RenderKPICard(builder, "Transactions", generalLedger.Entries.Count, "text-gray-600", "transactions");
                     }
                     else
@@ -548,7 +565,18 @@
                         RenderKPICard(builder, "Total Liabilities", balanceSheetReport.TotalLiabilities, "text-red-600", "");
                         RenderKPICard(builder, "Total Equity", balanceSheetReport.TotalEquity, "text-green-600", "");
                         var balanceStatus = balanceSheetReport.IsBalanced ? "Balanced" : "Unbalanced";
-                        RenderKPICard(builder, "Status", balanceSheetReport.IsBalanced ? 1 : 0, balanceSheetReport.IsBalanced ? "text-green-600" : "text-red-600", balanceStatus);
+                        // Render Status card with text only (no currency value)
+                        builder.OpenElement(0, "div");
+                        builder.AddAttribute(1, "class", "rounded-lg border border-gray-200 bg-white p-4 shadow-sm");
+                        builder.OpenElement(2, "p");
+                        builder.AddAttribute(3, "class", "text-xs font-medium text-gray-600 mb-1");
+                        builder.AddContent(4, "Status");
+                        builder.CloseElement();
+                        builder.OpenElement(5, "p");
+                        builder.AddAttribute(6, "class", $"text-2xl font-bold {(balanceSheetReport.IsBalanced ? "text-green-600" : "text-red-600")}");
+                        builder.AddContent(7, balanceStatus);
+                        builder.CloseElement();
+                        builder.CloseElement();
                     }
                     else
                     {
@@ -628,12 +656,6 @@
             {
                 case "Overview":
                     RenderOverviewTab(builder);
-                    break;
-                case "ByGrade":
-                    RenderByGradeTab(builder);
-                    break;
-                case "ByMonth":
-                    RenderByMonthTab(builder);
                     break;
                 case "Details":
                     RenderDetailsTab(builder);
@@ -1063,72 +1085,84 @@
                 }
                 break;
 
-            case "GeneralLedger":
-                if (generalLedger != null && generalLedger.Entries.Any())
-                {
-                    var totalCredits = generalLedger.Entries.Sum(e => e.Credit);
-                    var totalDebits = generalLedger.Entries.Sum(e => e.Debit);
-                    var isBalanced = Math.Abs(totalDebits - totalCredits) < 0.01m; // Allow for rounding
-                    var finalBalance = generalLedger.Entries.LastOrDefault()?.Balance ?? 0;
+                case "GeneralLedger":
+                    if (generalLedger != null && generalLedger.Entries.Any())
+                    {
+                        var totalCredits = generalLedger.Entries.Sum(e => e.Credit);
+                        var totalDebits = generalLedger.Entries.Sum(e => e.Debit);
+                        var isBalanced = Math.Abs(totalDebits - totalCredits) < 0.01m; // Allow for rounding
+                        // FIXED: Net Balance should be Total Debits - Total Credits (should always be 0 for balanced ledger)
+                        var netBalance = totalDebits - totalCredits;
 
-                    builder.OpenElement(186, "div");
-                    builder.AddAttribute(187, "class", "grid grid-cols-1 gap-6 md:grid-cols-2");
-                    
-                    // Summary
-                    builder.OpenElement(188, "div");
-                    builder.AddAttribute(189, "class", "rounded-lg border border-gray-200 bg-gray-50 p-4");
-                    builder.OpenElement(190, "h3");
-                    builder.AddAttribute(191, "class", "mb-4 text-lg font-semibold text-gray-800");
-                    builder.AddContent(192, "Summary");
-                    builder.CloseElement();
-                    builder.OpenElement(193, "div");
-                    builder.AddAttribute(194, "class", "space-y-3");
-                    builder.OpenElement(195, "div");
-                    builder.AddAttribute(196, "class", "flex items-center justify-between rounded bg-white p-3");
-                    builder.OpenElement(197, "span");
-                    builder.AddAttribute(198, "class", "font-medium text-gray-700");
-                    builder.AddContent(199, "Total Credits");
-                    builder.CloseElement();
-                    builder.OpenElement(200, "span");
-                    builder.AddAttribute(201, "class", "font-semibold text-green-600");
-                    builder.AddContent(202, FormatCurrency(totalCredits));
-                    builder.CloseElement();
-                    builder.CloseElement();
-                    builder.OpenElement(203, "div");
-                    builder.AddAttribute(204, "class", "flex items-center justify-between rounded bg-white p-3");
-                    builder.OpenElement(205, "span");
-                    builder.AddAttribute(206, "class", "font-medium text-gray-700");
-                    builder.AddContent(207, "Total Debits");
-                    builder.CloseElement();
-                    builder.OpenElement(208, "span");
-                    builder.AddAttribute(209, "class", "font-semibold text-red-600");
-                    builder.AddContent(210, FormatCurrency(totalDebits));
-                    builder.CloseElement();
-                    builder.CloseElement();
-                    builder.OpenElement(211, "div");
-                    builder.AddAttribute(212, "class", "flex items-center justify-between rounded bg-white p-3");
-                    builder.OpenElement(213, "span");
-                    builder.AddAttribute(214, "class", "font-medium text-gray-700");
-                    builder.AddContent(215, "Balance Check");
-                    builder.CloseElement();
-                    builder.OpenElement(216, "span");
-                    builder.AddAttribute(217, "class", $"font-semibold {(isBalanced ? "text-green-600" : "text-red-600")}");
-                    builder.AddContent(218, isBalanced ? "✓ Balanced" : $"Out of Balance: {FormatCurrency(Math.Abs(totalDebits - totalCredits))}");
-                    builder.CloseElement();
-                    builder.CloseElement();
-                    builder.OpenElement(219, "div");
-                    builder.AddAttribute(220, "class", "flex items-center justify-between rounded bg-white p-3");
-                    builder.OpenElement(221, "span");
-                    builder.AddAttribute(222, "class", "font-medium text-gray-700");
-                    builder.AddContent(223, "Transaction Count");
-                    builder.CloseElement();
-                    builder.OpenElement(224, "span");
-                    builder.AddAttribute(225, "class", "font-semibold text-gray-800");
-                    builder.AddContent(226, generalLedger.Entries.Count.ToString("N0"));
-                    builder.CloseElement();
-                    builder.CloseElement();
-                    builder.CloseElement();
-                    builder.CloseElement();
+                        builder.OpenElement(186, "div");
+                        builder.AddAttribute(187, "class", "grid grid-cols-1 gap-6 md:grid-cols-2");
+                        
+                        // Summary
+                        builder.OpenElement(188, "div");
+                        builder.AddAttribute(189, "class", "rounded-lg border border-gray-200 bg-gray-50 p-4");
+                        builder.OpenElement(190, "h3");
+                        builder.AddAttribute(191, "class", "mb-4 text-lg font-semibold text-gray-800");
+                        builder.AddContent(192, "Summary");
+                        builder.CloseElement();
+                        builder.OpenElement(193, "div");
+                        builder.AddAttribute(194, "class", "space-y-3");
+                        builder.OpenElement(195, "div");
+                        builder.AddAttribute(196, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(197, "span");
+                        builder.AddAttribute(198, "class", "font-medium text-gray-700");
+                        builder.AddContent(199, "Total Credits");
+                        builder.CloseElement();
+                        builder.OpenElement(200, "span");
+                        builder.AddAttribute(201, "class", "font-semibold text-green-600");
+                        builder.AddContent(202, FormatCurrency(totalCredits));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(203, "div");
+                        builder.AddAttribute(204, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(205, "span");
+                        builder.AddAttribute(206, "class", "font-medium text-gray-700");
+                        builder.AddContent(207, "Total Debits");
+                        builder.CloseElement();
+                        builder.OpenElement(208, "span");
+                        builder.AddAttribute(209, "class", "font-semibold text-red-600");
+                        builder.AddContent(210, FormatCurrency(totalDebits));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(211, "div");
+                        builder.AddAttribute(212, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(213, "span");
+                        builder.AddAttribute(214, "class", "font-medium text-gray-700");
+                        builder.AddContent(215, "Net Balance");
+                        builder.CloseElement();
+                        builder.OpenElement(216, "span");
+                        builder.AddAttribute(217, "class", $"font-semibold {(Math.Abs(netBalance) < 0.01m ? "text-green-600" : "text-red-600")}");
+                        builder.AddContent(218, FormatCurrency(netBalance));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(219, "div");
+                        builder.AddAttribute(220, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(221, "span");
+                        builder.AddAttribute(222, "class", "font-medium text-gray-700");
+                        builder.AddContent(223, "Balance Check");
+                        builder.CloseElement();
+                        builder.OpenElement(224, "span");
+                        builder.AddAttribute(225, "class", $"font-semibold {(isBalanced ? "text-green-600" : "text-red-600")}");
+                        builder.AddContent(226, isBalanced ? "✓ Balanced" : $"Out of Balance: {FormatCurrency(Math.Abs(totalDebits - totalCredits))}");
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.OpenElement(227, "div");
+                        builder.AddAttribute(228, "class", "flex items-center justify-between rounded bg-white p-3");
+                        builder.OpenElement(229, "span");
+                        builder.AddAttribute(230, "class", "font-medium text-gray-700");
+                        builder.AddContent(231, "Transaction Count");
+                        builder.CloseElement();
+                        builder.OpenElement(232, "span");
+                        builder.AddAttribute(233, "class", "font-semibold text-gray-800");
+                        builder.AddContent(234, generalLedger.Entries.Count.ToString("N0"));
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.CloseElement();
+                        builder.CloseElement();
 
                     // Balance Trend
                     builder.OpenElement(225, "div");
@@ -1765,6 +1799,378 @@
                     builder.CloseElement();
                     builder.CloseElement();
                 }
+                break;
+
+            case "IncomeStatement":
+                builder.OpenElement(200, "div");
+                builder.AddAttribute(201, "class", "space-y-6");
+
+                // Revenue Section
+                builder.OpenElement(202, "div");
+                builder.AddAttribute(203, "class", "rounded-lg border border-green-200 bg-white");
+                builder.OpenElement(204, "div");
+                builder.AddAttribute(205, "class", "bg-green-50 px-4 py-3 border-b border-green-200");
+                builder.OpenElement(206, "h3");
+                builder.AddAttribute(207, "class", "text-sm font-bold text-green-800");
+                builder.AddContent(208, "Revenue (Payments)");
+                builder.CloseElement(); // h3
+                builder.CloseElement(); // header div
+                
+                if (incomeStatementPayments != null && incomeStatementPayments.Any())
+                {
+                    builder.OpenElement(209, "div");
+                    builder.AddAttribute(210, "class", "overflow-x-auto overflow-y-auto max-h-[420px]");
+                    builder.OpenElement(211, "table");
+                    builder.AddAttribute(212, "class", "w-full border-collapse text-sm");
+                    builder.OpenElement(213, "thead");
+                    builder.AddAttribute(214, "class", "sticky top-0 bg-gray-50 z-10");
+                    builder.OpenElement(215, "tr");
+                    builder.AddAttribute(216, "class", "border-b-2 border-gray-300 bg-gray-50");
+                    builder.OpenElement(217, "th");
+                    builder.AddAttribute(218, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(219, "Date");
+                    builder.CloseElement();
+                    builder.OpenElement(220, "th");
+                    builder.AddAttribute(221, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(222, "Student");
+                    builder.CloseElement();
+                    builder.OpenElement(223, "th");
+                    builder.AddAttribute(224, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(225, "Grade");
+                    builder.CloseElement();
+                    builder.OpenElement(226, "th");
+                    builder.AddAttribute(227, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(228, "Amount");
+                    builder.CloseElement();
+                    builder.OpenElement(229, "th");
+                    builder.AddAttribute(230, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(231, "Method");
+                    builder.CloseElement();
+                    builder.OpenElement(232, "th");
+                    builder.AddAttribute(233, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(234, "OR Number");
+                    builder.CloseElement();
+                    builder.CloseElement(); // tr
+                    builder.CloseElement(); // thead
+                    builder.OpenElement(234, "tbody");
+                    foreach (var payment in incomeStatementPayments.OrderByDescending(p => p.PaymentDate))
+                    {
+                        builder.OpenElement(235, "tr");
+                        builder.AddAttribute(236, "class", "border-b border-gray-100 hover:bg-gray-50");
+                        builder.OpenElement(237, "td");
+                        builder.AddAttribute(238, "class", "px-4 py-3 text-gray-700");
+                        builder.AddContent(239, payment.PaymentDate.ToString("MMM dd, yyyy"));
+                        builder.CloseElement();
+                        builder.OpenElement(240, "td");
+                        builder.AddAttribute(241, "class", "px-4 py-3 font-medium text-gray-800");
+                        builder.AddContent(242, payment.StudentName);
+                        builder.CloseElement();
+                        builder.OpenElement(243, "td");
+                        builder.AddAttribute(244, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(245, payment.GradeLevel);
+                        builder.CloseElement();
+                        builder.OpenElement(246, "td");
+                        builder.AddAttribute(247, "class", "px-4 py-3 text-right font-semibold text-green-600");
+                        builder.AddContent(248, FormatCurrency(payment.Amount));
+                        builder.CloseElement();
+                        builder.OpenElement(249, "td");
+                        builder.AddAttribute(250, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(251, payment.PaymentMethod);
+                        builder.CloseElement();
+                        builder.OpenElement(252, "td");
+                        builder.AddAttribute(253, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(254, payment.OrNumber);
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement(); // tbody
+                    builder.CloseElement(); // table
+                    builder.CloseElement(); // overflow div
+                }
+                else
+                {
+                    builder.OpenElement(255, "div");
+                    builder.AddAttribute(256, "class", "p-4 text-center");
+                    builder.OpenElement(257, "p");
+                    builder.AddAttribute(258, "class", "text-sm text-gray-500");
+                    builder.AddContent(259, "No revenue transactions found.");
+                    builder.CloseElement(); // p
+                    builder.CloseElement(); // div
+                }
+                builder.CloseElement(); // Revenue Section div
+
+                // Expenses Section
+                builder.OpenElement(260, "div");
+                builder.AddAttribute(261, "class", "rounded-lg border border-red-200 bg-white");
+                builder.OpenElement(262, "div");
+                builder.AddAttribute(263, "class", "bg-red-50 px-4 py-3 border-b border-red-200");
+                builder.OpenElement(264, "h3");
+                builder.AddAttribute(265, "class", "text-sm font-bold text-red-800");
+                builder.AddContent(266, "Expenses");
+                builder.CloseElement(); // h3
+                builder.CloseElement(); // header div
+                
+                if (incomeStatementExpenses != null && incomeStatementExpenses.Any())
+                {
+                    builder.OpenElement(267, "div");
+                    builder.AddAttribute(268, "class", "overflow-x-auto overflow-y-auto max-h-[420px]");
+                    builder.OpenElement(269, "table");
+                    builder.AddAttribute(270, "class", "w-full border-collapse text-sm");
+                    builder.OpenElement(271, "thead");
+                    builder.AddAttribute(272, "class", "sticky top-0 bg-gray-50 z-10");
+                    builder.OpenElement(273, "tr");
+                    builder.AddAttribute(274, "class", "border-b-2 border-gray-300 bg-gray-50");
+                    builder.OpenElement(275, "th");
+                    builder.AddAttribute(276, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(277, "Date");
+                    builder.CloseElement();
+                    builder.OpenElement(278, "th");
+                    builder.AddAttribute(279, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(280, "Description");
+                    builder.CloseElement();
+                    builder.OpenElement(281, "th");
+                    builder.AddAttribute(282, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(283, "Category");
+                    builder.CloseElement();
+                    builder.OpenElement(284, "th");
+                    builder.AddAttribute(285, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(286, "Amount");
+                    builder.CloseElement();
+                    builder.OpenElement(287, "th");
+                    builder.AddAttribute(288, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(289, "Payment Method");
+                    builder.CloseElement();
+                    builder.CloseElement(); // tr
+                    builder.CloseElement(); // thead
+                    builder.OpenElement(289, "tbody");
+                    foreach (var expense in incomeStatementExpenses)
+                    {
+                        builder.OpenElement(290, "tr");
+                        builder.AddAttribute(291, "class", "border-b border-gray-100 hover:bg-gray-50");
+                        builder.OpenElement(292, "td");
+                        builder.AddAttribute(293, "class", "px-4 py-3 text-gray-700");
+                        builder.AddContent(294, expense.ExpenseDate.ToString("MMM dd, yyyy"));
+                        builder.CloseElement();
+                        builder.OpenElement(295, "td");
+                        builder.AddAttribute(296, "class", "px-4 py-3 font-medium text-gray-800");
+                        builder.AddContent(297, expense.Description ?? "N/A");
+                        builder.CloseElement();
+                        builder.OpenElement(298, "td");
+                        builder.AddAttribute(299, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(300, expense.Category ?? "Uncategorized");
+                        builder.CloseElement();
+                        builder.OpenElement(301, "td");
+                        builder.AddAttribute(302, "class", "px-4 py-3 text-right font-semibold text-red-600");
+                        builder.AddContent(303, FormatCurrency(expense.Amount));
+                        builder.CloseElement();
+                        builder.OpenElement(304, "td");
+                        builder.AddAttribute(305, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(306, expense.PaymentMethod ?? "Cash");
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement(); // tbody
+                    builder.CloseElement(); // table
+                    builder.CloseElement(); // overflow div
+                }
+                else
+                {
+                    builder.OpenElement(307, "div");
+                    builder.AddAttribute(308, "class", "p-4 text-center");
+                    builder.OpenElement(309, "p");
+                    builder.AddAttribute(310, "class", "text-sm text-gray-500");
+                    builder.AddContent(311, "No expense transactions found.");
+                    builder.CloseElement(); // p
+                    builder.CloseElement(); // div
+                }
+                builder.CloseElement(); // Expenses Section div
+                builder.CloseElement(); // main container div (200)
+                break;
+
+            case "CashFlow":
+                builder.OpenElement(400, "div");
+                builder.AddAttribute(401, "class", "space-y-6");
+
+                // Cash Inflows Section
+                builder.OpenElement(402, "div");
+                builder.AddAttribute(403, "class", "rounded-lg border border-green-200 bg-white");
+                builder.OpenElement(404, "div");
+                builder.AddAttribute(405, "class", "bg-green-50 px-4 py-3 border-b border-green-200");
+                builder.OpenElement(406, "h3");
+                builder.AddAttribute(407, "class", "text-sm font-bold text-green-800");
+                builder.AddContent(408, "Cash Inflows (Payments)");
+                builder.CloseElement(); // h3
+                builder.CloseElement(); // header div
+                
+                if (cashFlowInflows != null && cashFlowInflows.Any())
+                {
+                    builder.OpenElement(409, "div");
+                    builder.AddAttribute(410, "class", "overflow-x-auto overflow-y-auto max-h-[420px]");
+                    builder.OpenElement(411, "table");
+                    builder.AddAttribute(412, "class", "w-full border-collapse text-sm");
+                    builder.OpenElement(413, "thead");
+                    builder.AddAttribute(414, "class", "sticky top-0 bg-gray-50 z-10");
+                    builder.OpenElement(415, "tr");
+                    builder.AddAttribute(416, "class", "border-b-2 border-gray-300 bg-gray-50");
+                    builder.OpenElement(417, "th");
+                    builder.AddAttribute(418, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(419, "Date");
+                    builder.CloseElement();
+                    builder.OpenElement(420, "th");
+                    builder.AddAttribute(421, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(422, "Student");
+                    builder.CloseElement();
+                    builder.OpenElement(423, "th");
+                    builder.AddAttribute(424, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(425, "Grade");
+                    builder.CloseElement();
+                    builder.OpenElement(426, "th");
+                    builder.AddAttribute(427, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(428, "Amount");
+                    builder.CloseElement();
+                    builder.OpenElement(429, "th");
+                    builder.AddAttribute(430, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(431, "Method");
+                    builder.CloseElement();
+                    builder.OpenElement(432, "th");
+                    builder.AddAttribute(433, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(434, "OR Number");
+                    builder.CloseElement();
+                    builder.CloseElement(); // tr
+                    builder.CloseElement(); // thead
+                    builder.OpenElement(434, "tbody");
+                    foreach (var payment in cashFlowInflows.OrderByDescending(p => p.PaymentDate))
+                    {
+                        builder.OpenElement(435, "tr");
+                        builder.AddAttribute(436, "class", "border-b border-gray-100 hover:bg-gray-50");
+                        builder.OpenElement(437, "td");
+                        builder.AddAttribute(438, "class", "px-4 py-3 text-gray-700");
+                        builder.AddContent(439, payment.PaymentDate.ToString("MMM dd, yyyy"));
+                        builder.CloseElement();
+                        builder.OpenElement(440, "td");
+                        builder.AddAttribute(441, "class", "px-4 py-3 font-medium text-gray-800");
+                        builder.AddContent(442, payment.StudentName);
+                        builder.CloseElement();
+                        builder.OpenElement(443, "td");
+                        builder.AddAttribute(444, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(445, payment.GradeLevel);
+                        builder.CloseElement();
+                        builder.OpenElement(446, "td");
+                        builder.AddAttribute(447, "class", "px-4 py-3 text-right font-semibold text-green-600");
+                        builder.AddContent(448, FormatCurrency(payment.Amount));
+                        builder.CloseElement();
+                        builder.OpenElement(449, "td");
+                        builder.AddAttribute(450, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(451, payment.PaymentMethod);
+                        builder.CloseElement();
+                        builder.OpenElement(452, "td");
+                        builder.AddAttribute(453, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(454, payment.OrNumber);
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement(); // tbody
+                    builder.CloseElement(); // table
+                    builder.CloseElement(); // overflow div
+                }
+                else
+                {
+                    builder.OpenElement(455, "div");
+                    builder.AddAttribute(456, "class", "p-4 text-center");
+                    builder.OpenElement(457, "p");
+                    builder.AddAttribute(458, "class", "text-sm text-gray-500");
+                    builder.AddContent(459, "No cash inflow transactions found.");
+                    builder.CloseElement(); // p
+                    builder.CloseElement(); // div
+                }
+                builder.CloseElement(); // Cash Inflows Section div
+
+                // Cash Outflows Section
+                builder.OpenElement(460, "div");
+                builder.AddAttribute(461, "class", "rounded-lg border border-red-200 bg-white");
+                builder.OpenElement(462, "div");
+                builder.AddAttribute(463, "class", "bg-red-50 px-4 py-3 border-b border-red-200");
+                builder.OpenElement(464, "h3");
+                builder.AddAttribute(465, "class", "text-sm font-bold text-red-800");
+                builder.AddContent(466, "Cash Outflows (Expenses)");
+                builder.CloseElement(); // h3
+                builder.CloseElement(); // header div
+                
+                if (cashFlowOutflows != null && cashFlowOutflows.Any())
+                {
+                    builder.OpenElement(467, "div");
+                    builder.AddAttribute(468, "class", "overflow-x-auto overflow-y-auto max-h-[420px]");
+                    builder.OpenElement(469, "table");
+                    builder.AddAttribute(470, "class", "w-full border-collapse text-sm");
+                    builder.OpenElement(471, "thead");
+                    builder.AddAttribute(472, "class", "sticky top-0 bg-gray-50 z-10");
+                    builder.OpenElement(473, "tr");
+                    builder.AddAttribute(474, "class", "border-b-2 border-gray-300 bg-gray-50");
+                    builder.OpenElement(475, "th");
+                    builder.AddAttribute(476, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(477, "Date");
+                    builder.CloseElement();
+                    builder.OpenElement(478, "th");
+                    builder.AddAttribute(479, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(480, "Description");
+                    builder.CloseElement();
+                    builder.OpenElement(481, "th");
+                    builder.AddAttribute(482, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(483, "Category");
+                    builder.CloseElement();
+                    builder.OpenElement(484, "th");
+                    builder.AddAttribute(485, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(486, "Amount");
+                    builder.CloseElement();
+                    builder.OpenElement(487, "th");
+                    builder.AddAttribute(488, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-700 bg-gray-50");
+                    builder.AddContent(489, "Payment Method");
+                    builder.CloseElement();
+                    builder.CloseElement(); // tr
+                    builder.CloseElement(); // thead
+                    builder.OpenElement(489, "tbody");
+                    foreach (var expense in cashFlowOutflows)
+                    {
+                        builder.OpenElement(490, "tr");
+                        builder.AddAttribute(491, "class", "border-b border-gray-100 hover:bg-gray-50");
+                        builder.OpenElement(492, "td");
+                        builder.AddAttribute(493, "class", "px-4 py-3 text-gray-700");
+                        builder.AddContent(494, expense.ExpenseDate.ToString("MMM dd, yyyy"));
+                        builder.CloseElement();
+                        builder.OpenElement(495, "td");
+                        builder.AddAttribute(496, "class", "px-4 py-3 font-medium text-gray-800");
+                        builder.AddContent(497, expense.Description ?? "N/A");
+                        builder.CloseElement();
+                        builder.OpenElement(498, "td");
+                        builder.AddAttribute(499, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(500, expense.Category ?? "Uncategorized");
+                        builder.CloseElement();
+                        builder.OpenElement(501, "td");
+                        builder.AddAttribute(502, "class", "px-4 py-3 text-right font-semibold text-red-600");
+                        builder.AddContent(503, FormatCurrency(expense.Amount));
+                        builder.CloseElement();
+                        builder.OpenElement(504, "td");
+                        builder.AddAttribute(505, "class", "px-4 py-3 text-gray-600");
+                        builder.AddContent(506, expense.PaymentMethod ?? "Cash");
+                        builder.CloseElement();
+                        builder.CloseElement();
+                    }
+                    builder.CloseElement(); // tbody
+                    builder.CloseElement(); // table
+                    builder.CloseElement(); // overflow div
+                }
+                else
+                {
+                    builder.OpenElement(507, "div");
+                    builder.AddAttribute(508, "class", "p-4 text-center");
+                    builder.OpenElement(509, "p");
+                    builder.AddAttribute(510, "class", "text-sm text-gray-500");
+                    builder.AddContent(511, "No cash outflow transactions found.");
+                    builder.CloseElement(); // p
+                    builder.CloseElement(); // div
+                }
+                builder.CloseElement(); // Cash Outflows Section div
+                builder.CloseElement(); // main container div (400)
                 break;
 
             default:

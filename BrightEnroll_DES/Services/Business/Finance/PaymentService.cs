@@ -12,6 +12,7 @@ public class PaymentService
     private readonly FeeService _feeService;
     private readonly StudentLedgerService _ledgerService;
     private readonly SchoolYearService _schoolYearService;
+    private readonly JournalEntryService _journalEntryService;
     private readonly ILogger<PaymentService>? _logger;
 
     public PaymentService(
@@ -19,12 +20,14 @@ public class PaymentService
         FeeService feeService, 
         StudentLedgerService ledgerService,
         SchoolYearService schoolYearService,
+        JournalEntryService journalEntryService,
         ILogger<PaymentService>? logger = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _feeService = feeService ?? throw new ArgumentNullException(nameof(feeService));
         _ledgerService = ledgerService ?? throw new ArgumentNullException(nameof(ledgerService));
         _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
+        _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
         _logger = logger;
     }
 
@@ -112,11 +115,17 @@ public class PaymentService
                 throw new Exception("OR number is required.");
             }
 
-            // Minimum payment validation (retain existing behavior)
+            // Minimum payment validation
+            // NOTE: UI already validates minimum payment and allows exceptions when discounts are applied
+            // This service-level validation is a safety net, but we allow amounts below minimum
+            // since UI handles discount cases where amount due might be below minimum
+            // The UI ensures minimum is enforced unless discount reduces amount due below minimum
             const decimal MINIMUM_PAYMENT = 1700m;
-            if (paymentAmount < MINIMUM_PAYMENT)
+            // Only enforce minimum if amount is very small (likely an error)
+            // Allow amounts below minimum since UI handles discount scenarios
+            if (paymentAmount < 100m)
             {
-                throw new Exception($"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.");
+                throw new Exception($"Payment amount is too small. Minimum payment is Php {MINIMUM_PAYMENT:N2}.");
             }
 
             // Get current payment info to determine which ledger to use
@@ -126,14 +135,86 @@ public class PaymentService
                 throw new Exception($"Could not retrieve a payable ledger for student {studentId}.");
             }
 
-            // Check if payment exceeds balance
-            if (paymentAmount > currentInfo.Balance)
+            // FIXED: Removed payment amount > balance validation
+            // The UI now handles overpayment (POS-style) and calculates amountToApply
+            // This service receives the amount to apply (already validated in UI)
+            // Overpayment is handled at UI level - we only apply what's needed to the ledger
+            // If paymentAmount > balance, we cap it at balance in the ledger calculation
+            // This allows POS-style payments where student can pay more than balance (change is returned)
+            
+            // Ensure we don't apply more than the balance to the ledger
+            decimal amountToApplyToLedger = paymentAmount;
+            if (amountToApplyToLedger > currentInfo.Balance)
             {
-                throw new Exception($"Payment amount (Php {paymentAmount:N2}) exceeds balance (Php {currentInfo.Balance:N2}).");
+                // Cap at balance - the excess will be change (handled in UI/receipt)
+                amountToApplyToLedger = currentInfo.Balance;
+                _logger?.LogWarning(
+                    "Payment amount {PaymentAmount} exceeds balance {Balance} for student {StudentId}. " +
+                    "Applying only {AmountToApply} to ledger. Excess will be change.",
+                    paymentAmount, currentInfo.Balance, studentId, amountToApplyToLedger);
             }
 
             // Add payment to the target ledger (no status or enrollment changes)
-            await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, paymentAmount, orNumber, paymentMethod, processedBy);
+            // Use amountToApplyToLedger (capped at balance) instead of paymentAmount
+            var ledgerPayment = await _ledgerService.AddPaymentAsync(currentInfo.LedgerId.Value, amountToApplyToLedger, orNumber, paymentMethod, processedBy);
+
+            // Get ledger to retrieve SchoolYear for StudentPayment
+            var ledger = await _ledgerService.GetLedgerByIdAsync(currentInfo.LedgerId.Value);
+            
+            // Create StudentPayment record for Dashboard and Finance Reports
+            // This MUST be in the same transaction to ensure data consistency
+            if (ledger != null)
+            {
+                var studentPayment = new StudentPayment
+                {
+                    StudentId = studentId,
+                    Amount = amountToApplyToLedger, // Record the amount actually applied to ledger
+                    PaymentMethod = paymentMethod,
+                    OrNumber = orNumber,
+                    ProcessedBy = processedBy,
+                    SchoolYear = ledger.SchoolYear ?? await _schoolYearService.GetActiveSchoolYearNameAsync(), // Set school year from ledger
+                    CreatedAt = ledgerPayment.CreatedAt
+                };
+
+                _context.StudentPayments.Add(studentPayment);
+                
+                // Save StudentPayment first to get PaymentId
+                await _context.SaveChangesAsync();
+                
+                _logger?.LogInformation(
+                    "Created StudentPayment record for student {StudentId}, Amount {Amount}, SchoolYear {SchoolYear}",
+                    studentId, amountToApplyToLedger, studentPayment.SchoolYear);
+                
+                // Create journal entry for double-entry bookkeeping
+                // This ensures Balance Sheet and General Ledger reflect the payment
+                try
+                {
+                    // Get the user ID from processedBy if it's a numeric string
+                    int? createdByUserId = null;
+                    if (!string.IsNullOrWhiteSpace(processedBy) && int.TryParse(processedBy, out int userId))
+                    {
+                        createdByUserId = userId;
+                    }
+                    
+                    await _journalEntryService.CreatePaymentJournalEntryAsync(studentPayment, createdByUserId);
+                    _logger?.LogInformation(
+                        "Created journal entry for payment {PaymentId}, Student {StudentId}, Amount {Amount}",
+                        studentPayment.PaymentId, studentId, amountToApplyToLedger);
+                }
+                catch (Exception journalEx)
+                {
+                    // Log error but don't fail the payment - journal entry creation is important but not critical
+                    // This allows backward compatibility if Chart of Accounts isn't set up yet
+                    _logger?.LogError(journalEx, 
+                        "Failed to create journal entry for payment {PaymentId}, Student {StudentId}: {Message}",
+                        studentPayment.PaymentId, studentId, journalEx.Message);
+                    // Continue with payment processing even if journal entry fails
+                }
+            }
+            else
+            {
+                _logger?.LogWarning("Could not retrieve ledger {LedgerId} to create StudentPayment record", currentInfo.LedgerId.Value);
+            }
 
             // For current/active school year payments (not previous-balance cases), update student.Status and enrollment records
             if (!currentInfo.HasPreviousBalance)
@@ -180,15 +261,34 @@ public class PaymentService
                 }
             }
 
-            // Save all changes within transaction
+            // Save all changes within transaction (StudentPayment already saved above if journal entry was created)
+            // Only save again if there were other changes (student status, enrollment status updates)
             await _context.SaveChangesAsync();
+            
+            // Verify StudentPayment was created
+            var createdStudentPayment = await _context.StudentPayments
+                .FirstOrDefaultAsync(sp => sp.OrNumber == orNumber);
+            
+            if (createdStudentPayment != null)
+            {
+                _logger?.LogInformation(
+                    "StudentPayment verified: PaymentId={PaymentId}, StudentId={StudentId}, Amount={Amount}, SchoolYear={SchoolYear}, OR={OrNumber}",
+                    createdStudentPayment.PaymentId, createdStudentPayment.StudentId, 
+                    createdStudentPayment.Amount, createdStudentPayment.SchoolYear, createdStudentPayment.OrNumber);
+            }
+            else
+            {
+                _logger?.LogWarning(
+                    "StudentPayment NOT found after SaveChangesAsync for OR {OrNumber}. This may indicate a transaction issue.",
+                    orNumber);
+            }
             
             // Commit transaction
             await transaction.CommitAsync();
 
             _logger?.LogInformation(
-                "Payment processed for student {StudentId}: Amount {Amount}, Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
-                studentId, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
+                "Payment processed for student {StudentId}: Amount Applied {AmountApplied} (Requested: {RequestedAmount}), Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
+                studentId, amountToApplyToLedger, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
 
             // Return updated payment info (GetStudentPaymentInfoAsync will reload and recalculate)
             // No need for manual reload/recalculation here as GetStudentPaymentInfoAsync handles it

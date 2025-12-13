@@ -1,4 +1,4 @@
-namespace BrightEnroll_DES.Components.Pages.Admin.FinanceComponents;
+namespace BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents;
 
 // Models for finance module
 public class FeeModel
@@ -27,6 +27,14 @@ public class PaymentDataModel
     public string PaymentStatus { get; set; } = "";
     public decimal NewPaymentAmount { get; set; } = 0;
     public string PaymentMethod { get; set; } = "Cash";
+    
+    // Properties for handling previous school year balances
+    public bool HasPreviousBalance { get; set; } = false;
+    public string? PreviousSchoolYear { get; set; }
+    public string? SchoolYearForPayment { get; set; }
+    
+    // Ledger system properties
+    public int? LedgerId { get; set; }
 }
 
 public class PaymentRecord
@@ -114,6 +122,45 @@ public class FeeFormData
         if (string.IsNullOrWhiteSpace(value))
             return 0;
         var cleaned = value.Replace("Php", "").Replace(" ", "").Replace(",", "").Trim();
+        if (decimal.TryParse(cleaned, out var result))
+            return result;
+        return 0;
+    }
+}
+
+public class DiscountModel
+{
+    public int DiscountId { get; set; }
+    public string DiscountType { get; set; } = "";
+    public string DiscountName { get; set; } = "";
+    public decimal RateOrValue { get; set; }
+    public bool IsPercentage { get; set; } = true;
+    public decimal? MaxAmount { get; set; }
+    public decimal? MinAmount { get; set; }
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public class DiscountFormData
+{
+    public string DiscountType { get; set; } = "";
+    public string DiscountName { get; set; } = "";
+    public string RateOrValueString { get; set; } = "";
+    public bool IsPercentage { get; set; } = true;
+    public string? MaxAmountString { get; set; }
+    public string? MinAmountString { get; set; }
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+    
+    public decimal RateOrValue => ParseDecimal(RateOrValueString);
+    public decimal? MaxAmount => string.IsNullOrWhiteSpace(MaxAmountString) ? null : ParseDecimal(MaxAmountString);
+    public decimal? MinAmount => string.IsNullOrWhiteSpace(MinAmountString) ? null : ParseDecimal(MinAmountString);
+    
+    private decimal ParseDecimal(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return 0;
+        var cleaned = value.Replace("Php", "").Replace(" ", "").Replace(",", "").Replace("%", "").Trim();
         if (decimal.TryParse(cleaned, out var result))
             return result;
         return 0;

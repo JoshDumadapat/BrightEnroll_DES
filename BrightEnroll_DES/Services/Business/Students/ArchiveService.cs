@@ -27,6 +27,9 @@ public class ArchiveService
             // Include both "Application Withdrawn" and "Application Withdraw" (truncated version) for compatibility
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
+            // Clear change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
             var archivedStudents = await _context.Students
                 .Where(s => archivedStatuses.Contains(s.Status ?? ""))
                 .OrderByDescending(s => s.DateRegistered)
@@ -37,7 +40,7 @@ public class ArchiveService
                     LRN = s.Lrn ?? "N/A",
                     Date = s.DateRegistered.ToString("dd MMM yyyy"),
                     Status = s.Status ?? "N/A",
-                    Reason = s.ArchiveReason ?? "", // Get archive reason from database
+                    Reason = s.ArchiveReason != null ? s.ArchiveReason.Trim() : "", // Get archive reason from database, trim whitespace
                     ArchivedDate = s.DateRegistered.ToString("dd MMM yyyy")
                 })
                 .ToListAsync();
@@ -141,7 +144,7 @@ public class ArchiveService
                 LRN = student.Lrn ?? "N/A",
                 Date = student.DateRegistered.ToString("dd MMM yyyy"),
                 Status = student.Status ?? "N/A",
-                Reason = student.ArchiveReason ?? "", // Get archive reason from database
+                Reason = !string.IsNullOrWhiteSpace(student.ArchiveReason) ? student.ArchiveReason.Trim() : "", // Get archive reason from database, trim whitespace
                 ArchivedDate = student.DateRegistered.ToString("dd MMM yyyy")
             };
         }
@@ -240,17 +243,22 @@ public class ArchiveService
             if (currentStatusNormalized.Equals(statusToSet, StringComparison.OrdinalIgnoreCase) || currentMatchesArchived)
             {
                 // Save the archive reason if provided, even if status doesn't need updating
+                // Also update status to ensure it's normalized (e.g., "Application Withdrawn" -> "Withdrawn")
+                student.Status = statusToSet;
+                
                 if (!string.IsNullOrWhiteSpace(reason))
                 {
-                    student.ArchiveReason = reason;
-                    await _context.SaveChangesAsync();
-                    _logger?.LogInformation("Archive reason saved for student {StudentId} (status already archived)", studentId);
+                    student.ArchiveReason = reason.Trim();
+                    _logger?.LogInformation("Archive reason saved for student {StudentId} (status already archived): {Reason}", studentId, reason);
                 }
-                else
+                else if (string.IsNullOrWhiteSpace(student.ArchiveReason))
                 {
-                    _logger?.LogInformation("Student {StudentId} already has archived status '{Status}' - archiving confirmed (no update needed)", 
-                        studentId, currentStatus);
+                    // If no reason provided and ArchiveReason is empty, set a default based on status
+                    student.ArchiveReason = $"Student archived with status: {statusToSet}";
+                    _logger?.LogInformation("Default archive reason set for student {StudentId} (status already archived)", studentId);
                 }
+                
+                await _context.SaveChangesAsync();
                 return; // Success - status already correct, no need to update
             }
 
@@ -258,11 +266,17 @@ public class ArchiveService
             // Update status to archived status (normalized and guaranteed to fit)
             student.Status = statusToSet;
             
-            // Save the archive reason if provided
+            // Save the archive reason if provided, or set default if empty
             if (!string.IsNullOrWhiteSpace(reason))
             {
-                student.ArchiveReason = reason;
-                _logger?.LogInformation("Archive reason saved for student {StudentId}", studentId);
+                student.ArchiveReason = reason.Trim();
+                _logger?.LogInformation("Archive reason saved for student {StudentId}: {Reason}", studentId, reason);
+            }
+            else if (string.IsNullOrWhiteSpace(student.ArchiveReason))
+            {
+                // If no reason provided and ArchiveReason is empty, set a default based on status
+                student.ArchiveReason = $"Student archived with status: {statusToSet}";
+                _logger?.LogInformation("Default archive reason set for student {StudentId}", studentId);
             }
             
             try

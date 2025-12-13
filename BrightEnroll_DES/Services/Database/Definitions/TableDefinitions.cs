@@ -51,6 +51,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Finance - student payments (must be after tbl_Students)
                 GetStudentPaymentsTableDefinition(),
                 // Finance - ledger system (must be after tbl_Students)
+                GetDiscountsTableDefinition(), // Must be before LedgerCharges (FK dependency)
                 GetStudentLedgersTableDefinition(),
                 GetLedgerChargesTableDefinition(),
                 GetLedgerPaymentsTableDefinition(),
@@ -1338,7 +1339,9 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         [amount] DECIMAL(18,2) NOT NULL,
                         [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
                         [updated_at] DATETIME NULL,
-                        CONSTRAINT FK_tbl_LedgerCharges_tbl_StudentLedgers FOREIGN KEY ([ledger_id]) REFERENCES [dbo].[tbl_StudentLedgers]([id]) ON DELETE CASCADE
+                        [discount_id] INT NULL,
+                        CONSTRAINT FK_tbl_LedgerCharges_tbl_StudentLedgers FOREIGN KEY ([ledger_id]) REFERENCES [dbo].[tbl_StudentLedgers]([id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_tbl_LedgerCharges_tbl_discounts FOREIGN KEY ([discount_id]) REFERENCES [dbo].[tbl_discounts]([discount_id]) ON DELETE SET NULL
                     )",
                 CreateIndexesScripts = new List<string>
                 {
@@ -1348,6 +1351,39 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_LedgerCharges_ChargeType' AND object_id = OBJECT_ID('dbo.tbl_LedgerCharges'))
                         CREATE INDEX IX_tbl_LedgerCharges_ChargeType ON [dbo].[tbl_LedgerCharges]([charge_type])"
+                }
+            };
+        }
+
+        // Creates tbl_discounts table - standalone table for discount configuration
+        public static TableDefinition GetDiscountsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_discounts",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_discounts](
+                        [discount_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [discount_type] VARCHAR(50) NOT NULL UNIQUE,
+                        [discount_name] VARCHAR(100) NOT NULL,
+                        [rate_or_value] DECIMAL(12,4) NOT NULL,
+                        [is_percentage] BIT NOT NULL DEFAULT 1,
+                        [max_amount] DECIMAL(12,2) NULL,
+                        [min_amount] DECIMAL(12,2) NULL,
+                        [description] VARCHAR(500) NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [created_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_date] DATETIME NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_discounts_discount_type' AND object_id = OBJECT_ID('dbo.tbl_discounts'))
+                        CREATE INDEX IX_tbl_discounts_discount_type ON [dbo].[tbl_discounts]([discount_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_discounts_is_active' AND object_id = OBJECT_ID('dbo.tbl_discounts'))
+                        CREATE INDEX IX_tbl_discounts_is_active ON [dbo].[tbl_discounts]([is_active])"
                 }
             };
         }

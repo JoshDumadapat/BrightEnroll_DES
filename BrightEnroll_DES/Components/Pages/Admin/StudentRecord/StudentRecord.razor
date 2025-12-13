@@ -1,4 +1,4 @@
-﻿@page "/student-record"
+@page "/student-record"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
@@ -6,11 +6,14 @@
 @using BrightEnroll_DES.Services.Business.Students
 @using BrightEnroll_DES.Services.Business.Academic
 @using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
 @inject BrightEnroll_DES.Services.RoleBase.IAuthorizationService AuthorizationService
 @inject StudentService StudentService
 @inject GradeService GradeService
 @inject SchoolYearService SchoolYearService
 @inject ArchiveService ArchiveService
+@inject AppDbContext _context
 
 <PageTitle>Student Record</PageTitle>
 
@@ -52,6 +55,27 @@
                         <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnFilterChanged"
                                class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
                     </div>
+                    <select @bind="SchoolYearFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="all">All Years</option>
+                        <option value="current">Current (@CurrentSchoolYear)</option>
+                        @if (!string.IsNullOrEmpty(CurrentSchoolYear) && AvailableSchoolYears.Contains(CurrentSchoolYear))
+                        {
+                            <option value="@CurrentSchoolYear">@CurrentSchoolYear</option>
+                        }
+                        @foreach (var sy in AvailableSchoolYears.Where(sy => sy != CurrentSchoolYear))
+                        {
+                            <option value="@sy">@sy</option>
+                        }
+                    </select>
+                    <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                        <option value="all">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="For Payment">For Payment</option>
+                        <option value="Partially Paid">Partially Paid</option>
+                        <option value="Fully Paid">Fully Paid</option>
+                        <option value="Enrolled">Enrolled</option>
+                        <option value="Eligible">Eligible</option>
+                    </select>
                     <select @bind="LrnStatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
                         <option value="">LRN Status</option>
                         <option value="Pending">Pending</option>
@@ -138,7 +162,7 @@
                             <td class="px-4 py-3 text-sm text-gray-700">
                                 @if (student.Documents == "Validated")
                                 {
-                                    <span class="text-xs font-semibold text-green-600">Validated</span>
+                                    <span class="text-xs font-semibold text-blue-600">Validated</span>
                                 }
                                 else
                                 {
@@ -149,11 +173,23 @@
                             <td class="px-4 py-3">
                                 @if (student.Status == "Enrolled")
                                 {
-                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Enrolled</span>
+                                    <span class="text-xs font-semibold text-green-600">Enrolled</span>
+                                }
+                                else if (student.Status == "Fully Paid")
+                                {
+                                    <span class="text-xs font-semibold text-green-600">@student.Status</span>
+                                }
+                                else if (student.Status == "Partially Paid")
+                                {
+                                    <span class="text-xs font-semibold text-orange-600">@student.Status</span>
+                                }
+                                else if (student.Status == "For Payment")
+                                {
+                                    <span class="text-xs font-semibold text-blue-600">@student.Status</span>
                                 }
                                 else
                                 {
-                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">@student.Status</span>
+                                    <span class="text-xs font-semibold text-gray-600">@student.Status</span>
                                 }
                             </td>
 
@@ -261,6 +297,8 @@
     private List<EnrollmentStatusData> SelectedEnrollmentRecords { get; set; } = new();
 
     private string SearchText { get; set; } = string.Empty;
+    private string SchoolYearFilter { get; set; } = "all";
+    private string StatusFilter { get; set; } = "all";
     private string LrnStatusFilter { get; set; } = string.Empty;
     private string DocumentStatusFilter { get; set; } = string.Empty;
     private string GradeFilter { get; set; } = string.Empty;
@@ -305,6 +343,7 @@
                            .Take(RowsPerPage);
 
     private string CurrentSchoolYear { get; set; } = "";
+    private List<string> AvailableSchoolYears { get; set; } = new();
 
     private bool _hasInitialized = false;
 
@@ -317,15 +356,32 @@
     {
         // Load current school year
         CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
+        // Load available school years for filter (already sorted descending by service)
+        AvailableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
         await LoadStudentsAsync();
         _hasInitialized = true;
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        // Reload data when parameters change (e.g., when navigating back to this page)
+        // Reload data when parameters change (e.g., when navigating back from Enrollment or Finance page)
         if (_hasInitialized && !ShowDetailView)
         {
+            // Check if school year has changed
+            var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
+            bool schoolYearChanged = CurrentSchoolYear != activeSchoolYear;
+            
+            if (schoolYearChanged)
+            {
+                CurrentSchoolYear = activeSchoolYear;
+            }
+            
+            // Clear EF Core change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(100);
+            
             // Reload students list if not in detail view
             await LoadStudentsAsync();
             StateHasChanged();
@@ -336,12 +392,19 @@
     {
         try
         {
-            // Small delay to ensure any pending database changes are committed
-            await Task.Delay(50);
+            // Clear EF Core change tracker to ensure fresh data is loaded
+            // This prevents showing stale/cached data
+            _context.ChangeTracker.Clear();
             
-            // Use GetAllStudentRecordsAsync to show all students (with enrollment records or ledgers)
-            // This is different from GetEnrolledStudentsAsync which only shows "Enrolled" status
-            StudentRecords = await StudentService.GetAllStudentRecordsAsync(CurrentSchoolYear);
+            // Small delay to ensure any pending database changes are committed
+            await Task.Delay(100);
+            
+            // Get filter values (convert "all" to null for service method)
+            var schoolYearFilter = SchoolYearFilter?.ToLower() == "all" ? null : SchoolYearFilter;
+            var statusFilter = StatusFilter?.ToLower() == "all" ? null : StatusFilter;
+            
+            // Query from tbl_Student directly with filters
+            StudentRecords = await StudentService.GetAllStudentRecordsAsync(schoolYearFilter, statusFilter);
         }
         catch
         {
@@ -349,20 +412,24 @@
         }
     }
 
-    private void OnFilterChanged()
+    private async Task OnFilterChanged()
     {
         CurrentPage = 1;
+        await LoadStudentsAsync();
         StateHasChanged();
     }
 
-    private void ClearFilters()
+    private async Task ClearFilters()
     {
         SearchText = string.Empty;
+        SchoolYearFilter = "all";
+        StatusFilter = "all";
         LrnStatusFilter = string.Empty;
         DocumentStatusFilter = string.Empty;
         GradeFilter = string.Empty;
         SectionFilter = string.Empty;
         CurrentPage = 1;
+        await LoadStudentsAsync();
         StateHasChanged();
     }
 
@@ -381,6 +448,9 @@
 
     private async Task HandleViewClick(EnrolledStudentDto student)
     {
+        // Clear change tracker before loading student to ensure fresh data
+        _context.ChangeTracker.Clear();
+        
         var entity = await StudentService.GetStudentByIdAsync(student.Id);
         if (entity == null)
         {
@@ -395,12 +465,36 @@
         var rawLrn = entity.Lrn ?? string.Empty;
 
         // Get latest enrollment for this student
+        // Prioritize current active school year enrollment, then most recent by CreatedAt
+        var currentActiveSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
         var latestEnrollment = entity.SectionEnrollments
-            .OrderByDescending(e => e.CreatedAt)
+            .OrderByDescending(e => !string.IsNullOrEmpty(currentActiveSchoolYear) && e.SchoolYear == currentActiveSchoolYear)
+            .ThenByDescending(e => e.CreatedAt)
             .FirstOrDefault();
+        
+        // Determine original student type - check if student has previous enrollments
+        // If they do, they were originally "New Student" or "Transferee", not "Returnee"
+        // If no previous enrollments, use current student type as original
+        string originalStudentType = entity.StudentType ?? string.Empty;
+        var enrollmentCount = entity.SectionEnrollments?.Count ?? 0;
+        if (enrollmentCount > 1 && string.Equals(entity.StudentType, "Returnee", StringComparison.OrdinalIgnoreCase))
+        {
+            // Student is currently a returnee but has previous enrollments
+            // They were originally "New Student" or "Transferee"
+            // For simplicity, we'll check the first enrollment's context or assume "New Student"
+            // Since requirements are what matter, we'll check what requirements exist from original enrollment
+            originalStudentType = "New Student"; // Default assumption - could be refined by checking first enrollment
+        }
+        else if (enrollmentCount <= 1)
+        {
+            // First enrollment - original type is current type
+            originalStudentType = entity.StudentType ?? string.Empty;
+        }
 
         var sectionName = latestEnrollment?.Section?.SectionName ?? string.Empty;
+        // Prioritize enrollment record's grade level, but fall back to student's GradeLevel (which is updated during re-enrollment)
         var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty;
+        // Prioritize enrollment record's school year, but fall back to student's SchoolYr (which is updated during re-enrollment)
         var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
 
         // Helper to check a requirement by name using Status field (\"verified\" => checked)
@@ -466,7 +560,8 @@
             GuardianContactNumber = entity.Guardian?.ContactNum ?? string.Empty,
             GuardianRelationship = entity.Guardian?.Relationship ?? string.Empty,
 
-            StudentType = entity.StudentType,
+            StudentType = entity.StudentType ?? string.Empty,
+            OriginalStudentType = originalStudentType,
             HasLRN = hasRealLrn ? "Yes" : "No",
             LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A",
             GradeToEnroll = gradeLevelName,
@@ -495,9 +590,9 @@
             .Select(e => new EnrollmentStatusData
             {
                 SchoolYear = e.SchoolYear,
-                Grade = e.Section.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty,
-                Section = e.Section.SectionName ?? string.Empty,
-                Type = entity.StudentType,
+                Grade = e.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty,
+                Section = e.Section?.SectionName ?? string.Empty,
+                Type = entity.StudentType ?? string.Empty,
                 Documents = DocumentsVerifiedHelper.CalculateDocumentsVerified(entity.Requirements, entity.StudentType) ? "Verified" : "Pending",
                 PaymentStatus = entity.PaymentStatus ?? "N/A",
                 Status = e.Status
@@ -511,6 +606,13 @@
     private async Task HandleBackClick()
     {
         ShowDetailView = false;
+        
+        // Clear EF Core change tracker to ensure fresh data
+        _context.ChangeTracker.Clear();
+        
+        // Small delay to ensure any pending database changes are committed
+        await Task.Delay(100);
+        
         // Reload students list when going back
         await LoadStudentsAsync();
         // Clear selected data when going back
@@ -537,12 +639,17 @@
             var hasRealLrn = !string.IsNullOrWhiteSpace(entity.Lrn);
             var rawLrn = entity.Lrn ?? string.Empty;
 
+            // Prioritize current active school year enrollment, then most recent by CreatedAt
+            var currentActiveSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
             var latestEnrollment = entity.SectionEnrollments
-                .OrderByDescending(e => e.CreatedAt)
+                .OrderByDescending(e => !string.IsNullOrEmpty(currentActiveSchoolYear) && e.SchoolYear == currentActiveSchoolYear)
+                .ThenByDescending(e => e.CreatedAt)
                 .FirstOrDefault();
 
             var sectionName = latestEnrollment?.Section?.SectionName ?? string.Empty;
+            // Prioritize enrollment record's grade level, but fall back to student's GradeLevel (which is updated during re-enrollment)
             var gradeLevelName = latestEnrollment?.Section?.GradeLevel?.GradeLevelName ?? entity.GradeLevel ?? string.Empty;
+            // Prioritize enrollment record's school year, but fall back to student's SchoolYr (which is updated during re-enrollment)
             var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
 
             SelectedStudentData = new StudentDetailData

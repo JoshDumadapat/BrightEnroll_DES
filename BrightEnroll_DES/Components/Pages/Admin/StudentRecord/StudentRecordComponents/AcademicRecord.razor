@@ -1,6 +1,7 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordComponents
 @using BrightEnroll_DES.Components.Pages.Admin.StudentRecord.StudentRecordCS
+@using BrightEnroll_DES.Components.Pages.Admin
 @using BrightEnroll_DES.Services.QuestPDF
 @using Microsoft.JSInterop
 @inject IJSRuntime JSRuntime
@@ -129,28 +130,16 @@
             </tbody>
         </table>
         </div>
-
-        <!-- Footer with Pagination -->
-    <div class="flex items-center justify-between bg-gray-50 px-4 py-3 text-sm text-gray-600">
-        <span>@($"{FilteredRecords?.Count() ?? 0} of {FilteredRecords?.Count() ?? 0} academic records")</span>
-        <div class="flex items-center gap-2">
-            <button class="rounded-md px-3 py-1 text-xs text-white" style="background-color: #0E335D;">1</button>
-            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">2</button>
-            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">3</button>
-            <span>...</span>
-            <button class="rounded-md px-3 py-1 text-xs text-gray-600 hover:bg-gray-200">10</button>
-        </div>
-        <div class="flex items-center gap-2">
-            <span>Show</span>
-            <select @bind="RowsPerPage" class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400">
-                <option value="5">5 rows</option>
-                <option value="10">10 rows</option>
-                <option value="20">20 rows</option>
-            </select>
-        </div>
-    </div>
     </div>
 </div>
+
+<!-- Footer with Pagination -->
+<Pagination TotalItems="@(FilteredRecords?.Count() ?? 0)" 
+            CurrentPage="@CurrentPage" 
+            RowsPerPage="@RowsPerPage"
+            ItemName="academic records"
+            OnPageChanged="HandlePageChanged"
+            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
 
 @code {
     [Parameter]
@@ -238,6 +227,19 @@
         SearchText = "";
         SchoolYearFilter = "";
         GradeLevelFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
         CurrentPage = 1;
         StateHasChanged();
     }

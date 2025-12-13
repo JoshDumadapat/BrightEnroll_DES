@@ -4,25 +4,27 @@
 @using BrightEnroll_DES.Services.Business.Students
 @using BrightEnroll_DES.Services.Infrastructure
 @using BrightEnroll_DES.Components
+@using System.Linq
 @inject StudentService StudentService
 @inject AddressService AddressService
 @* Student Info Tab Content *@
 
+<!-- Edit Button Outside Container - Right Aligned -->
+<div class="mb-4 flex items-center justify-end">
+    @if (!IsEditing)
+    {
+        <button @onclick="EnableEditMode" class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+        </button>
+    }
+</div>
+
 <!-- All Information in One Card -->
 <div class="overflow-hidden rounded-xl bg-white shadow">
     <div class="px-6 py-6">
-        <!-- Edit Button at Top - Applies to All Sections -->
-        <div class="mb-6 flex items-center justify-end">
-            @if (!IsEditing)
-            {
-                <button @onclick="EnableEditMode" class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    Edit
-                </button>
-            }
-        </div>
 
         <!-- Personal Information Section -->
         <div class="mb-6">
@@ -48,7 +50,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.FirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.FirstName" @bind:after="() => { FormatFirstName(); StateHasChanged(); }" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -61,7 +63,7 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.MiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.MiddleName" @bind:after="FormatMiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -76,7 +78,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.LastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.LastName" @bind:after="() => { FormatLastName(); StateHasChanged(); }" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -116,7 +118,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="date" @bind="EditModel.BirthDate" @bind:format="yyyy-MM-dd" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="date" @bind="EditModel.BirthDate" @bind:format="yyyy-MM-dd" @bind:after="HandleBirthDateChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -268,24 +270,6 @@
                 </div>
             </div>
 
-            @if (IsEditing)
-            {
-                <div class="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4">
-                    <button @onclick="CancelEdit" class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
-                        Cancel
-                    </button>
-                    <button @onclick="SaveChanges" disabled="@IsSaving" class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                        @if (IsSaving)
-                        {
-                            <span>Saving...</span>
-                        }
-                        else
-                        {
-                            <span>Save Changes</span>
-                        }
-                    </button>
-                </div>
-            }
         </div>
 
         <hr class="my-6 sm:my-8 border-gray-200" />
@@ -415,7 +399,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.CurrentZipCode" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.CurrentZipCode" maxlength="10" onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -558,7 +542,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.PermanentZipCode" disabled="@EditModel.SameAsCurrentAddress" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        <input type="text" @bind="EditModel.PermanentZipCode" disabled="@EditModel.SameAsCurrentAddress" maxlength="10" onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" />
                     }
                     else
                     {
@@ -583,7 +567,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.GuardianFirstName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.GuardianFirstName" @bind:after="() => { FormatGuardianFirstName(); StateHasChanged(); }" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -596,7 +580,7 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Middle Name</label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.GuardianMiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.GuardianMiddleName" @bind:after="FormatGuardianMiddleName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -611,7 +595,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.GuardianLastName" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.GuardianLastName" @bind:after="() => { FormatGuardianLastName(); StateHasChanged(); }" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                     }
                     else
                     {
@@ -626,7 +610,7 @@
                     </label>
                     @if (IsEditing)
                     {
-                        <input type="text" @bind="EditModel.GuardianContactNumber" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                        <input type="text" @bind="EditModel.GuardianContactNumber" maxlength="11" onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" placeholder="e.g. 09123456789" />
                     }
                     else
                     {
@@ -696,11 +680,17 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">With LRN?</label>
                     <div class="flex items-center gap-3 sm:gap-4 pt-1 sm:pt-2">
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.HasLRN == "Yes")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.HasLRN == "Yes" : StudentData.HasLRN == "Yes")" 
+                                   @onchange="@(() => { if (IsEditing) { EditModel.HasLRN = "Yes"; HandleHasLRNChange(); } })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Yes</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="radio" checked="@(StudentData.HasLRN == "No")" disabled class="w-4 h-4 text-blue-600 border-gray-300" />
+                            <input type="radio" checked="@(IsEditing ? EditModel.HasLRN == "No" : StudentData.HasLRN == "No")" 
+                                   @onchange="@(() => { if (IsEditing) { EditModel.HasLRN = "No"; HandleHasLRNChange(); } })" 
+                                   disabled="@(!IsEditing)"
+                                   class="w-4 h-4 text-blue-600 border-gray-300" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">No</span>
                         </label>
                     </div>
@@ -709,9 +699,16 @@
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                         Learner Reference No. <span class="text-red-500">*</span>
                     </label>
-                    <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base @(StudentData.LearnerReferenceNo == "N/A" ? "text-gray-500" : "text-gray-700")">
-                        @(string.IsNullOrEmpty(StudentData.LearnerReferenceNo) ? "Pending" : StudentData.LearnerReferenceNo)
-                    </div>
+                    @if (IsEditing)
+                    {
+                        <input type="text" @bind="EditModel.LearnerReferenceNo" @bind:after="() => { HandleLRNChange(); StateHasChanged(); }" disabled="@(EditModel.HasLRN != "Yes")" maxlength="12" onkeypress="return /[0-9]/i.test(event.key)" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="e.g. 123456789012" />
+                    }
+                    else
+                    {
+                        <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base @(StudentData.LearnerReferenceNo == "N/A" ? "text-gray-500" : "text-gray-700")">
+                            @(string.IsNullOrEmpty(StudentData.LearnerReferenceNo) ? "Pending" : StudentData.LearnerReferenceNo)
+                        </div>
+                    }
                 </div>
                 <div>
                     <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
@@ -742,7 +739,7 @@
             </div>
             <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
                 <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
-                    Requirements <span class="text-red-500">*</span>
+                    Requirements
                 </label>
 
                 @* Show only the requirement groups that apply based on Student Type *@
@@ -753,15 +750,24 @@
                     <p class="mb-2 text-[11px] font-semibold uppercase text-gray-500">New / Transferee</p>
                     <div class="space-y-1.5 sm:space-y-2 mb-3">
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasPSABirthCert" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasPSABirthCert : StudentData.HasPSABirthCert)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasPSABirthCert = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">PSA Birth Certificate</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasBaptismalCert" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasBaptismalCert : StudentData.HasBaptismalCert)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasBaptismalCert = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Baptismal Certificate</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasReportCard" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasReportCard : StudentData.HasReportCard)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasReportCard = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Report Card</span>
                         </label>
                     </div>
@@ -773,43 +779,152 @@
                     <p class="mb-2 text-[11px] font-semibold uppercase text-gray-500">Transferee</p>
                     <div class="space-y-1.5 sm:space-y-2 mb-3">
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasForm138" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasForm138 : StudentData.HasForm138)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasForm138 = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Form 138 (Report Card)</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasForm137" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasForm137 : StudentData.HasForm137)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasForm137 = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Form 137 (Permanent Record)</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasGoodMoralCert" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasGoodMoralCert : StudentData.HasGoodMoralCert)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasGoodMoralCert = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Good Moral Certificate</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasTransferCert" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasTransferCert : StudentData.HasTransferCert)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasTransferCert = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Transfer Certificate</span>
                         </label>
                     </div>
                 }
 
-                @if (IsReturnee)
+                @* Only show returnee-specific requirements if student was originally a returnee *@
+                @* For students who were originally "New Student" or "Transferee" but are now "Returnee", 
+                   these requirements should only be validated in "For Enrollment" tab, not shown here *@
+                @{
+                    var wasOriginallyReturnee = string.Equals(StudentData.OriginalStudentType ?? StudentData.StudentType, "Returnee", StringComparison.OrdinalIgnoreCase);
+                }
+                @if (IsReturnee && wasOriginallyReturnee)
                 {
-                    <!-- Returnee Requirements -->
+                    <!-- Returnee Requirements (only if originally a returnee) -->
                     <p class="mb-2 text-[11px] font-semibold uppercase text-gray-500">Returnee</p>
                     <div class="space-y-1.5 sm:space-y-2">
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasUpdatedEnrollmentForm" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasUpdatedEnrollmentForm : StudentData.HasUpdatedEnrollmentForm)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasUpdatedEnrollmentForm = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Updated Enrollment Form</span>
                         </label>
                         <label class="flex items-center">
-                            <input type="checkbox" checked="@StudentData.HasClearance" disabled class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
+                            <input type="checkbox" checked="@(IsEditing ? EditModel.HasClearance : StudentData.HasClearance)" 
+                                   @onchange="@((ChangeEventArgs e) => { if (IsEditing) EditModel.HasClearance = (bool)(e.Value ?? false); })"
+                                   disabled="@(!IsEditing)" 
+                                   class="w-4 h-4 text-blue-600 border-gray-300 rounded" />
                             <span class="ml-2 text-xs sm:text-sm text-gray-700">Clearance</span>
                         </label>
                     </div>
                 }
             </div>
         </div>
+        
+        @if (IsEditing)
+        {
+            <div class="mt-6 flex justify-end gap-3 border-t border-gray-200 pt-4 px-6 pb-6">
+                <button @onclick="HandleCancelClick" class="flex items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                </button>
+                <button @onclick="HandleUpdateClick" disabled="@IsSaving" class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" style="font-size: 13px;">
+                    @if (IsSaving)
+                    {
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Saving...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Update</span>
+                    }
+                </button>
+            </div>
+        }
     </div>
 </div>
+
+<!-- Cancel Confirmation Modal -->
+@if (ShowCancelConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseCancelConfirmModal">
+        <div id="student-info-cancel-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-yellow-600">Discard Changes?</h3>
+                <button @onclick="CloseCancelConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">You have unsaved changes. Are you sure you want to cancel? All changes will be lost.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseCancelConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    No, Keep Editing
+                </button>
+                <button @onclick="ConfirmCancel" class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-600">
+                    Yes, Discard Changes
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Update Confirmation Modal -->
+@if (ShowUpdateConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseUpdateConfirmModal">
+        <div id="student-info-update-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-blue-600">Confirm Update</h3>
+                <button @onclick="CloseUpdateConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to update the student information?</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseUpdateConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmUpdate" class="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
+                    Confirm Update
+                </button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter]
@@ -817,6 +932,9 @@
 
     [Parameter]
     public EventCallback<StudentDetailData> OnStudentUpdated { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnEditingStateChanged { get; set; }
 
     private bool IsEditing { get; set; } = false;
     private StudentEditModel EditModel { get; set; } = new();
@@ -877,11 +995,67 @@
         LoadPermanentBarangays();
     }
 
-    private void EnableEditMode()
+    private StudentEditModel OriginalEditModel { get; set; } = new();
+    private bool HasUnsavedChanges => IsEditing && !AreModelsEqual(OriginalEditModel, EditModel);
+    
+    private bool AreModelsEqual(StudentEditModel original, StudentEditModel current)
+    {
+        return original.FirstName == current.FirstName &&
+               original.MiddleName == current.MiddleName &&
+               original.LastName == current.LastName &&
+               original.Suffix == current.Suffix &&
+               original.BirthDate == current.BirthDate &&
+               original.PlaceOfBirth == current.PlaceOfBirth &&
+               original.Sex == current.Sex &&
+               original.MotherTongue == current.MotherTongue &&
+               original.IsIPCommunity == current.IsIPCommunity &&
+               original.IPCommunitySpecify == current.IPCommunitySpecify &&
+               original.Is4PsBeneficiary == current.Is4PsBeneficiary &&
+               original.FourPsHouseholdId == current.FourPsHouseholdId &&
+               original.CurrentHouseNo == current.CurrentHouseNo &&
+               original.CurrentStreetName == current.CurrentStreetName &&
+               original.CurrentBarangay == current.CurrentBarangay &&
+               original.CurrentCity == current.CurrentCity &&
+               original.CurrentProvince == current.CurrentProvince &&
+               original.CurrentCountry == current.CurrentCountry &&
+               original.CurrentZipCode == current.CurrentZipCode &&
+               original.SameAsCurrentAddress == current.SameAsCurrentAddress &&
+               original.PermanentHouseNo == current.PermanentHouseNo &&
+               original.PermanentStreetName == current.PermanentStreetName &&
+               original.PermanentBarangay == current.PermanentBarangay &&
+               original.PermanentCity == current.PermanentCity &&
+               original.PermanentProvince == current.PermanentProvince &&
+               original.PermanentCountry == current.PermanentCountry &&
+               original.PermanentZipCode == current.PermanentZipCode &&
+               original.GuardianFirstName == current.GuardianFirstName &&
+               original.GuardianMiddleName == current.GuardianMiddleName &&
+               original.GuardianLastName == current.GuardianLastName &&
+               original.GuardianSuffix == current.GuardianSuffix &&
+               original.GuardianContactNumber == current.GuardianContactNumber &&
+               original.GuardianRelationship == current.GuardianRelationship &&
+               original.LearnerReferenceNo == current.LearnerReferenceNo &&
+               // Requirements
+               original.HasPSABirthCert == current.HasPSABirthCert &&
+               original.HasBaptismalCert == current.HasBaptismalCert &&
+               original.HasReportCard == current.HasReportCard &&
+               original.HasForm138 == current.HasForm138 &&
+               original.HasForm137 == current.HasForm137 &&
+               original.HasGoodMoralCert == current.HasGoodMoralCert &&
+               original.HasTransferCert == current.HasTransferCert &&
+               original.HasUpdatedEnrollmentForm == current.HasUpdatedEnrollmentForm &&
+               original.HasClearance == current.HasClearance;
+    }
+
+    private async Task EnableEditMode()
     {
         IsEditing = true;
         ErrorMessage = null;
         SuccessMessage = null;
+        
+        if (OnEditingStateChanged.HasDelegate)
+        {
+            await OnEditingStateChanged.InvokeAsync(true);
+        }
         
         // Initialize edit model from StudentData
         EditModel = new StudentEditModel
@@ -922,9 +1096,72 @@
             GuardianContactNumber = StudentData.GuardianContactNumber,
             GuardianRelationship = StudentData.GuardianRelationship,
             StudentType = StudentData.StudentType,
+            HasLRN = StudentData.HasLRN,
+            LearnerReferenceNo = StudentData.LearnerReferenceNo == "N/A" ? "" : StudentData.LearnerReferenceNo,
             GradeToEnroll = StudentData.GradeToEnroll,
             SchoolYear = StudentData.SchoolYear,
-            Status = StudentData.Status
+            Status = StudentData.Status,
+            // Requirements
+            HasPSABirthCert = StudentData.HasPSABirthCert,
+            HasBaptismalCert = StudentData.HasBaptismalCert,
+            HasReportCard = StudentData.HasReportCard,
+            HasForm138 = StudentData.HasForm138,
+            HasForm137 = StudentData.HasForm137,
+            HasGoodMoralCert = StudentData.HasGoodMoralCert,
+            HasTransferCert = StudentData.HasTransferCert,
+            HasUpdatedEnrollmentForm = StudentData.HasUpdatedEnrollmentForm,
+            HasClearance = StudentData.HasClearance
+        };
+
+        // Store original values for comparison
+        OriginalEditModel = new StudentEditModel
+        {
+            StudentId = EditModel.StudentId,
+            FirstName = EditModel.FirstName,
+            MiddleName = EditModel.MiddleName,
+            LastName = EditModel.LastName,
+            Suffix = EditModel.Suffix,
+            BirthDate = EditModel.BirthDate,
+            Age = EditModel.Age,
+            PlaceOfBirth = EditModel.PlaceOfBirth,
+            Sex = EditModel.Sex,
+            MotherTongue = EditModel.MotherTongue,
+            IsIPCommunity = EditModel.IsIPCommunity,
+            IPCommunitySpecify = EditModel.IPCommunitySpecify,
+            Is4PsBeneficiary = EditModel.Is4PsBeneficiary,
+            FourPsHouseholdId = EditModel.FourPsHouseholdId,
+            CurrentHouseNo = EditModel.CurrentHouseNo,
+            CurrentStreetName = EditModel.CurrentStreetName,
+            CurrentBarangay = EditModel.CurrentBarangay,
+            CurrentCity = EditModel.CurrentCity,
+            CurrentProvince = EditModel.CurrentProvince,
+            CurrentCountry = EditModel.CurrentCountry,
+            CurrentZipCode = EditModel.CurrentZipCode,
+            SameAsCurrentAddress = EditModel.SameAsCurrentAddress,
+            PermanentHouseNo = EditModel.PermanentHouseNo,
+            PermanentStreetName = EditModel.PermanentStreetName,
+            PermanentBarangay = EditModel.PermanentBarangay,
+            PermanentCity = EditModel.PermanentCity,
+            PermanentProvince = EditModel.PermanentProvince,
+            PermanentCountry = EditModel.PermanentCountry,
+            PermanentZipCode = EditModel.PermanentZipCode,
+            GuardianFirstName = EditModel.GuardianFirstName,
+            GuardianMiddleName = EditModel.GuardianMiddleName,
+            GuardianLastName = EditModel.GuardianLastName,
+            GuardianSuffix = EditModel.GuardianSuffix,
+            GuardianContactNumber = EditModel.GuardianContactNumber,
+            GuardianRelationship = EditModel.GuardianRelationship,
+            LearnerReferenceNo = EditModel.LearnerReferenceNo,
+            // Requirements
+            HasPSABirthCert = EditModel.HasPSABirthCert,
+            HasBaptismalCert = EditModel.HasBaptismalCert,
+            HasReportCard = EditModel.HasReportCard,
+            HasForm138 = EditModel.HasForm138,
+            HasForm137 = EditModel.HasForm137,
+            HasGoodMoralCert = EditModel.HasGoodMoralCert,
+            HasTransferCert = EditModel.HasTransferCert,
+            HasUpdatedEnrollmentForm = EditModel.HasUpdatedEnrollmentForm,
+            HasClearance = EditModel.HasClearance
         };
 
         LoadCities();
@@ -934,12 +1171,75 @@
         StateHasChanged();
     }
 
-    private void CancelEdit()
+    // Confirmation modal state
+    private bool ShowCancelConfirmModal { get; set; } = false;
+    private bool ShowUpdateConfirmModal { get; set; } = false;
+
+    private async Task HandleCancelClick()
+    {
+        if (HasUnsavedChanges)
+        {
+            ShowCancelConfirmModal = true;
+            StateHasChanged();
+        }
+        else
+        {
+            await CancelEdit();
+        }
+    }
+
+    private void HandleUpdateClick()
+    {
+        if (HasUnsavedChanges)
+        {
+            ShowUpdateConfirmModal = true;
+            StateHasChanged();
+        }
+        else
+        {
+            // No changes, just close edit mode
+            IsEditing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseCancelConfirmModal()
+    {
+        ShowCancelConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private void CloseUpdateConfirmModal()
+    {
+        ShowUpdateConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmCancel()
+    {
+        ShowCancelConfirmModal = false;
+        await CancelEdit();
+    }
+
+    private async Task ConfirmUpdate()
+    {
+        ShowUpdateConfirmModal = false;
+        await SaveChanges();
+    }
+
+    private async Task CancelEdit()
     {
         IsEditing = false;
         EditModel = new StudentEditModel();
+        OriginalEditModel = new StudentEditModel();
         ErrorMessage = null;
         SuccessMessage = null;
+        
+        if (OnEditingStateChanged.HasDelegate)
+        {
+            await OnEditingStateChanged.InvokeAsync(false);
+        }
+        
         StateHasChanged();
     }
 
@@ -1023,10 +1323,27 @@
                 StudentData.LearnerReferenceNo = hasRealLrn ? rawLrn : "N/A";
                 StudentData.StudentType = updatedEntity.StudentType;
                 StudentData.GradeToEnroll = gradeLevelName;
+                
+                // Update requirements from the entity
+                StudentData.HasPSABirthCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate") ?? false;
+                StudentData.HasBaptismalCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate") ?? false;
+                StudentData.HasReportCard = updatedEntity.Requirements?.Any(r => r.RequirementName == "Report Card") ?? false;
+                StudentData.HasForm138 = updatedEntity.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)") ?? false;
+                StudentData.HasForm137 = updatedEntity.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)") ?? false;
+                StudentData.HasGoodMoralCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate") ?? false;
+                StudentData.HasTransferCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Transfer Certificate") ?? false;
+                StudentData.HasUpdatedEnrollmentForm = updatedEntity.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form") ?? false;
+                StudentData.HasClearance = updatedEntity.Requirements?.Any(r => r.RequirementName == "Clearance") ?? false;
             }
 
             SuccessMessage = "Student information updated successfully!";
             IsEditing = false;
+            OriginalEditModel = new StudentEditModel();
+
+            if (OnEditingStateChanged.HasDelegate)
+            {
+                await OnEditingStateChanged.InvokeAsync(false);
+            }
 
             // Notify parent component with updated data
             await OnStudentUpdated.InvokeAsync(StudentData);
@@ -1135,5 +1452,111 @@
             EditModel.PermanentZipCode = EditModel.CurrentZipCode;
         }
         StateHasChanged();
+    }
+
+    // Format name to capitalize first letter of each word, rest lowercase
+    private string FormatName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return name;
+
+        // Split by spaces and format each word
+        var words = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var formattedWords = words.Select(word =>
+        {
+            if (string.IsNullOrEmpty(word))
+                return word;
+            
+            // First letter uppercase, rest lowercase
+            return char.ToUpper(word[0]) + word.Substring(1).ToLower();
+        });
+
+        return string.Join(" ", formattedWords);
+    }
+
+    // Name formatting handlers
+    private void FormatFirstName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.FirstName = FormatName(EditModel.FirstName);
+        }
+    }
+
+    private void FormatMiddleName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.MiddleName = FormatName(EditModel.MiddleName);
+        }
+    }
+
+    private void FormatLastName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.LastName = FormatName(EditModel.LastName);
+        }
+    }
+
+    private void FormatGuardianFirstName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.GuardianFirstName = FormatName(EditModel.GuardianFirstName);
+        }
+    }
+
+    private void FormatGuardianMiddleName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.GuardianMiddleName = FormatName(EditModel.GuardianMiddleName);
+        }
+    }
+
+    private void FormatGuardianLastName()
+    {
+        if (EditModel != null)
+        {
+            EditModel.GuardianLastName = FormatName(EditModel.GuardianLastName);
+        }
+    }
+
+    private void HandleHasLRNChange()
+    {
+        if (EditModel != null)
+        {
+            if (EditModel.HasLRN == "No")
+            {
+                EditModel.LearnerReferenceNo = "N/A";
+            }
+            else if (EditModel.HasLRN == "Yes" && EditModel.LearnerReferenceNo == "N/A")
+            {
+                EditModel.LearnerReferenceNo = string.Empty;
+            }
+        }
+    }
+
+    private void HandleLRNChange()
+    {
+        if (EditModel != null && EditModel.HasLRN == "No")
+        {
+            EditModel.LearnerReferenceNo = "N/A";
+        }
+    }
+
+    private void HandleBirthDateChanged()
+    {
+        if (EditModel != null && EditModel.BirthDate != default)
+        {
+            var today = DateTime.Today;
+            var age = today.Year - EditModel.BirthDate.Year;
+            if (EditModel.BirthDate.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+            EditModel.Age = age;
+        }
     }
 }

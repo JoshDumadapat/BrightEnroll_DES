@@ -1,4 +1,4 @@
-﻿
+
 using Microsoft.Extensions.Logging;
 using BrightEnroll_DES.Services.Authentication;
 using BrightEnroll_DES.Services.Business.Students;
@@ -45,6 +45,7 @@ namespace BrightEnroll_DES
             builder.Services.AddSingleton<ILoginService, LoginService>();
             builder.Services.AddSingleton<IAuthService, AuthService>();
             builder.Services.AddScoped<DatabaseSeeder>();
+            builder.Services.AddScoped<CurriculumSeeder>();
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
             builder.Services.AddSingleton<AddressService>();
             builder.Services.AddScoped<SchoolYearService>();
@@ -98,6 +99,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<TimeRecordService>();
             builder.Services.AddScoped<AttendanceReportService>();
             builder.Services.AddScoped<FeeService>();
+            builder.Services.AddScoped<DiscountService>();
             builder.Services.AddScoped<JournalEntryService>();
             builder.Services.AddScoped<ChartOfAccountsService>();
             builder.Services.AddScoped<PeriodClosingService>();
@@ -297,6 +299,18 @@ namespace BrightEnroll_DES
                         catch (Exception ex)
                         {
                             logger?.LogWarning(ex, "Chart of Accounts seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Curriculum Data (Grade Levels, Classrooms, Sections, Subjects)
+                        try
+                        {
+                            var curriculumSeeder = scope.ServiceProvider.GetRequiredService<CurriculumSeeder>();
+                            await curriculumSeeder.SeedAllAsync();
+                            logger?.LogInformation("Curriculum data seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Curriculum seeding failed: {Message}", ex.Message);
                         }
 
                         // Verify seeded users

@@ -40,8 +40,14 @@ public class LedgerCharge
     [Column("updated_at", TypeName = "datetime")]
     public DateTime? UpdatedAt { get; set; }
 
-    // Navigation property
+    [Column("discount_id")]
+    public int? DiscountId { get; set; } // Optional FK to discount configuration
+
+    // Navigation properties
     [ForeignKey("LedgerId")]
     public virtual StudentLedger? Ledger { get; set; }
+
+    [ForeignKey("DiscountId")]
+    public virtual Discount? Discount { get; set; }
 }
 

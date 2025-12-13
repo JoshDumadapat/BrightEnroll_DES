@@ -41,79 +41,95 @@
     </div>
 </div>
 
-<!-- Table -->
-<table class="min-w-full text-sm">
-    <thead class="bg-gray-100 font-semibold text-gray-600">
-        <tr>
-            <th class="px-4 py-3 text-left">Subject I.D.</th>
-            <th class="px-4 py-3 text-left">Code</th>
-            <th class="px-4 py-3 text-left">Subject Name</th>
-            <th class="px-4 py-3 text-left">Grade Level</th>
-            <th class="px-4 py-3 text-left">Status</th>
-            <th class="px-4 py-3 text-center">Actions</th>
-        </tr>
-    </thead>
-    <tbody class="divide-y">
-        @if (PaginatedSubjects != null && PaginatedSubjects.Any())
+<!-- Grade Cards Layout -->
+@if (GroupedSubjects != null && GroupedSubjects.Any())
+{
+    <div class="grid grid-cols-1 gap-6 px-3 py-6 sm:px-6 lg:grid-cols-2 xl:grid-cols-3">
+        @foreach (var gradeGroup in GroupedSubjects)
         {
-            @foreach (var subject in PaginatedSubjects)
-            {
-                <tr class="transition hover:bg-gray-50">
-                    <td class="px-4 py-3">@(subject.Id)</td>
-                    <td class="px-4 py-3">@(string.IsNullOrWhiteSpace(subject.Code) ? "-" : subject.Code)</td>
-                    <td class="px-4 py-3">@(subject.Name)</td>
-                    <td class="px-4 py-3">@(subject.GradeLevel)</td>
-                    <td class="px-4 py-3">
-                        @if (subject.IsActive)
-                        {
-                            <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-medium text-green-700">Active</span>
-                        }
-                        else
-                        {
-                            <span class="inline-flex rounded-full bg-gray-200 px-2.5 py-1 text-[10px] font-medium text-gray-600">Inactive</span>
-                        }
-                    </td>
-                    <td class="flex items-center justify-center gap-2 px-4 py-3">
-                        <button @onclick="() => OnEditSubject.InvokeAsync(subject)" class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
-                            </svg>
-                            <span class="hidden sm:inline">Edit</span>
-                        </button>
-                        <button @onclick="() => OnDeleteSubject.InvokeAsync(subject)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            <span class="hidden sm:inline">Remove</span>
-                        </button>
-                    </td>
-                </tr>
-            }
-        }
-        else
-        {
-            <tr>
-                <td colspan="6" class="px-4 py-12 text-center text-gray-500">
-                    <div class="flex flex-col items-center justify-center">
-                        <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
-                        <p class="text-sm text-gray-500 mt-1">There are no subjects to display at this time.</p>
+            var gradeColors = GetGradeColors(gradeGroup.Key);
+            <div class="group relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:shadow-lg">
+                <!-- Grade Header -->
+                <div class="border-b border-gray-100 px-5 py-4" style="background: linear-gradient(to right, @gradeColors.HeaderFrom, @gradeColors.HeaderTo);">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <div class="flex h-10 w-10 items-center justify-center rounded-lg shadow-md" style="background: linear-gradient(to bottom right, @gradeColors.IconFrom, @gradeColors.IconTo);">
+                                @GetGradeIcon(gradeGroup.Key)
+                            </div>
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">@gradeGroup.Key</h3>
+                                <p class="text-xs text-gray-600">@gradeGroup.Value.Count subject@(gradeGroup.Value.Count != 1 ? "s" : "")</p>
+                            </div>
+                        </div>
                     </div>
-                </td>
-            </tr>
-        }
-    </tbody>
-</table>
+                </div>
 
-<!-- Footer with Pagination -->
-<Pagination TotalItems="@FilteredSubjects.Count" 
-            CurrentPage="@CurrentPage" 
-            RowsPerPage="@RowsPerPage"
-            ItemName="subjects"
-            OnPageChanged="HandlePageChanged"
-            OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+                <!-- Subjects List - Original vertical list with scroll -->
+                <div class="max-h-96 overflow-y-auto divide-y divide-gray-100">
+                    @foreach (var subject in gradeGroup.Value)
+                    {
+                        <div class="group/item transition-colors hover:bg-gray-50/50">
+                            <div class="px-5 py-4">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="flex-1 min-w-0">
+                                        <h4 class="mb-1.5 text-sm font-semibold text-gray-900">@subject.Name</h4>
+                                        <div class="flex flex-wrap items-center gap-3 text-xs text-gray-600">
+                                            <div class="flex items-center gap-1.5">
+                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                                </svg>
+                                                <span>@subject.Id</span>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(subject.Code))
+                                            {
+                                                <div class="flex items-center gap-1.5">
+                                                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                                                    </svg>
+                                                    <span>@subject.Code</span>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-1.5">
+                                        <button @onclick="() => OnEditSubject.InvokeAsync(subject)" 
+                                                class="flex items-center justify-center rounded-lg bg-yellow-50 p-2 text-yellow-600 transition-all duration-200 hover:bg-yellow-100 hover:shadow-sm"
+                                                title="Edit Subject">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                            </svg>
+                                        </button>
+                                        <button @onclick="() => OnDeleteSubject.InvokeAsync(subject)" 
+                                                class="flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 transition-all duration-200 hover:bg-red-100 hover:shadow-sm"
+                                                title="Remove Subject">
+                                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="px-3 py-12 text-center sm:px-6">
+        <div class="flex flex-col items-center justify-center">
+            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+                <svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <p class="text-base font-medium text-gray-600">No Subjects Available</p>
+            <p class="text-sm text-gray-500 mt-1">There are no subjects to display at this time.</p>
+        </div>
+    </div>
+}
 
 @code {
     [Parameter] public List<Subject> SubjectsList { get; set; } = new();
@@ -124,10 +140,6 @@
 
     private string SearchText { get; set; } = "";
     private string GradeFilter { get; set; } = "";
-
-    // Pagination state
-    private int CurrentPage { get; set; } = 1;
-    private int RowsPerPage { get; set; } = 5;
 
     // Computed property for filtered subjects
     private List<Subject> FilteredSubjects
@@ -143,7 +155,8 @@
             {
                 filtered = filtered.Where(s => 
                     s.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+                    s.Id.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    (s.Code != null && s.Code.Contains(SearchText, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (!string.IsNullOrWhiteSpace(GradeFilter))
@@ -155,17 +168,19 @@
         }
     }
 
-    // Computed property for paginated subjects
-    private List<Subject> PaginatedSubjects
+    // Computed property for subjects grouped by grade level
+    private Dictionary<string, List<Subject>> GroupedSubjects
     {
         get
         {
             var filtered = FilteredSubjects;
             if (filtered == null || !filtered.Any())
-                return new List<Subject>();
+                return new Dictionary<string, List<Subject>>();
 
-            int startIndex = (CurrentPage - 1) * RowsPerPage;
-            return filtered.Skip(startIndex).Take(RowsPerPage).ToList();
+            return filtered
+                .GroupBy(s => s.GradeLevel ?? "Unassigned")
+                .OrderBy(g => g.Key)
+                .ToDictionary(g => g.Key, g => g.OrderBy(s => s.Name).ToList());
         }
     }
 
@@ -183,20 +198,6 @@
     {
         SearchText = "";
         GradeFilter = "";
-        CurrentPage = 1;
-        StateHasChanged();
-    }
-
-    private void HandlePageChanged(int page)
-    {
-        CurrentPage = page;
-        StateHasChanged();
-    }
-
-    private void HandleRowsPerPageChanged(int rowsPerPage)
-    {
-        RowsPerPage = rowsPerPage;
-        CurrentPage = 1;
         StateHasChanged();
     }
 
@@ -221,6 +222,78 @@
             .Where(d => dayOrder.ContainsKey(d))
             .OrderBy(d => dayOrder[d])
             .ToList();
+    }
+
+    private (string HeaderFrom, string HeaderTo, string IconFrom, string IconTo) GetGradeColors(string gradeLevel)
+    {
+        var grade = gradeLevel.ToLower();
+        
+        return grade switch
+        {
+            var g when g.Contains("kinder") || g.Contains("pre-k") || g.Contains("prek") => 
+                ("#fef3c7", "#fde68a", "#f59e0b", "#d97706"), // Amber/Yellow
+            var g when g.Contains("grade 1") || g == "1" => 
+                ("#dbeafe", "#bfdbfe", "#3b82f6", "#2563eb"), // Blue
+            var g when g.Contains("grade 2") || g == "2" => 
+                ("#d1fae5", "#a7f3d0", "#10b981", "#059669"), // Green
+            var g when g.Contains("grade 3") || g == "3" => 
+                ("#e9d5ff", "#ddd6fe", "#8b5cf6", "#7c3aed"), // Purple
+            var g when g.Contains("grade 4") || g == "4" => 
+                ("#fee2e2", "#fecaca", "#ef4444", "#dc2626"), // Red
+            var g when g.Contains("grade 5") || g == "5" => 
+                ("#e0e7ff", "#c7d2fe", "#6366f1", "#4f46e5"), // Indigo
+            var g when g.Contains("grade 6") || g == "6" => 
+                ("#ccfbf1", "#99f6e4", "#14b8a6", "#0d9488"), // Teal
+            var g when g.Contains("grade 7") || g == "7" => 
+                ("#fce7f3", "#fbcfe8", "#ec4899", "#db2777"), // Pink
+            var g when g.Contains("grade 8") || g == "8" => 
+                ("#fed7aa", "#fdba74", "#f97316", "#ea580c"), // Orange
+            var g when g.Contains("grade 9") || g == "9" => 
+                ("#f3e8ff", "#e9d5ff", "#a855f7", "#9333ea"), // Violet
+            var g when g.Contains("grade 10") || g == "10" => 
+                ("#dbeafe", "#bfdbfe", "#0ea5e9", "#0284c7"), // Sky Blue
+            var g when g.Contains("grade 11") || g == "11" => 
+                ("#fef3c7", "#fde68a", "#eab308", "#ca8a04"), // Yellow
+            var g when g.Contains("grade 12") || g == "12" => 
+                ("#e0e7ff", "#c7d2fe", "#6366f1", "#4f46e5"), // Indigo
+            _ => ("#f3f4f6", "#e5e7eb", "#6b7280", "#4b5563") // Default Gray
+        };
+    }
+
+    private RenderFragment GetGradeIcon(string gradeLevel)
+    {
+        var grade = gradeLevel.ToLower();
+        
+        return grade switch
+        {
+            var g when g.Contains("kinder") || g.Contains("pre-k") || g.Contains("prek") => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"" /></svg>"),
+            var g when g.Contains("grade 1") || g == "1" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"" /></svg>"),
+            var g when g.Contains("grade 2") || g == "2" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"" /></svg>"),
+            var g when g.Contains("grade 3") || g == "3" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"" /></svg>"),
+            var g when g.Contains("grade 4") || g == "4" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"" /></svg>"),
+            var g when g.Contains("grade 5") || g == "5" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"" /></svg>"),
+            var g when g.Contains("grade 6") || g == "6" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"" /></svg>"),
+            var g when g.Contains("grade 7") || g == "7" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"" /></svg>"),
+            var g when g.Contains("grade 8") || g == "8" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"" /></svg>"),
+            var g when g.Contains("grade 9") || g == "9" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14l9-5-9-5-9 5 9 5z"" /><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"" /><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14v6"" /></svg>"),
+            var g when g.Contains("grade 10") || g == "10" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"" /></svg>"),
+            var g when g.Contains("grade 11") || g == "11" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"" /></svg>"),
+            var g when g.Contains("grade 12") || g == "12" => 
+                builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14l9-5-9-5-9 5 9 5z"" /><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"" /><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 14v6"" /></svg>"),
+            _ => builder => builder.AddMarkupContent(0, @"<svg class=""h-5 w-5 text-white"" fill=""none"" stroke=""currentColor"" viewBox=""0 0 24 24""><path stroke-linecap=""round"" stroke-linejoin=""round"" stroke-width=""2"" d=""M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"" /></svg>")
+        };
     }
 }
 

@@ -32,7 +32,7 @@ public class EnrollmentPdfGenerator
         return _logoBytes ?? Array.Empty<byte>();
     }
 
-    public async Task<byte[]> GenerateEnrollmentReportAsync(string reportType, string? generatedBy = null)
+    public async Task<byte[]> GenerateEnrollmentReportAsync(string reportType, string? generatedBy = null, string? schoolYear = null)
     {
         EnrollmentStatistics stats;
         var generatedByName = generatedBy ?? "System";
@@ -40,16 +40,16 @@ public class EnrollmentPdfGenerator
         switch (reportType.ToLower())
         {
             case "newapplicants":
-                stats = await _statisticsService.GetNewApplicantsStatisticsAsync();
+                stats = await _statisticsService.GetNewApplicantsStatisticsAsync(schoolYear);
                 return GenerateNewApplicantsReport(stats, generatedByName);
             case "forenrollment":
-                stats = await _statisticsService.GetForEnrollmentStatisticsAsync();
+                stats = await _statisticsService.GetForEnrollmentStatisticsAsync(schoolYear);
                 return GenerateForEnrollmentReport(stats, generatedByName);
             case "reenrollment":
-                stats = await _statisticsService.GetReEnrollmentStatisticsAsync();
+                stats = await _statisticsService.GetReEnrollmentStatisticsAsync(schoolYear);
                 return GenerateReEnrollmentReport(stats, generatedByName);
             case "enrolled":
-                stats = await _statisticsService.GetEnrolledStatisticsAsync();
+                stats = await _statisticsService.GetEnrolledStatisticsAsync(schoolYear);
                 return await GenerateEnrolledReportAsync(stats, generatedByName);
             default:
                 stats = await _statisticsService.GetEnrollmentStatisticsAsync();
@@ -1128,8 +1128,7 @@ public class EnrollmentPdfGenerator
             .PaddingHorizontal(10);
     }
 
-    /// <summary>
-    /// Generates a PDF report for enrollment status records
+    // Generates a PDF report for enrollment status records
     /// </summary>
     public Task<byte[]> GenerateEnrollmentStatusReportAsync(string studentId, string studentName, List<Components.Pages.Admin.StudentRecord.StudentRecordCS.EnrollmentStatusData> records)
     {

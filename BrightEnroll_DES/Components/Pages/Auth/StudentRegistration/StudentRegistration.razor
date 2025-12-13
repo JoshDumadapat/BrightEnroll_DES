@@ -793,7 +793,6 @@
                             <InputSelect @bind-Value="registrationModel.SchoolYear" @bind-Value:after="() => { OnSchoolYearChanged(); editContext?.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.SchoolYear))); StateHasChanged(); }"
                                 class="@GetInputClassWithExtra(nameof(registrationModel.SchoolYear), "bg-white")">
                                 <option value="" disabled selected>Select School Year</option>
-                                <option value="ADD_NEW">+ Add School Year</option>
                                 @foreach (var schoolYear in availableSchoolYears)
                                 {
                                     <option value="@schoolYear">@schoolYear</option>
@@ -819,7 +818,7 @@
                     </div>
                     <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:mb-6 sm:p-4">
                         <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
-                            Requirements <span class="text-red-500">*</span>
+                            Requirements 
                         </label>
                         <div class="space-y-2">
                             @if (registrationModel.StudentType == "New Student")
@@ -949,7 +948,7 @@
 <!-- Debug Error Modal -->
 @if (showDebugError)
 {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-75 p-4">
+    <div class="z-[60] fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 p-4">
         <div class="relative max-h-[90vh] w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-2xl">
             <!-- Header -->
             <div class="flex items-center justify-between border-b border-red-200 bg-red-50 px-6 py-4">
@@ -970,7 +969,7 @@
             <!-- Full Error Details -->
             <div class="max-h-[60vh] overflow-y-auto px-6 py-4">
                 <p class="mb-2 text-sm font-semibold text-gray-700">Full Error Details:</p>
-                <pre class="whitespace-pre-wrap break-words rounded bg-gray-900 p-4 text-xs text-green-400 font-mono overflow-x-auto">@debugErrorDetails</pre>
+                <pre class="overflow-x-auto whitespace-pre-wrap break-words rounded bg-gray-900 p-4 font-mono text-xs text-green-400">@debugErrorDetails</pre>
             </div>
             
             <!-- Footer -->
@@ -989,7 +988,7 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
         <div id="student-registration-confirm-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+            <div class="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white px-6 py-2.5">
                 <h3 class="text-base font-semibold @(confirmModalType == "cancel" ? "text-red-500" : "text-blue-600")">@confirmModalTitle</h3>
                 <button @onclick="CloseConfirmModal" class="text-gray-400 hover:text-gray-600" style="background: transparent; border: none; cursor: pointer; padding: 0; margin: 0;">
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1020,7 +1019,7 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
         <div id="student-registration-validation-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+            <div class="flex items-center justify-between rounded-t-2xl border-b border-gray-200 bg-white px-6 py-2.5">
                 <h3 class="text-base font-semibold text-red-500">Validation Error</h3>
             </div>
  
@@ -1054,72 +1053,4 @@
     </div>
 }
 
-<!-- Add School Year Modal -->
-@if (showAddSchoolYearModal)
-{
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
-        <div id="student-registration-schoolyear-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
-            <div class="flex items-center justify-between rounded-t-2xl bg-blue-600 px-6 py-2">
-                <h3 class="text-lg font-semibold text-white">Add School Year</h3>
-                <button @onclick="CloseAddSchoolYearModal" class="text-white hover:text-gray-200">
-                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
-            <div class="rounded-b-2xl px-6 py-4">
-                <div class="mb-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                Start Year <span class="text-red-500">*</span>
-                            </label>
-                            <InputSelect @bind-Value="startYear" @bind-Value:after="OnStartYearChanged"
-                                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:outline-none focus:ring-0">
-                                <option value="" disabled selected>Select Start Year</option>
-                                @foreach (var year in availableStartYears)
-                                {
-                                    <option value="@year">@year</option>
-                                }
-                            </InputSelect>
-                        </div>
-                        <div>
-                            <label class="mb-2 block text-sm font-medium text-gray-700">
-                                End Year <span class="text-red-500">*</span>
-                            </label>
-                            <InputSelect @bind-Value="endYear" @bind-Value:after="ValidateSchoolYearFormat"
-                                         class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:outline-none focus:ring-0"
-                                         disabled="@(string.IsNullOrWhiteSpace(startYear))">
-                                <option value="" disabled selected>Select End Year</option>
-                                @if (!string.IsNullOrWhiteSpace(startYear) && int.TryParse(startYear, out int start))
-                                {
-                                    <option value="@(start + 1)">@(start + 1)</option>
-                                }
-                            </InputSelect>
-                        </div>
-                    </div>
-                    @if (!string.IsNullOrWhiteSpace(schoolYearValidationError))
-                    {
-                        <p class="mt-2 text-xs text-red-500">@schoolYearValidationError</p>
-                    }
-                    else
-                    {
-                        <p class="mt-2 text-xs text-gray-500">Format: Start Year must be exactly 1 year before End Year (e.g., 2027-2028)</p>
-                    }
-                </div>
-                <div class="mt-6 flex justify-end gap-3">
-                    <button type="button" @onclick="CloseAddSchoolYearModal" 
-                            class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-                        Cancel
-                    </button>
-                    <button type="button" @onclick="AddSchoolYear" 
-                            disabled="@(string.IsNullOrWhiteSpace(startYear) || string.IsNullOrWhiteSpace(endYear) || !isValidSchoolYearFormat || availableSchoolYears.Count >= 3)"
-                            class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                        Add
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
 </RoleAuthorizeView>

@@ -9,6 +9,7 @@
 @using System.Linq
 @using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.JSInterop
+@using Microsoft.Extensions.Logging
 
 @if (Show)
 {
@@ -58,12 +59,14 @@
                                     First Name <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.FirstName"
+                                           @bind-Value:after="() => { FormatFirstName(); StateHasChanged(); }"
                                            class="@GetInputClass(nameof(Model.FirstName))" />
                                 <ValidationMessage For="@(() => Model.FirstName)" class="text-red-500 text-xs mt-1" />
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
                                 <InputText @bind-Value="Model.MiddleName"
+                                           @bind-Value:after="FormatMiddleName"
                                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
                             </div>
                             <div>
@@ -71,6 +74,7 @@
                                     Last Name <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.LastName"
+                                           @bind-Value:after="() => { FormatLastName(); StateHasChanged(); }"
                                            class="@GetInputClass(nameof(Model.LastName))" />
                                 <ValidationMessage For="@(() => Model.LastName)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -286,6 +290,8 @@
                                     ZIP Code <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.CurrentZipCode"
+                                           maxlength="10"
+                                           onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
                                            class="@GetInputClass(nameof(Model.CurrentZipCode))"
                                            placeholder="ZIP Code" />
                                 <ValidationMessage For="@(() => Model.CurrentZipCode)" class="text-red-500 text-xs mt-1" />
@@ -373,6 +379,8 @@
                                 </label>
                                 <InputText @bind-Value="Model.PermanentZipCode"
                                            disabled="Model.SameAsCurrentAddress"
+                                           maxlength="10"
+                                           onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
                                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
                                            placeholder="ZIP Code" />
                             </div>
@@ -391,12 +399,14 @@
                                     First Name <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.GuardianFirstName"
+                                           @bind-Value:after="() => { FormatGuardianFirstName(); StateHasChanged(); }"
                                            class="@GetInputClass(nameof(Model.GuardianFirstName))" />
                                 <ValidationMessage For="@(() => Model.GuardianFirstName)" class="text-red-500 text-xs mt-1" />
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
                                 <InputText @bind-Value="Model.GuardianMiddleName"
+                                           @bind-Value:after="FormatGuardianMiddleName"
                                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
                             </div>
                             <div>
@@ -404,6 +414,7 @@
                                     Last Name <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.GuardianLastName"
+                                           @bind-Value:after="() => { FormatGuardianLastName(); StateHasChanged(); }"
                                            class="@GetInputClass(nameof(Model.GuardianLastName))" />
                                 <ValidationMessage For="@(() => Model.GuardianLastName)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -429,7 +440,11 @@
                                     Contact Number <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.GuardianContactNumber"
-                                           class="@GetInputClass(nameof(Model.GuardianContactNumber))" />
+                                           @bind-Value:after="() => { if (EditContext != null) EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GuardianContactNumber))); StateHasChanged(); }"
+                                           maxlength="11"
+                                           onkeypress="return /[0-9]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight'"
+                                           class="@GetInputClass(nameof(Model.GuardianContactNumber))"
+                                           placeholder="e.g. 09123456789" />
                                 <ValidationMessage For="@(() => Model.GuardianContactNumber)" class="text-red-500 text-xs mt-1" />
                             </div>
                             <div>
@@ -512,8 +527,12 @@
                                     LRN
                                 </label>
                                 <InputText @bind-Value="Model.LearnerReferenceNo"
+                                           @bind-Value:after="() => { HandleLRNChange(); if (EditContext != null) EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.LearnerReferenceNo))); StateHasChanged(); }"
                                            disabled="@(Model.HasLRN != "Yes")"
-                                           class="@($"{GetInputClass(nameof(Model.LearnerReferenceNo))} disabled:cursor-not-allowed disabled:bg-gray-100")" />
+                                           maxlength="12"
+                                           onkeypress="return /[0-9]/i.test(event.key)"
+                                           class="@($"{GetInputClass(nameof(Model.LearnerReferenceNo))} disabled:cursor-not-allowed disabled:bg-gray-100")"
+                                           placeholder="e.g. 123456789012" />
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
@@ -521,11 +540,18 @@
                                 </label>
                                 <InputSelect @bind-Value="Model.SchoolYear"
                                              disabled="@IsReEnrollContext"
-                                             class="@($"{GetInputClass(nameof(Model.SchoolYear))} {(IsReEnrollContext ? "disabled:cursor-not-allowed disabled:bg-gray-100" : "")}")">
+                                             class="@($"w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base {(IsReEnrollContext ? "disabled:cursor-not-allowed disabled:bg-gray-100" : "")}")">
                                     <option value="">Select School Year</option>
                                     @foreach (var sy in AvailableSchoolYears)
                                     {
-                                        <option value="@sy">@sy</option>
+                                        <option value="@sy" selected="@(Model != null && string.Equals(sy, Model.SchoolYear, StringComparison.OrdinalIgnoreCase))">@sy</option>
+                                    }
+                                    @* If student's current school year from tbl_Student is not in AvailableSchoolYears, add it as an option *@
+                                    @* This ensures the student's current school year is always visible and selectable *@
+                                    @if (Model != null && !string.IsNullOrWhiteSpace(Model.SchoolYear) && 
+                                         !AvailableSchoolYears.Any(sy => string.Equals(sy?.Trim(), Model.SchoolYear?.Trim(), StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        <option value="@Model.SchoolYear" selected>@Model.SchoolYear</option>
                                     }
                                 </InputSelect>
                                 <ValidationMessage For="@(() => Model.SchoolYear)" class="text-red-500 text-xs mt-1" />
@@ -540,11 +566,20 @@
                                 </label>
                                 <InputSelect @bind-Value="Model.GradeToEnroll"
                                              disabled="@IsReEnrollContext"
-                                             class="@($"{GetInputClass(nameof(Model.GradeToEnroll))} {(IsReEnrollContext ? "disabled:cursor-not-allowed disabled:bg-gray-100" : "")}")">
+                                             class="@($"w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base {(IsReEnrollContext ? "disabled:cursor-not-allowed disabled:bg-gray-100" : "")}")">
                                     <option value="">Select Grade</option>
+                                    @* Display all grade levels from tbl_GradeLevel *@
                                     @foreach (var gradeLevel in AvailableGradeLevels)
                                     {
-                                        <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                        <option value="@gradeLevel.GradeLevelName" selected="@(Model != null && gradeLevel.GradeLevelName != null && string.Equals(gradeLevel.GradeLevelName, Model.GradeToEnroll, StringComparison.OrdinalIgnoreCase))">@gradeLevel.GradeLevelName</option>
+                                    }
+                                    @* If student's current grade level from tbl_Student is not in AvailableGradeLevels, add it as an option *@
+                                    @* This ensures the student's current grade level is always visible and selectable *@
+                                    @if (Model != null && !string.IsNullOrWhiteSpace(Model.GradeToEnroll) && 
+                                         !AvailableGradeLevels.Any(g => g.GradeLevelName != null && 
+                                                                       string.Equals(g.GradeLevelName.Trim(), Model.GradeToEnroll.Trim(), StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        <option value="@Model.GradeToEnroll" selected>@Model.GradeToEnroll</option>
                                     }
                                 </InputSelect>
                                 <ValidationMessage For="@(() => Model.GradeToEnroll)" class="text-red-500 text-xs mt-1" />
@@ -663,17 +698,14 @@
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                     Application Status <span class="text-red-500">*</span>
                                 </label>
-                                @* Partially Paid and Fully Paid are automated by payment system - display only, not selectable *@
                                 @if (IsForEnrollmentContext && (Model.Status == "Partially Paid" || Model.Status == "Fully Paid"))
                                 {
-                                    <div>
-                                        <input type="text" 
-                                               value="@Model.Status" 
-                                               disabled
-                                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm font-medium focus:outline-none sm:px-4 sm:py-2.5 sm:text-base @(Model.Status == "Partially Paid" ? "text-orange-600" : "text-green-600")" 
-                                               style="@(Model.Status == "Partially Paid" ? "background-color: #fed7aa; color: #9a3412;" : "background-color: #dcfce7; color: #166534;")" />
-                                    </div>
-                                    <p class="mt-1 text-xs text-gray-500">This status is automatically set by the payment system and cannot be changed manually.</p>
+                                    @* Disable dropdown for payment statuses - they are auto-set by payment system *@
+                                    <select @bind="Model.Status" 
+                                            disabled
+                                            class="@GetStatusSelectClass()">
+                                        <option value="@Model.Status" selected style="@(Model.Status == "Partially Paid" ? "background-color: #fed7aa; color: #9a3412;" : "background-color: #dcfce7; color: #166534;")">@Model.Status</option>
+                                    </select>
                                 }
                                 else
                                 {
@@ -690,13 +722,22 @@
                             }
                             else
                             {
-                                <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;">For Payment</option>
-                                @if (Model.Status != "For Payment")
+                                @* For enrollment context, show appropriate options based on current status *@
+                                @if (Model.Status == "Enrolled")
                                 {
-                                    <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                                    @* If already enrolled, show enrolled as selected and allow other actions *@
+                                    <option value="Enrolled" selected style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                                    <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                                    <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
                                 }
-                                <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
-                                <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                                else
+                                {
+                                    @* For other statuses (For Payment, etc.), show all standard options *@
+                                    <option value="For Payment" style="background-color: #dbeafe; color: #1e40af;" selected="@(Model.Status == "For Payment")">For Payment</option>
+                                    <option value="Enrolled" style="background-color: #dcfce7; color: #166534;">Enrolled</option>
+                                    <option value="Rejected by School" style="background-color: #fee2e2; color: #991b1b;">Reject</option>
+                                    <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
+                                }
                             }
                         }
                         else
@@ -707,6 +748,11 @@
                             <option value="Application Withdrawn" style="background-color: #fed7aa; color: #9a3412;">Withdraw</option>
                         }
                                     </select>
+                                }
+                                @* Show informational message when status is payment-related *@
+                                @if (IsForEnrollmentContext && (Model.Status == "Partially Paid" || Model.Status == "Fully Paid"))
+                                {
+                                    <p class="mt-1 text-xs text-gray-500">Payment status: <strong>@Model.Status</strong>. This status is automatically set by the payment system. Use the "Enroll Student" button below to complete enrollment.</p>
                                 }
                                 
                                 <!-- Display error if trying to enroll without payment -->
@@ -1068,6 +1114,7 @@
     [Inject] private CurriculumService CurriculumService { get; set; } = null!;
     [Inject] private PaymentSlipPdfGenerator PaymentSlipPdfGenerator { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
+    [Inject] private ILogger<NewApplicantEditModal>? Logger { get; set; }
 
     // Enroll modal state
     private bool ShowEnrollModal { get; set; } = false;
@@ -1116,13 +1163,163 @@
             RejectionReason = Model.RejectionReason ?? string.Empty;
         }
 
-        // Reload grade levels when modal is shown to ensure data is fresh
+        // Reload grade levels and school years when modal is shown to ensure data is fresh
         // This is important if the modal component is reused
-        if (Show && (!AvailableGradeLevels.Any() || AvailableSchoolYears.Count == 0))
+        if (Show && Model != null)
         {
             await LoadGradeLevelsAsync();
             AvailableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+            
+            // CRITICAL: Log the initial state before any modifications
+            Logger?.LogInformation(
+                "Modal OnParametersSetAsync - Initial Model.SchoolYear={SchoolYear}, Model.GradeToEnroll={GradeToEnroll}",
+                Model.SchoolYear, Model.GradeToEnroll);
+            
+            // CRITICAL: Preserve Model.SchoolYear and Model.GradeToEnroll if they're already set
+            // These should come from student.SchoolYr and student.GradeLevel in HandleEnrolledStudentView
+            // Only override if they're empty/null
+            var originalSchoolYear = Model.SchoolYear;
+            var originalGradeToEnroll = Model.GradeToEnroll;
+            
+            // CRITICAL: Ensure student's school year is in available options BEFORE rendering
+            var trimmedSchoolYear = originalSchoolYear?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(trimmedSchoolYear) && 
+                !AvailableSchoolYears.Any(sy => string.Equals(sy?.Trim(), trimmedSchoolYear, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableSchoolYears.Add(trimmedSchoolYear);
+            }
+            
+            // CRITICAL: Log the original values BEFORE any modifications
+            Logger?.LogInformation(
+                "OnParametersSetAsync - ORIGINAL values from Model: SchoolYear='{SchoolYear}', GradeToEnroll='{GradeToEnroll}', IsReEnrollContext={IsReEnrollContext}",
+                originalSchoolYear, originalGradeToEnroll, IsReEnrollContext);
+            
+            // CRITICAL: For enrolled students (IsReEnrollContext), ALWAYS preserve the exact value from tbl_Student
+            // DO NOT override it, even if it's not in AvailableSchoolYears
+            if (IsReEnrollContext)
+            {
+                // For enrolled students, preserve the exact value from student.SchoolYr
+                // This value comes directly from tbl_Student and must be displayed as-is
+                Model.SchoolYear = trimmedSchoolYear;
+                Logger?.LogInformation(
+                    "IsReEnrollContext=true: Preserving exact SchoolYear from tbl_Student: '{SchoolYear}' (empty={IsEmpty})",
+                    Model.SchoolYear, string.IsNullOrWhiteSpace(Model.SchoolYear));
+            }
+            else
+            {
+                // For non-enrolled students, preserve the value from database if it exists
+                // Only set a default if it's truly empty/null
+                if (string.IsNullOrWhiteSpace(trimmedSchoolYear))
+                {
+                    // If Model.SchoolYear is empty, set it to active school year
+                    var activeSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+                    if (!string.IsNullOrWhiteSpace(activeSchoolYear) && AvailableSchoolYears.Contains(activeSchoolYear))
+                    {
+                        Model.SchoolYear = activeSchoolYear;
+                        Logger?.LogInformation("Model.SchoolYear was empty, set to active school year: {SchoolYear}", activeSchoolYear);
+                    }
+                    else if (AvailableSchoolYears.Any())
+                    {
+                        // Fallback to first available school year
+                        Model.SchoolYear = AvailableSchoolYears.First();
+                        Logger?.LogInformation("Model.SchoolYear was empty, set to first available: {SchoolYear}", Model.SchoolYear);
+                    }
+                }
+                else
+                {
+                    // CRITICAL: Preserve the student's school year from database
+                    Model.SchoolYear = trimmedSchoolYear;
+                    Logger?.LogInformation(
+                        "Preserving Model.SchoolYear from database: '{SchoolYear}'",
+                        Model.SchoolYear);
+                }
+            }
+            
+            // CRITICAL: Ensure student's grade level is in available options BEFORE rendering
+            var trimmedGradeToEnroll = originalGradeToEnroll?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(trimmedGradeToEnroll) && 
+                !AvailableGradeLevels.Any(g => g.GradeLevelName != null && 
+                                               string.Equals(g.GradeLevelName.Trim(), trimmedGradeToEnroll, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableGradeLevels.Add(new GradeLevel { GradeLevelName = trimmedGradeToEnroll });
+            }
+            
+            // CRITICAL: Handle GradeToEnroll - ALWAYS preserve the exact value from tbl_Student
+            // For enrolled students (IsReEnrollContext), NEVER override, even if it's not in AvailableGradeLevels
+            if (IsReEnrollContext)
+            {
+                // For enrolled students, preserve the exact value from student.GradeLevel
+                // This value comes directly from tbl_Student and must be displayed as-is
+                Model.GradeToEnroll = trimmedGradeToEnroll;
+                Logger?.LogInformation(
+                    "IsReEnrollContext=true: Preserving exact GradeToEnroll from tbl_Student: '{GradeLevel}' (empty={IsEmpty})",
+                    Model.GradeToEnroll, string.IsNullOrWhiteSpace(Model.GradeToEnroll));
+                
+                if (string.IsNullOrWhiteSpace(Model.GradeToEnroll))
+                {
+                    Logger?.LogWarning(
+                        "CRITICAL: Model.GradeToEnroll is empty for enrolled student. " +
+                        "This might indicate the student's grade level was not set correctly in HandleEnrolledStudentView. " +
+                        "Student's grade level from tbl_Student might be null or empty in the database.");
+                }
+            }
+            else
+            {
+                // For non-enrolled students, preserve the value from database
+                Model.GradeToEnroll = trimmedGradeToEnroll;
+                
+                if (string.IsNullOrWhiteSpace(Model.GradeToEnroll))
+                {
+                    Logger?.LogWarning(
+                        "Model.GradeToEnroll is empty when modal opens. " +
+                        "This might indicate the student's grade level was not set correctly in HandleForEnrollmentEdit.");
+                }
+                else
+                {
+                    Logger?.LogInformation(
+                        "Preserving Model.GradeToEnroll from database: '{GradeLevel}'",
+                        Model.GradeToEnroll);
+                }
+            }
+            
+            // Log final state to verify values are preserved
+            Logger?.LogInformation(
+                "Modal OnParametersSetAsync - Final Model.SchoolYear={SchoolYear}, Model.GradeToEnroll={GradeToEnroll}",
+                Model.SchoolYear, Model.GradeToEnroll);
+            
+            // CRITICAL: Force EditContext to recognize the changes and update the UI
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.SchoolYear)));
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GradeToEnroll)));
+            }
+            
+            // Force UI update to ensure dropdowns display the correct values
+            StateHasChanged();
         }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Only log on first render to avoid infinite loops
+        // The dropdowns should already display correct values from OnParametersSetAsync
+        if (firstRender && Show && Model != null && IsReEnrollContext)
+        {
+            Logger?.LogInformation(
+                "OnAfterRenderAsync (firstRender) - Dropdowns should display: SchoolYear={SchoolYear}, GradeToEnroll={GradeToEnroll}",
+                Model.SchoolYear, Model.GradeToEnroll);
+            
+            // CRITICAL: Force another update after first render to ensure dropdowns are properly bound
+            // This handles cases where the options load after the initial render
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.SchoolYear)));
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GradeToEnroll)));
+                StateHasChanged();
+            }
+        }
+        
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     private async Task LoadSectionsForEnrollmentAsync()
@@ -1135,12 +1332,39 @@
 
         if (Model == null || string.IsNullOrWhiteSpace(Model.GradeToEnroll))
         {
+            Logger?.LogWarning("LoadSectionsForEnrollmentAsync: Model or GradeToEnroll is null/empty");
             return;
         }
 
-        // Map grade level name to GradeLevelId
-        var grade = AvailableGradeLevels.FirstOrDefault(g => g.GradeLevelName == Model.GradeToEnroll);
+        // Ensure grade levels are loaded
+        if (!AvailableGradeLevels.Any())
+        {
+            await LoadGradeLevelsAsync();
+        }
+
+        // Map grade level name to GradeLevelId using case-insensitive comparison
+        var gradeToEnrollTrimmed = Model.GradeToEnroll.Trim();
+        var grade = AvailableGradeLevels.FirstOrDefault(g => 
+            !string.IsNullOrWhiteSpace(g.GradeLevelName) && 
+            string.Equals(g.GradeLevelName.Trim(), gradeToEnrollTrimmed, StringComparison.OrdinalIgnoreCase));
+
+        Logger?.LogInformation(
+            "LoadSectionsForEnrollmentAsync: GradeToEnroll='{GradeToEnroll}', Found Grade={Found}, GradeLevelId={GradeLevelId}, AvailableGradeLevels={Count}",
+            gradeToEnrollTrimmed, 
+            grade != null, 
+            grade?.GradeLevelId,
+            AvailableGradeLevels.Count);
+
+        if (grade == null)
+        {
+            Logger?.LogWarning(
+                "LoadSectionsForEnrollmentAsync: Could not find grade level matching '{GradeToEnroll}'. Available grades: {AvailableGrades}",
+                gradeToEnrollTrimmed,
+                string.Join(", ", AvailableGradeLevels.Select(g => g.GradeLevelName)));
+        }
+
         var allSections = await CurriculumService.GetAllSectionsAsync();
+        Logger?.LogInformation("LoadSectionsForEnrollmentAsync: Loaded {Count} total sections from database", allSections.Count);
 
         if (grade != null)
         {
@@ -1148,14 +1372,40 @@
                 .Where(s => s.GradeLevelId == grade.GradeLevelId)
                 .OrderBy(s => s.SectionName)
                 .ToList();
+            
+            Logger?.LogInformation(
+                "LoadSectionsForEnrollmentAsync: Found {Count} sections for GradeLevelId={GradeLevelId} (Grade={GradeName})",
+                AvailableSections.Count, 
+                grade.GradeLevelId, 
+                grade.GradeLevelName);
         }
         else
         {
-            // Fallback: all sections
+            // Try to find sections by matching grade level name directly on sections
             AvailableSections = allSections
-                .OrderBy(s => s.GradeLevelId)
-                .ThenBy(s => s.SectionName)
+                .Where(s => s.GradeLevel != null && 
+                           !string.IsNullOrWhiteSpace(s.GradeLevel.GradeLevelName) &&
+                           string.Equals(s.GradeLevel.GradeLevelName.Trim(), gradeToEnrollTrimmed, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(s => s.SectionName)
                 .ToList();
+
+            if (!AvailableSections.Any())
+            {
+                Logger?.LogWarning(
+                    "LoadSectionsForEnrollmentAsync: No sections found matching grade '{GradeToEnroll}'. Showing all sections as fallback.",
+                    gradeToEnrollTrimmed);
+                // Fallback: all sections
+                AvailableSections = allSections
+                    .OrderBy(s => s.GradeLevelId)
+                    .ThenBy(s => s.SectionName)
+                    .ToList();
+            }
+            else
+            {
+                Logger?.LogInformation(
+                    "LoadSectionsForEnrollmentAsync: Found {Count} sections by direct grade name matching",
+                    AvailableSections.Count);
+            }
         }
 
         if (AvailableSections.Any())
@@ -1171,6 +1421,10 @@
             }
 
             await LoadSectionDetailsAsync();
+        }
+        else
+        {
+            Logger?.LogWarning("LoadSectionsForEnrollmentAsync: No sections available for enrollment");
         }
     }
 
@@ -1288,6 +1542,18 @@
         {
             return;
         }
+
+        // Ensure grade levels are loaded before loading sections
+        if (!AvailableGradeLevels.Any())
+        {
+            await LoadGradeLevelsAsync();
+        }
+
+        Logger?.LogInformation(
+            "OpenEnrollModal: Opening enrollment modal for StudentId={StudentId}, GradeToEnroll='{GradeToEnroll}', SchoolYear='{SchoolYear}'",
+            Model.StudentId, 
+            Model.GradeToEnroll, 
+            Model.SchoolYear);
 
         await LoadSectionsForEnrollmentAsync();
         ShowEnrollModal = true;
@@ -1478,11 +1744,20 @@
         if (Model.HasLRN == "No")
         {
             Model.LearnerReferenceNo = "N/A";
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.LearnerReferenceNo)));
+            }
         }
         else if (Model.HasLRN == "Yes" && Model.LearnerReferenceNo == "N/A")
         {
             Model.LearnerReferenceNo = string.Empty;
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.LearnerReferenceNo)));
+            }
         }
+        StateHasChanged();
     }
 
     private void HandleBirthDateChanged()
@@ -1670,6 +1945,99 @@
     private async Task HandleBackdropClick()
     {
         await OnCancelClicked();
+    }
+
+    // Format name to capitalize first letter of each word, rest lowercase
+    private string FormatName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return name;
+
+        // Split by spaces and format each word
+        var words = name.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+        var formattedWords = words.Select(word =>
+        {
+            if (string.IsNullOrEmpty(word))
+                return word;
+            
+            // First letter uppercase, rest lowercase
+            return char.ToUpper(word[0]) + word.Substring(1).ToLower();
+        });
+
+        return string.Join(" ", formattedWords);
+    }
+
+    // Name formatting handlers
+    private void FormatFirstName()
+    {
+        if (Model != null)
+        {
+            Model.FirstName = FormatName(Model.FirstName);
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.FirstName)));
+            }
+        }
+    }
+
+    private void FormatMiddleName()
+    {
+        if (Model != null)
+        {
+            Model.MiddleName = FormatName(Model.MiddleName);
+        }
+    }
+
+    private void FormatLastName()
+    {
+        if (Model != null)
+        {
+            Model.LastName = FormatName(Model.LastName);
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.LastName)));
+            }
+        }
+    }
+
+    private void FormatGuardianFirstName()
+    {
+        if (Model != null)
+        {
+            Model.GuardianFirstName = FormatName(Model.GuardianFirstName);
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GuardianFirstName)));
+            }
+        }
+    }
+
+    private void FormatGuardianMiddleName()
+    {
+        if (Model != null)
+        {
+            Model.GuardianMiddleName = FormatName(Model.GuardianMiddleName);
+        }
+    }
+
+    private void FormatGuardianLastName()
+    {
+        if (Model != null)
+        {
+            Model.GuardianLastName = FormatName(Model.GuardianLastName);
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GuardianLastName)));
+            }
+        }
+    }
+
+    private void HandleLRNChange()
+    {
+        if (Model != null && Model.HasLRN == "No")
+        {
+            Model.LearnerReferenceNo = "N/A";
+        }
     }
 
     private string GetInputClass(string fieldName)

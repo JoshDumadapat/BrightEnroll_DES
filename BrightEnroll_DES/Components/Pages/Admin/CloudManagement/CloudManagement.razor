@@ -5,10 +5,13 @@
 @inject IDatabaseSyncService SyncService
 @inject ISyncStatusService SyncStatusService
 @inject IConfiguration Configuration
+@inject BrightEnroll_DES.Data.AppDbContext DbContext
 @using Microsoft.Extensions.Configuration
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.Database.Sync
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
 @implements IDisposable
 
 <PageTitle>Cloud Management</PageTitle>
@@ -20,90 +23,145 @@
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Cloud Management</h1>
     
     <!-- Connection Status Card -->
-    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+    <div class="mb-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
         <div class="px-6 py-6">
-            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                <h5 class="text-lg font-bold text-gray-800">Connection Status</h5>
+            <div class="mb-5 flex items-center justify-between border-b border-gray-200 pb-4">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                        <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
+                        </svg>
+                    </div>
+                    <h5 class="text-lg font-bold text-gray-800">Connection Status</h5>
+                </div>
                 <button @onclick="TestConnection" 
                         disabled="@isTestingConnection"
-                        class="rounded-lg bg-blue-100 px-3 py-1 text-sm text-blue-700 transition-colors hover:bg-blue-200">
+                        class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-2 text-sm font-medium text-blue-700 transition-all duration-200 hover:from-blue-100 hover:to-blue-200 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
                     @if (isTestingConnection)
                     {
+                        <svg class="h-4 w-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
                         <span>Testing...</span>
                     }
                     else
                     {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                         <span>Test Connection</span>
                     }
                 </button>
             </div>
             
-            <div class="space-y-3">
-                <div class="flex items-center gap-4">
-                    <div class="flex items-center gap-2">
+            <div class="space-y-4">
+                <div class="flex items-center gap-3 rounded-lg border border-gray-100 bg-gradient-to-r from-gray-50 to-gray-50/50 p-3">
+                    <div class="flex flex-1 items-center gap-3">
                         @if (isConnected)
                         {
-                            <div class="h-3 w-3 animate-pulse rounded-full bg-green-500"></div>
-                            <span class="font-medium text-gray-700">Connected to Cloud</span>
+                            <div class="relative">
+                                <div class="h-4 w-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
+                                <div class="absolute inset-0 h-4 w-4 animate-ping rounded-full bg-green-500 opacity-75"></div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span class="font-semibold text-gray-800">Connected to Cloud</span>
+                            </div>
                         }
                         else
                         {
-                            <div class="h-3 w-3 rounded-full bg-red-500"></div>
-                            <span class="font-medium text-gray-700">Disconnected - Using Local Database</span>
+                            <div class="h-4 w-4 rounded-full bg-red-500 shadow-lg shadow-red-500/50"></div>
+                            <div class="flex items-center gap-2">
+                                <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                <span class="font-semibold text-gray-800">Disconnected - Using Local Database</span>
+                            </div>
                         }
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <span class="text-gray-500">Last Sync:</span>
-                        <span class="ml-2 font-medium text-gray-700">@(string.IsNullOrEmpty(lastSyncTime) ? "Never" : lastSyncTime)</span>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+                        <div class="mb-1 flex items-center gap-2">
+                            <svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Last Sync</span>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-800">@(string.IsNullOrEmpty(lastSyncTime) ? "Not yet synced" : lastSyncTime)</p>
                     </div>
-                    <div>
-                        <span class="text-gray-500">Auto-Sync:</span>
-                        <span class="ml-2 @(autoSyncEnabled ? "text-green-600" : "text-gray-500") font-medium">
+                    <div class="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
+                        <div class="mb-1 flex items-center gap-2">
+                            <svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span class="text-xs font-medium uppercase tracking-wide text-gray-500">Auto-Sync</span>
+                        </div>
+                        <p class="text-sm font-semibold @(autoSyncEnabled ? "text-green-600" : "text-gray-500")">
                             @(autoSyncEnabled ? $"Every {autoSyncInterval} minutes" : "Disabled")
-                        </span>
+                        </p>
                     </div>
                     @if (SyncStatusService.IsSyncing)
                     {
-                        <div class="col-span-2">
-                            <span class="text-gray-500">Status:</span>
-                            <span class="ml-2 font-medium text-blue-600">Syncing in progress...</span>
+                        <div class="col-span-1 rounded-lg border border-blue-200 bg-blue-50 p-3 sm:col-span-2">
+                            <div class="flex items-center gap-2">
+                                <svg class="h-4 w-4 animate-spin text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span class="text-sm font-medium text-blue-700">Syncing in progress...</span>
+                            </div>
                         </div>
                     }
                 </div>
                 
                 @if (!string.IsNullOrEmpty(connectionTestResult))
                 {
-                    <div class="mt-2 rounded p-2 @(connectionTestResult.Contains("successful", StringComparison.OrdinalIgnoreCase) ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700") text-sm">
-                        @connectionTestResult
+                    <div class="mt-2 flex items-start gap-2 @(connectionTestResult.Contains("successful", StringComparison.OrdinalIgnoreCase) ? "bg-green-50 border-green-200 text-green-700" : "bg-red-50 border-red-200 text-red-700") rounded-lg border p-3 text-sm">
+                        @if (connectionTestResult.Contains("successful", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <svg class="mt-0.5 h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg class="mt-0.5 h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        }
+                        <span>@connectionTestResult</span>
                     </div>
                 }
             </div>
         </div>
     </div>
 
-    <!-- Sync Actions Card -->
-    <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
-        <div class="px-6 py-6">
-            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                <h5 class="text-lg font-bold text-gray-800">Sync Actions</h5>
-            </div>
-            
-            <div class="space-y-4">
-                <!-- Sync Now Button (Full Sync) -->
-                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div class="mb-3">
-                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Full Synchronization</h6>
-                        <p class="text-xs text-gray-500">Syncs all data bidirectionally between local and cloud databases</p>
+    <!-- Sync Actions - KPI Cards Grid -->
+    <div class="mb-6">
+        <h5 class="mb-4 text-lg font-bold text-gray-800">Sync Actions</h5>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <!-- Full Synchronization KPI Card -->
+            <div class="group relative overflow-hidden rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div class="relative p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
                     </div>
+                    <h6 class="mb-2 text-base font-bold text-gray-800">Full Sync</h6>
+                    <p class="mb-4 text-xs leading-relaxed text-gray-600">Bidirectional sync between local and cloud databases</p>
                     <button @onclick="SyncNow" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
-                        @if (isSyncing)
+                            class="flex @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
+                        @if (isSyncing && syncType == "full")
                         {
-                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -111,26 +169,34 @@
                         }
                         else
                         {
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
                             <span>Sync Now</span>
                         }
                     </button>
                 </div>
+            </div>
 
-                <!-- Sync To Cloud Button -->
-                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div class="mb-3">
-                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Push to Cloud</h6>
-                        <p class="text-xs text-gray-500">Uploads all local changes to the cloud database</p>
+            <!-- Push to Cloud KPI Card -->
+            <div class="group relative overflow-hidden rounded-xl border border-green-100 bg-gradient-to-br from-green-50 via-white to-green-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                <div class="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div class="relative p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-green-600 shadow-lg">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                            </svg>
+                        </div>
                     </div>
+                    <h6 class="mb-2 text-base font-bold text-gray-800">Push to Cloud</h6>
+                    <p class="mb-4 text-xs leading-relaxed text-gray-600">Uploads all local changes to the cloud database</p>
                     <button @onclick="SyncToCloud" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
+                            class="flex @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
                         @if (isSyncing && syncType == "toCloud")
                         {
-                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -138,26 +204,34 @@
                         }
                         else
                         {
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                             </svg>
                             <span>Push to Cloud</span>
                         }
                     </button>
                 </div>
+            </div>
 
-                <!-- Sync From Cloud Button -->
-                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div class="mb-3">
-                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Pull from Cloud</h6>
-                        <p class="text-xs text-gray-500">Downloads all cloud data to the local database</p>
+            <!-- Pull from Cloud KPI Card -->
+            <div class="group relative overflow-hidden rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div class="relative p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                            </svg>
+                        </div>
                     </div>
+                    <h6 class="mb-2 text-base font-bold text-gray-800">Pull from Cloud</h6>
+                    <p class="mb-4 text-xs leading-relaxed text-gray-600">Downloads all cloud data to the local database</p>
                     <button @onclick="SyncFromCloud" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
+                            class="flex @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
                         @if (isSyncing && syncType == "fromCloud")
                         {
-                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -165,26 +239,34 @@
                         }
                         else
                         {
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
                             </svg>
                             <span>Pull from Cloud</span>
                         }
                     </button>
                 </div>
+            </div>
 
-                <!-- Sync Reference Data Button -->
-                <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <div class="mb-3">
-                        <h6 class="mb-1 text-sm font-semibold text-gray-700">Sync Reference Data</h6>
-                        <p class="text-xs text-gray-500">Syncs reference data (grade levels, fees, etc.) from cloud to local</p>
+            <!-- Sync Reference Data KPI Card -->
+            <div class="group relative overflow-hidden rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+                <div class="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div class="relative p-6">
+                    <div class="mb-4 flex items-center justify-between">
+                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </div>
                     </div>
+                    <h6 class="mb-2 text-base font-bold text-gray-800">Reference Data</h6>
+                    <p class="mb-4 text-xs leading-relaxed text-gray-600">Syncs reference data from cloud to local</p>
                     <button @onclick="SyncReferenceData" 
                             disabled="@(isSyncing || !isConnected)"
-                            class="flex w-full @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-orange-600 hover:bg-orange-700") items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-all">
+                            class="flex @(isSyncing || !isConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
                         @if (isSyncing && syncType == "reference")
                         {
-                            <svg class="h-5 w-5 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -192,10 +274,10 @@
                         }
                         else
                         {
-                            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                            <span>Sync Reference Data</span>
+                            <span>Sync Reference</span>
                         }
                     </button>
                 </div>
@@ -206,55 +288,105 @@
     <!-- Sync Status Card -->
     @if (!string.IsNullOrEmpty(syncStatusMessage) || syncLogs.Any())
     {
-        <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
             <div class="px-6 py-6">
-                <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                    <h5 class="text-lg font-bold text-gray-800">Sync Status & Logs</h5>
+                <div class="mb-5 flex items-center justify-between border-b border-gray-200 pb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-indigo-100">
+                            <svg class="h-5 w-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h5 class="text-lg font-bold text-gray-800">Sync Status & Logs</h5>
+                    </div>
                     @if (syncLogs.Count > 0)
                     {
-                        <button @onclick="ClearLogs" class="text-sm text-gray-500 hover:text-gray-700">
-                            Clear Logs
+                        <button @onclick="ClearLogs" class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-all duration-200 hover:bg-gray-100 hover:text-gray-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Clear Logs</span>
                         </button>
                     }
                 </div>
                 
                 @if (!string.IsNullOrEmpty(syncStatusMessage))
                 {
-                    <div class="@(syncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") mb-4 rounded-lg p-4">
-                        <p class="text-sm @(syncStatusType == "error" ? "text-red-700" : "text-green-700")">@syncStatusMessage</p>
-                        @if (resultDetails != null)
-                        {
-                            <div class="mt-2 text-xs @(syncStatusType == "error" ? "text-red-600" : "text-green-600")">
-                                <div>Records Pushed: @resultDetails.RecordsPushed</div>
-                                <div>Records Pulled: @resultDetails.RecordsPulled</div>
-                                @if (resultDetails.Errors.Any())
+                    <div class="@(syncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") mb-5 rounded-lg p-4 shadow-sm">
+                        <div class="flex items-start gap-3">
+                            @if (syncStatusType == "error")
+                            {
+                                <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            }
+                            else
+                            {
+                                <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            }
+                            <div class="flex-1">
+                                <p class="text-sm font-medium @(syncStatusType == "error" ? "text-red-700" : "text-green-700")">@syncStatusMessage</p>
+                                @if (resultDetails != null)
                                 {
-                                    <div class="mt-2">
-                                        <strong>Errors:</strong>
-                                        <ul class="list-inside list-disc">
-                                            @foreach (var error in resultDetails.Errors)
-                                            {
-                                                <li>@error</li>
-                                            }
-                                        </ul>
+                                    <div class="mt-3 space-y-1.5 text-xs @(syncStatusType == "error" ? "text-red-600" : "text-green-600")">
+                                        <div class="flex items-center gap-2">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                            </svg>
+                                            <span>Records Pushed: <strong>@resultDetails.RecordsPushed</strong></span>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                            </svg>
+                                            <span>Records Pulled: <strong>@resultDetails.RecordsPulled</strong></span>
+                                        </div>
+                                        @if (resultDetails.Errors.Any())
+                                        {
+                                            <div class="mt-3 border-t pt-3 @(syncStatusType == "error" ? "border-red-200" : "border-green-200")">
+                                                <strong class="font-semibold">Errors:</strong>
+                                                <ul class="ml-4 mt-1.5 list-disc space-y-1">
+                                                    @foreach (var error in resultDetails.Errors)
+                                                    {
+                                                        <li>@error</li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                        }
                                     </div>
                                 }
                             </div>
-                        }
+                        </div>
                     </div>
                 }
                 
                 @if (syncLogs.Any())
                 {
-                    <div class="max-h-64 space-y-2 overflow-y-auto">
-                        @foreach (var log in syncLogs.OrderByDescending(l => l.Timestamp).Take(20))
+                    <div class="max-h-64 space-y-2 overflow-y-auto pr-2">
+                        @foreach (var log in syncLogs.OrderByDescending(l => l.Timestamp))
                         {
-                            <div class="rounded border border-gray-200 bg-gray-50 p-2 text-xs">
-                                <div class="mb-1 flex items-center justify-between">
-                                    <span class="font-medium text-gray-700">@log.Type</span>
-                                    <span class="text-gray-500">@log.Timestamp.ToString("HH:mm:ss")</span>
+                            <div class="group rounded-lg border border-gray-200 bg-gradient-to-r from-gray-50 to-white p-3 text-xs transition-all duration-200 hover:border-gray-300 hover:shadow-sm">
+                                <div class="mb-1.5 flex items-center justify-between">
+                                    <div class="flex items-center gap-2">
+                                        @if (log.Type.Contains("Error", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <div class="flex h-2 w-2 rounded-full bg-red-500"></div>
+                                        }
+                                        else if (log.Type.Contains("Success", StringComparison.OrdinalIgnoreCase) || log.Type.Contains("System", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <div class="flex h-2 w-2 rounded-full bg-green-500"></div>
+                                        }
+                                        else
+                                        {
+                                            <div class="flex h-2 w-2 rounded-full bg-blue-500"></div>
+                                        }
+                                        <span class="font-semibold text-gray-800">@log.Type</span>
+                                    </div>
+                                    <span class="text-xs font-medium text-gray-500">@log.Timestamp.ToString("HH:mm:ss")</span>
                                 </div>
-                                <div class="text-gray-600">@log.Message</div>
+                                <div class="pl-4 leading-relaxed text-gray-600">@log.Message</div>
                             </div>
                         }
                     </div>
@@ -307,13 +439,65 @@
             lastSyncTime = SyncStatusService.LastSyncTime.Value.ToString("yyyy-MM-dd HH:mm:ss");
         }
         
+        // Load sync logs from database
+        await LoadSyncLogsFromDatabase();
+        
         // Subscribe to connectivity changes
         ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
         SyncStatusService.StatusChanged += OnSyncStatusChanged;
         
-        AddLog("System", "Cloud Management page initialized");
+        AddLog("System", "Cloud Management page initialized", persistToDb: false);
         
         await base.OnInitializedAsync();
+    }
+
+    private async Task LoadSyncLogsFromDatabase()
+    {
+        try
+        {
+            // Load only the last 25 logs from database
+            var dbLogs = await DbContext.SyncLogs
+                .OrderByDescending(l => l.Timestamp)
+                .Take(25)
+                .ToListAsync();
+            
+            syncLogs = dbLogs.Select(l => new SyncLogEntry
+            {
+                Type = l.LogType,
+                Message = l.LogMessage,
+                Timestamp = l.Timestamp
+            }).ToList();
+            
+            // Cleanup: Ensure only one sync history record exists (keep the latest)
+            await CleanupSyncHistory();
+        }
+        catch
+        {
+            // If table doesn't exist yet, start with empty list
+            syncLogs = new List<SyncLogEntry>();
+        }
+    }
+
+    private async Task CleanupSyncHistory()
+    {
+        try
+        {
+            var allHistories = await DbContext.SyncHistories
+                .OrderByDescending(s => s.SyncTime)
+                .ToListAsync();
+            
+            // If more than one record exists, keep only the latest and delete the rest
+            if (allHistories.Count > 1)
+            {
+                var recordsToDelete = allHistories.Skip(1).ToList();
+                DbContext.SyncHistories.RemoveRange(recordsToDelete);
+                await DbContext.SaveChangesAsync();
+            }
+        }
+        catch
+        {
+            // Silently fail if database is not available
+        }
     }
     
     private void OnSyncStatusChanged(object? sender, SyncStatusChangedEventArgs e)
@@ -353,25 +537,79 @@
         }
     }
     
-    private void AddLog(string type, string message)
+    private async void AddLog(string type, string message, bool persistToDb = true)
     {
-        syncLogs.Add(new SyncLogEntry
+        var logEntry = new SyncLogEntry
         {
             Type = type,
             Message = message,
             Timestamp = DateTime.Now
-        });
+        };
         
-        // Keep only last 50 logs
-        if (syncLogs.Count > 50)
+        syncLogs.Add(logEntry);
+        
+        // Keep only last 25 logs in memory
+        if (syncLogs.Count > 25)
         {
             syncLogs.RemoveAt(0);
         }
+        
+        // Persist to database
+        if (persistToDb)
+        {
+            try
+            {
+                var dbLog = new SyncLog
+                {
+                    LogType = type,
+                    LogMessage = message,
+                    Timestamp = DateTime.Now,
+                    Severity = type.Contains("Error", StringComparison.OrdinalIgnoreCase) ? "Error" : 
+                               type.Contains("Warning", StringComparison.OrdinalIgnoreCase) ? "Warning" : "Info"
+                };
+                
+                DbContext.SyncLogs.Add(dbLog);
+                await DbContext.SaveChangesAsync();
+                
+                // Keep only last 25 logs in database - delete oldest if exceeds
+                var totalLogs = await DbContext.SyncLogs.CountAsync();
+                if (totalLogs > 25)
+                {
+                    var logsToDelete = await DbContext.SyncLogs
+                        .OrderBy(l => l.Timestamp) // Order by oldest first
+                        .Take(totalLogs - 25) // Take the oldest ones that exceed 25
+                        .ToListAsync();
+                    
+                    if (logsToDelete.Any())
+                    {
+                        DbContext.SyncLogs.RemoveRange(logsToDelete);
+                        await DbContext.SaveChangesAsync();
+                    }
+                }
+            }
+            catch
+            {
+                // Silently fail if database is not available
+            }
+        }
     }
     
-    private void ClearLogs()
+    private async Task ClearLogs()
     {
         syncLogs.Clear();
+        
+        // Also clear from database
+        try
+        {
+            var allLogs = await DbContext.SyncLogs.ToListAsync();
+            DbContext.SyncLogs.RemoveRange(allLogs);
+            await DbContext.SaveChangesAsync();
+        }
+        catch
+        {
+            // Silently fail if database is not available
+        }
+        
         StateHasChanged();
     }
 
@@ -385,6 +623,7 @@
     {
         if (isSyncing || !isConnected) return;
         
+        var startTime = DateTime.Now;
         isSyncing = true;
         syncType = "full";
         syncStatusMessage = "";
@@ -402,6 +641,10 @@
         {
             var result = await SyncService.FullSyncAsync();
             resultDetails = result;
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            
+            // Save sync history to database
+            await SaveSyncHistory("Full", result, duration);
             
             if (result.Success)
             {
@@ -410,6 +653,7 @@
                 toastMessage = $"Sync completed: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                SyncStatusService.UpdateLastSyncTime(result.SyncTime);
                 AddLog("Full Sync", $"Success: {result.RecordsPushed} pushed, {result.RecordsPulled} pulled");
             }
             else
@@ -432,6 +676,15 @@
             toastMessage = $"Sync error: {ex.Message}";
             toastType = ToastType.Error;
             AddLog("Full Sync", $"Exception: {ex.Message}");
+            
+            // Save failed sync history
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            await SaveSyncHistory("Full", new SyncResult 
+            { 
+                Success = false, 
+                Message = ex.Message,
+                SyncTime = DateTime.Now
+            }, duration);
         }
         finally
         {
@@ -441,10 +694,68 @@
         }
     }
 
+    private async Task SaveSyncHistory(string syncType, SyncResult result, int durationSeconds)
+    {
+        try
+        {
+            // Get the existing sync history record (should only be one)
+            var existingHistory = await DbContext.SyncHistories
+                .OrderByDescending(s => s.SyncTime)
+                .FirstOrDefaultAsync();
+            
+            if (existingHistory != null)
+            {
+                // Update existing record instead of creating new one
+                existingHistory.SyncType = syncType;
+                existingHistory.SyncTime = result.SyncTime;
+                existingHistory.Status = result.Success ? "Success" : "Error";
+                existingHistory.RecordsPushed = result.RecordsPushed;
+                existingHistory.RecordsPulled = result.RecordsPulled;
+                existingHistory.Message = result.Message;
+                existingHistory.ErrorDetails = result.Errors.Any() ? string.Join("; ", result.Errors) : null;
+                existingHistory.DurationSeconds = durationSeconds;
+                existingHistory.CreatedAt = DateTime.Now;
+                
+                DbContext.SyncHistories.Update(existingHistory);
+            }
+            else
+            {
+                // Create first record if none exists
+                var syncHistory = new SyncHistory
+                {
+                    SyncType = syncType,
+                    SyncTime = result.SyncTime,
+                    Status = result.Success ? "Success" : "Error",
+                    RecordsPushed = result.RecordsPushed,
+                    RecordsPulled = result.RecordsPulled,
+                    Message = result.Message,
+                    ErrorDetails = result.Errors.Any() ? string.Join("; ", result.Errors) : null,
+                    DurationSeconds = durationSeconds,
+                    CreatedAt = DateTime.Now
+                };
+                
+                DbContext.SyncHistories.Add(syncHistory);
+            }
+            
+            await DbContext.SaveChangesAsync();
+            
+            // Update last sync time in status service
+            if (result.Success)
+            {
+                SyncStatusService.UpdateLastSyncTime(result.SyncTime);
+            }
+        }
+        catch
+        {
+            // Silently fail if database is not available
+        }
+    }
+
     private async Task SyncToCloud()
     {
         if (isSyncing || !isConnected) return;
         
+        var startTime = DateTime.Now;
         isSyncing = true;
         syncType = "toCloud";
         syncStatusMessage = "";
@@ -462,6 +773,10 @@
         {
             var result = await SyncService.SyncToCloudAsync();
             resultDetails = result;
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            
+            // Save sync history to database
+            await SaveSyncHistory("Push", result, duration);
             
             if (result.Success)
             {
@@ -470,6 +785,7 @@
                 toastMessage = $"Successfully uploaded {result.RecordsPushed} records to cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                SyncStatusService.UpdateLastSyncTime(result.SyncTime);
                 AddLog("Push to Cloud", $"Success: {result.RecordsPushed} records uploaded");
             }
             else
@@ -488,6 +804,15 @@
             toastMessage = $"Upload error: {ex.Message}";
             toastType = ToastType.Error;
             AddLog("Push to Cloud", $"Exception: {ex.Message}");
+            
+            // Save failed sync history
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            await SaveSyncHistory("Push", new SyncResult 
+            { 
+                Success = false, 
+                Message = ex.Message,
+                SyncTime = DateTime.Now
+            }, duration);
         }
         finally
         {
@@ -501,6 +826,7 @@
     {
         if (isSyncing || !isConnected) return;
         
+        var startTime = DateTime.Now;
         isSyncing = true;
         syncType = "fromCloud";
         syncStatusMessage = "";
@@ -518,6 +844,10 @@
         {
             var result = await SyncService.SyncFromCloudAsync();
             resultDetails = result;
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            
+            // Save sync history to database
+            await SaveSyncHistory("Pull", result, duration);
             
             if (result.Success)
             {
@@ -526,6 +856,7 @@
                 toastMessage = $"Successfully downloaded {result.RecordsPulled} records from cloud.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                SyncStatusService.UpdateLastSyncTime(result.SyncTime);
                 AddLog("Pull from Cloud", $"Success: {result.RecordsPulled} records downloaded");
             }
             else
@@ -544,6 +875,15 @@
             toastMessage = $"Download error: {ex.Message}";
             toastType = ToastType.Error;
             AddLog("Pull from Cloud", $"Exception: {ex.Message}");
+            
+            // Save failed sync history
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            await SaveSyncHistory("Pull", new SyncResult 
+            { 
+                Success = false, 
+                Message = ex.Message,
+                SyncTime = DateTime.Now
+            }, duration);
         }
         finally
         {
@@ -557,9 +897,12 @@
     {
         if (isSyncing || !isConnected) return;
         
+        var startTime = DateTime.Now;
         isSyncing = true;
         syncType = "reference";
         syncStatusMessage = "";
+        
+        AddLog("Sync Reference Data", "Starting reference data sync...");
         
         // Show loading toast instead of full screen loading
         toastMessage = "Syncing reference data from cloud...";
@@ -571,6 +914,10 @@
         {
             // Sync only reference tables (GradeLevel, Fees, etc.)
             var result = await SyncService.SyncFromCloudAsync();
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            
+            // Save sync history to database
+            await SaveSyncHistory("Reference", result, duration);
             
             if (result.Success)
             {
@@ -579,6 +926,8 @@
                 toastMessage = $"Reference data synced successfully. {result.RecordsPulled} records updated.";
                 toastType = ToastType.Success;
                 lastSyncTime = result.SyncTime.ToString("yyyy-MM-dd HH:mm:ss");
+                SyncStatusService.UpdateLastSyncTime(result.SyncTime);
+                AddLog("Sync Reference Data", $"Success: {result.RecordsPulled} records updated");
             }
             else
             {
@@ -586,6 +935,7 @@
                 syncStatusType = "error";
                 toastMessage = $"Sync failed: {result.Message}";
                 toastType = ToastType.Error;
+                AddLog("Sync Reference Data", $"Failed: {result.Message}");
             }
         }
         catch (Exception ex)
@@ -594,6 +944,16 @@
             syncStatusType = "error";
             toastMessage = $"Sync error: {ex.Message}";
             toastType = ToastType.Error;
+            AddLog("Sync Reference Data", $"Exception: {ex.Message}");
+            
+            // Save failed sync history
+            var duration = (int)(DateTime.Now - startTime).TotalSeconds;
+            await SaveSyncHistory("Reference", new SyncResult 
+            { 
+                Success = false, 
+                Message = ex.Message,
+                SyncTime = DateTime.Now
+            }, duration);
         }
         finally
         {

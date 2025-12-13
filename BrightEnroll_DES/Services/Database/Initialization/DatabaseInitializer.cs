@@ -1443,6 +1443,128 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
+        // Adds discount_id column to tbl_LedgerCharges and ensures tbl_discounts table exists
+        public async Task<bool> AddDiscountIdColumnIfNotExistsAsync()
+        {
+            try
+            {
+                var builder = new SqlConnectionStringBuilder(_connectionString);
+                builder.InitialCatalog = _databaseName;
+                string dbConnectionString = builder.ConnectionString;
+
+                using var connection = new SqlConnection(dbConnectionString);
+                await connection.OpenAsync();
+
+                // First, ensure tbl_discounts table exists (it should be created by CreateTablesIfNotExistAsync, but verify)
+                string checkDiscountsTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_discounts' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkDiscountsTableCommand = new SqlCommand(checkDiscountsTableQuery, connection);
+                var discountsTableResult = await checkDiscountsTableCommand.ExecuteScalarAsync();
+                var discountsTableExists = discountsTableResult != null ? (int)discountsTableResult : 0;
+
+                TableDefinition? discountsTableDef = null;
+                if (discountsTableExists == 0)
+                {
+                    // Create tbl_discounts table if it doesn't exist
+                    var tableDefinitions = TableDefinitions.GetAllTableDefinitions();
+                    discountsTableDef = tableDefinitions.FirstOrDefault(t => t.TableName == "tbl_discounts");
+                    
+                    if (discountsTableDef != null)
+                    {
+                        using var createDiscountsCommand = new SqlCommand(discountsTableDef.CreateTableScript, connection);
+                        await createDiscountsCommand.ExecuteNonQueryAsync();
+                        
+                        // Create indexes
+                        foreach (var indexScript in discountsTableDef.CreateIndexesScripts)
+                        {
+                            if (!string.IsNullOrWhiteSpace(indexScript))
+                            {
+                                using var indexCommand = new SqlCommand(indexScript, connection);
+                                await indexCommand.ExecuteNonQueryAsync();
+                            }
+                        }
+                        
+                        System.Diagnostics.Debug.WriteLine("Created tbl_discounts table.");
+                        discountsTableExists = 1; // Mark as existing now
+                    }
+                }
+
+                // Now check if tbl_LedgerCharges exists
+                string checkLedgerChargesTableQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.tables 
+                    WHERE name = 'tbl_LedgerCharges' AND schema_id = SCHEMA_ID('dbo')";
+
+                using var checkLedgerChargesTableCommand = new SqlCommand(checkLedgerChargesTableQuery, connection);
+                var ledgerChargesTableResult = await checkLedgerChargesTableCommand.ExecuteScalarAsync();
+                var ledgerChargesTableExists = ledgerChargesTableResult != null ? (int)ledgerChargesTableResult : 0;
+
+                if (ledgerChargesTableExists == 0)
+                {
+                    // Table doesn't exist, it will be created by CreateTablesIfNotExistAsync with the column
+                    return false;
+                }
+
+                // Table exists, check if discount_id column exists
+                string checkColumnQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_LedgerCharges') 
+                    AND name = 'discount_id'";
+
+                using var checkCommand = new SqlCommand(checkColumnQuery, connection);
+                var result = await checkCommand.ExecuteScalarAsync();
+                var columnExists = result != null ? (int)result : 0;
+
+                if (columnExists == 0)
+                {
+                    // Add the column
+                    string addColumnQuery = @"
+                        ALTER TABLE [dbo].[tbl_LedgerCharges]
+                        ADD [discount_id] INT NULL";
+
+                    using var addCommand = new SqlCommand(addColumnQuery, connection);
+                    await addCommand.ExecuteNonQueryAsync();
+                    
+                    // Add foreign key constraint if tbl_discounts exists
+                    if (discountsTableExists > 0)
+                    {
+                        // Check if foreign key already exists
+                        string checkFkQuery = @"
+                            SELECT COUNT(*) 
+                            FROM sys.foreign_keys 
+                            WHERE name = 'FK_tbl_LedgerCharges_tbl_discounts'";
+
+                        using var checkFkCommand = new SqlCommand(checkFkQuery, connection);
+                        var fkExists = await checkFkCommand.ExecuteScalarAsync();
+                        if (fkExists != null && (int)fkExists == 0)
+                        {
+                            string addFkQuery = @"
+                                ALTER TABLE [dbo].[tbl_LedgerCharges]
+                                ADD CONSTRAINT FK_tbl_LedgerCharges_tbl_discounts 
+                                FOREIGN KEY ([discount_id]) REFERENCES [dbo].[tbl_discounts]([discount_id]) ON DELETE SET NULL";
+
+                            using var addFkCommand = new SqlCommand(addFkQuery, connection);
+                            await addFkCommand.ExecuteNonQueryAsync();
+                        }
+                    }
+                    
+                    System.Diagnostics.Debug.WriteLine("Added discount_id column to tbl_LedgerCharges table.");
+                    return true;
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding discount_id column: {ex.Message}");
+                return false;
+            }
+        }
+
         // Initializes everything - creates database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
@@ -1461,6 +1583,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await AddBatchTimestampColumnIfNotExistsAsync(); // Add batch_timestamp column for payroll
                 await AddPayrollAuditTrailAndCompanyContributionsAsync(); // Add audit trail and company contributions
                 await AddEffectiveDateColumnIfNotExistsAsync(); // Add effective_date column to salary change requests
+                await AddDiscountIdColumnIfNotExistsAsync(); // Add discount_id column to tbl_LedgerCharges and ensure tbl_discounts exists
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();

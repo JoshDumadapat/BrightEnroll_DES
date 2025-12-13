@@ -1,0 +1,485 @@
+﻿@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Services.Business.Finance
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.AspNetCore.Components.Web
+@inject DiscountService DiscountService
+@inject IJSRuntime JSRuntime
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+@if (IsVisible && Discount != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleBackdropClick">
+        <div id="edit-discount-modal" class="flex max-h-[90vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header - Yellow -->
+            <div class="flex flex-shrink-0 items-center justify-center rounded-t-2xl bg-yellow-500 px-6 py-2">
+                <h3 class="text-lg font-semibold text-white">Edit Discount</h3>
+            </div>
+
+            <!-- Modal Body - Scrollable -->
+            <div class="flex-1 overflow-y-auto px-6 py-4">
+                <form @onsubmit:preventDefault="true">
+                    <!-- Discount Type - Combobox -->
+                    <div class="mb-4">
+                        <label class="mb-2 block text-base font-medium text-gray-700">
+                            Discount Type <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <input type="text" 
+                                   value="@FormData.DiscountType"
+                                   @oninput="HandleDiscountTypeInput"
+                                   @onfocus="HandleDiscountTypeFocus"
+                                   @onblur="HandleDiscountTypeBlur"
+                                   required
+                                   placeholder="Type or select discount type..."
+                                   class="w-full rounded-lg border @(discountTypeError ? "border-red-500" : "border-gray-300") bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                            
+                            @if (ShowDiscountTypeDropdown && FilteredDiscountTypes.Any())
+                            {
+                                <div class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-gray-300 bg-white shadow-lg">
+                                    @foreach (var discountType in FilteredDiscountTypes)
+                                    {
+                                        <div @onclick="() => SelectDiscountType(discountType)"
+                                             @onmousedown:preventDefault="true"
+                                             class="cursor-pointer px-4 py-2 text-base text-gray-700 hover:bg-blue-50">
+                                            @discountType
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        @if (discountTypeError)
+                        {
+                            <p class="mt-1 text-sm text-red-600">@discountTypeErrorMessage</p>
+                        }
+                    </div>
+
+                    <!-- Discount Name -->
+                    <div class="mb-4">
+                        <label class="mb-2 block text-base font-medium text-gray-700">
+                            Discount Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" @bind="FormData.DiscountName" @bind:after="ValidateForm" required
+                               placeholder="e.g., Sibling Discount, Early Payment Discount"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                    </div>
+
+                    <!-- Rate/Value and Type -->
+                    <div class="mb-4 grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="mb-2 block text-base font-medium text-gray-700">
+                                Rate/Value <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                @if (FormData.IsPercentage)
+                                {
+                                    <input type="text" @bind="FormData.RateOrValueString" @bind:after="ValidateForm" @oninput="HandlePercentageInput" required
+                                           placeholder="0.00"
+                                           class="right-5 w-full rounded-lg border @(rateOrValueError ? "border-red-500" : "border-gray-300") bg-white px-3 py-2.5 pr-16 text-right text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                    <span class="-translate-y-1/2 absolute right-1 top-1/2 text-base text-gray-600">%</span>
+                                    @if (rateOrValueError)
+                                    {
+                                        <p class="mt-1 text-sm text-red-600">@rateOrValueErrorMessage</p>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="relative">
+                                        <span class="-translate-y-1/2 absolute left-3 top-1/2 text-base text-gray-600">₱</span>
+                                        <input type="text" @bind="FormData.RateOrValueString" @bind:after="ValidateForm" @oninput="HandleAmountInput" required
+                                               placeholder="0.00"
+                                               class="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-8 pr-3 text-right text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div>
+                            <label class="mb-2 block text-base font-medium text-gray-700">
+                                Type <span class="text-red-500">*</span>
+                            </label>
+                            <select value="@(FormData.IsPercentage ? "true" : "false")" 
+                                    @onchange="@((ChangeEventArgs e) => { FormData.IsPercentage = e.Value?.ToString() == "true"; ValidateForm(); StateHasChanged(); })" 
+                                    required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                                <option value="true">Percentage</option>
+                                <option value="false">Fixed Amount</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Active Status -->
+                    <div class="mb-4">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" @bind="FormData.IsActive" class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                            <span class="text-base font-medium text-gray-700">Active</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Modal Footer - Fixed -->
+            <div class="flex flex-shrink-0 justify-end gap-3 rounded-b-2xl border-t border-gray-200 bg-white px-6 py-4">
+                <button type="button" @onclick="HandleCancelClick" class="rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-base font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button" @onclick="HandleSubmitClick" 
+                        disabled="@_isProcessing"
+                        class="rounded-lg bg-yellow-500 px-4 py-2.5 text-base font-medium text-white hover:bg-yellow-600 disabled:cursor-not-allowed disabled:opacity-50">
+                    @if (_isProcessing)
+                    {
+                        <span>Processing...</span>
+                    }
+                    else
+                    {
+                        <span>Update</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public DiscountModel? Discount { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<DiscountModel> OnSubmit { get; set; }
+    [Parameter] public List<DiscountModel>? ExistingDiscounts { get; set; }
+
+    private DiscountFormData FormData { get; set; } = new();
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // Validation
+    private bool discountTypeError = false;
+    private string discountTypeErrorMessage = "";
+    private bool rateOrValueError = false;
+    private string rateOrValueErrorMessage = "";
+    
+    // Combobox state
+    private bool ShowDiscountTypeDropdown { get; set; } = false;
+    private List<string> AvailableDiscountTypes { get; set; } = new();
+    private List<string> FilteredDiscountTypes { get; set; } = new();
+    
+    private bool _isProcessing = false;
+    private bool _wasVisible = false;
+    private int? _originalDiscountId = null;
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible && Discount != null && (!_wasVisible || _originalDiscountId != Discount.DiscountId))
+        {
+            LoadDiscountData();
+            LoadAvailableDiscountTypes();
+        }
+        _wasVisible = IsVisible;
+    }
+
+    private void LoadDiscountData()
+    {
+        if (Discount == null) return;
+
+        _originalDiscountId = Discount.DiscountId;
+        FormData = new DiscountFormData
+        {
+            DiscountType = Discount.DiscountType,
+            DiscountName = Discount.DiscountName,
+            RateOrValueString = Discount.IsPercentage 
+                ? Discount.RateOrValue.ToString("F2") 
+                : Discount.RateOrValue.ToString("N2"),
+            IsPercentage = Discount.IsPercentage,
+            IsActive = Discount.IsActive
+        };
+        discountTypeError = false;
+        discountTypeErrorMessage = "";
+        rateOrValueError = false;
+        rateOrValueErrorMessage = "";
+    }
+
+    private void LoadAvailableDiscountTypes()
+    {
+        if (ExistingDiscounts != null && ExistingDiscounts.Any())
+        {
+            AvailableDiscountTypes = ExistingDiscounts
+                .Where(d => d.DiscountId != Discount?.DiscountId) // Exclude current discount being edited
+                .Select(d => d.DiscountType)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(t => t)
+                .ToList();
+        }
+        else
+        {
+            AvailableDiscountTypes = new List<string>();
+        }
+        FilterDiscountTypes();
+    }
+
+    private void FilterDiscountTypes()
+    {
+        if (string.IsNullOrWhiteSpace(FormData.DiscountType))
+        {
+            FilteredDiscountTypes = AvailableDiscountTypes.ToList();
+        }
+        else
+        {
+            FilteredDiscountTypes = AvailableDiscountTypes
+                .Where(t => t.Contains(FormData.DiscountType, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+        }
+    }
+
+    private void HandleDiscountTypeInput(ChangeEventArgs e)
+    {
+        FormData.DiscountType = e.Value?.ToString() ?? "";
+        FilterDiscountTypes();
+        ShowDiscountTypeDropdown = true;
+        ValidateForm();
+        StateHasChanged();
+    }
+
+    private void SelectDiscountType(string discountType)
+    {
+        FormData.DiscountType = discountType;
+        ShowDiscountTypeDropdown = false;
+        FilterDiscountTypes();
+        ValidateForm();
+        StateHasChanged();
+    }
+
+    private void HandleDiscountTypeFocus()
+    {
+        ShowDiscountTypeDropdown = true;
+        FilterDiscountTypes(); // Ensure dropdown is populated on focus
+        StateHasChanged();
+    }
+
+    private async Task HandleDiscountTypeBlur()
+    {
+        await Task.Delay(200); // Delay to allow click event to fire first
+        ShowDiscountTypeDropdown = false;
+        StateHasChanged();
+    }
+
+    private void ValidateForm()
+    {
+        discountTypeError = false;
+        discountTypeErrorMessage = "";
+        rateOrValueError = false;
+        rateOrValueErrorMessage = "";
+
+        // Validate percentage cannot exceed 100
+        if (FormData.IsPercentage && FormData.RateOrValue > 100)
+        {
+            rateOrValueError = true;
+            rateOrValueErrorMessage = "Percentage cannot exceed 100%.";
+        }
+    }
+
+    private void HandleAmountInput(ChangeEventArgs e)
+    {
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // Filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove peso sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+        }
+        else
+        {
+            // Ensure only one decimal point
+            var dotCount = cleaned.Count(c => c == '.');
+            if (dotCount > 1)
+            {
+                var firstDotIndex = cleaned.IndexOf('.');
+                cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+            }
+            
+            // Limit decimal places to 2
+            if (cleaned.Contains('.'))
+            {
+                var parts = cleaned.Split('.');
+                if (parts.Length == 2 && parts[1].Length > 2)
+                {
+                    cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+                }
+            }
+        }
+        
+        // Update the value
+        FormData.RateOrValueString = cleaned;
+        ValidateForm();
+        StateHasChanged();
+    }
+
+    private void HandlePercentageInput(ChangeEventArgs e)
+    {
+        if (!FormData.IsPercentage) return;
+
+        var inputValue = e.Value?.ToString() ?? "";
+        
+        // Filter: Remove ALL non-numeric characters except period
+        var validChars = inputValue.Where(c => char.IsDigit(c) || c == '.').ToArray();
+        string cleaned = new string(validChars);
+        
+        // Remove percentage sign, commas, spaces if any got through
+        cleaned = cleaned.Replace("%", "").Replace(",", "").Replace(" ", "").Trim();
+        
+        if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
+        {
+            cleaned = "";
+            rateOrValueError = false;
+            rateOrValueErrorMessage = "";
+            FormData.RateOrValueString = cleaned;
+            StateHasChanged();
+            return;
+        }
+
+        // Ensure only one decimal point
+        var dotCount = cleaned.Count(c => c == '.');
+        if (dotCount > 1)
+        {
+            var firstDotIndex = cleaned.IndexOf('.');
+            cleaned = cleaned.Substring(0, firstDotIndex + 1) + cleaned.Substring(firstDotIndex + 1).Replace(".", "");
+        }
+        
+        // Limit decimal places to 2
+        if (cleaned.Contains('.'))
+        {
+            var parts = cleaned.Split('.');
+            if (parts.Length == 2 && parts[1].Length > 2)
+            {
+                cleaned = parts[0] + "." + parts[1].Substring(0, 2);
+            }
+        }
+
+        // Parse the value
+        if (decimal.TryParse(cleaned, out var value))
+        {
+            if (value > 100)
+            {
+                // Restrict to 100
+                FormData.RateOrValueString = "100";
+                rateOrValueError = true;
+                rateOrValueErrorMessage = "Percentage cannot exceed 100%.";
+            }
+            else
+            {
+                FormData.RateOrValueString = cleaned;
+                rateOrValueError = false;
+                rateOrValueErrorMessage = "";
+            }
+        }
+        else
+        {
+            FormData.RateOrValueString = cleaned;
+        }
+        
+        ValidateForm();
+        StateHasChanged();
+    }
+
+    private async Task HandleSubmitClick()
+    {
+        if (_isProcessing || Discount == null) return;
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(FormData.DiscountType))
+        {
+            ShowToast("Please enter a discount type.", ToastType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(FormData.DiscountName))
+        {
+            ShowToast("Please enter a discount name.", ToastType.Error);
+            return;
+        }
+
+        if (FormData.RateOrValue <= 0)
+        {
+            ShowToast("Rate/Value must be greater than zero.", ToastType.Error);
+            return;
+        }
+
+        // Validate percentage cannot exceed 100
+        if (FormData.IsPercentage && FormData.RateOrValue > 100)
+        {
+            ShowToast("Percentage cannot exceed 100%.", ToastType.Error);
+            return;
+        }
+
+        _isProcessing = true;
+        StateHasChanged();
+
+        try
+        {
+            var updatedDiscount = new DiscountModel
+            {
+                DiscountId = Discount.DiscountId,
+                DiscountType = FormData.DiscountType.Trim(),
+                DiscountName = FormData.DiscountName.Trim(),
+                RateOrValue = FormData.RateOrValue,
+                IsPercentage = FormData.IsPercentage,
+                MaxAmount = null,
+                MinAmount = null,
+                Description = null,
+                IsActive = FormData.IsActive
+            };
+
+            await OnSubmit.InvokeAsync(updatedDiscount);
+            ShowToast("Discount updated successfully!", ToastType.Success);
+            await Task.Delay(500);
+            HandleCancelClick();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"Error updating discount: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void HandleCancelClick()
+    {
+        FormData = new DiscountFormData();
+        discountTypeError = false;
+        discountTypeErrorMessage = "";
+        rateOrValueError = false;
+        rateOrValueErrorMessage = "";
+        ShowDiscountTypeDropdown = false;
+        OnClose.InvokeAsync();
+    }
+
+    private void HandleBackdropClick()
+    {
+        HandleCancelClick();
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+}

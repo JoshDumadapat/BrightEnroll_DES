@@ -146,10 +146,9 @@ public class FinancialReportService
         return expensesByCategory;
     }
 
-    /// <summary>
-    /// Get financial data grouped by time period (daily, monthly, yearly) for line charts
+    // Get financial data grouped by time period (daily, monthly, yearly) for line charts
     /// </summary>
-    public async Task<List<FinancialTimeSeries>> GetFinancialTimeSeriesAsync(DateTime? fromDate = null, DateTime? toDate = null, string period = "monthly")
+    public async Task<List<FinancialTimeSeries>> GetFinancialTimeSeriesAsync(DateTime? fromDate = null, DateTime? toDate = null, string period = "monthly", string? schoolYear = null)
     {
         var defaultFromDate = fromDate ?? DateTime.Now.AddMonths(-6);
         var defaultToDate = toDate ?? DateTime.Now;
@@ -157,6 +156,18 @@ public class FinancialReportService
         var paymentsQuery = _context.StudentPayments
             .Where(p => p.CreatedAt >= defaultFromDate && p.CreatedAt <= defaultToDate)
             .AsQueryable();
+
+        // Filter payments by school year if provided
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            var studentIdsForSchoolYear = await _context.StudentSectionEnrollments
+                .Where(e => e.SchoolYear == schoolYear)
+                .Select(e => e.StudentId)
+                .Distinct()
+                .ToListAsync();
+            
+            paymentsQuery = paymentsQuery.Where(p => studentIdsForSchoolYear.Contains(p.StudentId));
+        }
 
         var expensesQuery = _context.Expenses
             .Where(e => e.ExpenseDate >= defaultFromDate && e.ExpenseDate <= defaultToDate && e.Status == "Approved")
@@ -272,11 +283,11 @@ public class FinancialReportService
         return result;
     }
 
-    /// <summary>
-    /// Get payment status distribution for pie chart
+    // Get payment status distribution for pie chart
     /// </summary>
-    public async Task<List<PaymentStatusDistribution>> GetPaymentStatusDistributionAsync(DateTime? fromDate = null, DateTime? toDate = null)
+    public async Task<List<PaymentStatusDistribution>> GetPaymentStatusDistributionAsync(DateTime? fromDate = null, DateTime? toDate = null, string? schoolYear = null)
     {
+        // Get students based on filters
         var query = _context.Students.AsQueryable();
 
         if (fromDate.HasValue)
@@ -289,10 +300,75 @@ public class FinancialReportService
             query = query.Where(s => s.DateRegistered <= toDate.Value);
         }
 
-        var students = await query.ToListAsync();
+        // Filter by school year if provided
+        List<string> studentIdsForSchoolYear = new();
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            studentIdsForSchoolYear = await _context.StudentSectionEnrollments
+                .Where(e => e.SchoolYear == schoolYear)
+                .Select(e => e.StudentId)
+                .Distinct()
+                .ToListAsync();
+            
+            query = query.Where(s => studentIdsForSchoolYear.Contains(s.StudentId));
+        }
 
-        var statusGroups = students
-            .GroupBy(s => s.PaymentStatus ?? "Unpaid")
+        var students = await query.Select(s => s.StudentId).ToListAsync();
+
+        // Get all ledgers for these students, filtered by school year if provided
+        var ledgersQuery = _context.StudentLedgers
+            .Include(l => l.Charges)
+            .Include(l => l.Payments)
+            .Where(l => students.Contains(l.StudentId));
+
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
+        }
+
+        var ledgers = await ledgersQuery.ToListAsync();
+
+        // Calculate payment status for each student based on their ledger(s)
+        var studentStatusMap = new Dictionary<string, string>();
+
+        foreach (var studentId in students)
+        {
+            // Get all ledgers for this student (filtered by school year if provided)
+            var studentLedgers = ledgers.Where(l => l.StudentId == studentId).ToList();
+
+            if (!studentLedgers.Any())
+            {
+                // No ledger means unpaid
+                studentStatusMap[studentId] = "Unpaid";
+                continue;
+            }
+
+            // Calculate totals across all ledgers for this student
+            decimal totalCharges = studentLedgers.Sum(l => l.Charges?.Sum(c => c.Amount) ?? 0m);
+            decimal totalPayments = studentLedgers.Sum(l => l.Payments?.Sum(p => p.Amount) ?? 0m);
+            decimal balance = totalCharges - totalPayments;
+
+            // Determine payment status based on calculated values
+            string paymentStatus;
+            if (totalPayments == 0)
+            {
+                paymentStatus = "Unpaid";
+            }
+            else if (balance > 0)
+            {
+                paymentStatus = "Partially Paid";
+            }
+            else
+            {
+                paymentStatus = "Fully Paid";
+            }
+
+            studentStatusMap[studentId] = paymentStatus;
+        }
+
+        // Group by status and count
+        var statusGroups = studentStatusMap
+            .GroupBy(kvp => kvp.Value)
             .Select(g => new PaymentStatusDistribution
             {
                 Status = g.Key,

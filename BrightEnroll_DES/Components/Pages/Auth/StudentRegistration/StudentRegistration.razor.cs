@@ -10,6 +10,8 @@ using BrightEnroll_DES.Services.Business.Students;
 using BrightEnroll_DES.Models;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Components.Pages.Auth.Handlers;
+using BrightEnroll_DES.Services.Authentication;
+using BrightEnroll_DES.Services.QuestPDF;
 using System;
 using System.Linq;
 using Microsoft.Extensions.Logging;
@@ -26,6 +28,8 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     [Inject] private FeeService FeeService { get; set; } = null!;
     [Inject] private IJSRuntime JSRuntime { get; set; } = null!;
     [Inject] private ILogger<StudentRegistration>? Logger { get; set; }
+    [Inject] private IAuthService? AuthService { get; set; }
+    [Inject] private PaymentSlipPdfGenerator PaymentSlipPdfGenerator { get; set; } = null!;
     
     private DotNetObjectReference<StudentRegistration>? dotNetRef;
 
@@ -38,7 +42,6 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private StudentRegistrationModel registrationModel = new();
     private bool isSubmitting = false;
     private bool showTermsModal = false;
-    private bool showAddSchoolYearModal = false;
     private bool showConfirmModal = false;
     private string confirmModalTitle = "";
     private string confirmModalMessage = "";
@@ -51,13 +54,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private bool showDebugError = false;
     private string debugErrorMessage = "";
     private string debugErrorDetails = "";
-    private string newSchoolYear = "";
-    private string startYear = "";
-    private string endYear = "";
-    private bool isValidSchoolYearFormat = false;
-    private string schoolYearValidationError = "";
     private List<string> availableSchoolYears = new();
-    private List<int> availableStartYears = new();
     private List<GradeLevel> availableGradeLevels = new();
     
     // Address handlers
@@ -72,7 +69,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     protected override async Task OnInitializedAsync()
     {
         editContext = new EditContext(registrationModel);
-        await LoadSchoolYearsAsync(); // This will also call LoadAvailableStartYears()
+        await LoadSchoolYearsAsync(); // Load and auto-set current school year
         await LoadGradeLevelsAsync(); // Load grade levels from database
         registrationModel.StudentType = ""; // Initialize to trigger requirements update
         dotNetRef = DotNetObjectReference.Create(this);
@@ -360,8 +357,51 @@ public partial class StudentRegistration : ComponentBase, IDisposable
             // Register student using StudentService
             var registeredStudent = await StudentService.RegisterStudentAsync(studentData);
             
-            // Success - navigate to enrollment page (since we're now in the main app)
-            Navigation.NavigateTo("/enrollment?toast=registration_submitted");
+            // Check if user is logged in (registrar/admin/school personnel)
+            bool isLoggedInUser = AuthService?.IsAuthenticated == true && AuthService.CurrentUser != null;
+            
+            if (isLoggedInUser)
+            {
+                // For logged-in users, generate payment slip PDF and navigate to For Enrollment tab
+                try
+                {
+                    var studentName = $"{registeredStudent.FirstName} {registeredStudent.MiddleName} {registeredStudent.LastName}".Replace("  ", " ").Trim();
+                    if (!string.IsNullOrWhiteSpace(registeredStudent.Suffix))
+                    {
+                        studentName += $" {registeredStudent.Suffix}";
+                    }
+
+                    var slipData = new PaymentSlipPdfGenerator.PaymentSlipData
+                    {
+                        StudentId = registeredStudent.StudentId,
+                        StudentName = studentName,
+                        GradeLevel = registeredStudent.GradeLevel ?? "N/A",
+                        SchoolYear = registeredStudent.SchoolYr ?? "N/A",
+                        Status = registeredStudent.Status ?? "For Payment",
+                        DateGenerated = DateTime.Now
+                    };
+
+                    var pdfBytes = PaymentSlipPdfGenerator.GeneratePaymentSlip(slipData);
+                    var fileName = $"PaymentSlip_{registeredStudent.StudentId}_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+                    var base64Content = Convert.ToBase64String(pdfBytes);
+                    await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+                    
+                    Logger?.LogInformation("Payment slip PDF generated and downloaded for student {StudentId}", registeredStudent.StudentId);
+                }
+                catch (Exception pdfEx)
+                {
+                    Logger?.LogError(pdfEx, "Error generating payment slip PDF: {Message}", pdfEx.Message);
+                    // Don't fail registration if PDF generation fails
+                }
+                
+                // Navigate to enrollment page
+                Navigation.NavigateTo("/enrollment?toast=registration_submitted");
+            }
+            else
+            {
+                // For public registration, navigate to enrollment page (New Applicants tab)
+                Navigation.NavigateTo("/enrollment?toast=registration_submitted");
+            }
         }
         catch (Exception ex)
         {
@@ -466,7 +506,7 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     private void HandleBackdropClick()
     {
         // If nested modals are open, don't close on backdrop click
-        if (showConfirmModal || showValidationModal || showAddSchoolYearModal)
+        if (showConfirmModal || showValidationModal)
         {
             return;
         }
@@ -550,21 +590,75 @@ public partial class StudentRegistration : ComponentBase, IDisposable
     {
         try
         {
-            // Auto-remove finished school years before loading
-            await SchoolYearService.RemoveFinishedSchoolYearsAsync();
-            availableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
-            // Reload available start years after school years are updated
-            LoadAvailableStartYears();
+            // FIXED: Removed automatic deletion of finished school years
+            // This was causing recently closed school years to be deleted immediately when opening a new school year
+            // RemoveFinishedSchoolYearsAsync should only be called manually by administrators
+            // when they want to clean up old historical data (30+ days after closing)
+            
+            // Note: RemoveFinishedSchoolYearsAsync now has a safeguard (only deletes school years
+            // closed for 30+ days), but we're keeping it disabled here to prevent any automatic deletions
+            // Uncomment the line below if you want automatic cleanup of very old school years
+            // await SchoolYearService.RemoveFinishedSchoolYearsAsync();
+            
+            // Get all available school years
+            var allSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+            
+            // Get current active school year
+            var currentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync();
+            
+            // Order school years: Current on top, then future years below
+            // Exclude current school year from options if it's already set as active
+            availableSchoolYears = GetOrderedSchoolYears(allSchoolYears, currentSchoolYear);
+            
+            // Auto-set current school year if not already set
+            if (string.IsNullOrWhiteSpace(registrationModel.SchoolYear) && !string.IsNullOrWhiteSpace(currentSchoolYear))
+            {
+                registrationModel.SchoolYear = currentSchoolYear;
+                if (editContext != null)
+                {
+                    editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.SchoolYear)));
+                }
+            }
+            
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error loading school years: {Message}", ex.Message);
             // Fallback to current school year
-            availableSchoolYears = new List<string> { SchoolYearService.GetCurrentSchoolYear() };
-            LoadAvailableStartYears();
+            var currentYear = SchoolYearService.GetCurrentSchoolYear();
+            availableSchoolYears = new List<string> { currentYear };
+            registrationModel.SchoolYear = currentYear;
             StateHasChanged();
         }
+    }
+
+    // Helper method to order school years: Current on top, then future years below
+    // Excludes current school year from options if it's already set as active
+    private List<string> GetOrderedSchoolYears(List<string> allSchoolYears, string? currentSchoolYear)
+    {
+        if (allSchoolYears == null || !allSchoolYears.Any())
+        {
+            return new List<string>();
+        }
+
+        var orderedList = new List<string>();
+        
+        // Add current school year first if it exists
+        if (!string.IsNullOrWhiteSpace(currentSchoolYear) && allSchoolYears.Contains(currentSchoolYear))
+        {
+            orderedList.Add(currentSchoolYear);
+        }
+        
+        // Add future school years (those after current year)
+        var futureYears = allSchoolYears
+            .Where(sy => string.IsNullOrWhiteSpace(currentSchoolYear) || sy != currentSchoolYear)
+            .OrderBy(sy => sy) // Order by year ascending
+            .ToList();
+        
+        orderedList.AddRange(futureYears);
+        
+        return orderedList;
     }
 
     private async Task LoadGradeLevelsAsync()
@@ -647,193 +741,15 @@ public partial class StudentRegistration : ComponentBase, IDisposable
         StateHasChanged();
     }
 
-    private void LoadAvailableStartYears()
-    {
-        availableStartYears.Clear();
-        
-        // Get current school year's end year based on system calendar
-        var currentYear = DateTime.Now.Year;
-        var currentMonth = DateTime.Now.Month;
-        
-        // Determine current school year's end year
-        // School year typically starts in June, so:
-        // - If we're in June or later (June-December), current SY is Year-Year+1, ends in Year+1
-        // - If we're before June (January-May), current SY is Year-1-Year, ends in Year
-        int currentEndYear;
-        if (currentMonth >= 6)
-        {
-            currentEndYear = currentYear + 1; // Current SY ends next year (e.g., 2025-2026 ends in 2026)
-        }
-        else
-        {
-            currentEndYear = currentYear; // Current SY ends this year (e.g., 2024-2025 ends in 2025)
-        }
-        
-        // Find the latest end year from existing school years
-        int latestEndYear = currentEndYear;
-        foreach (var sy in availableSchoolYears)
-        {
-            if (string.IsNullOrWhiteSpace(sy)) continue;
-            var parts = sy.Split('-');
-            if (parts.Length == 2 && int.TryParse(parts[1], out int endYear))
-            {
-                if (endYear > latestEndYear)
-                {
-                    latestEndYear = endYear;
-                }
-            }
-        }
-        
-        // Available start year is only the next year after the latest end year
-        // Example: If current SY is 2025-2026 (ends in 2026), latest end year is 2026
-        // Next available start year is: 2026 (which creates 2026-2027)
-        // After adding 2026-2027, next available start year becomes: 2027 (which creates 2027-2028)
-        int nextStartYear = latestEndYear;
-        availableStartYears.Add(nextStartYear);
-    }
-
-    private void OnStartYearChanged()
-    {
-        // Auto-set end year to start year + 1
-        if (!string.IsNullOrWhiteSpace(startYear) && int.TryParse(startYear, out int start))
-        {
-            endYear = (start + 1).ToString();
-            ValidateSchoolYearFormat();
-            StateHasChanged(); // Force UI update for End Year dropdown
-        }
-        else
-        {
-            endYear = "";
-            isValidSchoolYearFormat = false;
-        }
-    }
-
-    private void ValidateSchoolYearFormat()
-    {
-        isValidSchoolYearFormat = false;
-        schoolYearValidationError = "";
-
-        // Check if both fields are filled
-        if (string.IsNullOrWhiteSpace(startYear) || string.IsNullOrWhiteSpace(endYear))
-        {
-            schoolYearValidationError = "Both Start Year and End Year are required";
-            return;
-        }
-
-        // Check if both are valid years
-        if (!int.TryParse(startYear, out int start))
-        {
-            schoolYearValidationError = "Start Year must be a valid year";
-            return;
-        }
-
-        if (!int.TryParse(endYear, out int end))
-        {
-            schoolYearValidationError = "End Year must be a valid year";
-            return;
-        }
-
-        // Validation: End Year - Start Year must equal 1
-        int yearGap = end - start;
-        if (yearGap != 1)
-        {
-            schoolYearValidationError = "End Year must be exactly 1 year after Start Year (e.g., 2026-2027)";
-            return;
-        }
-
-        // All validations passed
-        isValidSchoolYearFormat = true;
-        newSchoolYear = $"{startYear}-{endYear}";
-    }
-
-    private async Task AddSchoolYear()
-    {
-        // Check if we've reached the maximum of 3 school years
-        if (availableSchoolYears.Count >= 3)
-        {
-            schoolYearValidationError = "Maximum of 3 school years allowed. Please remove an existing school year before adding a new one.";
-            StateHasChanged();
-            return;
-        }
-
-        if (isValidSchoolYearFormat)
-        {
-            try
-            {
-                var success = await SchoolYearService.AddSchoolYearAsync(newSchoolYear);
-                if (success)
-                {
-                    await LoadSchoolYearsAsync();
-                    registrationModel.SchoolYear = newSchoolYear;
-                    CloseAddSchoolYearModal();
-                    StateHasChanged();
-                }
-                else
-                {
-                    schoolYearValidationError = "Failed to add school year. It may already exist.";
-                    StateHasChanged();
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger?.LogError(ex, "Error adding school year: {Message}", ex.Message);
-                schoolYearValidationError = $"Error adding school year: {ex.Message}";
-                StateHasChanged();
-            }
-        }
-        else
-        {
-            // Validation error is already set in ValidateSchoolYearFormat
-            StateHasChanged();
-        }
-    }
-
-    private void OpenAddSchoolYearModal()
-    {
-        // Reload available start years to ensure they're up to date
-        LoadAvailableStartYears();
-        
-        showAddSchoolYearModal = true;
-        newSchoolYear = "";
-        startYear = "";
-        endYear = "";
-        isValidSchoolYearFormat = false;
-        
-        // Show error message if 3 slots are already occupied
-        if (availableSchoolYears.Count >= 3)
-        {
-            schoolYearValidationError = "Maximum of 3 school years allowed. All slots are currently occupied. Please wait for a school year to finish before adding a new one.";
-        }
-        else if (availableStartYears.Count > 0)
-        {
-            // Auto-select the only available start year and set end year
-            startYear = availableStartYears[0].ToString();
-            OnStartYearChanged(); // This will auto-set the end year
-            schoolYearValidationError = "";
-        }
-        else
-        {
-            schoolYearValidationError = "";
-        }
-    }
-
-    private void CloseAddSchoolYearModal()
-    {
-        showAddSchoolYearModal = false;
-        newSchoolYear = "";
-        startYear = "";
-        endYear = "";
-        isValidSchoolYearFormat = false;
-        schoolYearValidationError = "";
-    }
 
     // Watch for School Year dropdown change
     private void OnSchoolYearChanged()
     {
-        if (registrationModel.SchoolYear == "ADD_NEW")
+        // No longer need to handle "ADD_NEW" - that option is removed
+        // Just notify EditContext of the change
+        if (editContext != null)
         {
-            OpenAddSchoolYearModal();
-            registrationModel.SchoolYear = "";
+            editContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(editContext.Model, nameof(registrationModel.SchoolYear)));
         }
     }
 

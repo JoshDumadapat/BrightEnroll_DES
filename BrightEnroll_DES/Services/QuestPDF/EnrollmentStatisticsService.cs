@@ -90,12 +90,19 @@ public class EnrollmentStatisticsService
         };
     }
 
-    public async Task<EnrollmentStatistics> GetNewApplicantsStatisticsAsync()
+    public async Task<EnrollmentStatistics> GetNewApplicantsStatisticsAsync(string? schoolYear = null)
     {
-        var students = await _context.Students
+        var query = _context.Students
             .Include(s => s.Requirements)
-            .Where(s => s.Status == "Pending" || s.Status == "New Applicant")
-            .ToListAsync();
+            .Where(s => s.Status == "Pending" || s.Status == "New Applicant");
+        
+        // Filter by school year if provided
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            query = query.Where(s => s.SchoolYr == schoolYear);
+        }
+        
+        var students = await query.ToListAsync();
 
         var payments = await _context.StudentPayments
             .Where(p => students.Select(s => s.StudentId).Contains(p.StudentId))
@@ -116,12 +123,19 @@ public class EnrollmentStatisticsService
         };
     }
 
-    public async Task<EnrollmentStatistics> GetForEnrollmentStatisticsAsync()
+    public async Task<EnrollmentStatistics> GetForEnrollmentStatisticsAsync(string? schoolYear = null)
     {
-        var students = await _context.Students
+        var query = _context.Students
             .Include(s => s.Requirements)
-            .Where(s => s.Status == "For Payment" || s.Status == "Partially Paid")
-            .ToListAsync();
+            .Where(s => s.Status == "For Payment" || s.Status == "Partially Paid");
+        
+        // Filter by school year if provided
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            query = query.Where(s => s.SchoolYr == schoolYear);
+        }
+        
+        var students = await query.ToListAsync();
 
         var payments = await _context.StudentPayments
             .Where(p => students.Select(s => s.StudentId).Contains(p.StudentId))
@@ -145,14 +159,21 @@ public class EnrollmentStatisticsService
         };
     }
 
-    public async Task<EnrollmentStatistics> GetReEnrollmentStatisticsAsync()
+    public async Task<EnrollmentStatistics> GetReEnrollmentStatisticsAsync(string? schoolYear = null)
     {
-        var students = await _context.Students
+        var query = _context.Students
             .Include(s => s.Requirements)
             .Where(s => s.StudentType != null && 
                 (s.StudentType.Contains("Re-enrolled", StringComparison.OrdinalIgnoreCase) || 
-                 s.StudentType.Contains("Returnee", StringComparison.OrdinalIgnoreCase)))
-            .ToListAsync();
+                 s.StudentType.Contains("Returnee", StringComparison.OrdinalIgnoreCase)));
+        
+        // Filter by school year if provided
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            query = query.Where(s => s.SchoolYr == schoolYear);
+        }
+        
+        var students = await query.ToListAsync();
 
         var payments = await _context.StudentPayments
             .Where(p => students.Select(s => s.StudentId).Contains(p.StudentId))
@@ -173,12 +194,19 @@ public class EnrollmentStatisticsService
         };
     }
 
-    public async Task<EnrollmentStatistics> GetEnrolledStatisticsAsync()
+    public async Task<EnrollmentStatistics> GetEnrolledStatisticsAsync(string? schoolYear = null)
     {
-        var students = await _context.Students
+        var query = _context.Students
             .Include(s => s.Requirements)
-            .Where(s => s.Status == "Enrolled")
-            .ToListAsync();
+            .Where(s => s.Status == "Enrolled");
+        
+        // Filter by school year if provided
+        if (!string.IsNullOrEmpty(schoolYear))
+        {
+            query = query.Where(s => s.SchoolYr == schoolYear);
+        }
+        
+        var students = await query.ToListAsync();
 
         var payments = await _context.StudentPayments
             .Where(p => students.Select(s => s.StudentId).Contains(p.StudentId))

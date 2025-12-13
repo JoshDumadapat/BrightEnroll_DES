@@ -1,0 +1,327 @@
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
+@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents.DiscountSetupModal
+@using BrightEnroll_DES.Components.Pages.Admin
+@using System.Linq
+
+<div>
+    <!-- Search + Filter + Add Discount -->
+    <div class="border-b border-gray-200 px-3 py-4 sm:px-6">
+        <label class="mb-2 block text-sm font-bold text-gray-700">Filter:</label>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div class="relative flex w-full items-center sm:w-auto">
+                    <span class="absolute left-3 flex items-center justify-center">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </span>
+                    <input type="text" placeholder="Search here..." @bind="SearchText" @bind:after="OnSearchChanged"
+                           class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-60" />
+                </div>
+                <select @bind="StatusFilter" @bind:after="OnFilterChanged" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+            </div>
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <button @onclick="ClearFilters" class="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-500 px-4 py-2 font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg sm:w-auto" style="font-size: 13px;">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <button @onclick="OpenAddDiscountModal" class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                    + Add Discount
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div>
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 font-semibold text-gray-600">
+                <tr>
+                    <th class="px-4 py-3 text-left">Discount Type</th>
+                    <th class="px-4 py-3 text-left">Discount Name</th>
+                    <th class="px-4 py-3 text-left">Rate/Value</th>
+                    <th class="px-4 py-3 text-left">Type</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y">
+                @if (IsLoading)
+                {
+                    <tr>
+                        <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="animate-spin h-8 w-8 text-gray-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Loading discounts...</span>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                else if (PaginatedDiscountList != null && PaginatedDiscountList.Any())
+                {
+                    @foreach (var discount in PaginatedDiscountList)
+                    {
+                        <tr class="transition hover:bg-gray-50">
+                            <td class="px-4 py-3">@discount.DiscountType</td>
+                            <td class="px-4 py-3">@discount.DiscountName</td>
+                            <td class="px-4 py-3">
+                                @if (discount.IsPercentage)
+                                {
+                                    <span>@discount.RateOrValue.ToString("F2")%</span>
+                                }
+                                else
+                                {
+                                    <span>Php @discount.RateOrValue.ToString("N2")</span>
+                                }
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="rounded-full px-2 py-1 text-xs font-medium @(discount.IsPercentage ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800")">
+                                    @(discount.IsPercentage ? "Percentage" : "Fixed Amount")
+                                </span>
+                            </td>
+                            <td class="px-4 py-3">
+                                <span class="rounded-full px-2 py-1 text-xs font-medium @(discount.IsActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800")">
+                                    @(discount.IsActive ? "Active" : "Inactive")
+                                </span>
+                            </td>
+                            <td class="flex items-center justify-center gap-2 px-4 py-3">
+                                <!-- Edit Button -->
+                                <button @onclick="() => OpenEditDiscountModal(discount)" class="flex items-center gap-1.5 rounded-lg bg-yellow-100 px-3 py-1.5 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Edit</span>
+                                </button>
+                                <!-- Delete Button -->
+                                <button @onclick="() => OpenDeleteConfirmModal(discount)" class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="6" class="px-4 py-12 text-center text-gray-500">
+                            <div class="flex flex-col items-center justify-center">
+                                <svg class="h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="text-base font-medium text-gray-600">No Data Available Currently</p>
+                                <p class="text-sm text-gray-500 mt-1">There are no discounts to display at this time.</p>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Footer with Pagination -->
+    <Pagination TotalItems="@FilteredDiscountList.Count" 
+                CurrentPage="@CurrentPage" 
+                RowsPerPage="@RowsPerPage"
+                ItemName="discounts"
+                OnPageChanged="HandlePageChanged"
+                OnRowsPerPageChanged="HandleRowsPerPageChanged" />
+</div>
+
+<!-- Add Discount Modal -->
+<AddDiscountModal IsVisible="ShowAddDiscountModal" 
+                 ExistingDiscounts="DiscountList"
+                 OnClose="CloseAddDiscountModal" 
+                 OnSubmit="HandleAddDiscount" />
+
+<!-- Edit Discount Modal -->
+<EditDiscountModal IsVisible="ShowEditDiscountModal" 
+                  Discount="SelectedDiscount"
+                  ExistingDiscounts="DiscountList"
+                  OnClose="CloseEditDiscountModal" 
+                  OnSubmit="HandleEditDiscount" />
+
+<!-- Delete Confirmation Modal -->
+@if (ShowDeleteConfirmModal && SelectedDiscount != null)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseDeleteConfirmModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Delete Discount</h3>
+                <button @onclick="CloseDeleteConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to delete <strong>@SelectedDiscount.DiscountName</strong>?</p>
+                <p class="mt-2 text-xs text-gray-500">This action cannot be undone.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseDeleteConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmDelete" class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public List<DiscountModel> DiscountList { get; set; } = new();
+    [Parameter] public bool IsLoading { get; set; } = false;
+    [Parameter] public EventCallback<DiscountModel> OnDiscountAdded { get; set; }
+    [Parameter] public EventCallback<DiscountModel> OnDiscountUpdated { get; set; }
+    [Parameter] public EventCallback<DiscountModel> OnDiscountDeleted { get; set; }
+
+    private string SearchText { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
+    private bool ShowAddDiscountModal { get; set; } = false;
+    private bool ShowEditDiscountModal { get; set; } = false;
+    private bool ShowDeleteConfirmModal { get; set; } = false;
+    private DiscountModel? SelectedDiscount { get; set; }
+
+    // Pagination state
+    private int CurrentPage { get; set; } = 1;
+    private int RowsPerPage { get; set; } = 5;
+
+    private List<DiscountModel> FilteredDiscountList
+    {
+        get
+        {
+            var filtered = DiscountList.AsEnumerable();
+            
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                filtered = filtered.Where(d => 
+                    d.DiscountType.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
+                    d.DiscountName.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+            }
+            
+            if (!string.IsNullOrWhiteSpace(StatusFilter))
+            {
+                bool isActive = StatusFilter == "Active";
+                filtered = filtered.Where(d => d.IsActive == isActive);
+            }
+            
+            return filtered.ToList();
+        }
+    }
+
+    // Computed property for paginated discounts
+    private List<DiscountModel> PaginatedDiscountList
+    {
+        get
+        {
+            var filtered = FilteredDiscountList;
+            if (filtered == null || !filtered.Any())
+                return new List<DiscountModel>();
+
+            int startIndex = (CurrentPage - 1) * RowsPerPage;
+            return filtered.Skip(startIndex).Take(RowsPerPage).ToList();
+        }
+    }
+
+    private void HandlePageChanged(int page)
+    {
+        CurrentPage = page;
+        StateHasChanged();
+    }
+
+    private void HandleRowsPerPageChanged(int rowsPerPage)
+    {
+        RowsPerPage = rowsPerPage;
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OpenAddDiscountModal()
+    {
+        ShowAddDiscountModal = true;
+    }
+
+    private void CloseAddDiscountModal()
+    {
+        ShowAddDiscountModal = false;
+    }
+
+    private void OpenEditDiscountModal(DiscountModel discount)
+    {
+        SelectedDiscount = discount;
+        ShowEditDiscountModal = true;
+    }
+
+    private void CloseEditDiscountModal()
+    {
+        ShowEditDiscountModal = false;
+        SelectedDiscount = null;
+    }
+
+    private void OpenDeleteConfirmModal(DiscountModel discount)
+    {
+        SelectedDiscount = discount;
+        ShowDeleteConfirmModal = true;
+    }
+
+    private void CloseDeleteConfirmModal()
+    {
+        ShowDeleteConfirmModal = false;
+        SelectedDiscount = null;
+    }
+
+    private async Task HandleAddDiscount(DiscountModel discount)
+    {
+        await OnDiscountAdded.InvokeAsync(discount);
+        CloseAddDiscountModal();
+    }
+
+    private async Task HandleEditDiscount(DiscountModel discount)
+    {
+        await OnDiscountUpdated.InvokeAsync(discount);
+        CloseEditDiscountModal();
+    }
+
+    private async Task ConfirmDelete()
+    {
+        if (SelectedDiscount != null)
+        {
+            await OnDiscountDeleted.InvokeAsync(SelectedDiscount);
+            CloseDeleteConfirmModal();
+        }
+    }
+
+    private void OnSearchChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void OnFilterChanged()
+    {
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+
+    private void ClearFilters()
+    {
+        SearchText = "";
+        StatusFilter = "";
+        CurrentPage = 1;
+        StateHasChanged();
+    }
+}

@@ -51,70 +51,80 @@
 </div>
 
 <!-- Table -->
-<table class="min-w-full text-sm">
-    <thead class="bg-gray-100 font-semibold text-gray-600">
-        <tr>
-            <th class="px-4 py-3 text-left">ID</th>
-            <th class="px-4 py-3 text-left">Name</th>
-            <th class="px-4 py-3 text-left">LRN</th>
-            <th class="px-4 py-3 text-left">Date</th>
-            <th class="px-4 py-3 text-left">Reason</th>
-            <th class="px-4 py-3 text-left">Status</th>
-            <th class="px-4 py-3 text-left">Archived Date</th>
-            <th class="px-4 py-3 text-center">Actions</th>
-        </tr>
-    </thead>
-    <tbody class="divide-y">
-        @if (Students != null && Students.Any())
-        {
-            @foreach (var student in PaginatedStudents)
+<div class="overflow-x-auto">
+    <table class="min-w-full text-sm table-fixed">
+        <thead class="bg-gray-100 font-semibold text-gray-600">
+            <tr>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-24">ID</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-48">Name</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-32">LRN</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-32">Date</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-56">Reason</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-40">Status</th>
+                <th class="px-4 py-3 text-left whitespace-nowrap w-36">Archived Date</th>
+                <th class="px-4 py-3 text-center whitespace-nowrap w-32">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y">
+            @if (Students != null && Students.Any())
             {
-                <tr class="transition hover:bg-gray-50">
-                    <td class="px-4 py-3">@student.Id</td>
-                    <td class="px-4 py-3">@student.Name</td>
-                    <td class="px-4 py-3">
-                        <span class="text-gray-900">@student.LRN</span>
-                    </td>
-                    <td class="px-4 py-3">@student.Date</td>
-                    <td class="px-4 py-3">
-                        <span class="text-gray-700 text-xs">@(string.IsNullOrWhiteSpace(student.Reason) ? "-" : (student.Reason.Length > 50 ? student.Reason.Substring(0, 50) + "..." : student.Reason))</span>
-                    </td>
-                    <td class="px-4 py-3">
-                        @if (student.Status == "Graduated")
-                        {
-                            <span class="rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">@student.Status</span>
-                        }
-                        else if (student.Status == "Transferred")
-                        {
-                            <span class="rounded-md bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700">@student.Status</span>
-                        }
-                        else if (student.Status == "Withdrawn" || student.Status == "Application Withdrawn")
-                        {
-                            <span class="rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700">@student.Status</span>
-                        }
-                        else if (student.Status == "Rejected by School")
-                        {
-                            <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700">@student.Status</span>
-                        }
-                        else
-                        {
-                            <span class="rounded-md bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">@student.Status</span>
-                        }
-                    </td>
-                    <td class="px-4 py-3 text-gray-600">@student.ArchivedDate</td>
-                    <td class="flex items-center justify-center gap-2 px-4 py-3">
-                        <!-- View Button -->
-                        <button @onclick="() => ViewStudent(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            <span class="hidden sm:inline">View</span>
-                        </button>
-                    </td>
-                </tr>
+                @foreach (var student in PaginatedStudents)
+                {
+                    <tr class="transition hover:bg-gray-50">
+                        <td class="px-4 py-3 truncate" title="@student.Id">@student.Id</td>
+                        <td class="px-4 py-3 truncate" title="@student.Name">@student.Name</td>
+                        <td class="px-4 py-3 truncate" title="@student.LRN">
+                            <span class="text-gray-900">@student.LRN</span>
+                        </td>
+                        <td class="px-4 py-3 truncate" title="@student.Date">@student.Date</td>
+                        <td class="px-4 py-3">
+                            @if (!string.IsNullOrWhiteSpace(student.Reason))
+                            {
+                                <span class="text-gray-700 text-xs truncate block" title="@student.Reason">@student.Reason</span>
+                            }
+                            else
+                            {
+                                <span class="text-xs text-gray-400">-</span>
+                            }
+                        </td>
+                        <td class="px-4 py-3">
+                            @if (student.Status == "Graduated")
+                            {
+                                <span class="rounded-md bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700 whitespace-nowrap">@student.Status</span>
+                            }
+                            else if (student.Status == "Transferred")
+                            {
+                                <span class="rounded-md bg-blue-100 px-2.5 py-1 text-[11px] font-medium text-blue-700 whitespace-nowrap">@student.Status</span>
+                            }
+                            else if (student.Status == "Withdrawn" || student.Status == "Application Withdrawn")
+                            {
+                                <span class="rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700 whitespace-nowrap">@student.Status</span>
+                            }
+                            else if (student.Status == "Rejected by School")
+                            {
+                                <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700 whitespace-nowrap">@student.Status</span>
+                            }
+                            else
+                            {
+                                <span class="rounded-md bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700 whitespace-nowrap">@student.Status</span>
+                            }
+                        </td>
+                        <td class="px-4 py-3 text-gray-600 truncate" title="@student.ArchivedDate">@student.ArchivedDate</td>
+                        <td class="px-4 py-3">
+                            <div class="flex items-center justify-center">
+                                <!-- View Button -->
+                                <button @onclick="() => ViewStudent(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100 whitespace-nowrap">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <span class="hidden sm:inline">View</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                }
             }
-        }
         else
         {
             <tr>
@@ -130,7 +140,8 @@
             </tr>
         }
     </tbody>
-</table>
+    </table>
+</div>
 
 <!-- Footer with Pagination -->
 <Pagination TotalItems="@FilteredStudents.Count" 

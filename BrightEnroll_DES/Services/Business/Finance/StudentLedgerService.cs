@@ -303,6 +303,16 @@ public class StudentLedgerService
     /// </summary>
     public async Task ApplyDiscountAsync(int ledgerId, string discountType, decimal amount, string? description = null)
     {
+        await ApplyDiscountAsync(ledgerId, discountType, amount, null, description);
+    }
+
+    /// <summary>
+    /// Applies a discount to a ledger with optional discount configuration link
+    /// Discounts are stored as negative LedgerCharges
+    /// PREVENTS duplicate application of the same discount
+    /// </summary>
+    public async Task ApplyDiscountAsync(int ledgerId, string discountType, decimal amount, int? discountId = null, string? description = null)
+    {
         try
         {
             if (amount <= 0)
@@ -310,10 +320,35 @@ public class StudentLedgerService
                 throw new Exception("Discount amount must be greater than zero.");
             }
 
-            var ledger = await _context.StudentLedgers.FindAsync(ledgerId);
+            var ledger = await _context.StudentLedgers
+                .Include(l => l.Charges)
+                .FirstOrDefaultAsync(l => l.Id == ledgerId);
+            
             if (ledger == null)
             {
                 throw new Exception($"Ledger {ledgerId} not found.");
+            }
+
+            // If discountId is provided, verify it exists and check for duplicates
+            if (discountId.HasValue)
+            {
+                var discount = await _context.Discounts.FindAsync(discountId.Value);
+                if (discount == null)
+                {
+                    throw new Exception($"Discount with ID {discountId.Value} not found.");
+                }
+
+                // CHECK: Prevent duplicate discount application
+                // Check if this discount has already been applied to this ledger
+                var existingDiscount = ledger.Charges?
+                    .FirstOrDefault(c => c.ChargeType == "Discount" && 
+                                        c.DiscountId.HasValue && 
+                                        c.DiscountId.Value == discountId.Value);
+                
+                if (existingDiscount != null)
+                {
+                    throw new Exception($"Discount '{discount.DiscountName}' has already been applied to this ledger. Each discount can only be applied once per ledger.");
+                }
             }
 
             // Create discount charge (negative amount)
@@ -323,6 +358,7 @@ public class StudentLedgerService
                 ChargeType = "Discount",
                 Description = description ?? $"{discountType} Discount",
                 Amount = -amount, // Negative for discounts
+                DiscountId = discountId, // Link to discount configuration if provided
                 CreatedAt = DateTime.Now
             };
 
@@ -333,8 +369,8 @@ public class StudentLedgerService
             await RecalculateTotalsAsync(ledgerId);
 
             _logger?.LogInformation(
-                "Applied {DiscountType} discount of Php {Amount} to ledger {LedgerId}",
-                discountType, amount, ledgerId);
+                "Applied {DiscountType} discount of Php {Amount} to ledger {LedgerId} (DiscountId: {DiscountId})",
+                discountType, amount, ledgerId, discountId);
         }
         catch (Exception ex)
         {
@@ -409,11 +445,14 @@ public class StudentLedgerService
                 throw new Exception($"Ledger {ledgerId} not found.");
             }
 
-            // Check if OR number already exists
-            var existingPayment = await _context.LedgerPayments
+            // Check if OR number already exists in either LedgerPayments or StudentPayments
+            var existingLedgerPayment = await _context.LedgerPayments
+                .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
+            
+            var existingStudentPayment = await _context.StudentPayments
                 .FirstOrDefaultAsync(p => p.OrNumber == orNumber);
 
-            if (existingPayment != null)
+            if (existingLedgerPayment != null || existingStudentPayment != null)
             {
                 throw new Exception($"OR number {orNumber} already exists. Please use a different OR number.");
             }
@@ -441,10 +480,13 @@ public class StudentLedgerService
             };
 
             _context.LedgerPayments.Add(payment);
+            // Save LedgerPayment first to get the ID
             await _context.SaveChangesAsync();
 
             // Recalculate totals
             await RecalculateTotalsAsync(ledgerId);
+            
+            // Return payment so caller can create StudentPayment in same transaction
 
             _logger?.LogInformation(
                 "Added payment of Php {Amount} (OR: {OrNumber}) to ledger {LedgerId}",

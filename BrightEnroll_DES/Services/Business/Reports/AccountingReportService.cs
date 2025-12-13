@@ -712,22 +712,31 @@ public class AccountingReportService
         var totalLiabilities = liabilities.Sum(l => l.Balance);
         var totalEquity = equity.Sum(e => e.Balance);
 
-        // Calculate retained earnings (if not explicitly tracked, calculate from Income Statement)
+        // FIXED: Always ensure Retained Earnings includes Net Income from Income Statement
+        // Calculate from beginning of year to asOfDate
+        var yearStart = new DateTime(asOfDate.Year, 1, 1);
+        var incomeStatement = await GetIncomeStatementAsync(yearStart, asOfDate);
+        var netIncome = incomeStatement.NetIncome;
+
+        // Find or update Retained Earnings account
         var retainedEarningsAccount = equity.FirstOrDefault(e => e.AccountCode == "3100");
         if (retainedEarningsAccount == null)
         {
-            // Calculate from beginning of year to asOfDate
-            var yearStart = new DateTime(asOfDate.Year, 1, 1);
-            var incomeStatement = await GetIncomeStatementAsync(yearStart, asOfDate);
-            var netIncome = incomeStatement.NetIncome;
-
-            // Add to equity
+            // Account doesn't exist, add it
             equity.Add(new BalanceSheetAccount
             {
                 AccountCode = "3100",
                 AccountName = "Retained Earnings",
                 Balance = netIncome
             });
+            totalEquity += netIncome;
+        }
+        else
+        {
+            // Account exists, update it with Net Income (replace existing balance)
+            // Remove old balance and add new balance
+            totalEquity -= retainedEarningsAccount.Balance;
+            retainedEarningsAccount.Balance = netIncome;
             totalEquity += netIncome;
         }
 

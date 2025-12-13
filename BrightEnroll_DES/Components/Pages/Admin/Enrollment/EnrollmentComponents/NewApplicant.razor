@@ -134,7 +134,7 @@
                     <td class="py-3 px-4 text-sm text-gray-700">
                         @if (student.DocumentsVerified)
                         {
-                            <span class="text-xs font-semibold text-green-600">Validated</span>
+                            <span class="text-xs font-semibold text-blue-600">Validated</span>
                         }
                         else
                         {
@@ -142,7 +142,7 @@
                         }
                     </td>
                     <td class="py-3 px-4 text-sm text-gray-700">
-                        <span class="rounded-full bg-yellow-50 px-2.5 py-1 text-[11px] font-medium text-yellow-600">@student.Status</span>
+                        <span class="text-xs font-semibold text-yellow-600">@student.Status</span>
                     </td>
                     <td class="py-3 pr-6 pl-4 text-center">
                         <!-- Edit Button -->
@@ -195,6 +195,9 @@
 
     [Parameter]
     public EventCallback<string> OnEditStudent { get; set; }
+
+    [Parameter]
+    public string? SchoolYear { get; set; }
 
     // Filter properties
     private string SearchText { get; set; } = "";
@@ -355,7 +358,7 @@
         try
         {
             var userName = GetUserDisplayName();
-            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("NewApplicants", userName);
+            var pdfBytes = await PdfGenerator.GenerateEnrollmentReportAsync("NewApplicants", userName, SchoolYear);
             var fileName = $"New_Applicants_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
             var base64Content = Convert.ToBase64String(pdfBytes);
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);

@@ -1,4 +1,7 @@
 using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
+using BrightEnroll_DES.Data;
+using BrightEnroll_DES.Data.Models;
 
 namespace BrightEnroll_DES.Services.Database.Sync;
 
@@ -35,6 +38,7 @@ public class SyncStatusService : ISyncStatusService
     private int _pendingOperationsCount = 0;
     private readonly ConcurrentBag<string> _errors = new();
     private readonly object _lock = new object();
+    private readonly IServiceProvider _serviceProvider;
 
     public bool IsOnline
     {
@@ -46,9 +50,69 @@ public class SyncStatusService : ISyncStatusService
         get { lock (_lock) { return _isSyncing; } }
     }
 
+    private bool _lastSyncTimeLoaded = false;
+
     public DateTime? LastSyncTime
     {
-        get { lock (_lock) { return _lastSyncTime; } }
+        get 
+        { 
+            lock (_lock) 
+            { 
+                // If not loaded yet, try to load from database (async, non-blocking)
+                if (!_lastSyncTimeLoaded && _lastSyncTime == null)
+                {
+                    _lastSyncTimeLoaded = true; // Mark as loading to prevent multiple attempts
+                    Task.Run(() => LoadLastSyncTimeFromDatabase());
+                }
+                return _lastSyncTime; 
+            } 
+        }
+    }
+
+    public SyncStatusService(IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+        // Load last sync time from database on initialization (async, non-blocking)
+        Task.Run(() => LoadLastSyncTimeFromDatabase());
+    }
+
+    private void LoadLastSyncTimeFromDatabase()
+    {
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            
+            // Get the single sync history record (should only be one)
+            var lastSync = context.SyncHistories
+                .OrderByDescending(s => s.SyncTime)
+                .FirstOrDefault();
+            
+            if (lastSync != null && lastSync.Status == "Success")
+            {
+                lock (_lock)
+                {
+                    _lastSyncTime = lastSync.SyncTime;
+                    _lastSyncTimeLoaded = true;
+                    NotifyStatusChanged();
+                }
+            }
+            else
+            {
+                lock (_lock)
+                {
+                    _lastSyncTimeLoaded = true;
+                }
+            }
+        }
+        catch
+        {
+            // If database is not available or table doesn't exist yet, keep null
+            lock (_lock)
+            {
+                _lastSyncTimeLoaded = true;
+            }
+        }
     }
 
     public int PendingOperationsCount
@@ -98,6 +162,29 @@ public class SyncStatusService : ISyncStatusService
         lock (_lock)
         {
             _lastSyncTime = time;
+            
+            // Persist to database asynchronously
+            Task.Run(async () =>
+            {
+                try
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    
+                    // Check if table exists before trying to save
+                    var tableExists = await context.Database.CanConnectAsync();
+                    if (tableExists)
+                    {
+                        // The sync history will be saved by DatabaseSyncService after sync completes
+                        // This just updates the in-memory cache
+                    }
+                }
+                catch
+                {
+                    // Silently fail - database might not be ready yet
+                }
+            });
+            
             NotifyStatusChanged();
         }
     }

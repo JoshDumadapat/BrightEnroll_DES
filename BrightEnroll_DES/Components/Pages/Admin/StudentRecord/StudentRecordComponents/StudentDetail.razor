@@ -40,20 +40,40 @@
     <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
         <div class="px-6 py-4">
             <!-- Row 1: Name and Status -->
-            <div class="mb-2 flex items-center justify-between">
+            <div class="mb-3 flex items-center justify-between">
                 <h3 class="text-lg font-bold text-gray-800">@StudentData.FullName</h3>
-                <span class="rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@StudentData.Status</span>
+                @if (StudentData.Status == "Enrolled")
+                {
+                    <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@StudentData.Status</span>
+                }
+                else if (StudentData.Status == "Fully Paid")
+                {
+                    <span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@StudentData.Status</span>
+                }
+                else if (StudentData.Status == "Partially Paid")
+                {
+                    <span class="inline-flex items-center rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">@StudentData.Status</span>
+                }
+                else if (StudentData.Status == "For Payment")
+                {
+                    <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700">@StudentData.Status</span>
+                }
+                else
+                {
+                    <span class="inline-flex items-center rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">@StudentData.Status</span>
+                }
             </div>
             
-            <!-- Row 2: Grade and School Year -->
+            <!-- Row 2: Student ID and School Year -->
             <div class="mb-2 flex items-center justify-between">
-                <span class="text-sm text-gray-700">Grade: @StudentData.GradeLevel</span>
-                <span class="text-sm text-gray-700">S.Y.: @StudentData.SchoolYear</span>
-            </div>
-            
-            <!-- Row 3: Section -->
-            <div class="flex items-center justify-between">
-                <span class="text-sm text-gray-700">Section: @StudentData.Section</span>
+                <div class="flex flex-col">
+                    <span class="text-sm text-gray-700">Student ID: @StudentData.Id</span>
+                    <span class="text-sm text-gray-700 mt-1">LRN: @StudentData.LRN</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="text-sm text-gray-700">S.Y.: @StudentData.SchoolYear</span>
+                    <span class="text-sm text-gray-700 mt-1">Grade: @StudentData.GradeLevel | Section: @StudentData.Section</span>
+                </div>
             </div>
         </div>
     </div>
@@ -61,7 +81,10 @@
     <!-- Tab Content -->
     @if (SelectedTab == TabType.StudentInfo)
     {
-        <StudentInfo @key="@($"studentinfo-{SelectedTab}")" StudentData="StudentData" OnStudentUpdated="HandleStudentUpdated" />
+        <StudentInfo @key="@($"studentinfo-{SelectedTab}")" 
+                     StudentData="StudentData" 
+                     OnStudentUpdated="HandleStudentUpdated"
+                     OnEditingStateChanged="HandleEditingStateChanged" />
     }
     else if (SelectedTab == TabType.AcademicRecord)
     {
@@ -95,6 +118,7 @@
 
     private TabType SelectedTab { get; set; } = TabType.StudentInfo;
     private bool _hasInitialized = false;
+    private bool IsStudentInfoEditing { get; set; } = false;
 
     protected override void OnInitialized()
     {
@@ -154,14 +178,21 @@
         };
     }
 
-    private async Task OnBack()
-    {
-        await OnBackClick.InvokeAsync();
-    }
+    private bool ShowTabSwitchConfirmModal { get; set; } = false;
+    private TabType PendingTab { get; set; } = TabType.StudentInfo;
 
     private async Task SetActiveTab(TabType tab)
     {
         if (SelectedTab == tab) return;
+        
+        // Check if StudentInfo has unsaved changes before switching tabs
+        if (IsStudentInfoEditing && SelectedTab == TabType.StudentInfo)
+        {
+            PendingTab = tab;
+            ShowTabSwitchConfirmModal = true;
+            StateHasChanged();
+            return;
+        }
         
         SelectedTab = tab;
         StateHasChanged();
@@ -171,11 +202,119 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private void CloseTabSwitchConfirmModal()
+    {
+        ShowTabSwitchConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmTabSwitch()
+    {
+        ShowTabSwitchConfirmModal = false;
+        IsStudentInfoEditing = false; // Reset editing state
+        SelectedTab = PendingTab;
+        StateHasChanged();
+        
+        // Small delay to ensure DOM is ready before next operation
+        await Task.Delay(100);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleEditingStateChanged(bool isEditing)
+    {
+        IsStudentInfoEditing = isEditing;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool ShowBackConfirmModal { get; set; } = false;
+
+    private async Task OnBack()
+    {
+        // Check if StudentInfo has unsaved changes before going back
+        if (IsStudentInfoEditing)
+        {
+            ShowBackConfirmModal = true;
+            StateHasChanged();
+            return;
+        }
+        
+        await OnBackClick.InvokeAsync();
+    }
+
+    private void CloseBackConfirmModal()
+    {
+        ShowBackConfirmModal = false;
+        StateHasChanged();
+    }
+
+    private async Task ConfirmBack()
+    {
+        ShowBackConfirmModal = false;
+        IsStudentInfoEditing = false; // Reset editing state
+        await OnBackClick.InvokeAsync();
+    }
+
     private void HandleStudentUpdated(StudentDetailData updatedData)
     {
         StudentData = updatedData;
         // Refresh the component to show updated data
         StateHasChanged();
     }
+}
+
+<!-- Back Confirmation Modal -->
+@if (ShowBackConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseBackConfirmModal">
+        <div id="student-detail-back-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-yellow-600">Unsaved Changes</h3>
+                <button @onclick="CloseBackConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">You have unsaved changes. Are you sure you want to leave? All changes will be lost.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseBackConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    No, Keep Editing
+                </button>
+                <button @onclick="ConfirmBack" class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-600">
+                    Yes, Leave
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Tab Switch Confirmation Modal -->
+@if (ShowTabSwitchConfirmModal)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseTabSwitchConfirmModal">
+        <div id="student-detail-tab-switch-modal" class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-yellow-600">Unsaved Changes</h3>
+                <button @onclick="CloseTabSwitchConfirmModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">You have unsaved changes. Are you sure you want to switch tabs? All changes will be lost.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseTabSwitchConfirmModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    No, Keep Editing
+                </button>
+                <button @onclick="ConfirmTabSwitch" class="rounded-lg bg-yellow-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-yellow-600">
+                    Yes, Switch Tab
+                </button>
+            </div>
+        </div>
+    </div>
 }
 

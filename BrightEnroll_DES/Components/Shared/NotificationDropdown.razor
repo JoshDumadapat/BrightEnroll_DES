@@ -1,4 +1,4 @@
-﻿@namespace BrightEnroll_DES.Components.Shared
+@namespace BrightEnroll_DES.Components.Shared
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services.Business.Notifications
 @using System.Linq
@@ -353,6 +353,28 @@
         if (notification.NotificationType == "Expense" && actionUrl.Contains("tab=Approvals"))
         {
             actionUrl = "/finance?tab=Approvals&expense=true";
+        }
+        // Handle Payroll notifications - redirect to Finance Approvals with Payroll sub-tab
+        else if (notification.NotificationType == "Payroll")
+        {
+            // If notification is about pending approval or sending request, go to finance approvals with payroll tab
+            if (notification.Title.Contains("Pending Approval", StringComparison.OrdinalIgnoreCase) ||
+                notification.Title.Contains("Batch Payroll", StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrEmpty(notification.Message) && notification.Message.Contains("pending approval", StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrEmpty(notification.Message) && notification.Message.Contains("sent to Finance", StringComparison.OrdinalIgnoreCase)))
+            {
+                actionUrl = "/finance?tab=Approvals&payroll=true";
+            }
+            // If notification is about approved payroll, go to payroll records
+            else if (notification.Title.Contains("Approved", StringComparison.OrdinalIgnoreCase))
+            {
+                actionUrl = "/payroll?tab=Records";
+            }
+            // Otherwise, if actionUrl points to finance approvals, ensure payroll tab is active
+            else if (actionUrl.Contains("tab=Approvals") && actionUrl.Contains("finance"))
+            {
+                actionUrl = "/finance?tab=Approvals&payroll=true";
+            }
         }
         // Handle SalaryChange notifications
         else if (notification.NotificationType == "SalaryChange")

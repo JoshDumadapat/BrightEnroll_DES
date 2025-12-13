@@ -310,6 +310,62 @@ public class StudentService
             await _context.Entry(student).Reference(s => s.Guardian).LoadAsync();
             await _context.Entry(student).Collection(s => s.Requirements).LoadAsync();
 
+            // If registered by logged-in user (registrar/admin), set status to "For Payment"
+            // This allows the student to skip the "New Applicants" review step
+            if (_authService?.IsAuthenticated == true && _authService.CurrentUser != null)
+            {
+                // Check if user has student registration permission (registrar/admin/school personnel)
+                var userRole = _authService.CurrentUser.user_role;
+                if (!string.IsNullOrWhiteSpace(userRole) && 
+                    (userRole.Equals("Registrar", StringComparison.OrdinalIgnoreCase) ||
+                     userRole.Equals("Admin", StringComparison.OrdinalIgnoreCase) ||
+                     userRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                     userRole.Equals("School Personnel", StringComparison.OrdinalIgnoreCase)))
+                {
+                    student.Status = "For Payment";
+                    await _context.SaveChangesAsync();
+                    _logger?.LogInformation("Student {StudentId} status set to 'For Payment' (registered by {UserRole})", 
+                        student.StudentId, userRole);
+                }
+            }
+
+            // Create initial status log entry to track who registered the student
+            try
+            {
+                var initialStatus = student.Status ?? "Pending";
+                var changedByUserId = _authService?.CurrentUser?.user_ID;
+                var changedByName = _authService?.CurrentUser != null
+                    ? $"{_authService.CurrentUser.first_name} {_authService.CurrentUser.last_name}".Trim()
+                    : null;
+
+                // If no logged-in user, it was a public registration
+                if (changedByName == null)
+                {
+                    changedByName = "Public Registration";
+                }
+
+                var initialStatusLog = new StudentStatusLog
+                {
+                    StudentId = student.StudentId,
+                    OldStatus = "New", // Initial status before registration
+                    NewStatus = initialStatus,
+                    ChangedBy = changedByUserId,
+                    ChangedByName = changedByName,
+                    CreatedAt = student.DateRegistered
+                };
+
+                _context.StudentStatusLogs.Add(initialStatusLog);
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation("Created initial status log for student {StudentId} registered by {ChangedByName}", 
+                    student.StudentId, changedByName);
+            }
+            catch (Exception statusLogEx)
+            {
+                _logger?.LogWarning(statusLogEx, "Failed to create initial status log for student {StudentId}: {Message}", 
+                    student.StudentId, statusLogEx.Message);
+                // Don't throw - status log failure shouldn't break registration
+            }
+
             // Create enhanced audit log entry
             if (_auditLogService != null)
             {
@@ -325,7 +381,7 @@ public class StudentService
                         studentId: student.StudentId,
                         studentName: studentName,
                         grade: student.GradeLevel,
-                        studentStatus: student.Status,
+                        studentStatus: student.Status ?? "Pending",
                         registrarId: registrarId,
                         registrarName: registrarName,
                         ipAddress: null // Can be passed from component if needed
@@ -644,13 +700,150 @@ public class StudentService
 
     public async Task<Student?> GetStudentByIdAsync(string studentId)
     {
-        return await _context.Students
-            .Include(s => s.Guardian)
-            .Include(s => s.Requirements)
-            .Include(s => s.SectionEnrollments)
-                .ThenInclude(e => e.Section)
-                    .ThenInclude(sec => sec.GradeLevel)
-            .FirstOrDefaultAsync(s => s.StudentId == studentId);
+        try
+        {
+            // First, load the student WITHOUT includes to avoid NullReferenceException
+            // This is especially important for archived/withdrawn students who may have invalid foreign keys
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+            {
+                return null;
+            }
+
+            // Load Requirements separately (this is usually safe)
+            try
+            {
+                await _context.Entry(student)
+                    .Collection(s => s.Requirements)
+                    .LoadAsync();
+            }
+            catch (Exception reqEx)
+            {
+                _logger?.LogWarning(reqEx, "Error loading Requirements for student {StudentId}, continuing without them", studentId);
+                student.Requirements = new List<StudentRequirement>();
+            }
+
+            // Load Guardian separately with null check (Guardian might not exist for withdrawn students)
+            // Use explicit query to avoid NullReferenceException when Guardian foreign key is invalid
+            try
+            {
+                // Check if GuardianId is valid before trying to load
+                if (student.GuardianId > 0)
+                {
+                    var guardian = await _context.Guardians
+                        .FirstOrDefaultAsync(g => g.GuardianId == student.GuardianId);
+                    
+                    if (guardian != null)
+                    {
+                        // Manually set the Guardian navigation property
+                        _context.Entry(student)
+                            .Reference(s => s.Guardian)
+                            .CurrentValue = guardian;
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("Guardian {GuardianId} not found for student {StudentId} - this may cause issues if Guardian is accessed", student.GuardianId, studentId);
+                        // Don't set Guardian - let it remain unloaded
+                        // The calling code should handle null Guardian gracefully
+                    }
+                }
+            }
+            catch (Exception guardianEx)
+            {
+                _logger?.LogWarning(guardianEx, "Error loading Guardian for student {StudentId}, continuing without Guardian. Error: {Message}", studentId, guardianEx.Message);
+                // Don't throw - continue without Guardian
+                // This is especially important for withdrawn/archived students
+            }
+
+            // Load SectionEnrollments separately with null-safe filtering
+            // This prevents NullReferenceException when some enrollments have null Section references
+            // or when sections have null GradeLevel references (common for archived students)
+            try
+            {
+                // First, try to load with full includes (Section and GradeLevel)
+                var enrollments = await _context.StudentSectionEnrollments
+                    .Where(e => e.StudentId == studentId)
+                    .Include(e => e.Section)
+                        .ThenInclude(sec => sec.GradeLevel)
+                    .ToListAsync();
+
+                // Filter out enrollments with null Section references to prevent issues
+                // Only include enrollments that have valid Section references
+                student.SectionEnrollments = enrollments
+                    .Where(e => e.Section != null)
+                    .ToList();
+            }
+            catch (Exception enrollmentEx)
+            {
+                // If loading enrollments fails (e.g., due to null GradeLevel), 
+                // try loading without the nested GradeLevel include
+                _logger?.LogWarning(enrollmentEx, "Error loading SectionEnrollments with GradeLevel for student {StudentId}, trying without GradeLevel", studentId);
+                
+                try
+                {
+                    var enrollments = await _context.StudentSectionEnrollments
+                        .Where(e => e.StudentId == studentId && e.Section != null)
+                        .Include(e => e.Section!)
+                        .ToListAsync();
+
+                    student.SectionEnrollments = enrollments;
+                }
+                catch (Exception simpleEnrollmentEx)
+                {
+                    // If even that fails, just load enrollments without any includes
+                    _logger?.LogWarning(simpleEnrollmentEx, "Error loading SectionEnrollments with Section for student {StudentId}, loading without includes", studentId);
+                    
+                    var enrollments = await _context.StudentSectionEnrollments
+                        .Where(e => e.StudentId == studentId)
+                        .ToListAsync();
+
+                    student.SectionEnrollments = enrollments;
+                }
+            }
+
+            return student;
+        }
+        catch (Exception ex)
+        {
+            // Final fallback: try loading with minimal includes only
+            _logger?.LogWarning(ex, "Error loading student {StudentId} with standard query, trying minimal query", studentId);
+            
+            try
+            {
+                // Load student without any includes to avoid any navigation property issues
+                var student = await _context.Students
+                    .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+                if (student == null)
+                {
+                    return null;
+                }
+
+                // Try to load Requirements separately (usually safe)
+                try
+                {
+                    await _context.Entry(student)
+                        .Collection(s => s.Requirements)
+                        .LoadAsync();
+                }
+                catch
+                {
+                    student.Requirements = new List<StudentRequirement>();
+                }
+
+                // Don't load Guardian or SectionEnrollments in fallback - return minimal student data
+                student.SectionEnrollments = new List<StudentSectionEnrollment>();
+
+                return student;
+            }
+            catch (Exception fallbackEx)
+            {
+                _logger?.LogError(fallbackEx, "Error loading student {StudentId} even with minimal query: {Message}", studentId, fallbackEx.Message);
+                throw new Exception($"Failed to load student {studentId}: {fallbackEx.Message}", fallbackEx);
+            }
+        }
     }
 
     public async Task<List<Student>> GetAllStudentsAsync()
@@ -672,14 +865,17 @@ public class StudentService
         }
     }
 
-    /// <summary>
-    /// Gets students for the "Enrolled Student" tab - ONLY students with enrollment status "Enrolled"
-    /// Students with "For Payment", "Partially Paid", or "Fully Paid" should NOT appear here
-    /// </summary>
+    // Gets enrolled students for the Enrolled Student tab
+    // Queries from tbl_Student for current school year display
+    // Historical enrollment records are preserved for history and reports
     public async Task<List<EnrolledStudentDto>> GetEnrolledStudentsAsync(string? schoolYear = null)
     {
         try
         {
+            // Clear EF Core change tracker to ensure fresh data
+            // This prevents showing stale/cached enrollment records
+            _context.ChangeTracker.Clear();
+            
             // Get active school year if not provided
             if (string.IsNullOrEmpty(schoolYear))
             {
@@ -693,54 +889,105 @@ public class StudentService
             // Archived statuses - students with these statuses should NOT appear in student records
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
-            // CRITICAL: Only get students with enrollment records that have status "Enrolled"
-            // Students with "For Payment", "Partially Paid", or "Fully Paid" should appear in "For Enrollment" tab, NOT "Enrolled Student" tab
-            var enrollmentQuery = _context.StudentSectionEnrollments
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Requirements)
-                .Include(e => e.Section)
-                    .ThenInclude(sec => sec.GradeLevel)
-                .Where(e => e.Status == "Enrolled" && // ONLY enrolled students
-                           !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
+            // Query from tbl_Student directly for current school year display
+            // This ensures accurate display of all enrolled students for the current school year
+            var studentQuery = _context.Students
+                .Include(s => s.Requirements)
+                .Where(s => s.Status == "Enrolled" && // ONLY enrolled students
+                           !archivedStatuses.Contains(s.Status ?? "")); // Exclude archived students
 
             // Filter by school year if provided
             if (!string.IsNullOrEmpty(schoolYear))
             {
-                enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYear == schoolYear);
+                studentQuery = studentQuery.Where(s => s.SchoolYr == schoolYear);
             }
 
-            var enrollments = await enrollmentQuery
-                .OrderByDescending(e => e.Student.DateRegistered)
+            // Order by DateRegistered (DateRegistered is non-nullable, so no null check needed)
+            var students = await studentQuery
+                .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
+
+            // Get enrollment records for section information (optional - for display only)
+            // Historical records remain preserved in tbl_StudentSectionEnrollment
+            var studentIds = students.Select(s => s.StudentId).ToList();
+            var enrollmentRecords = await _context.StudentSectionEnrollments
+                .Include(e => e.Section)
+                    .ThenInclude(sec => sec.GradeLevel)
+                .Where(e => studentIds.Contains(e.StudentId) && 
+                           (!string.IsNullOrEmpty(schoolYear) ? e.SchoolYear == schoolYear : true) &&
+                           e.Status == "Enrolled")
+                .ToListAsync();
+
+            // Create a dictionary for quick lookup of enrollment info by student ID
+            // Prioritize current school year enrollments, then most recent by CreatedAt
+            var enrollmentDict = enrollmentRecords
+                .GroupBy(e => e.StudentId)
+                .ToDictionary(g => g.Key, g => g
+                    .OrderByDescending(e => !string.IsNullOrEmpty(schoolYear) && e.SchoolYear == schoolYear)
+                    .ThenByDescending(e => e.CreatedAt)
+                    .FirstOrDefault());
 
             var result = new List<EnrolledStudentDto>();
 
-            // Add ONLY students with "Enrolled" status
-            foreach (var enrollment in enrollments)
+            // Build result from students table
+            foreach (var student in students)
             {
-                var s = enrollment.Student;
-
-                var fullName = $"{s.FirstName} {s.MiddleName} {s.LastName}"
+                var fullName = $"{student.FirstName} {student.MiddleName} {student.LastName}"
                     .Replace("  ", " ")
                     .Trim();
 
                 var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
-                    s.Requirements, s.StudentType);
+                    student.Requirements, student.StudentType);
 
-                // Use grade level from enrollment's section (at enrollment time), NOT from student's main record
-                // This ensures historical accuracy - grade level at enrollment time is preserved
-                var gradeLevelAtEnrollment = enrollment.Section?.GradeLevel?.GradeLevelName ?? "N/A";
+                // FIXED: Prioritize student.GradeLevel (updated during re-enrollment) over enrollment record
+                // This ensures re-enrolled students show the correct updated grade level
+                var enrollment = enrollmentDict.GetValueOrDefault(student.StudentId);
+                
+                // Prioritize student's GradeLevel (updated during re-enrollment) over enrollment record's grade level
+                // Enrollment record's grade level might be outdated if it was created before re-enrollment
+                // Only use enrollment record's grade level if student.GradeLevel is missing
+                string gradeLevel;
+                string section;
+                
+                // Grade Level: Prioritize student.GradeLevel (updated during re-enrollment)
+                if (!string.IsNullOrWhiteSpace(student.GradeLevel))
+                {
+                    gradeLevel = student.GradeLevel;
+                }
+                else if (enrollment != null && enrollment.Section != null)
+                {
+                    // Load section's grade level if not already loaded
+                    if (enrollment.Section.GradeLevel == null)
+                    {
+                        await _context.Entry(enrollment.Section).Reference(s => s.GradeLevel).LoadAsync();
+                    }
+                    gradeLevel = enrollment.Section.GradeLevel?.GradeLevelName ?? "N/A";
+                }
+                else
+                {
+                    gradeLevel = "N/A";
+                }
+                
+                // Section: Get from enrollment record (section assignment is in enrollment record)
+                if (enrollment != null && enrollment.Section != null)
+                {
+                    section = enrollment.Section.SectionName ?? "N/A";
+                }
+                else
+                {
+                    section = "N/A";
+                }
                 
                 result.Add(new EnrolledStudentDto
                 {
-                    Id = s.StudentId,
+                    Id = student.StudentId,
                     Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
-                    LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
-                    Date = s.DateRegistered.ToString("dd MMM yyyy"),
-                    GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
-                    Section = enrollment.Section?.SectionName ?? "N/A",
+                    LRN = string.IsNullOrWhiteSpace(student.Lrn) ? "N/A" : student.Lrn!,
+                    Date = student.DateRegistered.ToString("dd MMM yyyy"),
+                    GradeLevel = gradeLevel,
+                    Section = section,
                     Documents = docsVerified ? "Validated" : "Not Validated",
-                    Status = "Enrolled" // Always "Enrolled" since we filtered for this status
+                    Status = "Enrolled"
                 });
             }
 
@@ -753,80 +1000,258 @@ public class StudentService
         }
     }
 
-    /// <summary>
-    /// Gets all student records for the Student Record page - ONLY shows enrolled students (status = "Enrolled")
-    /// This should NOT include applicants or students with "For Payment", "Partially Paid", or "Fully Paid" status
-    /// </summary>
-    public async Task<List<EnrolledStudentDto>> GetAllStudentRecordsAsync(string? schoolYear = null)
+    // Gets all student records for the Student Record page
+    // Queries from tbl_Student directly with optional school year and status filters
+    // Excludes archived students (Graduated, Transferred, Withdrawn, etc.)
+    public async Task<List<EnrolledStudentDto>> GetAllStudentRecordsAsync(string? schoolYear = null, string? status = null)
     {
         try
         {
-            // Get active school year if not provided
-            if (string.IsNullOrEmpty(schoolYear))
-            {
-                var activeSY = await _context.SchoolYears
-                    .Where(sy => sy.IsActive && sy.IsOpen)
-                    .Select(sy => sy.SchoolYearName)
-                    .FirstOrDefaultAsync();
-                schoolYear = activeSY;
-            }
+            // Clear EF Core change tracker to ensure fresh data
+            // This prevents showing stale/cached enrollment records
+            _context.ChangeTracker.Clear();
             
             // Archived statuses - students with these statuses should NOT appear in student records
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
-            // CRITICAL: Only get students with enrollment records that have status "Enrolled"
-            // Students with "For Payment", "Partially Paid", or "Fully Paid" should NOT appear in Student Record
-            // This matches the behavior of GetEnrolledStudentsAsync
-            var enrollmentQuery = _context.StudentSectionEnrollments
-                .Include(e => e.Student)
-                    .ThenInclude(s => s.Requirements)
-                .Include(e => e.Section)
-                    .ThenInclude(sec => sec.GradeLevel)
-                .Where(e => e.Status == "Enrolled" && // ONLY enrolled students
-                           !archivedStatuses.Contains(e.Student.Status ?? "")); // Exclude archived students
+            // Query from tbl_Student directly
+            var studentQuery = _context.Students
+                .Include(s => s.Requirements)
+                .Where(s => !archivedStatuses.Contains(s.Status ?? "")); // Exclude archived students
 
-            // Filter by school year if provided
-            if (!string.IsNullOrEmpty(schoolYear))
+            // Filter by school year if provided (null = "All Years")
+            // Special handling: "current" means current active school year
+            if (!string.IsNullOrEmpty(schoolYear) && schoolYear.ToLower() != "all")
             {
-                enrollmentQuery = enrollmentQuery.Where(e => e.SchoolYear == schoolYear);
+                if (schoolYear.ToLower() == "current")
+                {
+                    var activeSY = await _context.SchoolYears
+                        .Where(sy => sy.IsActive && sy.IsOpen)
+                        .Select(sy => sy.SchoolYearName)
+                        .FirstOrDefaultAsync();
+                    if (!string.IsNullOrEmpty(activeSY))
+                    {
+                        studentQuery = studentQuery.Where(s => s.SchoolYr == activeSY);
+                    }
+                }
+                else
+                {
+                    studentQuery = studentQuery.Where(s => s.SchoolYr == schoolYear);
+                }
             }
 
-            var enrollments = await enrollmentQuery
-                .OrderByDescending(e => e.Student.DateRegistered)
+            // Filter by status if provided (null = "All Statuses")
+            if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
+            {
+                studentQuery = studentQuery.Where(s => s.Status == status);
+            }
+
+            // Force fresh query from database - use AsNoTracking to prevent EF Core caching
+            // This ensures we get the latest grade_level from tbl_Student
+            var students = await studentQuery
+                .AsNoTracking() // CRITICAL: Prevent EF Core from caching student entities
+                .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
 
-            // NOTE: Removed students with ledgers but no enrollment records
-            // Student Record should ONLY show enrolled students, not applicants or students in payment process
+            // Get current active school year FIRST - needed for enrollment prioritization
+            var currentActiveSchoolYear = await _context.SchoolYears
+                .Where(sy => sy.IsActive && sy.IsOpen)
+                .Select(sy => sy.SchoolYearName)
+                .FirstOrDefaultAsync();
+            
+            // Get enrollment records for section/grade info if filtering by specific school year
+            var studentIds = students.Select(s => s.StudentId).ToList();
+            var enrollmentRecords = new List<StudentSectionEnrollment>();
+            
+            if (!string.IsNullOrEmpty(schoolYear) && schoolYear.ToLower() != "all")
+            {
+                var targetSchoolYear = schoolYear.ToLower() == "current" 
+                    ? currentActiveSchoolYear
+                    : schoolYear;
+
+                if (!string.IsNullOrEmpty(targetSchoolYear))
+                {
+                    enrollmentRecords = await _context.StudentSectionEnrollments
+                        .AsNoTracking() // Prevent caching of enrollment records
+                        .Include(e => e.Section)
+                            .ThenInclude(sec => sec.GradeLevel)
+                        .Where(e => studentIds.Contains(e.StudentId) && e.SchoolYear == targetSchoolYear)
+                        .ToListAsync();
+                }
+            }
+            else
+            {
+                // For "All Years", get latest enrollment for each student
+                // Prioritize current active school year enrollment, then most recent
+                var allEnrollments = await _context.StudentSectionEnrollments
+                    .AsNoTracking() // Prevent caching of enrollment records
+                    .Include(e => e.Section)
+                        .ThenInclude(sec => sec.GradeLevel)
+                    .Where(e => studentIds.Contains(e.StudentId))
+                    .ToListAsync();
+                
+                // Group by student and get the most relevant enrollment
+                // Prioritize current school year enrollment, then most recent
+                enrollmentRecords = allEnrollments
+                    .GroupBy(e => e.StudentId)
+                    .Select(g =>
+                    {
+                        // If current school year exists, prioritize enrollments from current year
+                        // Prefer "Enrolled" status, but accept any status for current year
+                        if (!string.IsNullOrEmpty(currentActiveSchoolYear))
+                        {
+                            var currentYearEnrollments = g
+                                .Where(e => e.SchoolYear == currentActiveSchoolYear)
+                                .ToList();
+                            
+                            if (currentYearEnrollments.Any())
+                            {
+                                // Prefer "Enrolled" status, then most recent
+                                var enrolledCurrentYear = currentYearEnrollments
+                                    .Where(e => e.Status == "Enrolled")
+                                    .OrderByDescending(e => e.CreatedAt)
+                                    .FirstOrDefault();
+                                
+                                if (enrolledCurrentYear != null)
+                                {
+                                    return enrolledCurrentYear;
+                                }
+                                
+                                // If no "Enrolled" status, get most recent for current year
+                                return currentYearEnrollments
+                                    .OrderByDescending(e => e.CreatedAt)
+                                    .FirstOrDefault();
+                            }
+                        }
+                        
+                        // Otherwise, get the most recent enrollment by school year and creation date
+                        // Prefer "Enrolled" status
+                        var enrolledRecent = g
+                            .Where(e => e.Status == "Enrolled")
+                            .OrderByDescending(e => e.SchoolYear)
+                            .ThenByDescending(e => e.CreatedAt)
+                            .FirstOrDefault();
+                        
+                        if (enrolledRecent != null)
+                        {
+                            return enrolledRecent;
+                        }
+                        
+                        // If no "Enrolled" status, get most recent by school year
+                        return g
+                            .OrderByDescending(e => e.SchoolYear)
+                            .ThenByDescending(e => e.CreatedAt)
+                            .FirstOrDefault();
+                    })
+                    .Where(e => e != null)
+                    .Cast<StudentSectionEnrollment>()
+                    .ToList();
+            }
+            
+            // Create dictionary for quick lookup of enrollment info by student ID
+            // Since enrollmentRecords already contains the prioritized enrollment per student,
+            // we can just create a simple dictionary (each student should have at most one enrollment in the list)
+            var enrollmentDict = enrollmentRecords
+                .GroupBy(e => e.StudentId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault());
+
+            // Create dictionary for student info (DateRegistered and SchoolYr) for sorting
+            var studentInfoDict = students.ToDictionary(s => s.StudentId, s => new 
+            { 
+                DateRegistered = s.DateRegistered,
+                SchoolYr = s.SchoolYr
+            });
 
             var result = new List<EnrolledStudentDto>();
 
-            // Add students from enrollment records (only "Enrolled" status)
-            foreach (var enrollment in enrollments)
+            // Build result from students table
+            foreach (var student in students)
             {
-                var s = enrollment.Student;
-
-                var fullName = $"{s.FirstName} {s.MiddleName} {s.LastName}"
+                var fullName = $"{student.FirstName} {student.MiddleName} {student.LastName}"
                     .Replace("  ", " ")
                     .Trim();
 
                 var docsVerified = DocumentsVerifiedHelper.CalculateDocumentsVerified(
-                    s.Requirements, s.StudentType);
+                    student.Requirements, student.StudentType);
 
-                // Use grade level from enrollment's section (at enrollment time), NOT from student's main record
-                // This ensures historical accuracy - grade level at enrollment time is preserved
-                var gradeLevelAtEnrollment = enrollment.Section?.GradeLevel?.GradeLevelName ?? "N/A";
+                // FIXED: ALWAYS use tbl_Student.grade_level directly - this is the source of truth
+                // The grade_level column in tbl_Student is updated during re-enrollment and enrollment
+                // Enrollment records are only used for section information, NOT for grade level
+                var enrollment = enrollmentDict.GetValueOrDefault(student.StudentId);
+                
+                // ALWAYS use student's main GradeLevel from tbl_Student (database column: grade_level)
+                // This ensures the UI always shows the correct grade level from the database
+                string gradeLevel = student.GradeLevel ?? "N/A";
+                
+                // For section, use enrollment record if it exists for current year, otherwise "N/A"
+                string section = "N/A";
+                if (enrollment != null && enrollment.Section != null)
+                {
+                    // Check if enrollment is for current school year
+                    bool isCurrentYearEnrollment = !string.IsNullOrEmpty(currentActiveSchoolYear) && 
+                                                   enrollment.SchoolYear == currentActiveSchoolYear;
+                    
+                    // For current year, use the enrollment's section
+                    // For historical records, also use enrollment's section for display
+                    if (isCurrentYearEnrollment || string.IsNullOrEmpty(currentActiveSchoolYear))
+                    {
+                        section = enrollment.Section.SectionName ?? "N/A";
+                    }
+                    else
+                    {
+                        // For historical enrollments, still show section but log it
+                        section = enrollment.Section.SectionName ?? "N/A";
+                    }
+                }
+                
+                // Log for debugging - verify we're using tbl_Student.grade_level
+                _logger?.LogInformation(
+                    "Student {StudentId} - Using tbl_Student.grade_level={GradeLevel} (SchoolYr={SchoolYr}), Section={Section} from enrollment",
+                    student.StudentId, gradeLevel, student.SchoolYr, section);
                 
                 result.Add(new EnrolledStudentDto
                 {
-                    Id = s.StudentId,
+                    Id = student.StudentId,
                     Name = string.IsNullOrWhiteSpace(fullName) ? "N/A" : fullName,
-                    LRN = string.IsNullOrWhiteSpace(s.Lrn) ? "N/A" : s.Lrn!,
-                    Date = s.DateRegistered.ToString("dd MMM yyyy"),
-                    GradeLevel = gradeLevelAtEnrollment, // Use enrollment's grade level, not student's current grade
-                    Section = enrollment.Section?.SectionName ?? "N/A",
+                    LRN = string.IsNullOrWhiteSpace(student.Lrn) ? "N/A" : student.Lrn!,
+                    Date = student.DateRegistered.ToString("dd MMM yyyy"),
+                    GradeLevel = gradeLevel,
+                    Section = section,
                     Documents = docsVerified ? "Validated" : "Not Validated",
-                    Status = enrollment.Status ?? s.Status ?? "Enrolled" // Use enrollment status, fallback to student status, then "Enrolled"
+                    Status = student.Status ?? "N/A"
                 });
+            }
+
+            // Sort: Enrolled students from current school year first, then others
+            if (!string.IsNullOrEmpty(currentActiveSchoolYear))
+            {
+                result = result.OrderByDescending(s =>
+                {
+                    // Check if student is enrolled and from current school year
+                    var studentInfo = studentInfoDict.GetValueOrDefault(s.Id);
+                    var isEnrolledCurrentYear = s.Status == "Enrolled" && 
+                                                studentInfo != null && 
+                                                studentInfo.SchoolYr == currentActiveSchoolYear;
+                    return isEnrolledCurrentYear;
+                })
+                .ThenByDescending(s => s.Status == "Enrolled") // Then other enrolled students
+                .ThenByDescending(s => 
+                {
+                    var studentInfo = studentInfoDict.GetValueOrDefault(s.Id);
+                    return studentInfo?.DateRegistered ?? DateTime.MinValue;
+                }) // Then by registration date
+                .ToList();
+            }
+            else
+            {
+                // If no current school year, just sort by enrolled status and date
+                result = result.OrderByDescending(s => s.Status == "Enrolled")
+                              .ThenByDescending(s => 
+                              {
+                                  var studentInfo = studentInfoDict.GetValueOrDefault(s.Id);
+                                  return studentInfo?.DateRegistered ?? DateTime.MinValue;
+                              })
+                              .ToList();
             }
 
             return result;
@@ -943,16 +1368,20 @@ public class StudentService
                 ? model.LearnerReferenceNo
                 : null;
             
-            // Update student.SchoolYr and student.GradeLevel for:
-            // 1. New students (no existing enrollments)
-            // 2. Re-enrolled students with "For Payment" status (they need grade promotion)
+            // FIXED: Always update SchoolYr when enrolling (Status = "Enrolled") to ensure student appears in enrolled tab
+            // Also update GradeLevel when enrolling for a specific school year
             var hasExistingEnrollments = student.SectionEnrollments != null && student.SectionEnrollments.Any();
             var isReEnrolledForPayment = hasExistingEnrollments && 
                                          (student.Status == "For Payment" || student.Status == "Partially Paid" || student.Status == "Fully Paid");
+            var isEnrolling = model.Status == "Enrolled" && !string.IsNullOrWhiteSpace(model.SchoolYear);
             
-            if (!hasExistingEnrollments || isReEnrolledForPayment)
+            // Update SchoolYr and GradeLevel for:
+            // 1. New students (no existing enrollments)
+            // 2. Re-enrolled students with "For Payment" status (they need grade promotion)
+            // 3. Students being enrolled (Status = "Enrolled") - ALWAYS update for enrollment
+            if (!hasExistingEnrollments || isReEnrolledForPayment || isEnrolling)
             {
-                // New student or re-enrolled student - safe to set SchoolYr and GradeLevel
+                // New student, re-enrolled student, or enrolling student - update SchoolYr and GradeLevel
                 if (!string.IsNullOrWhiteSpace(model.SchoolYear))
                 {
                     student.SchoolYr = model.SchoolYear;
@@ -1107,6 +1536,20 @@ public class StudentService
                             CreatedAt = DateTime.Now
                         };
                         _context.StudentSectionEnrollments.Add(newEnrollment);
+                        
+                        // FIXED: When creating new enrollment, update student's GradeLevel from the section's grade level
+                        // This ensures student record shows correct grade level after enrollment
+                        if (targetSection != null)
+                        {
+                            await _context.Entry(targetSection).Reference(s => s.GradeLevel).LoadAsync();
+                            if (targetSection.GradeLevel != null && !string.IsNullOrWhiteSpace(targetSection.GradeLevel.GradeLevelName))
+                            {
+                                student.GradeLevel = targetSection.GradeLevel.GradeLevelName;
+                                _logger?.LogInformation(
+                                    "Updated student {StudentId} grade level to {GradeLevel} from assigned section {SectionName}",
+                                    student.StudentId, targetSection.GradeLevel.GradeLevelName, targetSection.SectionName);
+                            }
+                        }
                     }
                     else
                     {
@@ -1121,6 +1564,20 @@ public class StudentService
                         existingEnrollment.SectionId = model.SectionId.Value;
                         existingEnrollment.Status = "Enrolled";
                         existingEnrollment.UpdatedAt = DateTime.Now;
+                        
+                        // FIXED: When enrolling, update student's GradeLevel from the section's grade level
+                        // This ensures student record shows correct grade level after enrollment
+                        if (targetSection != null)
+                        {
+                            await _context.Entry(targetSection).Reference(s => s.GradeLevel).LoadAsync();
+                            if (targetSection.GradeLevel != null && !string.IsNullOrWhiteSpace(targetSection.GradeLevel.GradeLevelName))
+                            {
+                                student.GradeLevel = targetSection.GradeLevel.GradeLevelName;
+                                _logger?.LogInformation(
+                                    "Updated student {StudentId} grade level to {GradeLevel} from assigned section {SectionName}",
+                                    student.StudentId, targetSection.GradeLevel.GradeLevelName, targetSection.SectionName);
+                            }
+                        }
                     }
                 }
             }
@@ -1193,6 +1650,8 @@ public class StudentService
                 }
             }
             
+            // FIXED: Update student Status - this is critical for student to appear in "Enrolled" tab
+            // GetEnrolledStudentsAsync filters by s.Status == "Enrolled" AND s.SchoolYr == schoolYear
             if (!string.IsNullOrWhiteSpace(model.Status) && model.Status.Length > 20)
             {
                 student.Status = model.Status.Substring(0, 20);
@@ -1202,6 +1661,19 @@ public class StudentService
             else
             {
                 student.Status = model.Status;
+            }
+            
+            // FIXED: Ensure SchoolYr is set when enrolling - critical for student to appear in enrolled tab
+            // GetEnrolledStudentsAsync requires both Status = "Enrolled" AND SchoolYr = schoolYear
+            if (model.Status == "Enrolled" && !string.IsNullOrWhiteSpace(model.SchoolYear))
+            {
+                if (student.SchoolYr != model.SchoolYear)
+                {
+                    student.SchoolYr = model.SchoolYear;
+                    _logger?.LogInformation(
+                        "Updated student {StudentId} SchoolYr to {SchoolYear} during enrollment",
+                        student.StudentId, model.SchoolYear);
+                }
             }
 
             // Update guardian if exists

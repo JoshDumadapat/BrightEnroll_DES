@@ -1,4 +1,4 @@
-﻿@page "/settings"
+@page "/settings"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.Authentication
@@ -18,43 +18,101 @@
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
 <div class="text-gray-800">
-    <h1 class="mb-6 text-2xl font-bold text-gray-800">Settings</h1>
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Settings</h1>
+    </div>
     <div class="mx-auto max-w-3xl">
         <div class="mb-6 flex justify-start">
             <button @onclick="GoToDashboard" class="flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-700 hover:shadow-lg">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
-                Back
+                <span>Back</span>
             </button>
         </div>
 
-        <!-- Account Settings -->
-        <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
-        <div class="px-6 py-6">
-            <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                <h5 class="text-lg font-bold text-gray-800">Account Settings</h5>
-            </div>
-            
-            <div class="space-y-4">
-                <div class="flex items-center justify-between border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                    <span class="font-medium text-gray-700">Notifications</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input type="checkbox" @bind="notificationEnabled" class="peer sr-only" />
-                        <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
-                    </label>
+        <!-- School Year Management (Admin Only) - Enhanced Module Style -->
+        @if (IsAdminUser())
+        {
+            <div class="mb-6 overflow-hidden rounded-xl bg-gradient-to-br from-blue-50 via-white to-indigo-50 shadow-lg border-2 border-blue-200 relative">
+                <!-- Decorative background pattern -->
+                <div class="absolute inset-0 opacity-5">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl"></div>
+                    <div class="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500 rounded-full blur-3xl"></div>
                 </div>
                 
-                <div class="flex items-center justify-between border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                    <span class="font-medium text-gray-700">Dark Mode</span>
-                    <label class="relative inline-flex cursor-pointer items-center">
-                        <input type="checkbox" @bind="darkModeEnabled" class="peer sr-only" />
-                        <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
-                    </label>
+                <div class="relative px-8 py-10">
+                    <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                        <div class="flex items-start gap-6 flex-1 min-w-0">
+                            <div class="flex-shrink-0 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 shadow-xl transform transition-transform hover:scale-110">
+                                <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex flex-wrap items-center gap-3 mb-3">
+                                    <h5 class="text-2xl font-bold text-gray-800">School Year Management</h5>
+                                    <span class="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold whitespace-nowrap">Admin Only</span>
+                                </div>
+                                <p class="text-sm text-gray-600 leading-relaxed mb-4">Manage academic periods, control which school year is active, and configure enrollment settings for your institution</p>
+                                
+                                <!-- Quick stats or info badges -->
+                                <div class="flex flex-wrap items-center gap-4">
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <svg class="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span class="whitespace-nowrap">Academic Control</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 text-xs text-gray-600">
+                                        <svg class="h-4 w-4 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span class="whitespace-nowrap">Year Configuration</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 w-full lg:w-auto">
+                            <button @onclick="GoToSchoolYearManagement" 
+                                    class="w-full lg:w-auto flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 px-6 py-3.5 text-sm font-bold text-white shadow-xl transition-all duration-200 hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 hover:shadow-2xl hover:scale-105 transform">
+                                <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span class="whitespace-nowrap">Manage School Years</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- Account Settings -->
+        <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
+            <div class="px-6 py-6">
+                <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                    <h5 class="text-lg font-bold text-gray-800">Account Settings</h5>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                        <span class="font-medium text-gray-700 flex-1">Notifications</span>
+                        <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                            <input type="checkbox" @bind="notificationEnabled" class="peer sr-only" />
+                            <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                        <span class="font-medium text-gray-700 flex-1">Dark Mode</span>
+                        <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                            <input type="checkbox" @bind="darkModeEnabled" class="peer sr-only" />
+                            <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
     <!-- Privacy & Security -->
     <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
@@ -65,12 +123,12 @@
             
             <div class="space-y-4">
                 <!-- OTP & Email Verification Toggle -->
-                <div class="flex items-center justify-between border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
-                    <div class="flex flex-col">
+                <div class="flex items-center justify-between gap-4 border-b border-gray-200 pb-4 last:border-b-0 last:pb-0">
+                    <div class="flex flex-col flex-1 min-w-0">
                         <span class="font-medium text-gray-700">OTP & Email Verification</span>
                         <span class="text-xs text-gray-500">Enable two-factor authentication via OTP and email</span>
                     </div>
-                    <label class="relative inline-flex cursor-pointer items-center">
+                    <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
                         <input type="checkbox" @bind="otpEmailVerificationEnabled" @bind:after="OnOtpEmailVerificationChanged" class="peer sr-only" />
                         <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
                     </label>
@@ -82,28 +140,28 @@
                     <div class="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
                         <h6 class="text-sm font-semibold text-gray-700">Security Contact Information</h6>
                         
-                        <div class="space-y-2">
+                        <div class="space-y-3">
                             <div>
-                                <label class="text-xs font-medium text-gray-600">Phone Number</label>
-                                <div class="mt-1 flex items-center gap-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-600">Phone Number</label>
+                                <div class="flex items-center gap-2">
                                     <input type="text" @bind="currentPhoneNumber" 
                                            class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
                                            placeholder="Enter phone number" />
                                     <button @onclick="UpdatePhoneNumber" 
-                                            class="rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-all hover:bg-blue-700">
+                                            class="flex-shrink-0 rounded bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-all hover:bg-blue-700 whitespace-nowrap">
                                         Update
                                     </button>
                                 </div>
                             </div>
                             
                             <div>
-                                <label class="text-xs font-medium text-gray-600">Email Address</label>
-                                <div class="mt-1 flex items-center gap-2">
+                                <label class="mb-1 block text-xs font-medium text-gray-600">Email Address</label>
+                                <div class="flex items-center gap-2">
                                     <input type="email" @bind="currentEmail" 
                                            class="flex-1 rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
                                            placeholder="Enter email address" />
                                     <button @onclick="UpdateEmail" 
-                                            class="rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-all hover:bg-blue-700">
+                                            class="flex-shrink-0 rounded bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-all hover:bg-blue-700 whitespace-nowrap">
                                         Update
                                     </button>
                                 </div>
@@ -115,14 +173,14 @@
                 <!-- Change Password Section -->
                 <div class="border-t border-gray-200 pt-4">
                     <button @onclick="ToggleChangePasswordForm" 
-                            class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                            class="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-700">
                         Change Password
                     </button>
 
                     @if (showChangePasswordForm)
                     {
-                        <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
-                            <h6 class="text-sm font-semibold text-gray-700">Update Your Password</h6>
+                        <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5 space-y-4">
+                            <h6 class="text-sm font-semibold text-gray-700 mb-1">Update Your Password</h6>
                             
                             @if (!string.IsNullOrEmpty(passwordErrorMessage))
                             {
@@ -140,14 +198,14 @@
 
                             <!-- Current Password -->
                             <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700">Current Password</label>
+                                <label class="mb-1.5 block text-xs font-medium text-gray-700">Current Password</label>
                                 <div class="relative">
                                     <input type="@(showCurrentPassword ? "text" : "password")" 
                                            @bind="currentPassword" 
-                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(currentPasswordError ? "border-red-500" : "")" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(currentPasswordError ? "border-red-500" : "")" 
                                            placeholder="Enter your current password" />
                                     <button type="button" @onclick="ToggleCurrentPasswordVisibility" 
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
                                         @if (showCurrentPassword)
                                         {
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,15 +225,15 @@
 
                             <!-- New Password -->
                             <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700">New Password</label>
+                                <label class="mb-1.5 block text-xs font-medium text-gray-700">New Password</label>
                                 <div class="relative">
                                     <input type="@(showNewPassword ? "text" : "password")" 
                                            @bind="newPassword" 
                                            @oninput="OnNewPasswordChanged"
-                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(newPasswordError ? "border-red-500" : "")" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(newPasswordError ? "border-red-500" : "")" 
                                            placeholder="Enter your new password" />
                                     <button type="button" @onclick="ToggleNewPasswordVisibility" 
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
                                         @if (showNewPassword)
                                         {
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,15 +279,15 @@
 
                             <!-- Confirm New Password -->
                             <div>
-                                <label class="mb-1 block text-xs font-medium text-gray-700">Confirm New Password</label>
+                                <label class="mb-1.5 block text-xs font-medium text-gray-700">Confirm New Password</label>
                                 <div class="relative">
                                     <input type="@(showConfirmPassword ? "text" : "password")" 
                                            @bind="confirmPassword" 
                                            @oninput="OnConfirmPasswordChanged"
-                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(confirmPasswordError ? "border-red-500" : "")" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 @(confirmPasswordError ? "border-red-500" : "")" 
                                            placeholder="Confirm your new password" />
                                     <button type="button" @onclick="ToggleConfirmPasswordVisibility" 
-                                            class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
+                                            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
                                         @if (showConfirmPassword)
                                         {
                                             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,18 +305,18 @@
                                 </div>
                                 @if (confirmPasswordError)
                                 {
-                                    <p class="mt-1 text-xs text-red-600">Passwords do not match</p>
+                                    <p class="mt-1.5 text-xs text-red-600">Passwords do not match</p>
                                 }
                             </div>
 
                             <!-- Action Buttons -->
-                            <div class="flex gap-2 pt-2">
+                            <div class="flex flex-col sm:flex-row gap-2 pt-2">
                                 <button @onclick="SubmitPasswordChange" 
-                                        class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                                        class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-700">
                                     Update Password
                                 </button>
                                 <button @onclick="CancelPasswordChange" 
-                                        class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                                        class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
                                     Cancel
                                 </button>
                             </div>
@@ -269,48 +327,20 @@
         </div>
     </div>
 
-    <!-- School Year Management (Admin Only) -->
-    @if (IsAdminUser())
-    {
-        <div class="mb-6 overflow-hidden rounded-xl bg-gradient-to-br from-white to-blue-50/30 shadow-lg border border-blue-100">
-            <div class="px-6 py-6">
-                <div class="mb-4 flex items-center justify-between border-b border-blue-200 pb-4">
-                    <div class="flex items-start gap-4">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-md">
-                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h5 class="text-lg font-bold text-gray-800">School Year Management</h5>
-                            <p class="mt-1 text-sm text-gray-600">Manage academic periods and control which school year is active</p>
-                        </div>
-                    </div>
-                    <button @onclick="GoToSchoolYearManagement" 
-                            class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg hover:scale-105">
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Manage School Years
-                    </button>
-                </div>
-            </div>
-        </div>
-    }
 
     <!-- School Information (Admin Only) -->
     @if (IsAdminUser())
     {
-        <div class="mb-6 overflow-hidden rounded-xl bg-gradient-to-br from-white to-indigo-50/30 shadow-lg border border-indigo-100">
+        <div class="mb-6 overflow-hidden rounded-xl bg-gradient-to-br from-white to-blue-50/30 shadow-lg border border-blue-100">
             <div class="px-6 py-6">
-                <div class="mb-6 flex items-center justify-between border-b border-indigo-200 pb-4">
-                    <div class="flex items-center gap-4">
-                        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 shadow-md">
+                <div class="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-blue-200 pb-4">
+                    <div class="flex items-center gap-4 flex-1 min-w-0">
+                        <div class="flex-shrink-0 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-md">
                             <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                             </svg>
                         </div>
-                        <div>
+                        <div class="flex-1 min-w-0">
                             <h5 class="text-lg font-bold text-gray-800">School Information</h5>
                             <p class="mt-0.5 text-xs text-gray-500">View and manage your school's details</p>
                         </div>
@@ -318,11 +348,11 @@
                     @if (!isEditingSchoolInfo)
                     {
                         <button @onclick="ToggleEditSchoolInfo" 
-                                class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-600 to-indigo-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-indigo-700 hover:to-indigo-800 hover:shadow-lg hover:scale-105">
+                                class="flex-shrink-0 flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg hover:scale-105 w-full sm:w-auto">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            Edit
+                            <span>Edit</span>
                         </button>
                     }
                 </div>
@@ -334,7 +364,7 @@
                         <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
                             <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                                     </svg>
                                     <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Name</label>
@@ -343,7 +373,7 @@
                             </div>
                             <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
                                     </svg>
                                     <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">School Code</label>
@@ -352,7 +382,7 @@
                             </div>
                             <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                                     </svg>
                                     <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Contact Number</label>
@@ -361,7 +391,7 @@
                             </div>
                             <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                     </svg>
                                     <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email</label>
@@ -370,7 +400,7 @@
                             </div>
                             <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
                                     </svg>
                                     <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">Website</label>
@@ -381,7 +411,7 @@
                         
                         <div class="rounded-lg border border-gray-200 bg-white/60 p-4 transition-all hover:bg-white hover:shadow-sm">
                             <div class="flex items-center gap-2 mb-3">
-                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
@@ -551,14 +581,14 @@
                         </div>
 
                         <!-- Action Buttons -->
-                        <div class="flex gap-2 pt-4 border-t border-gray-200">
-                            <button @onclick="SaveSchoolInfo" 
-                                    class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-blue-700">
-                                Save
-                            </button>
+                        <div class="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-200">
                             <button @onclick="CancelEditSchoolInfo" 
-                                    class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                                    class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
                                 Cancel
+                            </button>
+                            <button @onclick="SaveSchoolInfo" 
+                                    class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-700">
+                                Save
                             </button>
                         </div>
                     </div>
@@ -571,13 +601,13 @@
     <div class="mb-6 overflow-hidden rounded-xl bg-white shadow">
         <div class="px-6 py-6">
             <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
-                <div class="flex items-center gap-3">
-                    <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
                         <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                     </div>
-                    <div>
+                    <div class="flex-1 min-w-0">
                         <h5 class="text-lg font-bold text-gray-800">School Policy & Government Laws</h5>
                         <p class="text-xs text-gray-500">Comprehensive guide to school policies and Philippine education laws</p>
                     </div>
@@ -586,10 +616,10 @@
             
             <div class="space-y-2">
                 <button @onclick="OpenPolicyDocumentation" class="w-full rounded-lg border border-blue-600 bg-blue-600 px-4 py-3 text-sm font-medium text-white transition-all hover:bg-blue-700 flex items-center justify-center gap-2">
-                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg class="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    View Policy & Laws Documentation
+                    <span class="whitespace-nowrap">View Policy & Laws Documentation</span>
                 </button>
             </div>
         </div>
@@ -603,11 +633,11 @@
             </div>
             
             <div class="space-y-2">
-                <button @onclick="GoToContactSupport" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
+                <button @onclick="GoToContactSupport" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
                     Contact Support
                 </button>
                 
-                <button @onclick="GoToDocumentation" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
+                <button @onclick="GoToDocumentation" class="w-full rounded-lg border border-blue-600 bg-white px-4 py-2.5 text-sm font-medium text-blue-600 transition-all hover:bg-blue-50">
                     View Documentation
                 </button>
             </div>

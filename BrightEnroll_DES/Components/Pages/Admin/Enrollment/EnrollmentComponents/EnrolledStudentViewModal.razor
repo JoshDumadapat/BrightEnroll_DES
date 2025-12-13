@@ -1,0 +1,745 @@
+@namespace BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
+@using BrightEnroll_DES.Models
+@using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
+@using BrightEnroll_DES.Services.Business.Academic
+@using BrightEnroll_DES.Data.Models
+@using System.Linq
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Logging
+
+@if (Show)
+{
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick:stopPropagation="true">
+    <div class="relative w-full max-w-5xl max-h-[90vh] flex flex-col rounded-2xl bg-white shadow-xl modal-scroll"
+         @onclick:stopPropagation="true">
+
+        <!-- Header - Fixed, not scrollable -->
+        <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-green-700 rounded-t-2xl flex-shrink-0">
+            <div>
+                <h2 class="text-lg font-semibold text-white">View Enrolled Student</h2>
+                <p class="text-xs text-green-100">Review enrolled student information from tbl_Student.</p>
+            </div>
+            <button @onclick="OnCancelClicked"
+                    class="rounded-full p-1 text-green-100 hover:bg-green-600 hover:text-white">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Body - Scrollable -->
+        <div class="px-4 py-4 sm:px-6 sm:py-5 md:px-8 md:py-6 overflow-y-auto flex-1">
+            @if (EditContext == null || Model == null)
+            {
+                <div class="flex items-center justify-center py-12 text-gray-500">
+                    <svg class="mr-2 h-5 w-5 animate-spin text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Loading student data...
+                </div>
+            }
+            else
+            {
+                <EditForm EditContext="@EditContext">
+                    <DataAnnotationsValidator />
+
+                    <!-- Personal Information -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-green-600 sm:mb-6 sm:text-xl">Personal Information</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    First Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.FirstName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                                <InputText @bind-Value="Model.MiddleName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Last Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.LastName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
+                                <InputSelect @bind-Value="Model.Suffix"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">N/A</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Birth Date <span class="text-red-500">*</span>
+                                </label>
+                                <InputDate @bind-Value="Model.BirthDate"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Age <span class="text-red-500">*</span>
+                                </label>
+                                <InputNumber @bind-Value="Model.Age"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Place of Birth <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.PlaceOfBirth"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Sex <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.Sex"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">Select</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Mother Tongue <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.MotherTongue"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">Select</option>
+                                    <option value="Tagalog">Tagalog</option>
+                                    <option value="Cebuano">Cebuano</option>
+                                    <option value="Ilocano">Ilocano</option>
+                                    <option value="Hiligaynon">Hiligaynon</option>
+                                    <option value="Waray">Waray</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Indigenous Peoples (IP) Community?
+                                </label>
+                                <InputRadioGroup @bind-Value="Model.IsIPCommunity">
+                                    <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("Yes")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                        </label>
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("No")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                        </label>
+                                    </div>
+                                </InputRadioGroup>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    If Yes, please specify:
+                                </label>
+                                <InputSelect @bind-Value="Model.IPCommunitySpecify"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">N/A</option>
+                                    <option value="Lumad">Lumad</option>
+                                    <option value="Manobo">Manobo</option>
+                                    <option value="B'laan">B'laan</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                            </div>
+
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    4Ps Beneficiary?
+                                </label>
+                                <InputRadioGroup @bind-Value="Model.Is4PsBeneficiary">
+                                    <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("Yes")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                        </label>
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("No")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                        </label>
+                                    </div>
+                                </InputRadioGroup>
+                                <label class="mt-3 mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    If Yes, 4Ps Household ID:
+                                </label>
+                                <InputText @bind-Value="Model.FourPsHouseholdId"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base"
+                                           placeholder="N/A" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Current Address -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-green-600 sm:mb-6 sm:text-xl">Current Address</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-3 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    House No./Street
+                                </label>
+                                <InputText @bind-Value="Model.CurrentHouseNo"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Street Name
+                                </label>
+                                <InputText @bind-Value="Model.CurrentStreetName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Barangay <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentBarangay"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Province <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentProvince"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Municipality/City <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentCity"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Country <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentCountry"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    ZIP Code <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.CurrentZipCode"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Permanent Address -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-green-600 sm:mb-6 sm:text-xl">Permanent Address</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-3 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    House No./Street
+                                </label>
+                                <InputText @bind-Value="Model.PermanentHouseNo"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Street Name
+                                </label>
+                                <InputText @bind-Value="Model.PermanentStreetName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Barangay
+                                </label>
+                                <InputText @bind-Value="Model.PermanentBarangay"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Province
+                                </label>
+                                <InputText @bind-Value="Model.PermanentProvince"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Municipality/City
+                                </label>
+                                <InputText @bind-Value="Model.PermanentCity"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Country
+                                </label>
+                                <InputText @bind-Value="Model.PermanentCountry"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    ZIP Code
+                                </label>
+                                <InputText @bind-Value="Model.PermanentZipCode"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Guardian Information -->
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-green-600 sm:mb-6 sm:text-xl">Guardian Information</h2>
+
+                        <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    First Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianFirstName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
+                                <InputText @bind-Value="Model.GuardianMiddleName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Last Name <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianLastName"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Suffix
+                                </label>
+                                <InputSelect @bind-Value="Model.GuardianSuffix"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">N/A</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Contact Number <span class="text-red-500">*</span>
+                                </label>
+                                <InputText @bind-Value="Model.GuardianContactNumber"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Relationship <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.GuardianRelationship"
+                                             disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">Select Relationship</option>
+                                    <option value="Father">Father</option>
+                                    <option value="Mother">Mother</option>
+                                    <option value="Guardian">Guardian</option>
+                                    <option value="Other">Other</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-6 border-gray-200 sm:my-8" />
+
+                    <!-- Enrollment Details -->
+                    <div class="mb-6 sm:mb-8">
+                        <h2 class="mb-4 text-lg font-bold text-green-600 sm:mb-6 sm:text-xl">Enrollment Details</h2>
+
+                        <div class="mb-4">
+                            <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
+                                Student Type <span class="text-red-500">*</span>
+                            </label>
+                            <InputRadioGroup @bind-Value="Model.StudentType">
+                                <div class="flex flex-wrap gap-4 sm:gap-6">
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputRadio Value="@("New Student")" class="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">New Student</span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputRadio Value="@("Returnee")" class="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Returnee</span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputRadio Value="@("Transferee")" class="h-4 w-4 border-gray-300 text-green-600 focus:ring-green-500" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">Transferee</span>
+                                    </label>
+                                </div>
+                            </InputRadioGroup>
+                        </div>
+
+                        <div class="mb-4 grid grid-cols-1 gap-3 sm:mb-6 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    With LRN?
+                                </label>
+                                <InputRadioGroup @bind-Value="Model.HasLRN">
+                                    <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("Yes")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">Yes</span>
+                                        </label>
+                                        <label class="flex cursor-not-allowed items-center">
+                                            <InputRadio Value="@("No")" disabled="true" class="h-4 w-4 border-gray-300 text-green-600" />
+                                            <span class="ml-2 text-xs text-gray-700 sm:text-sm">No</span>
+                                        </label>
+                                    </div>
+                                </InputRadioGroup>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    LRN
+                                </label>
+                                <InputText @bind-Value="Model.LearnerReferenceNo"
+                                           disabled="true"
+                                           class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base" />
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    School Year <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.SchoolYear"
+                                             disabled="true"
+                                             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">Select School Year</option>
+                                    @foreach (var sy in AvailableSchoolYears)
+                                    {
+                                        <option value="@sy">@sy</option>
+                                    }
+                                </InputSelect>
+                                <p class="mt-1 text-xs text-gray-500">School year from tbl_Student (read-only)</p>
+                            </div>
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Grade to Enroll <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.GradeToEnroll"
+                                             disabled="true"
+                                             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="">Select Grade</option>
+                                    @foreach (var gradeLevel in AvailableGradeLevels)
+                                    {
+                                        <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
+                                    }
+                                </InputSelect>
+                                <p class="mt-1 text-xs text-gray-500">Grade level from tbl_Student (read-only)</p>
+                            </div>
+                        </div>
+
+                        <!-- Requirements -->
+                        <div class="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
+                            <label class="mb-2 block text-xs font-medium text-gray-700 sm:mb-3 sm:text-sm">
+                                Requirements
+                            </label>
+                            <div class="space-y-2">
+                                @if (Model.StudentType == "New Student")
+                                {
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasPSABirthCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            PSA Birth Certificate (photocopy &amp; original for verification)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasBaptismalCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Baptismal Certificate (if applicable, for Catholic schools)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasReportCard" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Report Card / Form 138 (from preschool if available)
+                                        </span>
+                                    </label>
+                                }
+                                else if (Model.StudentType == "Transferee")
+                                {
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasPSABirthCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            PSA Birth Certificate
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasBaptismalCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Baptismal Certificate (if applicable)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm138" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 138 (Report Card)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm137" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 137 (Permanent Record)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasGoodMoralCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Certificate of Good Moral Character
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasTransferCert" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Transfer Certificate / Honorable Dismissal
+                                        </span>
+                                    </label>
+                                }
+                                else if (Model.StudentType == "Returnee")
+                                {
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasForm138" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Form 138 (Report Card)
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasUpdatedEnrollmentForm" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Updated Enrollment Form
+                                        </span>
+                                    </label>
+                                    <label class="flex cursor-not-allowed items-center">
+                                        <InputCheckbox @bind-Value="Model.HasClearance" disabled="true" class="h-4 w-4 rounded border-gray-300 text-green-600" />
+                                        <span class="ml-2 text-xs text-gray-700 sm:text-sm">
+                                            Clearance (if required)
+                                        </span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- Status field -->
+                        <div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                            <div>
+                                <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                    Application Status <span class="text-red-500">*</span>
+                                </label>
+                                <InputSelect @bind-Value="Model.Status"
+                                             disabled="true"
+                                             class="w-full rounded-lg border border-gray-300 bg-green-50 px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    <option value="Enrolled">Enrolled</option>
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                </InputSelect>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="mt-4 flex flex-col justify-end gap-3 sm:flex-row sm:gap-4">
+                        <button type="button"
+                                @onclick="OnCancelClicked"
+                                class="min-w-[120px] rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                            Close
+                        </button>
+                    </div>
+                </EditForm>
+            }
+        </div>
+    </div>
+</div>
+}
+
+<style>
+    .modal-scroll {
+        scrollbar-width: none;
+    }
+
+    .modal-scroll::-webkit-scrollbar {
+        display: none;
+    }
+</style>
+
+@code {
+    [Parameter] public bool Show { get; set; }
+    [Parameter] public StudentEditModel? Model { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private EditContext? EditContext;
+    private List<string> AvailableSchoolYears { get; set; } = new();
+    private List<GradeLevel> AvailableGradeLevels { get; set; } = new();
+
+    [Inject] private SchoolYearService SchoolYearService { get; set; } = null!;
+    [Inject] private CurriculumService CurriculumService { get; set; } = null!;
+    [Inject] private ILogger<EnrolledStudentViewModal>? Logger { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load school years
+        AvailableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+
+        // Load grade levels for dropdown
+        await LoadGradeLevelsAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Model != null && (EditContext == null || EditContext.Model != Model))
+        {
+            EditContext = new EditContext(Model);
+        }
+
+        // Reload grade levels and school years when modal is shown to ensure data is fresh
+        if (Show && Model != null)
+        {
+            await LoadGradeLevelsAsync();
+            AvailableSchoolYears = await SchoolYearService.GetAvailableSchoolYearsAsync();
+            
+            // CRITICAL: Preserve Model.SchoolYear and Model.GradeToEnroll from tbl_Student
+            // These values come directly from student.SchoolYr and student.GradeLevel
+            var originalSchoolYear = Model.SchoolYear?.Trim() ?? string.Empty;
+            var originalGradeToEnroll = Model.GradeToEnroll?.Trim() ?? string.Empty;
+            
+            // Ensure student's school year is in the available options
+            if (!string.IsNullOrWhiteSpace(originalSchoolYear) && 
+                !AvailableSchoolYears.Any(sy => string.Equals(sy?.Trim(), originalSchoolYear, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableSchoolYears.Add(originalSchoolYear);
+            }
+            
+            // Ensure student's grade level is in the available options
+            if (!string.IsNullOrWhiteSpace(originalGradeToEnroll) && 
+                !AvailableGradeLevels.Any(g => g.GradeLevelName != null && 
+                                               string.Equals(g.GradeLevelName.Trim(), originalGradeToEnroll, StringComparison.OrdinalIgnoreCase)))
+            {
+                AvailableGradeLevels.Add(new GradeLevel { GradeLevelName = originalGradeToEnroll });
+            }
+            
+            // Ensure values are set correctly (trimmed and not empty)
+            Model.SchoolYear = originalSchoolYear;
+            Model.GradeToEnroll = originalGradeToEnroll;
+            
+            // Force EditContext to recognize the changes and update the UI
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.SchoolYear)));
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GradeToEnroll)));
+            }
+            
+            // Force UI update to ensure dropdowns display the correct values
+            StateHasChanged();
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Show && Model != null)
+        {
+            Logger?.LogInformation(
+                "EnrolledStudentViewModal OnAfterRenderAsync - Dropdowns should display: SchoolYear={SchoolYear}, GradeToEnroll={GradeToEnroll}",
+                Model.SchoolYear, Model.GradeToEnroll);
+            
+            // Force another update after first render to ensure dropdowns are properly bound
+            if (EditContext != null)
+            {
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.SchoolYear)));
+                EditContext.NotifyFieldChanged(new Microsoft.AspNetCore.Components.Forms.FieldIdentifier(EditContext.Model, nameof(Model.GradeToEnroll)));
+                StateHasChanged();
+            }
+        }
+        
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task LoadGradeLevelsAsync()
+    {
+        try
+        {
+            var gradeLevels = await CurriculumService.GetAllGradeLevelsAsync();
+            AvailableGradeLevels = gradeLevels.OrderBy(g => g.GradeLevelId).ToList();
+        }
+        catch (Exception)
+        {
+            AvailableGradeLevels = new List<GradeLevel>();
+        }
+    }
+
+    private async Task OnCancelClicked()
+    {
+        if (OnCancel.HasDelegate)
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+}
+

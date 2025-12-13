@@ -1,4 +1,4 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 @implements IDisposable
 @using System.Threading.Tasks
 @using Microsoft.JSInterop
@@ -185,6 +185,7 @@
     private string connectivityMessage = "";
 
     private System.Threading.CancellationTokenSource? _notificationRefreshTokenSource;
+    private System.Threading.Timer? _connectivityToastTimer;
     private bool _isDisposed = false;
 
     protected override async Task OnInitializedAsync()
@@ -244,7 +245,24 @@
             connectivityService.SetServiceScopeFactory(ServiceScopeFactory);
         }
         
+        // Start monitoring and ensure initial toast flag is set
         await ConnectivityService.StartMonitoringAsync();
+        
+        // If initial toast hasn't been shown yet, set the flag so subsequent changes will show toast
+        // This handles cases where user is already logged in and MainLayout loads directly
+        if (!ConnectivityService.HasShownInitialToast)
+        {
+            // Perform initial check and set flag after a short delay to avoid showing on initial load
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1000); // Wait 1 second for initial load to complete
+                await ConnectivityService.CheckConnectivityAsync();
+                await InvokeAsync(() =>
+                {
+                    ConnectivityService.HasShownInitialToast = true;
+                });
+            });
+        }
     }
 
     private async Task LoadNotificationCount()
@@ -290,9 +308,13 @@
 
     private void OnConnectivityChanged(object? sender, bool isConnected)
     {
-        // Only show toast if initial toast has been shown (connection change, not initial load)
+        // Always show toast for connectivity changes (after initial setup)
+        // The flag ensures we don't show on very first load, but we want to show on all subsequent changes
         if (ConnectivityService.HasShownInitialToast)
         {
+            // Cancel any existing auto-hide timer
+            _connectivityToastTimer?.Dispose();
+            
             isOnline = isConnected;
             connectivityMessage = isConnected 
                 ? "You are now online. Data will sync to cloud." 
@@ -301,12 +323,20 @@
             showConnectivityToast = true;
             InvokeAsync(StateHasChanged);
             
-            // Auto-hide after 3 seconds
-            _ = Task.Delay(3000).ContinueWith(_ =>
+            // Auto-hide after 5 seconds (increased from 3 for better visibility)
+            _connectivityToastTimer = new System.Threading.Timer(_ =>
+            {
+                InvokeAsync(() =>
             {
                 showConnectivityToast = false;
-                InvokeAsync(StateHasChanged);
+                    StateHasChanged();
             });
+            }, null, 5000, Timeout.Infinite);
+        }
+        else
+        {
+            // If flag not set yet, set it now so future changes will show toast
+            ConnectivityService.HasShownInitialToast = true;
         }
     }
 
@@ -315,6 +345,7 @@
         _isDisposed = true;
         _notificationRefreshTokenSource?.Cancel();
         _notificationRefreshTokenSource?.Dispose();
+        _connectivityToastTimer?.Dispose();
         ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
     }
 

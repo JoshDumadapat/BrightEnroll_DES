@@ -1,6 +1,5 @@
 @namespace BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents.FeeSetupModal
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
-@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRComponents
 @using BrightEnroll_DES.Components.Pages.Admin.HumanResource.HRCS
 @using BrightEnroll_DES.Components
@@ -56,8 +55,8 @@
                         }
                     </div>
 
-                    <!-- Row 2: Four Columns for Fee Breakdowns -->
-                    <div class="mb-4 grid grid-cols-4 gap-4">
+                    <!-- Row 2: Three Columns for Fee Breakdowns -->
+                    <div class="mb-4 grid grid-cols-3 gap-4">
                         <!-- Tuition Fee Column -->
                         <div class="flex flex-col">
                             <label class="mb-2 block text-base font-medium text-gray-700">
@@ -210,57 +209,6 @@
                                        class="w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 py-2.5 text-base text-right text-gray-700 outline-none" />
                             </div>
                         </div>
-
-                        <!-- Discount Column -->
-                        <div class="flex flex-col">
-                            <label class="mb-2 block text-base font-medium text-gray-700">
-                                Discount
-                            </label>
-                            <div class="flex flex-col border border-gray-200 rounded-lg bg-gray-50" style="max-height: 280px;">
-                                <div class="overflow-y-auto flex-1 p-2 space-y-2">
-                                    @foreach (var item in DiscountBreakdown)
-                                    {
-                                        <div class="flex flex-col gap-1 bg-white p-2 rounded border border-gray-200">
-                                            <input type="text" @bind="item.Name" @bind:after="@(() => { FormatItemName(item); OnDiscountChanged(); })" 
-                                                   placeholder="Item name"
-                                                   class="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
-                                            <div class="flex items-center gap-1">
-                                                <div class="relative flex-1">
-                                                    <span class="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
-                                                    <input type="text" 
-                                                           value="@GetAmountDisplayValue(item)" 
-                                                           @oninput='(e) => HandleAmountInput(e, item, "discount")' 
-                                                           onkeypress="return (event.key === '.' && this.value.includes('.')) ? false : (/[0-9.]/i.test(event.key) || event.key === 'Backspace' || event.key === 'Delete' || event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'Tab' || event.key === 'Enter')"
-                                                           @onpaste='(e) => HandleAmountPaste(e, item, "discount")' 
-                                                           @onfocus='(e) => HandleAmountFocus(e, item)' 
-                                                           @onblur='(e) => HandleAmountBlur(e, item, "discount")' 
-                                                           pattern="[0-9.]*"
-                                                           inputmode="decimal"
-                                                           placeholder="0.00"
-                                                           class="w-full rounded border border-gray-300 bg-white pl-7 pr-2 py-1.5 text-sm text-right text-gray-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-400" />
-                                                </div>
-                                                <button type="button" @onclick="() => OnRemoveDiscountItem(item)" 
-                                                        class="rounded bg-red-50 p-1.5 text-red-600 hover:bg-red-100">
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
-                                <button type="button" @onclick="OnAddDiscountItem" 
-                                        class="mx-2 mb-2 rounded-full border border-dashed border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 hover:bg-gray-100">
-                                    + Add Item
-                                </button>
-                            </div>
-                            <div class="relative mt-2">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base text-gray-600">₱</span>
-                                <input type="text" value="@FormData.DiscountFeeString" readonly
-                                       placeholder="0.00"
-                                       class="w-full rounded-lg border border-gray-300 bg-gray-50 pl-8 pr-3 py-2.5 text-base text-right text-gray-700 outline-none" />
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Total Fee -->
@@ -385,7 +333,6 @@
     private List<FeeBreakdownItem> TuitionBreakdown { get; set; } = new();
     private List<FeeBreakdownItem> MiscBreakdown { get; set; } = new();
     private List<FeeBreakdownItem> OtherBreakdown { get; set; } = new();
-    private List<FeeBreakdownItem> DiscountBreakdown { get; set; } = new();
     private List<GradeLevel> availableGradeLevels = new();
     
     // Get grade levels that are available (not already having fees)
@@ -409,7 +356,7 @@
         }
     }
 
-    private decimal TotalFee => FormData.TuitionFee + FormData.MiscFee + FormData.OtherFee - FormData.DiscountFee;
+    private decimal TotalFee => FormData.TuitionFee + FormData.MiscFee + FormData.OtherFee;
     
     // Track which item is being edited for formatting
     private FeeBreakdownItem? editingAmountItem = null;
@@ -552,7 +499,6 @@
         TuitionBreakdown = new List<FeeBreakdownItem>();
         MiscBreakdown = new List<FeeBreakdownItem>();
         OtherBreakdown = new List<FeeBreakdownItem>();
-        DiscountBreakdown = new List<FeeBreakdownItem>();
         amountRawInputs.Clear();
         editingAmountItem = null;
         validationErrors.Clear();
@@ -591,11 +537,9 @@
                TuitionBreakdown.Any() ||
                MiscBreakdown.Any() ||
                OtherBreakdown.Any() ||
-               DiscountBreakdown.Any() ||
                FormData.TuitionFee > 0 ||
                FormData.MiscFee > 0 ||
-               FormData.OtherFee > 0 ||
-               FormData.DiscountFee > 0;
+               FormData.OtherFee > 0;
     }
 
     private async Task HandleBackdropClick()
@@ -699,7 +643,7 @@
         bool hasOtherItems = OtherBreakdown.Any(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0);
         
         // Validate individual items
-        var allItems = TuitionBreakdown.Concat(MiscBreakdown).Concat(OtherBreakdown).Concat(DiscountBreakdown).ToList();
+        var allItems = TuitionBreakdown.Concat(MiscBreakdown).Concat(OtherBreakdown).ToList();
         foreach (var item in allItems)
         {
             if (string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0)
@@ -740,11 +684,11 @@
                 TuitionFee = FormData.TuitionFee,
                 MiscFee = FormData.MiscFee,
                 OtherFee = FormData.OtherFee,
-                DiscountFee = FormData.DiscountFee,
+                DiscountFee = 0, // Discount removed from Add Fee modal
                 TuitionBreakdown = TuitionBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList(),
                 MiscBreakdown = MiscBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList(),
                 OtherBreakdown = OtherBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList(),
-                DiscountBreakdown = DiscountBreakdown.Where(item => !string.IsNullOrWhiteSpace(item.Name) && item.Amount > 0).ToList()
+                DiscountBreakdown = new List<FeeBreakdownItem>() // Discount removed from Add Fee modal
             };
             
             await OnSubmit.InvokeAsync(fee);
@@ -830,25 +774,6 @@
         StateHasChanged();
     }
 
-    private void OnAddDiscountItem()
-    {
-        DiscountBreakdown.Add(new FeeBreakdownItem());
-        StateHasChanged();
-    }
-
-    private void OnRemoveDiscountItem(FeeBreakdownItem item)
-    {
-        DiscountBreakdown.Remove(item);
-        OnDiscountChanged();
-    }
-
-    private void OnDiscountChanged()
-    {
-        var total = DiscountBreakdown.Sum(item => item.Amount);
-        FormData.DiscountFeeString = total.ToString("N2");
-        StateHasChanged();
-    }
-
     // Get display value for amount field (formatted with commas)
     private string GetAmountDisplayValue(FeeBreakdownItem item)
     {
@@ -917,8 +842,6 @@
                     OnMiscChanged();
                 else if (category == "other")
                     OnOtherChanged();
-                else if (category == "discount")
-                    OnDiscountChanged();
                 
                 StateHasChanged();
             }
@@ -1019,8 +942,6 @@
                 OnMiscChanged();
             else if (category == "other")
                 OnOtherChanged();
-            else if (category == "discount")
-                OnDiscountChanged();
         }
         else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
         {
@@ -1031,8 +952,6 @@
                 OnMiscChanged();
             else if (category == "other")
                 OnOtherChanged();
-            else if (category == "discount")
-                OnDiscountChanged();
         }
         
         // Force update the input field to reflect the cleaned value immediately

@@ -75,6 +75,9 @@ public class AppDbContext : DbContext
     public DbSet<PayrollTransaction> PayrollTransactions { get; set; }
     public DbSet<TimeRecord> TimeRecords { get; set; }
 
+    // Discount tables
+    public DbSet<Discount> Discounts { get; set; }
+
     // Inventory & Asset Management tables
     public DbSet<Asset> Assets { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
@@ -86,6 +89,10 @@ public class AppDbContext : DbContext
 
     // School Year Management
     public DbSet<SchoolYear> SchoolYears { get; set; }
+
+    // Sync History and Logs
+    public DbSet<SyncHistory> SyncHistories { get; set; }
+    public DbSet<SyncLog> SyncLogs { get; set; }
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -1135,6 +1142,33 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SchoolYearName)
                   .HasMaxLength(20)
                   .IsRequired();
+        });
+
+        // Configure SyncHistory entity
+        modelBuilder.Entity<SyncHistory>(entity =>
+        {
+            entity.HasKey(e => e.SyncId);
+            entity.ToTable("tbl_SyncHistory");
+            entity.HasIndex(e => e.SyncTime);
+            entity.HasIndex(e => e.SyncType);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => new { e.SyncType, e.SyncTime });
+        });
+
+        // Configure SyncLog entity
+        modelBuilder.Entity<SyncLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+            entity.ToTable("tbl_SyncLogs");
+            entity.HasIndex(e => e.SyncId);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.LogType);
+            entity.HasIndex(e => new { e.SyncId, e.Timestamp });
+
+            entity.HasOne(e => e.SyncHistory)
+                  .WithMany()
+                  .HasForeignKey(e => e.SyncId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

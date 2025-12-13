@@ -16,15 +16,17 @@ public class SchoolYearService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Gets all available school years from database
-    /// </summary>
+    // Gets all available school years from database
     public async Task<List<string>> GetAvailableSchoolYearsAsync()
     {
         try
         {
+            // Clear change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
             var schoolYears = await _context.SchoolYears
-                .OrderBy(sy => sy.SchoolYearName)
+                .AsNoTracking()
+                .OrderByDescending(sy => sy.SchoolYearName)
                 .Select(sy => sy.SchoolYearName)
                 .ToListAsync();
             
@@ -33,19 +35,21 @@ public class SchoolYearService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error getting available school years: {Message}", ex.Message);
-            // Fallback to current school year calculation
-            return new List<string> { GetCurrentSchoolYear() };
+            // Return empty list instead of fallback to allow proper error handling
+            return new List<string>();
         }
     }
 
-    /// <summary>
-    /// Gets all school years as entities (for UI display)
-    /// </summary>
+    // Gets all school years as entities for UI display
     public async Task<List<SchoolYear>> GetAllSchoolYearsAsync()
     {
         try
         {
+            // Clear change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
             return await _context.SchoolYears
+                .AsNoTracking()
                 .OrderByDescending(sy => sy.SchoolYearName)
                 .ToListAsync();
         }
@@ -56,14 +60,16 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Gets the currently active/open school year
-    /// </summary>
+    // Gets the currently active/open school year
     public async Task<SchoolYear?> GetActiveSchoolYearAsync()
     {
         try
         {
+            // Clear change tracker to ensure fresh data
+            _context.ChangeTracker.Clear();
+            
             return await _context.SchoolYears
+                .AsNoTracking()
                 .FirstOrDefaultAsync(sy => sy.IsActive && sy.IsOpen);
         }
         catch (Exception ex)
@@ -73,18 +79,14 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Gets the currently active school year name (string)
-    /// </summary>
+    // Gets the currently active school year name as string
     public async Task<string?> GetActiveSchoolYearNameAsync()
     {
         var activeYear = await GetActiveSchoolYearAsync();
         return activeYear?.SchoolYearName;
     }
 
-    /// <summary>
-    /// Checks if a school year is open
-    /// </summary>
+    // Checks if a school year is open
     public async Task<bool> IsSchoolYearOpenAsync(string schoolYear)
     {
         try
@@ -119,9 +121,7 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Adds a new school year to the database
-    /// </summary>
+    // Adds a new school year to the database
     public async Task<bool> AddSchoolYearAsync(string schoolYear, DateTime? startDate = null, DateTime? endDate = null)
     {
         try
@@ -151,6 +151,9 @@ public class SchoolYearService
 
             _context.SchoolYears.Add(newSchoolYear);
             await _context.SaveChangesAsync();
+            
+            // Clear change tracker to ensure fresh data on next query
+            _context.ChangeTracker.Clear();
 
             _logger?.LogInformation("School year {SchoolYear} added successfully", schoolYear);
             return true;
@@ -162,9 +165,7 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Removes a school year from the database
-    /// </summary>
+    // Removes a school year from the database
     public async Task<bool> RemoveSchoolYearAsync(string schoolYear)
     {
         try
@@ -195,9 +196,7 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Opens a school year (closes all others)
-    /// </summary>
+    // Opens a school year and closes all others
     public async Task<bool> OpenSchoolYearAsync(string schoolYear)
     {
         try
@@ -217,9 +216,11 @@ public class SchoolYearService
             {
                 if (year.SchoolYearId != sy.SchoolYearId)
                 {
+                    // FIXED: Check if was previously open BEFORE setting IsOpen to false
+                    bool wasOpen = year.IsOpen;
                     year.IsActive = false;
                     year.IsOpen = false;
-                    if (year.IsOpen) // Was previously open
+                    if (wasOpen) // Was previously open - set closed timestamp
                     {
                         year.ClosedAt = DateTime.Now;
                     }
@@ -244,9 +245,7 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Closes a school year
-    /// </summary>
+    // Closes a school year
     public async Task<bool> CloseSchoolYearAsync(string schoolYear)
     {
         try
@@ -276,9 +275,7 @@ public class SchoolYearService
         }
     }
 
-    /// <summary>
-    /// Gets the current school year based on date calculation (fallback method)
-    /// </summary>
+    // Gets the current school year based on date calculation (fallback method)
     public string GetCurrentSchoolYear()
     {
         var currentYear = DateTime.Now.Year;
@@ -295,9 +292,9 @@ public class SchoolYearService
     }
 
 
-    /// <summary>
-    /// Removes finished school years (those that have ended)
-    /// </summary>
+    // Removes finished school years that have ended
+    // FIXED: Only removes school years that have been closed for at least 30 days
+    // This prevents recently closed school years from being deleted immediately when opening a new school year
     public async Task RemoveFinishedSchoolYearsAsync()
     {
         try
@@ -314,6 +311,10 @@ public class SchoolYearService
                 currentEndYear = currentYear;
             }
 
+            // Minimum days after closing before a school year can be auto-deleted
+            // This prevents recently closed school years from being deleted immediately
+            const int MIN_DAYS_SINCE_CLOSING = 30;
+
             // Get all school years
             var allSchoolYears = await _context.SchoolYears.ToListAsync();
 
@@ -323,14 +324,48 @@ public class SchoolYearService
                 if (string.IsNullOrWhiteSpace(sy.SchoolYearName))
                     return false;
 
+                // Don't delete if still active or open
+                if (sy.IsActive || sy.IsOpen)
+                    return false;
+
                 var parts = sy.SchoolYearName.Split('-');
                 if (parts.Length != 2)
                     return false;
 
                 if (int.TryParse(parts[1], out int endYear))
                 {
-                    // Remove if the end year is before the current end year AND not active/open
-                    return endYear < currentEndYear && !sy.IsActive && !sy.IsOpen;
+                    // Must be a past school year (end year is before current end year)
+                    if (endYear >= currentEndYear)
+                        return false;
+
+                    // FIXED: Only delete if it has been closed for at least MIN_DAYS_SINCE_CLOSING days
+                    // This prevents recently closed school years from being deleted immediately
+                    if (sy.ClosedAt.HasValue)
+                    {
+                        var daysSinceClosed = (DateTime.Now - sy.ClosedAt.Value).Days;
+                        if (daysSinceClosed < MIN_DAYS_SINCE_CLOSING)
+                        {
+                            // Too recently closed - don't delete yet
+                            return false;
+                        }
+                    }
+                    else if (sy.EndDate.HasValue)
+                    {
+                        // If no ClosedAt date, use EndDate + buffer period
+                        var daysSinceEndDate = (DateTime.Now - sy.EndDate.Value).Days;
+                        if (daysSinceEndDate < MIN_DAYS_SINCE_CLOSING)
+                        {
+                            // Too recent - don't delete yet
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        // No closing date or end date - be conservative and don't delete
+                        return false;
+                    }
+
+                    return true;
                 }
 
                 return false;
@@ -340,7 +375,8 @@ public class SchoolYearService
             {
                 _context.SchoolYears.RemoveRange(finishedYears);
                 await _context.SaveChangesAsync();
-                _logger?.LogInformation("Removed {Count} finished school years", finishedYears.Count);
+                _logger?.LogInformation("Removed {Count} finished school years that have been closed for at least {Days} days", 
+                    finishedYears.Count, MIN_DAYS_SINCE_CLOSING);
             }
         }
         catch (Exception ex)

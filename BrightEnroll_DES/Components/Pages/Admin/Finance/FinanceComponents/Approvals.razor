@@ -17,6 +17,7 @@
 @inject IAuthorizationService AuthorizationService
 @inject IAuthService AuthService
 @inject ILogger<Approvals> Logger
+@inject NavigationManager Navigation
 
 <PageTitle>Approvals - Finance</PageTitle>
 
@@ -437,6 +438,23 @@
         // This prevents blank state from showing before data loads
         await GetCurrentUserId();
         
+        // Check for query parameters to set active tab (e.g., from notification click)
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("payroll", out var payrollParam) && payrollParam == "true")
+        {
+            activeTab = "Payroll";
+        }
+        else if (query.TryGetValue("expense", out var expenseParam) && expenseParam == "true")
+        {
+            activeTab = "Expenses";
+        }
+        else if (query.TryGetValue("journal", out var journalParam) && journalParam == "true")
+        {
+            activeTab = "JournalEntries";
+        }
+        
         // Set up automatic refresh every 3 seconds using proper async pattern
         _cancellationTokenSource = new System.Threading.CancellationTokenSource();
         
@@ -461,6 +479,63 @@
                 }
             }
         }, _cancellationTokenSource.Token);
+    }
+    
+    protected override Task OnParametersSetAsync()
+    {
+        // Handle navigation changes (e.g., when coming from notification)
+        var uri = new Uri(Navigation.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("payroll", out var payrollParam) && payrollParam == "true")
+        {
+            if (activeTab != "Payroll")
+            {
+                activeTab = "Payroll";
+                StateHasChanged();
+            }
+        }
+        else if (query.TryGetValue("expense", out var expenseParam) && expenseParam == "true")
+        {
+            if (activeTab != "Expenses")
+            {
+                activeTab = "Expenses";
+                StateHasChanged();
+            }
+        }
+        else if (query.TryGetValue("journal", out var journalParam) && journalParam == "true")
+        {
+            if (activeTab != "JournalEntries")
+            {
+                activeTab = "JournalEntries";
+                StateHasChanged();
+            }
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var query = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(queryString))
+            return query;
+        
+        // Remove the leading '?' if present
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&');
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=');
+            if (parts.Length == 2)
+            {
+                query[Uri.UnescapeDataString(parts[0])] = Uri.UnescapeDataString(parts[1]);
+            }
+        }
+        
+        return query;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -926,13 +1001,8 @@
                 
                 builder.OpenElement(baseSeq + 22, "div");
                 builder.AddAttribute(baseSeq + 23, "class", "flex justify-end gap-2");
-                builder.OpenElement(baseSeq + 24, "button");
-                builder.AddAttribute(baseSeq + 25, "class", "rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50");
-                builder.AddAttribute(baseSeq + 26, "onclick", EventCallback.Factory.Create(this, () => RejectPayrollBatch(batchGroup.Key)));
-                builder.AddContent(baseSeq + 27, "Reject");
-                builder.CloseElement();
                 builder.OpenElement(baseSeq + 28, "button");
-                builder.AddAttribute(baseSeq + 29, "class", "rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700");
+                builder.AddAttribute(baseSeq + 29, "class", "rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700");
                 builder.AddAttribute(baseSeq + 30, "onclick", EventCallback.Factory.Create(this, () => OpenPayrollApprovalModal(firstTransaction.TransactionId, isBatch: true, batchTimestamp: batchGroup.Key)));
                 builder.AddContent(baseSeq + 31, "Review");
                 builder.CloseElement();

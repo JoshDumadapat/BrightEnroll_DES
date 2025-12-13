@@ -3,10 +3,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Manages school years with open/closed status for academic period isolation.
-/// Only one school year can be open at a time.
-/// </summary>
 [Table("tbl_SchoolYear")]
 public class SchoolYear
 {
@@ -18,7 +14,7 @@ public class SchoolYear
     [Required]
     [MaxLength(20)]
     [Column("school_year")]
-    public string SchoolYearName { get; set; } = string.Empty; // "2024-2025"
+    public string SchoolYearName { get; set; } = string.Empty; 
 
     [Required]
     [Column("is_active")]

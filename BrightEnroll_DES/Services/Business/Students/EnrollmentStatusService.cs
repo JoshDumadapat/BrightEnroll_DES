@@ -52,6 +52,7 @@ public class EnrollmentStatusService
                 query = query.Where(s => s.SchoolYr == schoolYear);
             }
 
+            // Order by DateRegistered (DateRegistered is non-nullable, so no null check needed)
             return await query
                 .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
@@ -267,6 +268,35 @@ public class EnrollmentStatusService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error fetching status logs for students: {Message}", ex.Message);
+            return new Dictionary<string, StudentStatusLog>();
+        }
+    }
+
+    // Gets the first (earliest) status change log for multiple students (for registration tracking)
+    public async Task<Dictionary<string, StudentStatusLog>> GetFirstStatusLogsAsync(IEnumerable<string> studentIds)
+    {
+        try
+        {
+            var studentIdList = studentIds.ToList();
+            if (!studentIdList.Any())
+                return new Dictionary<string, StudentStatusLog>();
+
+            // Get all logs for these students
+            var allLogs = await _context.StudentStatusLogs
+                .Where(log => studentIdList.Contains(log.StudentId))
+                .ToListAsync();
+
+            // Group by student ID and get the first (earliest) log for each
+            var firstLogs = allLogs
+                .GroupBy(log => log.StudentId)
+                .Select(g => g.OrderBy(log => log.CreatedAt).First())
+                .ToList();
+
+            return firstLogs.ToDictionary(log => log.StudentId, log => log);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error fetching first status logs for students: {Message}", ex.Message);
             return new Dictionary<string, StudentStatusLog>();
         }
     }

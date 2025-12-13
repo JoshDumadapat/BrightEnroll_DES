@@ -9,10 +9,8 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Students;
 
-/// <summary>
-/// Service for managing student re-enrollment, promotion, and eligibility processes.
-/// Handles automatic grade level promotion, school year transitions, and eligibility marking.
-/// </summary>
+// Service for managing student re-enrollment, promotion, and eligibility
+// Handles automatic grade level promotion, school year transitions, and eligibility marking
 public class ReEnrollmentService
 {
     private readonly AppDbContext _context;
@@ -41,80 +39,97 @@ public class ReEnrollmentService
         _paymentService = paymentService;
     }
 
-    /// <summary>
-    /// Gets the next grade level for promotion (e.g., G1 → G2, G2 → G3, Grade 1 → Grade 2)
-    /// Handles multiple formats: "G1", "Grade 1", "Grade1", etc.
-    /// </summary>
-    public string? GetNextGradeLevel(string? currentGradeLevel)
+    // Gets the next grade level for promotion from tbl_GradeLevel
+    // Finds the current grade level in the database and returns the next one by GradeLevelId order
+    public async Task<string?> GetNextGradeLevelAsync(string? currentGradeLevel)
     {
         if (string.IsNullOrWhiteSpace(currentGradeLevel))
             return null;
 
-        // Check if original format contains "Grade" (case-insensitive)
-        bool isGradeFormat = currentGradeLevel.Contains("Grade", StringComparison.OrdinalIgnoreCase);
-
-        // Normalize the grade level - convert to uppercase first, then remove spaces and "GRADE"
-        var normalized = currentGradeLevel.ToUpper()
-            .Replace(" ", "")
-            .Replace("GRADE", "")
-            .Trim();
-
-        // Extract the grade number
-        int? gradeNumber = null;
-        if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^\d+$"))
+        try
         {
-            // Pure number like "1", "2", etc.
-            if (int.TryParse(normalized, out int num))
+            // Get all active grade levels ordered by GradeLevelId
+            var gradeLevels = await _context.GradeLevels
+                .AsNoTracking()
+                .Where(g => g.IsActive)
+                .OrderBy(g => g.GradeLevelId)
+                .ToListAsync();
+
+            if (!gradeLevels.Any())
             {
-                gradeNumber = num;
+                _logger?.LogWarning("No active grade levels found in database");
+                return null;
             }
-        }
-        else if (System.Text.RegularExpressions.Regex.IsMatch(normalized, @"^G\d+$"))
-        {
-            // Format like "G1", "G2", etc.
-            var match = System.Text.RegularExpressions.Regex.Match(normalized, @"\d+");
-            if (match.Success && int.TryParse(match.Value, out int num))
-            {
-                gradeNumber = num;
-            }
-        }
-        else if (normalized == "KINDER" || normalized == "K")
-        {
-            gradeNumber = 0; // Kinder = 0, promotes to Grade 1
-        }
-        else if (normalized == "PRESCHOOL" || normalized == "PRE-SCHOOL" || normalized == "PRE SCHOOL")
-        {
-            gradeNumber = 0; // Pre-School = 0, promotes to Grade 1 (same as Kinder)
-        }
 
-        if (!gradeNumber.HasValue)
+            // Find the current grade level by matching GradeLevelName (case-insensitive)
+            var currentIndex = -1;
+            for (int i = 0; i < gradeLevels.Count; i++)
+            {
+                var gradeLevelName = gradeLevels[i].GradeLevelName?.Trim() ?? string.Empty;
+                var currentGrade = currentGradeLevel.Trim();
+                
+                // Try exact match (case-insensitive)
+                if (string.Equals(gradeLevelName, currentGrade, StringComparison.OrdinalIgnoreCase))
+                {
+                    currentIndex = i;
+                    break;
+                }
+                
+                // Try matching without spaces and case-insensitive
+                var normalizedDb = gradeLevelName.Replace(" ", "", StringComparison.OrdinalIgnoreCase)
+                                                  .Replace("-", "", StringComparison.OrdinalIgnoreCase);
+                var normalizedCurrent = currentGrade.Replace(" ", "", StringComparison.OrdinalIgnoreCase)
+                                                     .Replace("-", "", StringComparison.OrdinalIgnoreCase);
+                
+                if (string.Equals(normalizedDb, normalizedCurrent, StringComparison.OrdinalIgnoreCase))
+                {
+                    currentIndex = i;
+                    break;
+                }
+            }
+
+            if (currentIndex == -1)
+            {
+                _logger?.LogWarning("Current grade level '{CurrentGradeLevel}' not found in database grade levels", currentGradeLevel);
+                return null;
+            }
+
+            // Check if there's a next grade level
+            if (currentIndex >= gradeLevels.Count - 1)
+            {
+                _logger?.LogInformation("Student is in the highest grade level '{CurrentGradeLevel}', cannot promote further", currentGradeLevel);
+                return null; // Already at highest grade - graduated
+            }
+
+            // Return the next grade level's name from database
+            var nextGradeLevel = gradeLevels[currentIndex + 1].GradeLevelName;
+            _logger?.LogInformation("Promoting from '{CurrentGradeLevel}' to '{NextGradeLevel}' (from database)", currentGradeLevel, nextGradeLevel);
+            return nextGradeLevel;
+        }
+        catch (Exception ex)
         {
-            _logger?.LogWarning("Unable to parse grade level: {GradeLevel}", currentGradeLevel);
+            _logger?.LogError(ex, "Error getting next grade level for '{CurrentGradeLevel}': {Message}", currentGradeLevel, ex.Message);
             return null;
-        }
-
-        // Determine next grade
-        int nextGradeNum = gradeNumber.Value + 1;
-
-        if (nextGradeNum > 6)
-        {
-            return null; // Beyond Grade 6 - graduated
-        }
-
-        // Return in the same format as input
-        if (isGradeFormat)
-        {
-            return $"Grade {nextGradeNum}";
-        }
-        else
-        {
-            return $"G{nextGradeNum}";
         }
     }
 
-    /// <summary>
-    /// Gets the next school year (e.g., "2023-2024" → "2024-2025")
-    /// </summary>
+    // Legacy synchronous method for backward compatibility - calls async version
+    // NOTE: This should be avoided if possible as it uses .Result which can cause deadlocks
+    [Obsolete("Use GetNextGradeLevelAsync instead")]
+    public string? GetNextGradeLevel(string? currentGradeLevel)
+    {
+        try
+        {
+            return GetNextGradeLevelAsync(currentGradeLevel).Result;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error in GetNextGradeLevel sync wrapper: {Message}", ex.Message);
+            return null;
+        }
+    }
+
+    // Gets the next school year (e.g., "2023-2024" → "2024-2025")
     public string? GetNextSchoolYear(string? currentSchoolYear)
     {
         if (string.IsNullOrWhiteSpace(currentSchoolYear))
@@ -132,9 +147,7 @@ public class ReEnrollmentService
         return null;
     }
 
-    /// <summary>
-    /// Gets the previous school year (e.g., "2024-2025" → "2023-2024")
-    /// </summary>
+    // Gets the previous school year (e.g., "2024-2025" → "2023-2024")
     public string? GetPreviousSchoolYear(string? currentSchoolYear)
     {
         if (string.IsNullOrWhiteSpace(currentSchoolYear))
@@ -152,9 +165,7 @@ public class ReEnrollmentService
         return null;
     }
 
-    /// <summary>
-    /// Checks if a student has complete grades for all subjects (Q1-Q4) for a given school year
-    /// </summary>
+    // Checks if a student has complete grades for all subjects (Q1-Q4) for a given school year
     public async Task<bool> HasCompleteGradesAsync(string studentId, string schoolYear, int sectionId)
     {
         try
@@ -231,9 +242,7 @@ public class ReEnrollmentService
         }
     }
 
-    /// <summary>
-    /// Calculates the general average for a student in a given section and school year
-    /// </summary>
+    // Calculates the general average for a student in a given section and school year
     public async Task<decimal> CalculateGeneralAverageAsync(string studentId, int sectionId, string schoolYear)
     {
         try
@@ -276,10 +285,8 @@ public class ReEnrollmentService
         }
     }
 
-    /// <summary>
-    /// Marks students as "Eligible" for re-enrollment after completing a school year.
-    /// Checks for complete grades (Q1-Q4) and calculates final averages.
-    /// </summary>
+    // Marks students as "Eligible" for re-enrollment after completing a school year
+    // Checks for complete grades (Q1-Q4) and calculates final averages
     public async Task<MarkEligibilityResult> MarkStudentsEligibleForReEnrollmentAsync(string completedSchoolYear, int? performedByUserId = null)
     {
         var result = new MarkEligibilityResult
@@ -429,10 +436,8 @@ public class ReEnrollmentService
         }
     }
 
-    /// <summary>
-    /// Re-enrolls a student to the next grade level and school year.
-    /// Automatically promotes grade level, updates school year, and creates new enrollment record.
-    /// </summary>
+    // Re-enrolls a student to the next grade level and school year
+    // Automatically promotes grade level, updates school year, and creates new enrollment record
     public async Task<ReEnrollmentResult> ReEnrollStudentAsync(
         string studentId,
         int? sectionId = null,
@@ -513,8 +518,8 @@ public class ReEnrollmentService
                 currentSchoolYear = student.SchoolYr;
             }
 
-            // Get next grade level
-            var nextGradeLevel = GetNextGradeLevel(currentGradeLevel);
+            // Get next grade level from database
+            var nextGradeLevel = await GetNextGradeLevelAsync(currentGradeLevel);
             if (nextGradeLevel == null)
             {
                 result.Success = false;
@@ -569,10 +574,18 @@ public class ReEnrollmentService
             var previousGradeLevel = currentGradeLevel;
             var previousSchoolYear = currentSchoolYear;
             
-            // Update student's GradeLevel to the next grade level (e.g., Grade 1 → Grade 2)
+            // CRITICAL FIX: Explicitly mark entity as modified to ensure EF Core tracks changes
+            // Update student's GradeLevel to the next grade level (e.g., Kinder → G1)
             // This is needed so payment service can show the correct grade level for new enrollment
             // Note: We preserve historical enrollment records, but update the student's current grade level
             student.GradeLevel = nextGradeLevel;
+            _context.Entry(student).Property(s => s.GradeLevel).IsModified = true;
+            
+            // Update student's SchoolYr to the current active school year
+            // This ensures modules that reference student.SchoolYr show the correct current school year
+            // Historical data is preserved in enrollment records, so this update doesn't affect past records
+            student.SchoolYr = currentActiveSchoolYear;
+            _context.Entry(student).Property(s => s.SchoolYr).IsModified = true;
             
             // Update student type to "Returnee" since they're re-enrolling
             // Only update if it's not already set to "Returnee" or "Old Student"
@@ -581,16 +594,19 @@ public class ReEnrollmentService
                  !student.StudentType.Equals("Old Student", StringComparison.OrdinalIgnoreCase)))
             {
                 student.StudentType = "Returnee";
+                _context.Entry(student).Property(s => s.StudentType).IsModified = true;
             }
             
             // Set status to "For Payment" - student needs to pay downpayment for new school year
             // Section assignment will happen after payment in the "For Enrollment" tab
             student.Status = "For Payment";
+            _context.Entry(student).Property(s => s.Status).IsModified = true;
             
             // DO NOT reset AmountPaid or PaymentStatus - these are cumulative and should remain
             // Payment calculations will be done per school year using the payment records
             
             student.UpdatedAt = DateTime.Now;
+            _context.Entry(student).Property(s => s.UpdatedAt).IsModified = true;
 
             // DO NOT create enrollment record yet if no section is provided
             // Enrollment record will be created when registrar assigns section in "For Enrollment" tab
@@ -617,7 +633,34 @@ public class ReEnrollmentService
                 result.NewEnrollmentCreated = false;
             }
 
-            await _context.SaveChangesAsync();
+            // CRITICAL: Save changes and verify the update was successful
+            var saveResult = await _context.SaveChangesAsync();
+            
+            // Verify the update was persisted by reloading the student from database
+            // This ensures we're working with the actual database state, not cached entity
+            await _context.Entry(student).ReloadAsync();
+            
+            // Double-check that the values were actually saved
+            if (student.GradeLevel != nextGradeLevel || student.SchoolYr != currentActiveSchoolYear)
+            {
+                _logger?.LogError(
+                    "CRITICAL: Student {StudentId} GradeLevel or SchoolYr was not saved correctly! " +
+                    "Expected GradeLevel={ExpectedGrade}, SchoolYr={ExpectedSY}, " +
+                    "Actual GradeLevel={ActualGrade}, SchoolYr={ActualSY}",
+                    studentId, nextGradeLevel, currentActiveSchoolYear, student.GradeLevel, student.SchoolYr);
+                
+                // Force update again if save failed
+                student.GradeLevel = nextGradeLevel;
+                student.SchoolYr = currentActiveSchoolYear;
+                _context.Entry(student).Property(s => s.GradeLevel).IsModified = true;
+                _context.Entry(student).Property(s => s.SchoolYr).IsModified = true;
+                await _context.SaveChangesAsync();
+                await _context.Entry(student).ReloadAsync();
+            }
+            
+            _logger?.LogInformation(
+                "Student {StudentId} database updated: GradeLevel={GradeLevel}, SchoolYr={SchoolYr}, Status={Status}",
+                studentId, student.GradeLevel, student.SchoolYr, student.Status);
 
             // Create status log - student is now "For Payment" and will appear in "For Enrollment" tab
             // This will also automatically create a ledger for the current school year
@@ -791,9 +834,7 @@ public class ReEnrollmentService
         }
     }
 
-    /// <summary>
-    /// Bulk re-enrolls multiple eligible students
-    /// </summary>
+    // Bulk re-enrolls multiple eligible students
     public async Task<BulkReEnrollmentResult> BulkReEnrollStudentsAsync(
         List<string> studentIds,
         Dictionary<string, int>? studentSectionMap = null, // studentId -> sectionId
@@ -826,9 +867,7 @@ public class ReEnrollmentService
     }
 }
 
-/// <summary>
-/// Result of marking students as eligible for re-enrollment
-/// </summary>
+// Result of marking students as eligible for re-enrollment
 public class MarkEligibilityResult
 {
     public bool Success { get; set; }
@@ -841,9 +880,7 @@ public class MarkEligibilityResult
     public int Errors { get; set; }
 }
 
-/// <summary>
-/// Result of re-enrolling a student
-/// </summary>
+// Result of re-enrolling a student
 public class ReEnrollmentResult
 {
     public bool Success { get; set; }
@@ -857,9 +894,7 @@ public class ReEnrollmentResult
     public bool ExistingEnrollmentUpdated { get; set; }
 }
 
-/// <summary>
-/// Result of bulk re-enrollment
-/// </summary>
+// Result of bulk re-enrollment
 public class BulkReEnrollmentResult
 {
     public int TotalProcessed { get; set; }
@@ -868,9 +903,7 @@ public class BulkReEnrollmentResult
     public List<FailedReEnrollment> FailedStudents { get; set; } = new();
 }
 
-/// <summary>
-/// Information about a failed re-enrollment
-/// </summary>
+// Information about a failed re-enrollment
 public class FailedReEnrollment
 {
     public string StudentId { get; set; } = string.Empty;

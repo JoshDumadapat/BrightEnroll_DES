@@ -27,6 +27,9 @@ public class ConnectivityService : IConnectivityService, IDisposable
     private ISyncStatusService? _syncStatusService;
     private IDatabaseSyncService? _syncService;
     private IServiceScopeFactory? _serviceScopeFactory;
+    private System.Threading.CancellationTokenSource? _pollingCancellationTokenSource;
+    private System.Threading.Timer? _pollingTimer;
+    private const int PollingIntervalSeconds = 5; // Check connectivity every 5 seconds
 
     public bool IsConnected
     {
@@ -85,13 +88,22 @@ public class ConnectivityService : IConnectivityService, IDisposable
 
         try
         {
-            // Check navigator.onLine via JavaScript
+            // Check navigator.onLine via JavaScript (fast check)
             var isOnline = await _jsRuntime.InvokeAsync<bool>("window.connectivityMonitor.checkConnectivity");
             
-            // Also verify with actual cloud connection test
-            var cloudOnline = await CheckCloudConnectivityAsync();
+            // If navigator says offline, we're definitely offline
+            if (!isOnline)
+            {
+                IsConnected = false;
+                _syncStatusService?.SetOnline(false);
+                return false;
+            }
+            
+            // If navigator says online, verify with actual cloud connection test (with timeout)
+            var cloudOnline = await CheckCloudConnectivityWithTimeoutAsync();
             var finalStatus = isOnline && cloudOnline;
             
+            // Only update if status actually changed (property setter handles event firing)
             IsConnected = finalStatus;
             _syncStatusService?.SetOnline(finalStatus);
             return finalStatus;
@@ -113,6 +125,35 @@ public class ConnectivityService : IConnectivityService, IDisposable
         try
         {
             return await _syncService.TestCloudConnectionAsync();
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> CheckCloudConnectivityWithTimeoutAsync()
+    {
+        if (_syncService == null)
+            return true; // Assume online if sync service not available
+
+        try
+        {
+            // Use a timeout to make the check faster and more responsive
+            // If cloud check takes too long, consider it offline
+            var cloudCheckTask = _syncService.TestCloudConnectionAsync();
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(3));
+            
+            var completedTask = await Task.WhenAny(cloudCheckTask, timeoutTask);
+            
+            if (completedTask == cloudCheckTask)
+            {
+                // Cloud check completed before timeout
+                return await cloudCheckTask;
+            }
+            
+            // Timeout occurred - assume offline if cloud check is too slow
+            return false;
         }
         catch
         {
@@ -146,6 +187,9 @@ public class ConnectivityService : IConnectivityService, IDisposable
 
             // Perform initial connectivity check
             await CheckConnectivityAsync();
+
+            // Start periodic polling for real-time connectivity detection
+            StartPeriodicPolling();
         }
         catch (Exception)
         {
@@ -157,6 +201,47 @@ public class ConnectivityService : IConnectivityService, IDisposable
             _dotNetRef?.Dispose();
             _dotNetRef = null;
         }
+    }
+
+    private void StartPeriodicPolling()
+    {
+        // Stop any existing polling
+        StopPeriodicPolling();
+
+        // Create cancellation token source for polling
+        _pollingCancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+        // Start periodic polling using Timer
+        // Note: Timer callback must be synchronous, so we fire-and-forget the async operation
+        _pollingTimer = new System.Threading.Timer(_ =>
+        {
+            if (_pollingCancellationTokenSource?.Token.IsCancellationRequested == true)
+                return;
+
+            // Fire and forget async operation
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Perform connectivity check
+                    await CheckConnectivityAsync();
+                }
+                catch
+                {
+                    // Ignore errors in polling - don't break monitoring
+                }
+            });
+        }, null, TimeSpan.FromSeconds(PollingIntervalSeconds), TimeSpan.FromSeconds(PollingIntervalSeconds));
+    }
+
+    private void StopPeriodicPolling()
+    {
+        _pollingCancellationTokenSource?.Cancel();
+        _pollingCancellationTokenSource?.Dispose();
+        _pollingCancellationTokenSource = null;
+
+        _pollingTimer?.Dispose();
+        _pollingTimer = null;
     }
 
     // Legacy method for backward compatibility - calls async version
@@ -174,6 +259,9 @@ public class ConnectivityService : IConnectivityService, IDisposable
             if (!_isMonitoring) return;
             _isMonitoring = false;
         }
+
+        // Stop periodic polling
+        StopPeriodicPolling();
 
         try
         {
@@ -206,10 +294,19 @@ public class ConnectivityService : IConnectivityService, IDisposable
         // Note: Must remain async void for JSInvokable, but we handle it carefully
         try
         {
-            // Verify with actual cloud connection
-            var cloudOnline = await CheckCloudConnectivityAsync();
+            // If navigator says offline, we're definitely offline (no need to check cloud)
+            if (!isOnline)
+            {
+                IsConnected = false;
+                _syncStatusService?.SetOnline(false);
+                return;
+            }
+
+            // If navigator says online, verify with actual cloud connection (with timeout)
+            var cloudOnline = await CheckCloudConnectivityWithTimeoutAsync();
             var finalStatus = isOnline && cloudOnline;
             
+            // Only update if status actually changed (property setter handles event firing)
             IsConnected = finalStatus;
             _syncStatusService?.SetOnline(finalStatus);
 
@@ -243,6 +340,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
 
     public void Dispose()
     {
+        StopPeriodicPolling();
         StopMonitoring();
     }
 }

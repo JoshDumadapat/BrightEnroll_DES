@@ -54,6 +54,7 @@ public class StudentDetailData
     
     // Enrollment Details
     public string StudentType { get; set; } = string.Empty;
+    public string OriginalStudentType { get; set; } = string.Empty; // Original student type from first enrollment
     public string HasLRN { get; set; } = string.Empty;
     public string LearnerReferenceNo { get; set; } = string.Empty;
     public string GradeToEnroll { get; set; } = string.Empty;

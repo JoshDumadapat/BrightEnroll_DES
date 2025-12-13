@@ -1,5 +1,4 @@
 @using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceComponents
-@using BrightEnroll_DES.Components.Pages.Admin.Finance.FinanceCS
 @using BrightEnroll_DES.Services.Business.Finance
 @using BrightEnroll_DES.Services.QuestPDF
 @using BrightEnroll_DES.Data.Models
@@ -10,6 +9,7 @@
 @inject PaymentService PaymentService
 @inject FeeService FeeService
 @inject StudentLedgerService LedgerService
+@inject DiscountService DiscountService
 @inject PaymentReceiptPdfGenerator PdfGenerator
 @inject IAuthService AuthService
 @inject ILogger<Payments> Logger
@@ -46,7 +46,7 @@
             <div class="flex items-end">
                 <button @onclick="SearchStudent"
                         disabled="@isSearching"
-                        class="flex items-center justify-center gap-2 rounded-full bg-blue-600 px-4 sm:px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg w-full sm:w-auto disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        class="flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 sm:px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg w-full sm:w-auto disabled:bg-gray-400 disabled:cursor-not-allowed">
                     <svg class="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -73,39 +73,39 @@
     @if (hasSearched && studentFound)
     {
         <!-- A. Student Information Header (Top Section) -->
-        <div class="mb-6 rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 shadow-lg overflow-hidden">
-            <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-                <h2 class="text-2xl font-bold text-white">Student Information</h2>
+        <div class="mb-4 rounded-lg border border-blue-200 bg-gradient-to-r from-blue-50 to-blue-100 shadow-sm overflow-hidden">
+            <div class="bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2.5">
+                <h2 class="text-lg font-bold text-white">Student Information</h2>
             </div>
-            <div class="p-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div class="p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                     <div>
-                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Student Name</p>
-                        <p class="text-xl font-bold text-gray-900">@PaymentData.StudentName</p>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Student Name</p>
+                        <p class="text-base font-bold text-gray-900">@PaymentData.StudentName</p>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Student ID</p>
-                        <p class="text-xl font-bold text-gray-900">@PaymentData.StudentId</p>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Student ID</p>
+                        <p class="text-base font-bold text-gray-900">@PaymentData.StudentId</p>
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Grade Level</p>
-                        <p class="text-xl font-bold text-gray-900">@PaymentData.GradeLevel</p>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Grade Level</p>
+                        <p class="text-base font-bold text-gray-900">@PaymentData.GradeLevel</p>
                         @if (!string.IsNullOrWhiteSpace(PaymentData.SchoolYearForPayment) && PaymentData.HasPreviousBalance)
                         {
                             <p class="text-xs text-orange-600 font-semibold mt-1">Previous Balance: @PaymentData.SchoolYearForPayment</p>
                         }
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Enrollment Status</p>
-                        <p class="text-xl font-bold @GetEnrollmentStatusColor()">@enrollmentStatus</p>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Enrollment Status</p>
+                        <p class="text-base font-bold @GetEnrollmentStatusColor()">@enrollmentStatus</p>
                         @if (PaymentData.HasPreviousBalance)
                         {
                             <p class="text-xs text-orange-600 font-semibold mt-1">⚠️ Pay Previous Balance First</p>
                         }
                     </div>
                     <div>
-                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Balance Summary</p>
-                        <p class="text-2xl font-bold @(PaymentData.Balance > 0 ? "text-red-600" : "text-green-600")">₱@PaymentData.Balance.ToString("N2")</p>
+                        <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Balance Summary</p>
+                        <p class="text-lg font-bold @(PaymentData.Balance > 0 ? "text-red-600" : "text-green-600")">₱@PaymentData.Balance.ToString("N2")</p>
                         @if (PaymentData.HasPreviousBalance)
                         {
                             <p class="text-xs text-orange-600 font-semibold mt-1">From: @PaymentData.SchoolYearForPayment</p>
@@ -116,48 +116,48 @@
         </div>
 
         <!-- B & C. Main Content: Two-Column Layout -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             <!-- B. Tuition & Fees Breakdown (Left/Main Panel - 2 columns) -->
-            <div class="lg:col-span-2 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-4 border-b border-gray-200">
-                    <h2 class="text-xl font-bold text-gray-800">Tuition & Fees Breakdown</h2>
+            <div class="lg:col-span-2 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 border-b border-gray-200">
+                    <h2 class="text-base font-bold text-gray-800">Tuition & Fees Breakdown</h2>
                 </div>
-                <div class="p-6">
+                <div class="p-4">
                     @if (ledgerCharges != null && ledgerCharges.Any())
                     {
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead>
                                     <tr class="border-b-2 border-gray-300">
-                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Charge Type</th>
-                                        <th class="text-left py-4 px-4 text-sm font-bold text-gray-800">Description</th>
-                                        <th class="text-right py-4 px-4 text-sm font-bold text-gray-800">Amount</th>
+                                        <th class="text-left py-2 px-3 text-sm font-bold text-gray-800">Charge Type</th>
+                                        <th class="text-left py-2 px-3 text-sm font-bold text-gray-800">Description</th>
+                                        <th class="text-right py-2 px-3 text-sm font-bold text-gray-800">Amount</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var charge in ledgerCharges.OrderBy(c => c.ChargeType == "Discount" ? 1 : 0).ThenBy(c => c.ChargeType).ThenBy(c => c.CreatedAt))
                                         {
                                         <tr class="border-b border-gray-100 hover:bg-gray-50 @(charge.ChargeType == "Discount" ? "bg-green-50" : "")">
-                                            <td class="py-3 px-4 text-sm text-gray-700 font-medium">@charge.ChargeType</td>
-                                            <td class="py-3 px-4 text-sm text-gray-700">@(charge.Description ?? charge.ChargeType)</td>
-                                            <td class="py-3 px-4 text-sm text-right font-medium @(charge.Amount < 0 ? "text-green-600" : "text-gray-900")">
+                                            <td class="py-2 px-3 text-sm text-gray-700 font-medium">@charge.ChargeType</td>
+                                            <td class="py-2 px-3 text-sm text-gray-700">@(charge.Description ?? charge.ChargeType)</td>
+                                            <td class="py-2 px-3 text-sm text-right font-medium @(charge.Amount < 0 ? "text-green-600" : "text-gray-900")">
                                                 @(charge.Amount < 0 ? "-" : "")₱@Math.Abs(charge.Amount).ToString("N2")
                                             </td>
                                         </tr>
                                     }
                                 </tbody>
                                 <tfoot>
-                                    <tr class="border-t-4 border-gray-400 bg-blue-50">
-                                        <td colspan="2" class="py-4 px-4 text-base font-bold text-gray-900">Total Charges</td>
-                                        <td class="py-4 px-4 text-base font-bold text-blue-800 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
+                                    <tr class="border-t-2 border-gray-400 bg-blue-50">
+                                        <td colspan="2" class="py-2.5 px-3 text-base font-bold text-gray-900">Total Charges</td>
+                                        <td class="py-2.5 px-3 text-base font-bold text-blue-800 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
                                     </tr>
                                     <tr class="bg-green-50">
-                                        <td colspan="2" class="py-3 px-4 text-base font-bold text-gray-900">Total Paid</td>
-                                        <td class="py-3 px-4 text-base font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
+                                        <td colspan="2" class="py-2 px-3 text-base font-bold text-gray-900">Total Paid</td>
+                                        <td class="py-2 px-3 text-base font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
                                     </tr>
                                     <tr class="bg-red-50">
-                                        <td colspan="2" class="py-3 px-4 text-base font-bold text-gray-900">Remaining Balance</td>
-                                        <td class="py-3 px-4 text-base font-bold text-red-800 text-right">₱@PaymentData.Balance.ToString("N2")</td>
+                                        <td colspan="2" class="py-2 px-3 text-base font-bold text-gray-900">Remaining Balance</td>
+                                        <td class="py-2 px-3 text-base font-bold text-red-800 text-right">₱@PaymentData.Balance.ToString("N2")</td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -165,43 +165,43 @@
                     }
                     else
                     {
-                        <p class="text-sm text-gray-500 text-center py-8">No charges available for this ledger.</p>
+                        <p class="text-xs text-gray-500 text-center py-6">No charges available for this ledger.</p>
                     }
                 </div>
             </div>
 
             <!-- C. Today's Payment Panel (Right Panel - 1 column) -->
-            <div class="rounded-xl border-2 border-green-200 bg-white shadow-lg overflow-hidden">
-                <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
-                    <h2 class="text-xl font-bold text-white">Today's Payment</h2>
+            <div class="rounded-lg border border-green-200 bg-white shadow-sm overflow-hidden">
+                <div class="bg-gradient-to-r from-green-600 to-green-700 px-4 py-2.5">
+                    <h2 class="text-base font-bold text-white">Today's Payment</h2>
                 </div>
-                <div class="p-6 space-y-6">
+                <div class="p-4 space-y-4">
                     <!-- Payment Type Selector -->
                     <div>
-                        <label class="mb-3 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Type</label>
+                        <label class="mb-2 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Type</label>
                         <div class="space-y-2">
-                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Downpayment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeDownpayment">
+                            <label class="flex items-center py-2.5 px-3 rounded-md border cursor-pointer transition-all @(paymentType == "Downpayment" && isPaymentTypeExplicitlySelected ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeDownpayment">
                                 <input type="radio" name="paymentType" checked="@(paymentType == "Downpayment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
                                 <div class="flex-1">
-                                    <p class="text-sm font-semibold @(paymentType == "Downpayment" ? "text-green-700" : "text-gray-700")">Downpayment</p>
+                                    <p class="text-sm font-semibold @(paymentType == "Downpayment" && isPaymentTypeExplicitlySelected ? "text-green-700" : "text-gray-700")">Downpayment</p>
                                 </div>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Other Fees" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeOtherFees">
+                            <label class="flex items-center py-2.5 px-3 rounded-md border cursor-pointer transition-all @(paymentType == "Other Fees" && isPaymentTypeExplicitlySelected ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeOtherFees">
                                 <input type="radio" name="paymentType" checked="@(paymentType == "Other Fees")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
                                 <div class="flex-1">
-                                    <p class="text-sm font-semibold @(paymentType == "Other Fees" ? "text-green-700" : "text-gray-700")">Other Fees</p>
+                                    <p class="text-sm font-semibold @(paymentType == "Other Fees" && isPaymentTypeExplicitlySelected ? "text-green-700" : "text-gray-700")">Other Fees</p>
                                 </div>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Partial Payment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypePartial">
+                            <label class="flex items-center py-2.5 px-3 rounded-md border cursor-pointer transition-all @(paymentType == "Partial Payment" && isPaymentTypeExplicitlySelected ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypePartial">
                                 <input type="radio" name="paymentType" checked="@(paymentType == "Partial Payment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
                                 <div class="flex-1">
-                                    <p class="text-sm font-semibold @(paymentType == "Partial Payment" ? "text-green-700" : "text-gray-700")">Partial Payment</p>
+                                    <p class="text-sm font-semibold @(paymentType == "Partial Payment" && isPaymentTypeExplicitlySelected ? "text-green-700" : "text-gray-700")">Partial Payment</p>
                                 </div>
                             </label>
-                            <label class="flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all @(paymentType == "Full Payment" ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeFull">
+                            <label class="flex items-center py-2.5 px-3 rounded-md border cursor-pointer transition-all @(paymentType == "Full Payment" && isPaymentTypeExplicitlySelected ? "border-green-500 bg-green-50" : "border-gray-200 bg-white hover:border-gray-300")" @onclick="SetPaymentTypeFull">
                                 <input type="radio" name="paymentType" checked="@(paymentType == "Full Payment")" disabled="@(PaymentData.Balance <= 0)" class="sr-only" />
                                 <div class="flex-1">
-                                    <p class="text-sm font-semibold @(paymentType == "Full Payment" ? "text-green-700" : "text-gray-700")">Full Payment</p>
+                                    <p class="text-sm font-semibold @(paymentType == "Full Payment" && isPaymentTypeExplicitlySelected ? "text-green-700" : "text-gray-700")">Full Payment</p>
                                 </div>
                             </label>
                         </div>
@@ -210,12 +210,45 @@
                     <!-- Divider -->
                     <div class="border-t border-gray-200"></div>
 
+                    <!-- Discount Option -->
+                    <div>
+                        <label class="mb-1.5 block text-sm font-semibold text-gray-700">Discount (Optional)</label>
+                        <select @bind="selectedDiscountId" @bind:after="OnDiscountChanged"
+                                disabled="@(PaymentData.Balance <= 0 || availableDiscounts == null || !availableDiscounts.Any() || HasDiscountAlreadyApplied)"
+                                class="w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="0">No Discount</option>
+                            @if (availableDiscounts != null && availableDiscounts.Any())
+                            {
+                                @foreach (var discount in availableDiscounts)
+                                {
+                                    <option value="@discount.DiscountId">@discount.DiscountName (@(discount.IsPercentage ? discount.RateOrValue.ToString("F2") + "%" : "₱" + discount.RateOrValue.ToString("N2")))</option>
+                                }
+                            }
+                        </select>
+                        @if (HasDiscountAlreadyApplied)
+                        {
+                            <p class="mt-1.5 text-xs text-gray-500 italic">
+                                A discount has already been applied to this ledger.
+                            </p>
+                        }
+                        @if (selectedDiscount != null && calculatedDiscountAmount > 0)
+                        {
+                            <p class="mt-1.5 text-xs text-green-600 font-medium">
+                                Discount: <span class="font-bold">₱@calculatedDiscountAmount.ToString("N2")</span>
+                                @if (selectedDiscount.IsPercentage)
+                                {
+                                    <span class="text-gray-500">(@selectedDiscount.RateOrValue.ToString("F2")% of balance: ₱@(selectedDiscountBaseAmount.ToString("N2")))</span>
+                                }
+                            </p>
+                        }
+                    </div>
+
                     <!-- Payment Method -->
                     <div>
-                        <label class="mb-2 block text-sm font-semibold text-gray-700">Payment Method</label>
+                        <label class="mb-1.5 block text-sm font-semibold text-gray-700">Payment Method</label>
                         <select @bind="PaymentData.PaymentMethod"
                                 disabled="@(PaymentData.Balance <= 0)"
-                                class="w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                                class="w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
                             <option value="Cash">Cash</option>
                             <option value="Check">Check</option>
                             <option value="Bank Transfer">Bank Transfer</option>
@@ -225,9 +258,9 @@
 
                     <!-- Amount Input -->
                     <div>
-                        <label class="mb-2 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Amount</label>
+                        <label class="mb-1.5 block text-sm font-bold text-gray-700 uppercase tracking-wide">Payment Amount</label>
                         <div class="relative">
-                            <span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-600">₱</span>
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-base font-bold text-gray-600">₱</span>
                             <input type="text"
                                    value="@GetPaymentAmountDisplayValue()"
                                    @oninput="HandlePaymentAmountInput"
@@ -239,45 +272,88 @@
                                    inputmode="decimal"
                                    placeholder="0.00"
                                    disabled="@(PaymentData.Balance <= 0)"
-                                   class="w-full rounded-lg border-2 border-gray-300 bg-white pl-10 pr-4 py-3 text-xl text-right font-bold text-gray-900 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                                   class="w-full rounded-md border border-gray-300 bg-white pl-9 pr-3 py-2.5 text-lg text-right font-bold text-gray-900 outline-none focus:border-green-500 focus:ring-1 focus:ring-green-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
                         </div>
                         @if (PaymentData.Balance <= 0)
                         {
-                            <p class="mt-2 text-xs text-gray-500">Student has fully paid.</p>
+                            <p class="mt-1.5 text-sm text-gray-500">Student has fully paid.</p>
                         }
                         else
                         {
-                            <p class="mt-2 text-xs text-gray-500">Minimum: <span class="font-semibold">₱1,700.00</span> | Balance: <span class="font-semibold text-red-600">₱@PaymentData.Balance.ToString("N2")</span></p>
+                            <p class="mt-1.5 text-sm text-gray-500">Minimum: <span class="font-semibold">₱1,700.00</span> | Balance: <span class="font-semibold text-red-600">₱@PaymentData.Balance.ToString("N2")</span></p>
                         }
                     </div>
 
                     <!-- Payment Summary Box -->
-                    <div class="rounded-lg border-2 border-gray-300 bg-gray-50 p-5">
-                        <h3 class="mb-3 text-sm font-bold text-gray-800 uppercase tracking-wide">Payment Summary</h3>
-                        <div class="space-y-3">
+                    <div class="rounded-md border border-gray-300 bg-gray-50 p-3">
+                        <h3 class="mb-2 text-sm font-bold text-gray-800 uppercase tracking-wide">Payment Summary</h3>
+                        <div class="space-y-2">
                             <div class="flex justify-between items-center">
                                 <span class="text-sm font-medium text-gray-700">Payment Type:</span>
                                 <span class="text-sm font-bold text-gray-900">@paymentType</span>
                             </div>
                             <div class="flex justify-between items-center">
-                                <span class="text-sm font-medium text-gray-700">Amount Entered:</span>
-                                <span class="text-base font-bold text-green-600">₱@PaymentData.NewPaymentAmount.ToString("N2")</span>
+                                <span class="text-sm font-medium text-gray-700">Payment Amount:</span>
+                                <span class="text-base font-medium text-green-600">₱@PaymentData.NewPaymentAmount.ToString("N2")</span>
                             </div>
-                            <div class="border-t border-gray-300 pt-3">
+                            @if (calculatedDiscountAmount > 0)
+                            {
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-medium text-gray-700">Discount Applied:</span>
+                                    <span class="text-base font-medium text-green-600">-₱@calculatedDiscountAmount.ToString("N2")</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-sm font-medium text-gray-700">Total Applied:</span>
+                                    <span class="text-base font-medium text-blue-600">₱@((PaymentData.NewPaymentAmount + calculatedDiscountAmount).ToString("N2"))</span>
+                                </div>
+                            }
+                            <div class="border-t border-gray-300 pt-2">
+                                @{
+                                    // FIXED: Calculate amount due (after discount) and change (if overpaid)
+                                    decimal amountDue = PaymentData.Balance;
+                                    if (calculatedDiscountAmount > 0)
+                                    {
+                                        amountDue = PaymentData.Balance - calculatedDiscountAmount;
+                                    }
+                                    
+                                    // Amount actually applied to ledger (cannot exceed amount due)
+                                    decimal amountToApply = Math.Min(PaymentData.NewPaymentAmount, amountDue);
+                                    if (amountToApply < 0) amountToApply = 0;
+                                    
+                                    // Calculate change if overpaid (POS-style)
+                                    decimal changeDue = 0;
+                                    if (PaymentData.NewPaymentAmount > amountDue)
+                                    {
+                                        changeDue = PaymentData.NewPaymentAmount - amountDue;
+                                    }
+                                    
+                                    // Updated balance after payment and discount
+                                    decimal updatedBalance = PaymentData.Balance - amountToApply - calculatedDiscountAmount;
+                                    if (updatedBalance < 0) updatedBalance = 0;
+                                }
+                                
+                                @if (changeDue > 0)
+                                {
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm font-semibold text-gray-800">Change Due:</span>
+                                        <span class="text-base font-bold text-blue-600">₱@changeDue.ToString("N2")</span>
+                                    </div>
+                                }
+                                
                                 <div class="flex justify-between items-center">
                                     <span class="text-sm font-semibold text-gray-800">Updated Balance:</span>
-                                    <span class="text-lg font-bold @((PaymentData.Balance - PaymentData.NewPaymentAmount) > 0 ? "text-red-600" : "text-green-600")">₱@((PaymentData.Balance - PaymentData.NewPaymentAmount).ToString("N2"))</span>
+                                    <span class="text-base font-semibold @(updatedBalance > 0 ? "text-red-600" : "text-green-600")">₱@updatedBalance.ToString("N2")</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Pay / Submit Button -->
-                    <div class="pt-2">
+                    <div class="pt-1">
                         <button @onclick="OpenPaymentConfirmationModal"
                                 disabled="@(PaymentData.Balance <= 0 || PaymentData.NewPaymentAmount <= 0 || isProcessingPayment)"
-                                class="w-full flex items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-4 text-base font-bold text-white shadow-lg transition-all duration-300 hover:bg-green-700 hover:shadow-xl disabled:bg-gray-400 disabled:cursor-not-allowed">
-                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                class="w-full flex items-center justify-center gap-2 rounded-md bg-green-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all duration-200 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             @if (isProcessingPayment)
@@ -289,7 +365,7 @@
                                 <span>Process Payment</span>
                             }
                         </button>
-                        <button @onclick="ClearPaymentForm" class="mt-2 w-full rounded-lg border-2 border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+                        <button @onclick="ClearPaymentForm" class="mt-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
                             Clear
                         </button>
                     </div>
@@ -298,40 +374,40 @@
         </div>
 
         <!-- 2. Payment History Section (Bottom Panel) -->
-        <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-6 py-3 border-b border-gray-200 cursor-pointer" @onclick="TogglePaymentHistory">
+        <div class="mb-4 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 border-b border-gray-200 cursor-pointer" @onclick="TogglePaymentHistory">
                 <div class="flex items-center justify-between">
-                    <h2 class="text-lg font-bold text-gray-800">Payment History</h2>
-                    <svg class="h-5 w-5 text-gray-600 transition-transform @(showPaymentHistory ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <h2 class="text-base font-bold text-gray-800">Payment History</h2>
+                    <svg class="h-4 w-4 text-gray-600 transition-transform @(showPaymentHistory ? "rotate-180" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                     </svg>
                 </div>
             </div>
             @if (showPaymentHistory)
             {
-                <div class="p-6">
+                <div class="p-4">
                     @if (ledgerPayments != null && ledgerPayments.Any())
                     {
                         <div class="overflow-x-auto max-h-96 overflow-y-auto">
-                            <table class="w-full text-sm">
+                            <table class="w-full text-xs">
                                 <thead class="bg-gray-50 sticky top-0">
                                     <tr class="border-b-2 border-gray-300">
-                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Date</th>
-                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Type</th>
-                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">OR Number</th>
-                                        <th class="text-right py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Amount</th>
-                                        <th class="text-left py-2 px-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">Cashier</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">Date</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">Type</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">OR Number</th>
+                                        <th class="text-right py-1.5 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">Amount</th>
+                                        <th class="text-left py-1.5 px-2 text-xs font-semibold text-gray-700 uppercase tracking-wide">Cashier</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach (var payment in ledgerPayments)
                                     {
                                         <tr class="border-b border-gray-100 hover:bg-gray-50">
-                                            <td class="py-2 px-3 text-xs text-gray-700">@payment.CreatedAt.ToString("MMM dd, yyyy")</td>
-                                            <td class="py-2 px-3 text-xs text-gray-700">@payment.PaymentMethod</td>
-                                            <td class="py-2 px-3 text-xs text-gray-700 font-mono">@payment.OrNumber</td>
-                                            <td class="py-2 px-3 text-xs text-gray-900 text-right font-medium">₱@payment.Amount.ToString("N2")</td>
-                                            <td class="py-2 px-3 text-xs text-gray-700">@(payment.ProcessedBy ?? "N/A")</td>
+                                            <td class="py-1.5 px-2 text-xs text-gray-700">@payment.CreatedAt.ToString("MMM dd, yyyy")</td>
+                                            <td class="py-1.5 px-2 text-xs text-gray-700">@payment.PaymentMethod</td>
+                                            <td class="py-1.5 px-2 text-xs text-gray-700 font-mono">@payment.OrNumber</td>
+                                            <td class="py-1.5 px-2 text-xs text-gray-900 text-right font-medium">₱@payment.Amount.ToString("N2")</td>
+                                            <td class="py-1.5 px-2 text-xs text-gray-700">@(payment.ProcessedBy ?? "N/A")</td>
                                         </tr>
                                     }
                                 </tbody>
@@ -340,7 +416,7 @@
                     }
                     else
                     {
-                        <p class="text-sm text-gray-500 text-center py-8">No payment history available.</p>
+                        <p class="text-xs text-gray-500 text-center py-6">No payment history available.</p>
                     }
                 </div>
             }
@@ -383,17 +459,77 @@
 
             <!-- Modal Body -->
             <div class="rounded-b-2xl bg-white px-6 py-4">
+                @if (!string.IsNullOrWhiteSpace(modalErrorMessage))
+                {
+                    <div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                        <p class="text-sm font-medium text-red-800">@modalErrorMessage</p>
+                    </div>
+                }
+                
+                @{
+                    // FIXED: Calculate amount due (after discount) and change (if overpaid)
+                    decimal amountDue = PaymentData.Balance;
+                    if (calculatedDiscountAmount > 0)
+                    {
+                        amountDue = PaymentData.Balance - calculatedDiscountAmount;
+                    }
+                    
+                    // Amount actually applied to ledger (cannot exceed amount due)
+                    decimal amountToApply = Math.Min(PaymentData.NewPaymentAmount, amountDue);
+                    if (amountToApply < 0) amountToApply = 0;
+                    
+                    // Calculate change if overpaid (POS-style)
+                    decimal changeDue = 0;
+                    if (PaymentData.NewPaymentAmount > amountDue)
+                    {
+                        changeDue = PaymentData.NewPaymentAmount - amountDue;
+                    }
+                    
+                    // Total reduction (payment + discount)
+                    decimal totalReduction = amountToApply + calculatedDiscountAmount;
+                    
+                    // Updated balance after payment and discount
+                    decimal newBalance = PaymentData.Balance - totalReduction;
+                    if (newBalance < 0) newBalance = 0;
+                }
+                
                 <p class="text-sm text-gray-700 mb-3">
                     Are you sure you want to process a payment of <span class="font-semibold">Php @PaymentData.NewPaymentAmount.ToString("N2")</span> for <span class="font-semibold">@PaymentData.StudentName</span> (ID: @PaymentData.StudentId)?
                 </p>
                 <div class="rounded-lg bg-gray-50 p-3 mb-4">
                     <div class="flex justify-between text-sm mb-2">
+                        <span class="text-gray-600">Cash Received:</span>
+                        <span class="font-medium text-gray-900">Php @PaymentData.NewPaymentAmount.ToString("N2")</span>
+                    </div>
+                    @if (calculatedDiscountAmount > 0)
+                    {
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-600">Discount Applied:</span>
+                            <span class="font-medium text-green-600">-Php @calculatedDiscountAmount.ToString("N2")</span>
+                        </div>
+                        <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-600">Amount Due:</span>
+                            <span class="font-medium text-blue-600">Php @amountDue.ToString("N2")</span>
+                        </div>
+                    }
+                    @if (changeDue > 0)
+                    {
+                        <div class="flex justify-between text-sm mb-2 border-t border-gray-200 pt-2">
+                            <span class="text-gray-600 font-semibold">Change Due:</span>
+                            <span class="font-semibold text-blue-600">Php @changeDue.ToString("N2")</span>
+                        </div>
+                    }
+                    <div class="flex justify-between text-sm mb-2 border-t border-gray-200 pt-2">
+                        <span class="text-gray-600 font-semibold">Amount Applied:</span>
+                        <span class="font-semibold text-green-600">Php @amountToApply.ToString("N2")</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-gray-600 font-semibold">New Balance:</span>
+                        <span class="font-semibold @(newBalance > 0 ? "text-red-600" : "text-green-600")">Php @newBalance.ToString("N2")</span>
+                    </div>
+                    <div class="flex justify-between text-sm mb-2">
                         <span class="text-gray-600">Payment Method:</span>
                         <span class="font-medium text-gray-900">@PaymentData.PaymentMethod</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">New Balance:</span>
-                        <span class="font-medium text-gray-900">@($"Php {(PaymentData.Balance - PaymentData.NewPaymentAmount):N2}")</span>
                     </div>
                 </div>
                 <div class="flex justify-end border-t border-gray-200 pt-3 mt-4">
@@ -449,10 +585,28 @@
                     <div class="border-t border-gray-200 pt-4">
                         <p class="text-xs text-gray-500 mb-2">Payment Details</p>
                         <div class="space-y-2">
+                            @if (ReceiptData.CashReceived > ReceiptData.PaymentAmount)
+                            {
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-700">Cash Received:</span>
+                                    <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.CashReceived.ToString("N2")</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-700">Change Due:</span>
+                                    <span class="text-sm font-semibold text-blue-600">₱@ReceiptData.ChangeDue.ToString("N2")</span>
+                                </div>
+                            }
                             <div class="flex justify-between">
-                                <span class="text-sm text-gray-700">Payment Amount:</span>
+                                <span class="text-sm text-gray-700">Amount Applied:</span>
                                 <span class="text-sm font-semibold text-gray-800">₱@ReceiptData.PaymentAmount.ToString("N2")</span>
                             </div>
+                            @if (ReceiptData.DiscountAmount > 0)
+                            {
+                                <div class="flex justify-between">
+                                    <span class="text-sm text-gray-700">Discount Applied:</span>
+                                    <span class="text-sm font-semibold text-green-600">-₱@ReceiptData.DiscountAmount.ToString("N2")</span>
+                                </div>
+                            }
                             <div class="flex justify-between">
                                 <span class="text-sm text-gray-700">Payment Method:</span>
                                 <span class="text-sm font-semibold text-gray-800">@ReceiptData.PaymentMethod</span>
@@ -501,17 +655,11 @@
                 <button @onclick="CloseReceiptModal" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     Close
                 </button>
-                <button @onclick="PrintReceiptBrowser" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <button @onclick="DownloadReceiptPdf" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                     </svg>
                     Print
-                </button>
-                <button @onclick="DownloadReceiptPdf" class="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Download PDF
                 </button>
             </div>
         </div>
@@ -570,12 +718,24 @@
     private bool hasSearched { get; set; } = false;
     private bool studentFound { get; set; } = false;
     private string searchErrorMessage { get; set; } = "";
+    private string modalErrorMessage { get; set; } = ""; // Error message for payment confirmation modal
     private string enrollmentStatus { get; set; } = "";
     private bool isProcessingPayment { get; set; } = false;
     private List<LedgerCharge> ledgerCharges { get; set; } = new();
     private List<LedgerPayment> ledgerPayments { get; set; } = new();
     private string paymentType { get; set; } = "Downpayment";
+    private bool isPaymentTypeExplicitlySelected { get; set; } = false;
     private bool showPaymentHistory { get; set; } = false;
+    
+    // Discount fields
+    private List<DiscountModel>? availableDiscounts { get; set; }
+    private int? selectedDiscountId { get; set; } = null;
+    private DiscountModel? selectedDiscount { get; set; } = null;
+    private decimal calculatedDiscountAmount { get; set; } = 0;
+    private decimal selectedDiscountBaseAmount { get; set; } = 0;
+    
+    // Check if discount is already applied to the ledger
+    private bool HasDiscountAlreadyApplied => ledgerCharges != null && ledgerCharges.Any(c => c.ChargeType == "Discount");
 
     private async Task SearchStudent()
     {
@@ -625,8 +785,13 @@
                 paymentAmountRawInput = "";
                 isEditingPaymentAmount = false;
                 paymentType = "Downpayment";
+                isPaymentTypeExplicitlySelected = false;
+                selectedDiscountId = null;
+                selectedDiscount = null;
+                calculatedDiscountAmount = 0;
+                selectedDiscountBaseAmount = 0;
 
-                // Load ledger charges and payments
+                // Load ledger charges and payments FIRST (needed for discount filtering)
                 if (paymentInfo.LedgerId.HasValue)
                 {
                     await LoadLedgerDataAsync(paymentInfo.LedgerId.Value);
@@ -639,6 +804,9 @@
                         await LoadLedgerDataAsync(ledger.Id);
                     }
                 }
+                
+                // Load available discounts AFTER ledger data is loaded (to filter out already-applied discounts)
+                await LoadDiscountsAsync();
             }
         }
         catch (Exception ex)
@@ -761,20 +929,19 @@
         {
             parsedValue = Math.Round(parsedValue, 2);
             
-            // Validate payment amount doesn't exceed balance
-            if (parsedValue > PaymentData.Balance)
-            {
-                parsedValue = PaymentData.Balance;
-                paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
-                    ? ((int)PaymentData.Balance).ToString() 
-                    : PaymentData.Balance.ToString("0.##");
-            }
+            // FIXED: Allow any payment amount (POS-style) - user can overpay
+            // No longer auto-formatting to match balance - this allows overpayment and change calculation
+            // Validation will happen in ProcessPayment to ensure we only apply what's needed to ledger
             
             PaymentData.NewPaymentAmount = parsedValue;
+            
+            // Recalculate discount when payment amount changes
+            CalculateDiscountAmount();
         }
         else if (string.IsNullOrWhiteSpace(cleaned) || cleaned == ".")
         {
             PaymentData.NewPaymentAmount = 0;
+            calculatedDiscountAmount = 0;
         }
         
         StateHasChanged();
@@ -813,22 +980,24 @@
             {
                 parsedValue = Math.Round(parsedValue, 2);
                 
-                // Validate payment amount doesn't exceed balance
-                if (parsedValue > PaymentData.Balance)
-                {
-                    parsedValue = PaymentData.Balance;
-                }
+                // FIXED: Allow any payment amount (POS-style) - no longer auto-formatting to balance
+                // User can overpay, and change will be calculated in ProcessPayment
                 
                 PaymentData.NewPaymentAmount = parsedValue;
+                
+                // Recalculate discount when payment amount changes
+                CalculateDiscountAmount();
             }
             else
             {
                 PaymentData.NewPaymentAmount = 0;
+                calculatedDiscountAmount = 0;
             }
         }
         else
         {
             PaymentData.NewPaymentAmount = 0;
+            calculatedDiscountAmount = 0;
         }
         
         paymentAmountRawInput = "";
@@ -884,9 +1053,152 @@
                 
                 PaymentData.NewPaymentAmount = parsedValue;
                 paymentAmountRawInput = cleaned;
+                
+                // Recalculate discount when payment amount changes
+                CalculateDiscountAmount();
                 StateHasChanged();
             }
         }
+    }
+
+    private async Task LoadDiscountsAsync()
+    {
+        try
+        {
+            var discounts = await DiscountService.GetActiveDiscountsAsync();
+            
+            // Filter out discounts that have already been applied to this ledger
+            // Only show discounts that haven't been applied yet
+            List<int>? appliedDiscountIds = null;
+            if (PaymentData.LedgerId.HasValue && ledgerCharges != null)
+            {
+                // Get IDs of discounts already applied to this ledger
+                appliedDiscountIds = ledgerCharges
+                    .Where(c => c.ChargeType == "Discount" && c.DiscountId.HasValue)
+                    .Select(c => c.DiscountId!.Value)
+                    .Distinct()
+                    .ToList();
+            }
+
+            var allDiscounts = discounts.Select(d => new DiscountModel
+            {
+                DiscountId = d.DiscountId,
+                DiscountType = d.DiscountType,
+                DiscountName = d.DiscountName,
+                RateOrValue = d.RateOrValue,
+                IsPercentage = d.IsPercentage,
+                MaxAmount = d.MaxAmount,
+                MinAmount = d.MinAmount,
+                Description = d.Description,
+                IsActive = d.IsActive
+            }).ToList();
+
+            // Filter out already-applied discounts
+            if (appliedDiscountIds != null && appliedDiscountIds.Any())
+            {
+                availableDiscounts = allDiscounts
+                    .Where(d => !appliedDiscountIds.Contains(d.DiscountId))
+                    .ToList();
+            }
+            else
+            {
+                availableDiscounts = allDiscounts;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading discounts: {Message}", ex.Message);
+            availableDiscounts = new List<DiscountModel>();
+        }
+    }
+
+    private void OnDiscountChanged()
+    {
+        if (selectedDiscountId.HasValue && selectedDiscountId.Value > 0 && availableDiscounts != null)
+        {
+            selectedDiscount = availableDiscounts.FirstOrDefault(d => d.DiscountId == selectedDiscountId.Value);
+            CalculateDiscountAmount();
+            
+            // FIXED: When discount changes and "Full Payment" is selected, update payment amount
+            // This ensures the payment amount reflects the discount
+            if (paymentType == "Full Payment" && isPaymentTypeExplicitlySelected)
+            {
+                // Recalculate payment amount: Balance - Discount = Amount to Pay
+                decimal amountToPay = PaymentData.Balance - calculatedDiscountAmount;
+                if (amountToPay < 0) amountToPay = 0;
+                
+                PaymentData.NewPaymentAmount = amountToPay;
+                paymentAmountRawInput = amountToPay == Math.Floor(amountToPay) 
+                    ? ((int)amountToPay).ToString() 
+                    : amountToPay.ToString("0.##");
+            }
+        }
+        else
+        {
+            selectedDiscount = null;
+            calculatedDiscountAmount = 0;
+            selectedDiscountBaseAmount = 0;
+            
+            // FIXED: When discount is removed and "Full Payment" is selected, reset payment amount to full balance
+            if (paymentType == "Full Payment" && isPaymentTypeExplicitlySelected)
+            {
+                PaymentData.NewPaymentAmount = PaymentData.Balance;
+                paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
+                    ? ((int)PaymentData.Balance).ToString() 
+                    : PaymentData.Balance.ToString("0.##");
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void CalculateDiscountAmount()
+    {
+        if (selectedDiscount == null || !selectedDiscount.IsActive)
+        {
+            calculatedDiscountAmount = 0;
+            selectedDiscountBaseAmount = 0;
+            return;
+        }
+
+        // Base amount for discount calculation should be the BALANCE, not the payment amount
+        // This ensures discounts are calculated on what's owed, not what's being paid
+        selectedDiscountBaseAmount = PaymentData.Balance;
+        
+        if (selectedDiscountBaseAmount <= 0)
+        {
+            calculatedDiscountAmount = 0;
+            return;
+        }
+
+        decimal discountAmount = 0;
+
+        if (selectedDiscount.IsPercentage)
+        {
+            discountAmount = selectedDiscountBaseAmount * (selectedDiscount.RateOrValue / 100m);
+        }
+        else
+        {
+            discountAmount = selectedDiscount.RateOrValue;
+        }
+
+        // Apply min/max constraints
+        if (selectedDiscount.MinAmount.HasValue && discountAmount < selectedDiscount.MinAmount.Value)
+        {
+            discountAmount = selectedDiscount.MinAmount.Value;
+        }
+
+        if (selectedDiscount.MaxAmount.HasValue && discountAmount > selectedDiscount.MaxAmount.Value)
+        {
+            discountAmount = selectedDiscount.MaxAmount.Value;
+        }
+
+        // Ensure discount doesn't exceed the balance
+        if (discountAmount > selectedDiscountBaseAmount)
+        {
+            discountAmount = selectedDiscountBaseAmount;
+        }
+
+        calculatedDiscountAmount = Math.Round(discountAmount, 2);
     }
 
     private void ClearPaymentForm()
@@ -897,17 +1209,24 @@
         PaymentData.NewPaymentAmount = 0;
         PaymentData.PaymentMethod = "Cash";
         paymentType = "Downpayment";
+        isPaymentTypeExplicitlySelected = false;
+        selectedDiscountId = null;
+        selectedDiscount = null;
+        calculatedDiscountAmount = 0;
+        selectedDiscountBaseAmount = 0;
         StateHasChanged();
     }
 
     private void SetPaymentTypeDownpayment()
     {
         paymentType = "Downpayment";
+        isPaymentTypeExplicitlySelected = true;
         // Auto-set amount to minimum downpayment if balance allows
         if (PaymentData.Balance >= 1700m)
         {
             PaymentData.NewPaymentAmount = 1700m;
             paymentAmountRawInput = "1700";
+            CalculateDiscountAmount();
         }
         StateHasChanged();
     }
@@ -915,23 +1234,35 @@
     private void SetPaymentTypeOtherFees()
     {
         paymentType = "Other Fees";
+        isPaymentTypeExplicitlySelected = true;
+        CalculateDiscountAmount();
         StateHasChanged();
     }
 
     private void SetPaymentTypePartial()
     {
         paymentType = "Partial Payment";
+        isPaymentTypeExplicitlySelected = true;
+        CalculateDiscountAmount();
         StateHasChanged();
     }
 
     private void SetPaymentTypeFull()
     {
         paymentType = "Full Payment";
-        // Auto-set amount to full balance
-        PaymentData.NewPaymentAmount = PaymentData.Balance;
-        paymentAmountRawInput = PaymentData.Balance == Math.Floor(PaymentData.Balance) 
-            ? ((int)PaymentData.Balance).ToString() 
-            : PaymentData.Balance.ToString("0.##");
+        isPaymentTypeExplicitlySelected = true;
+        
+        // Calculate discount first to determine the actual amount to pay
+        CalculateDiscountAmount();
+        
+        // Auto-set amount to balance minus discount (so full payment after discount = 0 balance)
+        decimal amountToPay = PaymentData.Balance - calculatedDiscountAmount;
+        if (amountToPay < 0) amountToPay = 0;
+        
+        PaymentData.NewPaymentAmount = amountToPay;
+        paymentAmountRawInput = amountToPay == Math.Floor(amountToPay) 
+            ? ((int)amountToPay).ToString() 
+            : amountToPay.ToString("0.##");
         StateHasChanged();
     }
 
@@ -980,28 +1311,41 @@
     private void OpenPaymentConfirmationModal()
     {
         const decimal MINIMUM_PAYMENT = 1700m;
-
+        
         if (PaymentData.NewPaymentAmount <= 0)
         {
-            searchErrorMessage = "Please enter a valid payment amount";
+            modalErrorMessage = "Please enter a valid payment amount";
+            searchErrorMessage = ""; // Clear main error
+            ShowPaymentConfirmationModal = true; // Show modal with error
             StateHasChanged();
             return;
         }
 
-        if (PaymentData.NewPaymentAmount < MINIMUM_PAYMENT)
+        // FIXED: Calculate amount due after discount
+        decimal amountDue = PaymentData.Balance;
+        if (calculatedDiscountAmount > 0)
         {
-            searchErrorMessage = $"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.";
-            StateHasChanged();
-            return;
+            amountDue = PaymentData.Balance - calculatedDiscountAmount;
         }
+        
+        // Amount actually applied to ledger (minimum of cash received and amount due)
+        decimal amountToApply = Math.Min(PaymentData.NewPaymentAmount, amountDue);
+        if (amountToApply < 0) amountToApply = 0;
 
-        if (PaymentData.NewPaymentAmount > PaymentData.Balance)
+        // Validate minimum payment (only if not using discount that brings it below minimum)
+        if (amountToApply < MINIMUM_PAYMENT && calculatedDiscountAmount == 0)
         {
-            searchErrorMessage = $"Payment amount cannot exceed balance of Php {PaymentData.Balance:N2}";
+            modalErrorMessage = $"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.";
+            searchErrorMessage = ""; // Clear main error
+            ShowPaymentConfirmationModal = true; // Show modal with error
             StateHasChanged();
             return;
         }
 
+        // FIXED: No longer preventing overpayment - POS-style allows any amount
+        // Change will be calculated and displayed in ProcessPayment
+
+        modalErrorMessage = "";
         searchErrorMessage = "";
         ShowPaymentConfirmationModal = true;
         StateHasChanged();
@@ -1016,6 +1360,7 @@
     private void ClosePaymentConfirmationModal()
     {
         ShowPaymentConfirmationModal = false;
+        modalErrorMessage = ""; // Clear modal error when closing
         StateHasChanged();
     }
 
@@ -1026,9 +1371,10 @@
 
         try
         {
-            // Store previous payment amount for receipt
+            // Store previous payment amount and ledger ID for receipt
             decimal previousPaid = PaymentData.AmountPaid;
             decimal paymentAmount = PaymentData.NewPaymentAmount;
+            int? paidLedgerId = PaymentData.LedgerId; // Store the ledger ID that will be paid
 
             // Generate OR number before processing payment
             string orNumber = GenerateOrNumber();
@@ -1036,14 +1382,83 @@
             // Get current user name for audit trail
             string processedBy = GetCurrentUserName();
 
+            // FIXED: POS-style payment processing
+            // Calculate amount due after discount
+            decimal amountDue = PaymentData.Balance;
+            if (selectedDiscount != null && calculatedDiscountAmount > 0)
+            {
+                amountDue = PaymentData.Balance - calculatedDiscountAmount;
+                if (amountDue < 0) amountDue = 0;
+            }
+            
+            // Cash received (what student actually paid)
+            decimal cashReceived = PaymentData.NewPaymentAmount;
+            if (cashReceived < 0) cashReceived = 0;
+            
+            // Amount actually applied to ledger (cannot exceed amount due)
+            // If student overpaid, we only apply what's needed
+            decimal amountToApply = Math.Min(cashReceived, amountDue);
+            if (amountToApply < 0) amountToApply = 0;
+            
+            // Calculate change if overpaid (for display/receipt)
+            decimal changeDue = 0;
+            if (cashReceived > amountDue)
+            {
+                changeDue = cashReceived - amountDue;
+            }
+            
+            // Validate minimum payment (if no discount brings it below minimum)
+            const decimal MINIMUM_PAYMENT = 1700m;
+            if (amountToApply < MINIMUM_PAYMENT && calculatedDiscountAmount == 0 && amountDue >= MINIMUM_PAYMENT)
+            {
+                ClosePaymentConfirmationModal(); // Close modal
+                searchErrorMessage = $"Minimum payment amount is Php {MINIMUM_PAYMENT:N2}. Please enter at least Php {MINIMUM_PAYMENT:N2}.";
+                isProcessingPayment = false;
+                StateHasChanged();
+                return;
+            }
+
             // Process payment through service (now includes OR number and processedBy)
+            // FIXED: Apply only the amount needed (amountToApply), not the full cash received
+            // This ensures ledger balance is correct even if student overpaid
             var updatedInfo = await PaymentService.ProcessPaymentAsync(
                 PaymentData.StudentId,
-                PaymentData.NewPaymentAmount,
+                amountToApply, // Apply only what's needed, not the full cash received
                 PaymentData.PaymentMethod,
                 orNumber,
                 processedBy
             );
+            
+            // FIXED: Apply discount AFTER payment is successfully processed
+            // This ensures the discount is applied in the correct order and transaction
+            if (selectedDiscount != null && calculatedDiscountAmount > 0 && PaymentData.LedgerId.HasValue)
+            {
+                // Apply discount to ledger if ledger exists
+                // Discount is applied as a negative charge, reducing the total charges
+                try
+                {
+                    await LedgerService.ApplyDiscountAsync(
+                        PaymentData.LedgerId.Value,
+                        selectedDiscount.DiscountType,
+                        calculatedDiscountAmount,
+                        selectedDiscount.DiscountId,
+                        $"{selectedDiscount.DiscountName} - Applied during payment"
+                    );
+                    
+                    // Reload payment info after discount is applied to get updated balance
+                    var infoAfterDiscount = await PaymentService.GetStudentPaymentInfoAsync(PaymentData.StudentId);
+                    if (infoAfterDiscount != null)
+                    {
+                        updatedInfo = infoAfterDiscount;
+                    }
+                }
+                catch (Exception discountEx)
+                {
+                    Logger?.LogError(discountEx, "Error applying discount after payment: {Message}", discountEx.Message);
+                    // Don't fail the payment if discount application fails, but log it
+                    ShowErrorMessage($"Payment processed successfully, but discount could not be applied: {discountEx.Message}");
+                }
+            }
 
             // Update payment data with latest info
             PaymentData.AmountPaid = updatedInfo.AmountPaid;
@@ -1052,15 +1467,61 @@
             enrollmentStatus = updatedInfo.EnrollmentStatus;
 
             // Small delay to ensure database changes are committed
-            await Task.Delay(100);
+            await Task.Delay(150);
 
             // Reload ledger data after payment to show updated balance and payment history
             if (PaymentData.LedgerId.HasValue)
             {
                 await LoadLedgerDataAsync(PaymentData.LedgerId.Value);
+                // Reload discounts to exclude the one that was just applied
+                await LoadDiscountsAsync();
+            }
+            
+            // Refresh payment info to get the latest data (in case ledger changed)
+            var refreshedInfo = await PaymentService.GetStudentPaymentInfoAsync(PaymentData.StudentId);
+            if (refreshedInfo != null)
+            {
+                PaymentData.AmountPaid = refreshedInfo.AmountPaid;
+                PaymentData.Balance = refreshedInfo.Balance;
+                PaymentData.PaymentStatus = refreshedInfo.PaymentStatus;
+                PaymentData.TotalFee = refreshedInfo.TotalFee;
+                enrollmentStatus = refreshedInfo.EnrollmentStatus;
             }
 
-            // Prepare receipt data
+            // Prepare receipt data using the ledger that was actually paid
+            // This ensures receipt shows correct values even if GetStudentPaymentInfoAsync returns a different ledger
+            decimal receiptTotalFee = PaymentData.TotalFee;
+            decimal receiptTotalPaid = previousPaid + amountToApply; // Calculate from what we know we paid
+            decimal receiptBalance = 0m;
+            
+            // Get the ledger that was paid to calculate accurate receipt values
+            if (paidLedgerId.HasValue)
+            {
+                var paidLedger = await LedgerService.GetLedgerByIdAsync(paidLedgerId.Value);
+                if (paidLedger != null)
+                {
+                    // Use values from the paid ledger (not from GetStudentPaymentInfoAsync which might return different ledger)
+                    receiptTotalFee = paidLedger.TotalCharges;
+                    // Calculate balance from the paid ledger: TotalCharges - TotalPayments
+                    // TotalPayments should include the payment we just made + discount
+                    receiptBalance = paidLedger.Balance;
+                    // Use calculated TotalPaid (previousPaid + this payment) instead of ledger.TotalPayments
+                    // to ensure accuracy, but verify it matches the ledger
+                    if (Math.Abs(receiptTotalPaid - paidLedger.TotalPayments) > 0.01m)
+                    {
+                        // If they don't match, use ledger value (it should be correct after payment)
+                        receiptTotalPaid = paidLedger.TotalPayments;
+                    }
+                }
+            }
+            
+            // Calculate change for receipt display
+            decimal receiptChangeDue = 0;
+            if (cashReceived > amountDue)
+            {
+                receiptChangeDue = cashReceived - amountDue;
+            }
+            
             ReceiptData = new ReceiptDataModel
             {
                 OrNumber = orNumber,
@@ -1068,12 +1529,15 @@
                 StudentId = PaymentData.StudentId,
                 StudentName = PaymentData.StudentName,
                 GradeLevel = PaymentData.GradeLevel,
-                PaymentAmount = paymentAmount,
+                PaymentAmount = amountToApply, // Amount actually applied to ledger
+                CashReceived = cashReceived, // Actual cash received (for reconciliation)
+                ChangeDue = receiptChangeDue, // Change returned to student
                 PaymentMethod = PaymentData.PaymentMethod,
-                TotalFee = PaymentData.TotalFee,
+                TotalFee = receiptTotalFee, // Use value from paid ledger
                 PreviousPaid = previousPaid,
-                TotalPaid = updatedInfo.AmountPaid,
-                Balance = updatedInfo.Balance,
+                TotalPaid = receiptTotalPaid, // Use value from paid ledger (previous + this payment)
+                Balance = receiptBalance, // Use balance from paid ledger (should be 0 if fully paid)
+                DiscountAmount = calculatedDiscountAmount, // Include discount in receipt
                 ProcessedBy = processedBy
             };
 
@@ -1086,15 +1550,25 @@
             isEditingPaymentAmount = false;
             PaymentData.NewPaymentAmount = 0;
             searchErrorMessage = "";
+            selectedDiscountId = null;
+            selectedDiscount = null;
+            calculatedDiscountAmount = 0;
+            selectedDiscountBaseAmount = 0;
 
             // Show receipt modal
             ShowReceiptModal = true;
+            StateHasChanged();
 
             Logger?.LogInformation("Payment processed successfully for student {StudentId} with OR {OrNumber}", PaymentData.StudentId, orNumber);
+            
+            // Auto-close receipt modal after a short delay (2 seconds) so user can see the receipt
+            _ = AutoCloseReceiptModalAsync(2000);
         }
         catch (Exception ex)
         {
             Logger?.LogError(ex, "Error processing payment: {Message}", ex.Message);
+            // FIXED: Close modal and show error in main view
+            ClosePaymentConfirmationModal();
             searchErrorMessage = $"Error processing payment: {ex.Message}";
         }
         finally
@@ -1120,32 +1594,29 @@
         StateHasChanged();
     }
 
+    private async Task AutoCloseReceiptModalAsync(int delayMs)
+    {
+        await Task.Delay(delayMs);
+        await InvokeAsync(() =>
+        {
+            CloseReceiptModal();
+        });
+    }
+
     private void HandleReceiptBackdropClick()
     {
         // Don't close on backdrop click for receipt (user should explicitly close or print)
     }
 
-    private async Task PrintReceiptBrowser()
-    {
-        try
-        {
-            // Use browser's print functionality
-            await JSRuntime.InvokeVoidAsync("window.print");
-            Logger?.LogInformation("Payment receipt print dialog opened");
-        }
-        catch (Exception ex)
-        {
-            Logger?.LogError(ex, "Error opening print dialog: {Message}", ex.Message);
-            searchErrorMessage = "Error opening print dialog. Please try again.";
-            StateHasChanged();
-        }
-    }
+    // Removed PrintReceiptBrowser - Print button now downloads PDF directly
 
     private async Task DownloadReceiptPdf()
     {
         try
         {
             // Convert ReceiptDataModel to PaymentReceiptPdfGenerator.ReceiptData
+            // Note: PDF generator ReceiptData may not have CashReceived/ChangeDue fields yet
+            // For now, pass PaymentAmount (amount applied) - can enhance PDF generator later if needed
             var receiptData = new PaymentReceiptPdfGenerator.ReceiptData
             {
                 OrNumber = ReceiptData.OrNumber,
@@ -1153,7 +1624,7 @@
                 StudentId = ReceiptData.StudentId,
                 StudentName = ReceiptData.StudentName,
                 GradeLevel = ReceiptData.GradeLevel,
-                PaymentAmount = ReceiptData.PaymentAmount,
+                PaymentAmount = ReceiptData.PaymentAmount, // Amount applied to ledger
                 PaymentMethod = ReceiptData.PaymentMethod,
                 TotalFee = ReceiptData.TotalFee,
                 PreviousPaid = ReceiptData.PreviousPaid,
@@ -1175,6 +1646,9 @@
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
             
             Logger?.LogInformation("Payment receipt PDF generated and downloaded: {FileName}", fileName);
+            
+            // Auto-close receipt modal after PDF is downloaded
+            CloseReceiptModal();
         }
         catch (Exception ex)
         {
@@ -1240,13 +1714,24 @@
         public string StudentId { get; set; } = string.Empty;
         public string StudentName { get; set; } = string.Empty;
         public string GradeLevel { get; set; } = string.Empty;
-        public decimal PaymentAmount { get; set; }
+        public decimal PaymentAmount { get; set; } // Amount actually applied to ledger
+        public decimal CashReceived { get; set; } = 0; // Actual cash received (for reconciliation/change calculation)
+        public decimal ChangeDue { get; set; } = 0; // Change returned to student (if overpaid)
+        public decimal DiscountAmount { get; set; } = 0; // Discount applied
         public string PaymentMethod { get; set; } = string.Empty;
         public decimal TotalFee { get; set; }
         public decimal PreviousPaid { get; set; }
         public decimal TotalPaid { get; set; }
         public decimal Balance { get; set; }
         public string ProcessedBy { get; set; } = string.Empty;
+    }
+
+    private void ShowErrorMessage(string message)
+    {
+        // FIXED: Close modal and show error in main view
+        ClosePaymentConfirmationModal();
+        searchErrorMessage = message;
+        StateHasChanged();
     }
 
     private string GetCurrentUserName()
