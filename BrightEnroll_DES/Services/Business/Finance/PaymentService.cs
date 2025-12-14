@@ -587,9 +587,23 @@ public class PaymentService
             .LoadAsync();
 
         // Recalculate totals to ensure status is up-to-date based on actual payments and charges
+        // IMPORTANT: Sum ALL charges including Tuition, Misc, Other, and Discounts (discounts are negative)
         var totalCharges = ledger.Charges?.Sum(c => c.Amount) ?? 0m;
         var totalPayments = ledger.Payments?.Sum(p => p.Amount) ?? 0m;
         var balance = totalCharges - totalPayments;
+        
+        // Log calculation for debugging
+        if (ledger.Charges != null && ledger.Charges.Any())
+        {
+            var tuitionCharges = ledger.Charges.Where(c => c.ChargeType == "Tuition").Sum(c => c.Amount);
+            var miscCharges = ledger.Charges.Where(c => c.ChargeType == "Misc").Sum(c => c.Amount);
+            var otherCharges = ledger.Charges.Where(c => c.ChargeType == "Other").Sum(c => c.Amount);
+            var discountCharges = ledger.Charges.Where(c => c.ChargeType == "Discount").Sum(c => c.Amount);
+            
+            _logger?.LogInformation(
+                "Calculated totals for ledger {LedgerId}: Tuition={Tuition}, Misc={Misc}, Other={Other}, Discount={Discount}, Total={Total}",
+                ledger.Id, tuitionCharges, miscCharges, otherCharges, discountCharges, totalCharges);
+        }
 
         // Determine payment status based on current calculations (not stored status)
         // This ensures the status is always accurate even if ledger.Status is stale

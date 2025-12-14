@@ -231,6 +231,30 @@ public class StudentLedgerService
             }
 
             await _context.SaveChangesAsync();
+            
+            // Verify all charges were created correctly
+            var createdCharges = await _context.LedgerCharges
+                .Where(c => c.LedgerId == ledgerId)
+                .ToListAsync();
+            
+            var tuitionCreated = createdCharges.Any(c => c.ChargeType == "Tuition");
+            var miscCreated = createdCharges.Any(c => c.ChargeType == "Misc");
+            var otherCreated = createdCharges.Any(c => c.ChargeType == "Other");
+            var totalCreated = createdCharges.Sum(c => c.Amount);
+            var expectedTotal = fee.TuitionFee + fee.MiscFee + fee.OtherFee;
+            
+            // Log charge creation for debugging
+            _logger?.LogInformation(
+                "Created charges for ledger {LedgerId}: Tuition={Tuition} (created={TuitionCreated}), Misc={Misc} (created={MiscCreated}), Other={Other} (created={OtherCreated}), ExpectedTotal={ExpectedTotal}, ActualTotal={ActualTotal}",
+                ledgerId, fee.TuitionFee, tuitionCreated, fee.MiscFee, miscCreated, fee.OtherFee, otherCreated, expectedTotal, totalCreated);
+            
+            // Warn if totals don't match
+            if (Math.Abs(totalCreated - expectedTotal) > 0.01m)
+            {
+                _logger?.LogWarning(
+                    "Charge total mismatch for ledger {LedgerId}: Expected {ExpectedTotal}, but created charges sum to {ActualTotal}",
+                    ledgerId, expectedTotal, totalCreated);
+            }
         }
         catch (Exception ex)
         {

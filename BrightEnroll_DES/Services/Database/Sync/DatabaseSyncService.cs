@@ -30,16 +30,16 @@ public class SyncResult
 
 public class DatabaseSyncService : IDatabaseSyncService
 {
-    private readonly AppDbContext _localContext;
+    private readonly IDbContextFactory<AppDbContext> _contextFactory;
     private readonly string _cloudConnectionString;
     private readonly ILogger<DatabaseSyncService>? _logger;
 
     public DatabaseSyncService(
-        AppDbContext localContext,
+        IDbContextFactory<AppDbContext> contextFactory,
         IConfiguration configuration,
         ILogger<DatabaseSyncService>? logger = null)
     {
-        _localContext = localContext;
+        _contextFactory = contextFactory;
         _cloudConnectionString = configuration.GetConnectionString("CloudConnection") 
             ?? throw new InvalidOperationException("CloudConnection string not found in configuration");
         _logger = logger;
@@ -80,65 +80,68 @@ public class DatabaseSyncService : IDatabaseSyncService
 
             // Sync in order: Parents first, then dependent tables
             // Core reference data
-            result.RecordsPushed += await SyncTableToCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "SchoolYearId");
-            result.RecordsPushed += await SyncTableToCloudAsync<Role>(cloudConnection, "tbl_roles", "RoleId");
+            result.RecordsPushed += await SyncTableToCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "school_year_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<Role>(cloudConnection, "tbl_roles", "role_id");
             result.RecordsPushed += await SyncTableToCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID");
             result.RecordsPushed += await SyncTableToCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID");
             
             // Employee data
-            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "EmergencyId");
-            result.RecordsPushed += await SyncTableToCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "SalaryId");
-            result.RecordsPushed += await SyncTableToCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "DeductionId");
-            result.RecordsPushed += await SyncTableToCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "RequestId");
-            result.RecordsPushed += await SyncTableToCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "TimeRecordId");
-            result.RecordsPushed += await SyncTableToCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "TransactionId");
+            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "emergency_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "salary_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "deduction_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "request_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "time_record_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "transaction_id");
             
             // Student data
             result.RecordsPushed += await SyncTableToCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPushed += await SyncTableToCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "Id");
-            result.RecordsPushed += await SyncTableToCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "Id");
-            result.RecordsPushed += await SyncTableToCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "Id");
+            result.RecordsPushed += await SyncTableToCloudAsync<Discount>(cloudConnection, "tbl_discounts", "discount_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "id");
+            result.RecordsPushed += await SyncTableToCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "id");
+            result.RecordsPushed += await SyncTableToCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "id");
             
             // Finance data
             result.RecordsPushed += await SyncTableToCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
-            result.RecordsPushed += await SyncTableToCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "BreakdownId");
-            result.RecordsPushed += await SyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "AccountId");
-            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "JournalEntryId");
-            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "LineId");
-            result.RecordsPushed += await SyncTableToCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "PeriodId");
+            result.RecordsPushed += await SyncTableToCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "breakdown_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<ExpenseAttachment>(cloudConnection, "tbl_ExpenseAttachments", "attachment_ID");
+            result.RecordsPushed += await SyncTableToCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "account_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "journal_entry_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "line_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "period_id");
             
             // Curriculum data
-            result.RecordsPushed += await SyncTableToCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingID");
             result.RecordsPushed += await SyncTableToCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
-            result.RecordsPushed += await SyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
-            result.RecordsPushed += await SyncTableToCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "Id");
+            result.RecordsPushed += await SyncTableToCloudAsync<Section>(cloudConnection, "tbl_Sections", "SectionID");
+            result.RecordsPushed += await SyncTableToCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "SubjectID");
+            result.RecordsPushed += await SyncTableToCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "ID");
             result.RecordsPushed += await SyncTableToCloudAsync<SubjectSchedule>(cloudConnection, "tbl_SubjectSchedule", "ScheduleID");
             result.RecordsPushed += await SyncTableToCloudAsync<TeacherSectionAssignment>(cloudConnection, "tbl_TeacherSectionAssignment", "AssignmentID");
-            result.RecordsPushed += await SyncTableToCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleId");
+            result.RecordsPushed += await SyncTableToCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleID");
             result.RecordsPushed += await SyncTableToCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
             
             // Grade data
-            result.RecordsPushed += await SyncTableToCloudAsync<Grade>(cloudConnection, "tbl_Grades", "GradeId");
-            result.RecordsPushed += await SyncTableToCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "WeightId");
-            result.RecordsPushed += await SyncTableToCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "HistoryId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Grade>(cloudConnection, "tbl_Grades", "grade_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "weight_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "history_id");
             result.RecordsPushed += await SyncTableToCloudAsync<Attendance>(cloudConnection, "tbl_Attendance", "AttendanceID");
             
             // Inventory & Assets
-            result.RecordsPushed += await SyncTableToCloudAsync<Asset>(cloudConnection, "tbl_Assets", "AssetId");
-            result.RecordsPushed += await SyncTableToCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "ItemId");
-            result.RecordsPushed += await SyncTableToCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "AssignmentId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Asset>(cloudConnection, "tbl_Assets", "asset_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "item_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "assignment_id");
             
             // Logs and notifications
-            result.RecordsPushed += await SyncTableToCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "NotificationId");
-            result.RecordsPushed += await SyncTableToCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "LogId");
-            result.RecordsPushed += await SyncTableToCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "LogId");
+            result.RecordsPushed += await SyncTableToCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "notification_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "log_id");
+            result.RecordsPushed += await SyncTableToCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "log_id");
             result.RecordsPushed += await SyncTableToCloudAsync<TeacherActivityLog>(cloudConnection, "tbl_TeacherActivityLogs", "id");
+            result.RecordsPushed += await SyncTableToCloudAsync<AuditLog>(cloudConnection, "tbl_audit_logs", "log_id");
 
             result.Message = $"Successfully synced {result.RecordsPushed} records to cloud.";
             _logger?.LogInformation("Sync to cloud completed: {Count} records", result.RecordsPushed);
@@ -173,65 +176,68 @@ public class DatabaseSyncService : IDatabaseSyncService
 
             // Sync in order: Parents first, then dependent tables
             // Core reference data
-            result.RecordsPulled += await SyncTableFromCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "SchoolYearId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Role>(cloudConnection, "tbl_roles", "RoleId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SchoolYear>(cloudConnection, "tbl_SchoolYear", "school_year_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Role>(cloudConnection, "tbl_roles", "role_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<UserEntity>(cloudConnection, "tbl_Users", "user_ID");
             result.RecordsPulled += await SyncTableFromCloudAsync<GradeLevel>(cloudConnection, "tbl_GradeLevel", "gradelevel_ID");
             
             // Employee data
-            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "EmergencyId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "SalaryId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "DeductionId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "RequestId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "TimeRecordId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "TransactionId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeAddress>(cloudConnection, "tbl_employee_address", "address_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<EmployeeEmergencyContact>(cloudConnection, "tbl_employee_emergency_contact", "emergency_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryInfo>(cloudConnection, "tbl_salary_info", "salary_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Deduction>(cloudConnection, "tbl_deductions", "deduction_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SalaryChangeRequest>(cloudConnection, "tbl_salary_change_requests", "request_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<TimeRecord>(cloudConnection, "tbl_TimeRecords", "time_record_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<PayrollTransaction>(cloudConnection, "tbl_payroll_transactions", "transaction_id");
             
             // Student data
             result.RecordsPulled += await SyncTableFromCloudAsync<Guardian>(cloudConnection, "tbl_Guardians", "guardian_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<Student>(cloudConnection, "tbl_Students", "student_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentRequirement>(cloudConnection, "tbl_StudentRequirements", "requirement_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentPayment>(cloudConnection, "tbl_StudentPayments", "payment_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "Id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "Id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "Id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Discount>(cloudConnection, "tbl_discounts", "discount_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<StudentLedger>(cloudConnection, "tbl_StudentLedgers", "id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerCharge>(cloudConnection, "tbl_LedgerCharges", "id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<LedgerPayment>(cloudConnection, "tbl_LedgerPayments", "id");
             
             // Finance data
             result.RecordsPulled += await SyncTableFromCloudAsync<Fee>(cloudConnection, "tbl_Fees", "fee_ID");
-            result.RecordsPulled += await SyncTableFromCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "BreakdownId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "AccountId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "JournalEntryId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "LineId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "PeriodId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<FeeBreakdown>(cloudConnection, "tbl_FeeBreakdown", "breakdown_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Expense>(cloudConnection, "tbl_Expenses", "expense_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<ExpenseAttachment>(cloudConnection, "tbl_ExpenseAttachments", "attachment_ID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<ChartOfAccount>(cloudConnection, "tbl_ChartOfAccounts", "account_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntry>(cloudConnection, "tbl_JournalEntries", "journal_entry_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<JournalEntryLine>(cloudConnection, "tbl_JournalEntryLines", "line_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<AccountingPeriod>(cloudConnection, "tbl_AccountingPeriods", "period_id");
             
             // Curriculum data
-            result.RecordsPulled += await SyncTableFromCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Building>(cloudConnection, "tbl_Buildings", "BuildingID");
             result.RecordsPulled += await SyncTableFromCloudAsync<Classroom>(cloudConnection, "tbl_Classrooms", "RoomID");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "section_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "subject_id");
-            result.RecordsPulled += await SyncTableFromCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "Id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Section>(cloudConnection, "tbl_Sections", "SectionID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Subject>(cloudConnection, "tbl_Subjects", "SubjectID");
+            result.RecordsPulled += await SyncTableFromCloudAsync<SubjectSection>(cloudConnection, "tbl_SubjectSection", "ID");
             result.RecordsPulled += await SyncTableFromCloudAsync<SubjectSchedule>(cloudConnection, "tbl_SubjectSchedule", "ScheduleID");
             result.RecordsPulled += await SyncTableFromCloudAsync<TeacherSectionAssignment>(cloudConnection, "tbl_TeacherSectionAssignment", "AssignmentID");
-            result.RecordsPulled += await SyncTableFromCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<ClassSchedule>(cloudConnection, "tbl_ClassSchedule", "ScheduleID");
             result.RecordsPulled += await SyncTableFromCloudAsync<StudentSectionEnrollment>(cloudConnection, "tbl_StudentSectionEnrollment", "enrollment_id");
             
             // Grade data
-            result.RecordsPulled += await SyncTableFromCloudAsync<Grade>(cloudConnection, "tbl_Grades", "GradeId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "WeightId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "HistoryId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Grade>(cloudConnection, "tbl_Grades", "grade_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<GradeWeight>(cloudConnection, "tbl_GradeWeights", "weight_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<GradeHistory>(cloudConnection, "tbl_GradeHistory", "history_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<Attendance>(cloudConnection, "tbl_Attendance", "AttendanceID");
             
             // Inventory & Assets
-            result.RecordsPulled += await SyncTableFromCloudAsync<Asset>(cloudConnection, "tbl_Assets", "AssetId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "ItemId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "AssignmentId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Asset>(cloudConnection, "tbl_Assets", "asset_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<InventoryItem>(cloudConnection, "tbl_InventoryItems", "item_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<AssetAssignment>(cloudConnection, "tbl_AssetAssignments", "assignment_id");
             
             // Logs and notifications
-            result.RecordsPulled += await SyncTableFromCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "NotificationId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "LogId");
-            result.RecordsPulled += await SyncTableFromCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "LogId");
+            result.RecordsPulled += await SyncTableFromCloudAsync<Notification>(cloudConnection, "tbl_Notifications", "notification_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<UserStatusLog>(cloudConnection, "tbl_user_status_logs", "log_id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<StudentStatusLog>(cloudConnection, "tbl_student_status_logs", "log_id");
             result.RecordsPulled += await SyncTableFromCloudAsync<TeacherActivityLog>(cloudConnection, "tbl_TeacherActivityLogs", "id");
+            result.RecordsPulled += await SyncTableFromCloudAsync<AuditLog>(cloudConnection, "tbl_audit_logs", "log_id");
 
             result.Message = $"Successfully synced {result.RecordsPulled} records from cloud.";
             _logger?.LogInformation("Sync from cloud completed: {Count} records", result.RecordsPulled);
@@ -373,19 +379,31 @@ public class DatabaseSyncService : IDatabaseSyncService
         
         try
         {
+            // Create a new DbContext for this operation (thread-safe)
+            using var localContext = _contextFactory.CreateDbContext();
+            
             // Get all records from local database
-            var localRecords = await _localContext.Set<T>().ToListAsync();
+            var localRecords = await localContext.Set<T>().ToListAsync();
+            
+            _logger?.LogInformation("Syncing {Table}: Found {Count} local records", tableName, localRecords.Count);
             
             if (!localRecords.Any())
                 return 0;
 
             // Get EF Core metadata for column mapping
-            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            var entityType = localContext.Model.FindEntityType(typeof(T));
             if (entityType == null) return 0;
 
             var properties = entityType.GetProperties();
             var pkProperty = properties.FirstOrDefault(p => p.GetColumnName() == primaryKeyColumn || p.Name == primaryKeyColumn.Replace("_", ""));
-            if (pkProperty == null) return 0;
+            if (pkProperty == null)
+            {
+                _logger?.LogWarning("Primary key property not found for {Table} with column {Column}", tableName, primaryKeyColumn);
+                return 0;
+            }
+            
+            _logger?.LogDebug("Using primary key property: {PropertyName} (Column: {ColumnName}) for {Table}", 
+                pkProperty.Name, pkProperty.GetColumnName(), tableName);
 
             foreach (var record in localRecords)
             {
@@ -534,13 +552,15 @@ public class DatabaseSyncService : IDatabaseSyncService
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to sync record from table {Table}", tableName);
+                    _logger?.LogWarning(ex, "Failed to sync record from table {Table}: {Message}", tableName, ex.Message);
                 }
             }
+            
+            _logger?.LogInformation("Completed syncing {Table}: {Count} records synced", tableName, recordsSynced);
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Error syncing table {Table} to cloud", tableName);
+            _logger?.LogError(ex, "Error syncing table {Table} to cloud: {Message}", tableName, ex.Message);
             throw;
         }
 
@@ -553,27 +573,66 @@ public class DatabaseSyncService : IDatabaseSyncService
         
         try
         {
-            // Get all records from cloud
+            // Get all records from cloud - read into memory first to avoid DbContext concurrency issues
             var query = $"SELECT * FROM [{tableName}]";
             using var cmd = new SqlCommand(query, cloudConnection);
             using var reader = await cmd.ExecuteReaderAsync();
             
+            // Read all records into memory first (close reader before using DbContext)
+            var cloudRecords = new List<Dictionary<string, object>>();
+            while (await reader.ReadAsync())
+            {
+                var record = new Dictionary<string, object>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var columnName = reader.GetName(i);
+                    var value = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                    record[columnName] = value;
+                }
+                cloudRecords.Add(record);
+            }
+            // Reader is now closed - safe to use DbContext
+            
+            if (!cloudRecords.Any())
+                return 0;
+            
+            // Create a new DbContext for this operation (thread-safe)
+            using var localContext = _contextFactory.CreateDbContext();
+            
             // Get EF Core metadata for column mapping
-            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            var entityType = localContext.Model.FindEntityType(typeof(T));
             if (entityType == null) return 0;
 
             var properties = entityType.GetProperties();
-            var localSet = _localContext.Set<T>();
+            var localSet = localContext.Set<T>();
             
-            while (await reader.ReadAsync())
+            // Process records from memory (no active DataReader)
+            foreach (var record in cloudRecords)
             {
                 try
                 {
-                    var pkValue = reader[primaryKeyColumn];
+                    if (!record.ContainsKey(primaryKeyColumn))
+                        continue;
+                        
+                    var pkValue = record[primaryKeyColumn];
+                    if (pkValue == DBNull.Value)
+                        continue;
+                        
                     var pkProperty = properties.FirstOrDefault(p => p.GetColumnName() == primaryKeyColumn || p.Name == primaryKeyColumn.Replace("_", ""));
                     if (pkProperty == null) continue;
 
-                    var existing = await localSet.FindAsync(pkValue);
+                    // Convert pkValue to correct type for FindAsync
+                    object? convertedPkValue = pkValue;
+                    if (pkProperty.PropertyInfo != null)
+                    {
+                        var pkType = pkProperty.PropertyInfo.PropertyType;
+                        if (pkValue.GetType() != pkType)
+                        {
+                            convertedPkValue = Convert.ChangeType(pkValue, Nullable.GetUnderlyingType(pkType) ?? pkType);
+                        }
+                    }
+
+                    var existing = await localSet.FindAsync(convertedPkValue);
                     
                     if (existing == null)
                     {
@@ -584,8 +643,9 @@ public class DatabaseSyncService : IDatabaseSyncService
                         {
                             // For identity columns, use raw SQL with IDENTITY_INSERT ON
                             // This is necessary because EF Core's Add() doesn't handle explicit identity values
-                            // We need to use the local database connection directly
-                            var localConnection = _localContext.Database.GetDbConnection();
+                            // Create a new context for the connection
+                            using var contextForConnection = _contextFactory.CreateDbContext();
+                            var localConnection = contextForConnection.Database.GetDbConnection();
                             var wasOpen = localConnection.State == System.Data.ConnectionState.Open;
                             if (!wasOpen)
                             {
@@ -614,7 +674,7 @@ public class DatabaseSyncService : IDatabaseSyncService
                                     using var insertCmd = localConnection.CreateCommand();
                                     insertCmd.CommandText = insertQuery;
                                     
-                                    // Build parameters from reader data
+                                    // Build parameters from record data (now from memory, not reader)
                                     int paramIndex = 0;
                                     foreach (var prop in insertProps)
                                     {
@@ -622,9 +682,9 @@ public class DatabaseSyncService : IDatabaseSyncService
                                         var param = insertCmd.CreateParameter();
                                         param.ParameterName = $"@p{paramIndex}";
                                         
-                                        if (reader.HasColumn(columnName))
+                                        if (record.ContainsKey(columnName))
                                         {
-                                            var value = reader[columnName];
+                                            var value = record[columnName];
                                             param.Value = value == DBNull.Value ? DBNull.Value : value;
                                         }
                                         else
@@ -665,9 +725,9 @@ public class DatabaseSyncService : IDatabaseSyncService
                             foreach (var prop in properties)
                             {
                                 var columnName = prop.GetColumnName();
-                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null)
+                                if (record.ContainsKey(columnName) && prop.PropertyInfo != null)
                                 {
-                                    var value = reader[columnName];
+                                    var value = record[columnName];
                                     if (value != DBNull.Value)
                                     {
                                         // Convert value to property type if needed
@@ -692,15 +752,19 @@ public class DatabaseSyncService : IDatabaseSyncService
                         bool shouldUpdate = true;
                         if (lastModifiedProp != null && lastModifiedProp.PropertyInfo != null)
                         {
-                            var cloudLastModified = reader[lastModifiedProp.GetColumnName()];
-                            var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
-                            
-                            if (cloudLastModified != DBNull.Value && localLastModified != null)
+                            var columnName = lastModifiedProp.GetColumnName();
+                            if (record.ContainsKey(columnName))
                             {
-                                // Only update if cloud version is newer (cloud wins)
-                                if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
+                                var cloudLastModified = record[columnName];
+                                var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
+                                
+                                if (cloudLastModified != DBNull.Value && localLastModified != null)
                                 {
-                                    shouldUpdate = cloudDate >= localDate;
+                                    // Only update if cloud version is newer (cloud wins)
+                                    if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
+                                    {
+                                        shouldUpdate = cloudDate >= localDate;
+                                    }
                                 }
                             }
                         }
@@ -711,10 +775,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                             foreach (var prop in properties)
                             {
                                 var columnName = prop.GetColumnName();
-                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null && 
+                                if (record.ContainsKey(columnName) && prop.PropertyInfo != null && 
                                     prop.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
                                 {
-                                    var value = reader[columnName];
+                                    var value = record[columnName];
                                     if (value != DBNull.Value)
                                     {
                                         var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
@@ -734,7 +798,7 @@ public class DatabaseSyncService : IDatabaseSyncService
                 }
             }
             
-            await _localContext.SaveChangesAsync();
+            // SaveChanges is already called within the using block, context will be disposed
         }
         catch (Exception ex)
         {
@@ -776,9 +840,12 @@ public class DatabaseSyncService : IDatabaseSyncService
         
         try
         {
+            // Create a new DbContext for this operation (thread-safe)
+            using var localContext = _contextFactory.CreateDbContext();
+            
             // Get records modified since 'since' date
             // Check for LastModified, UpdatedAt, UpdatedDate, or CreatedAt columns
-            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            var entityType = localContext.Model.FindEntityType(typeof(T));
             if (entityType == null) return 0;
 
             var properties = entityType.GetProperties();
@@ -787,7 +854,7 @@ public class DatabaseSyncService : IDatabaseSyncService
                 p.GetColumnName().ToLower().Contains("updated") ||
                 p.GetColumnName().ToLower().Contains("created"));
 
-            IQueryable<T> query = _localContext.Set<T>();
+            IQueryable<T> query = localContext.Set<T>();
             
             if (dateProp != null && dateProp.PropertyInfo != null)
             {
@@ -991,21 +1058,60 @@ public class DatabaseSyncService : IDatabaseSyncService
             
             using var reader = await cmd.ExecuteReaderAsync();
             
-            var entityType = _localContext.Model.FindEntityType(typeof(T));
+            // Read all records into memory first (close reader before using DbContext)
+            var cloudRecords = new List<Dictionary<string, object>>();
+            while (await reader.ReadAsync())
+            {
+                var record = new Dictionary<string, object>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var columnName = reader.GetName(i);
+                    var value = reader.IsDBNull(i) ? DBNull.Value : reader.GetValue(i);
+                    record[columnName] = value;
+                }
+                cloudRecords.Add(record);
+            }
+            // Reader is now closed - safe to use DbContext
+            
+            if (!cloudRecords.Any())
+                return 0;
+            
+            // Create a new DbContext for this operation (thread-safe)
+            using var localContext = _contextFactory.CreateDbContext();
+            
+            var entityType = localContext.Model.FindEntityType(typeof(T));
             if (entityType == null) return 0;
 
             var properties = entityType.GetProperties();
-            var localSet = _localContext.Set<T>();
+            var localSet = localContext.Set<T>();
             
-            while (await reader.ReadAsync())
+            // Process records from memory (no active DataReader)
+            foreach (var record in cloudRecords)
             {
                 try
                 {
-                    var pkValue = reader[primaryKeyColumn];
+                    if (!record.ContainsKey(primaryKeyColumn))
+                        continue;
+                        
+                    var pkValue = record[primaryKeyColumn];
+                    if (pkValue == DBNull.Value)
+                        continue;
+                        
                     var pkProperty = properties.FirstOrDefault(p => p.GetColumnName() == primaryKeyColumn || p.Name == primaryKeyColumn.Replace("_", ""));
                     if (pkProperty == null) continue;
 
-                    var existing = await localSet.FindAsync(pkValue);
+                    // Convert pkValue to correct type for FindAsync
+                    object? convertedPkValue = pkValue;
+                    if (pkProperty.PropertyInfo != null)
+                    {
+                        var pkType = pkProperty.PropertyInfo.PropertyType;
+                        if (pkValue.GetType() != pkType)
+                        {
+                            convertedPkValue = Convert.ChangeType(pkValue, Nullable.GetUnderlyingType(pkType) ?? pkType);
+                        }
+                    }
+
+                    var existing = await localSet.FindAsync(convertedPkValue);
                     
                     if (existing == null)
                     {
@@ -1015,10 +1121,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                         foreach (var prop in properties)
                         {
                             var columnName = prop.GetColumnName();
-                            if (reader.HasColumn(columnName))
+                            if (record.ContainsKey(columnName) && prop.PropertyInfo != null)
                             {
-                                var value = reader[columnName];
-                                if (value != DBNull.Value && prop.PropertyInfo != null)
+                                var value = record[columnName];
+                                if (value != DBNull.Value)
                                 {
                                     var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
                                     prop.PropertyInfo.SetValue(entity, convertedValue);
@@ -1039,14 +1145,18 @@ public class DatabaseSyncService : IDatabaseSyncService
                         bool shouldUpdate = true;
                         if (lastModifiedProp != null && lastModifiedProp.PropertyInfo != null)
                         {
-                            var cloudLastModified = reader[lastModifiedProp.GetColumnName()];
-                            var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
-                            
-                            if (cloudLastModified != DBNull.Value && localLastModified != null)
+                            var columnName = lastModifiedProp.GetColumnName();
+                            if (record.ContainsKey(columnName))
                             {
-                                if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
+                                var cloudLastModified = record[columnName];
+                                var localLastModified = lastModifiedProp.PropertyInfo.GetValue(existing);
+                                
+                                if (cloudLastModified != DBNull.Value && localLastModified != null)
                                 {
-                                    shouldUpdate = cloudDate >= localDate;
+                                    if (cloudLastModified is DateTime cloudDate && localLastModified is DateTime localDate)
+                                    {
+                                        shouldUpdate = cloudDate >= localDate;
+                                    }
                                 }
                             }
                         }
@@ -1056,10 +1166,10 @@ public class DatabaseSyncService : IDatabaseSyncService
                             foreach (var prop in properties)
                             {
                                 var columnName = prop.GetColumnName();
-                                if (reader.HasColumn(columnName) && prop.PropertyInfo != null && 
+                                if (record.ContainsKey(columnName) && prop.PropertyInfo != null && 
                                     prop.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
                                 {
-                                    var value = reader[columnName];
+                                    var value = record[columnName];
                                     if (value != DBNull.Value)
                                     {
                                         var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
@@ -1079,7 +1189,8 @@ public class DatabaseSyncService : IDatabaseSyncService
                 }
             }
             
-            await _localContext.SaveChangesAsync();
+            // Save all changes before disposing context
+            await localContext.SaveChangesAsync();
         }
         catch (Exception ex)
         {

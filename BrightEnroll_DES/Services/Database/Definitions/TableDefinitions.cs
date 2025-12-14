@@ -75,6 +75,9 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetAttendanceTableDefinition(),
                 // School Year Management (standalone, no dependencies)
                 GetSchoolYearTableDefinition(),
+                // Sync History and Logs (must be after tbl_SyncHistory for FK in tbl_SyncLogs)
+                GetSyncHistoryTableDefinition(),
+                GetSyncLogsTableDefinition(),
             };
         }
 
@@ -1962,6 +1965,80 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                     @"
                         IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Notifications_ReferenceId' AND object_id = OBJECT_ID('dbo.tbl_Notifications'))
                         CREATE INDEX IX_tbl_Notifications_ReferenceId ON [dbo].[tbl_Notifications]([reference_id])"
+                }
+            };
+        }
+
+        public static TableDefinition GetSyncHistoryTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SyncHistory",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SyncHistory](
+                        [sync_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [sync_type] VARCHAR(50) NOT NULL,
+                        [sync_time] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Success',
+                        [records_pushed] INT NOT NULL DEFAULT 0,
+                        [records_pulled] INT NOT NULL DEFAULT 0,
+                        [message] NVARCHAR(MAX) NULL,
+                        [error_details] NVARCHAR(MAX) NULL,
+                        [duration_seconds] INT NULL,
+                        [initiated_by] VARCHAR(100) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE()
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncHistory_SyncTime' AND object_id = OBJECT_ID('dbo.tbl_SyncHistory'))
+                        CREATE INDEX IX_tbl_SyncHistory_SyncTime ON [dbo].[tbl_SyncHistory]([sync_time])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncHistory_SyncType' AND object_id = OBJECT_ID('dbo.tbl_SyncHistory'))
+                        CREATE INDEX IX_tbl_SyncHistory_SyncType ON [dbo].[tbl_SyncHistory]([sync_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncHistory_Status' AND object_id = OBJECT_ID('dbo.tbl_SyncHistory'))
+                        CREATE INDEX IX_tbl_SyncHistory_Status ON [dbo].[tbl_SyncHistory]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncHistory_SyncType_SyncTime' AND object_id = OBJECT_ID('dbo.tbl_SyncHistory'))
+                        CREATE INDEX IX_tbl_SyncHistory_SyncType_SyncTime ON [dbo].[tbl_SyncHistory]([sync_type], [sync_time])"
+                }
+            };
+        }
+
+        public static TableDefinition GetSyncLogsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SyncLogs",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SyncLogs](
+                        [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [sync_id] INT NULL,
+                        [log_type] VARCHAR(50) NOT NULL,
+                        [log_message] NVARCHAR(MAX) NOT NULL,
+                        [timestamp] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [severity] VARCHAR(20) NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_tbl_SyncLogs_tbl_SyncHistory FOREIGN KEY ([sync_id]) 
+                            REFERENCES [dbo].[tbl_SyncHistory]([sync_id]) ON DELETE SET NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncLogs_SyncId' AND object_id = OBJECT_ID('dbo.tbl_SyncLogs'))
+                        CREATE INDEX IX_tbl_SyncLogs_SyncId ON [dbo].[tbl_SyncLogs]([sync_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncLogs_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_SyncLogs'))
+                        CREATE INDEX IX_tbl_SyncLogs_Timestamp ON [dbo].[tbl_SyncLogs]([timestamp])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncLogs_LogType' AND object_id = OBJECT_ID('dbo.tbl_SyncLogs'))
+                        CREATE INDEX IX_tbl_SyncLogs_LogType ON [dbo].[tbl_SyncLogs]([log_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SyncLogs_SyncId_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_SyncLogs'))
+                        CREATE INDEX IX_tbl_SyncLogs_SyncId_Timestamp ON [dbo].[tbl_SyncLogs]([sync_id], [timestamp])"
                 }
             };
         }

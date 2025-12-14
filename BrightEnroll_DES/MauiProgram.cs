@@ -83,6 +83,18 @@ namespace BrightEnroll_DES
 #endif
             });
 
+            // Add DbContextFactory for thread-safe DbContext creation (required for sync operations)
+            builder.Services.AddDbContextFactory<AppDbContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(localConnectionString);
+
+#if DEBUG
+                options.EnableSensitiveDataLogging();
+                options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SQL: {message}"),
+                    Microsoft.Extensions.Logging.LogLevel.Information);
+#endif
+            });
+
             builder.Services.AddSingleton<IConnectivityService>(sp =>
             {
                 var jsRuntime = sp.GetService<IJSRuntime>();
