@@ -10,6 +10,7 @@
 @inject BrightEnroll_DES.Services.Database.Sync.ISyncStatusService SyncStatusService
 @inject BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService ApprovalNotificationService
 @inject BrightEnroll_DES.Services.Business.Notifications.NotificationService NotificationService
+@inject BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService UserNotificationReadService
 @inject IServiceScopeFactory ServiceScopeFactory
 @inject IJSRuntime JSRuntime
 
@@ -214,7 +215,11 @@
                             
                             try
                             {
-                                notificationCount = await notificationService.GetUnreadCountAsync();
+                                // Get all notifications and calculate unread count based on per-user read status
+                                var allNotifications = await notificationService.GetAllNotificationsAsync();
+                                var userNotificationReadService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService>();
+                                userNotificationReadService.UpdateNotificationReadStatus(allNotifications);
+                                notificationCount = userNotificationReadService.GetUnreadCountForCurrentUser(allNotifications);
                                 StateHasChanged();
                             }
                             catch (Exception)
@@ -272,11 +277,14 @@
             
         try
         {
-            // Try to use NotificationService first, fallback to ApprovalNotificationService
-            // Use await directly - we're already on the UI thread
+            // Get all notifications and calculate unread count based on per-user read status
             if (NotificationService != null)
             {
-                notificationCount = await NotificationService.GetUnreadCountAsync();
+                var allNotifications = await NotificationService.GetAllNotificationsAsync();
+                // Update read status based on per-user tracking
+                UserNotificationReadService.UpdateNotificationReadStatus(allNotifications);
+                // Calculate unread count using per-user service
+                notificationCount = UserNotificationReadService.GetUnreadCountForCurrentUser(allNotifications);
             }
             else
             {

@@ -476,7 +476,14 @@
                                     <option value="">Select School Year</option>
                                     @foreach (var sy in AvailableSchoolYears)
                                     {
-                                        <option value="@sy">@sy</option>
+                                        <option value="@sy" selected="@(Model != null && sy != null && string.Equals(sy.Trim(), Model.SchoolYear?.Trim(), StringComparison.OrdinalIgnoreCase))">@sy</option>
+                                    }
+                                    @* If student's school year from tbl_Student is not in AvailableSchoolYears, add it as an option *@
+                                    @if (Model != null && !string.IsNullOrWhiteSpace(Model.SchoolYear) && 
+                                         !AvailableSchoolYears.Any(sy => sy != null && 
+                                                                       string.Equals(sy.Trim(), Model.SchoolYear.Trim(), StringComparison.OrdinalIgnoreCase)))
+                                    {
+                                        <option value="@Model.SchoolYear" selected>@Model.SchoolYear</option>
                                     }
                                 </InputSelect>
                                 <p class="mt-1 text-xs text-gray-500">School year from tbl_Student (read-only)</p>
@@ -485,15 +492,9 @@
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                     Grade to Enroll <span class="text-red-500">*</span>
                                 </label>
-                                <InputSelect @bind-Value="Model.GradeToEnroll"
-                                             disabled="true"
-                                             class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
-                                    <option value="">Select Grade</option>
-                                    @foreach (var gradeLevel in AvailableGradeLevels)
-                                    {
-                                        <option value="@gradeLevel.GradeLevelName">@gradeLevel.GradeLevelName</option>
-                                    }
-                                </InputSelect>
+                                <div class="w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700 sm:px-4 sm:py-2.5 sm:text-base">
+                                    @(string.IsNullOrWhiteSpace(Model?.GradeToEnroll) ? "N/A" : Model.GradeToEnroll)
+                                </div>
                                 <p class="mt-1 text-xs text-gray-500">Grade level from tbl_Student (read-only)</p>
                             </div>
                         </div>

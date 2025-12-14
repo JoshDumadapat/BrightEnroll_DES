@@ -3,6 +3,7 @@
 @using BrightEnroll_DES.Data.Models
 @using BrightEnroll_DES.Services.Business.Notifications
 @inject NotificationService NotificationService
+@inject UserNotificationReadService UserNotificationReadService
 @inject NavigationManager Navigation
 
 <PageTitle>Notifications</PageTitle>
@@ -136,7 +137,10 @@
         try
         {
             notifications = await NotificationService.GetAllNotificationsAsync();
-            unreadCount = notifications.Count(n => !n.IsRead);
+            // Update read status based on per-user tracking
+            UserNotificationReadService.UpdateNotificationReadStatus(notifications);
+            // Calculate unread count using per-user service
+            unreadCount = UserNotificationReadService.GetUnreadCountForCurrentUser(notifications);
         }
         catch (Exception)
         {
@@ -154,21 +158,32 @@
         await LoadNotifications();
     }
 
-    private async Task MarkAsRead(Notification notification)
+    private void MarkAsRead(Notification notification)
     {
-        if (!notification.IsRead)
+        // Mark as read for current user only (in-memory, not database)
+        if (!UserNotificationReadService.IsNotificationReadForCurrentUser(notification.NotificationId))
         {
-            await NotificationService.MarkAsReadAsync(notification.NotificationId);
+            UserNotificationReadService.MarkNotificationAsReadForCurrentUser(notification.NotificationId);
             notification.IsRead = true;
             unreadCount = Math.Max(0, unreadCount - 1);
             StateHasChanged();
         }
     }
 
-    private async Task MarkAllAsRead()
+    private void MarkAllAsRead()
     {
-        await NotificationService.MarkAllAsReadAsync();
-        await LoadNotifications();
+        // Mark all as read for current user only (in-memory, not database)
+        var notificationIds = notifications.Select(n => n.NotificationId).ToList();
+        UserNotificationReadService.MarkAllNotificationsAsReadForCurrentUser(notificationIds);
+        
+        // Update read status for all notifications
+        foreach (var notification in notifications)
+        {
+            notification.IsRead = true;
+        }
+        
+        unreadCount = 0;
+        StateHasChanged();
     }
 
     private void NavigateToAction(Notification notification)

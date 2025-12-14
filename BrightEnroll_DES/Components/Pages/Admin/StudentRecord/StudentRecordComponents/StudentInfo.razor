@@ -742,11 +742,18 @@
                     Requirements
                 </label>
 
-                @* Show only the requirement groups that apply based on Student Type *@
+                @* Show requirement groups based on Original Student Type to display all unchanging requirements *@
+                @* Unchanging requirements like PSA Birth Certificate, Baptismal Certificate, etc. 
+                   should be shown regardless of current student type if they were provided in any enrollment *@
+                @* Always show base requirements if student was originally New Student or Transferee, or if they currently are *@
+                @{
+                    var shouldShowBaseRequirements = IsNewStudent || IsTransferee || WasOriginallyNewStudent || WasOriginallyTransferee;
+                    var shouldShowTransfereeRequirements = IsTransferee || WasOriginallyTransferee;
+                }
 
-                @if (IsNewStudent || IsTransferee)
+                @if (shouldShowBaseRequirements)
                 {
-                    <!-- New Student Requirements -->
+                    <!-- New Student Requirements (shown for New Student, Transferee, or originally New Student/Transferee) -->
                     <p class="mb-2 text-[11px] font-semibold uppercase text-gray-500">New / Transferee</p>
                     <div class="space-y-1.5 sm:space-y-2 mb-3">
                         <label class="flex items-center">
@@ -773,9 +780,9 @@
                     </div>
                 }
 
-                @if (IsTransferee)
+                @if (shouldShowTransfereeRequirements)
                 {
-                    <!-- Transferee Only Requirements -->
+                    <!-- Transferee Only Requirements (shown for Transferee or originally Transferee) -->
                     <p class="mb-2 text-[11px] font-semibold uppercase text-gray-500">Transferee</p>
                     <div class="space-y-1.5 sm:space-y-2 mb-3">
                         <label class="flex items-center">
@@ -961,6 +968,10 @@
     private bool IsNewStudent => string.Equals(StudentData.StudentType, "New Student", StringComparison.OrdinalIgnoreCase);
     private bool IsTransferee => string.Equals(StudentData.StudentType, "Transferee", StringComparison.OrdinalIgnoreCase);
     private bool IsReturnee => string.Equals(StudentData.StudentType, "Returnee", StringComparison.OrdinalIgnoreCase);
+    
+    // Check original student type for requirement display
+    private bool WasOriginallyNewStudent => string.Equals(StudentData.OriginalStudentType ?? StudentData.StudentType, "New Student", StringComparison.OrdinalIgnoreCase);
+    private bool WasOriginallyTransferee => string.Equals(StudentData.OriginalStudentType ?? StudentData.StudentType, "Transferee", StringComparison.OrdinalIgnoreCase);
 
     protected override void OnInitialized()
     {
@@ -1324,16 +1335,44 @@
                 StudentData.StudentType = updatedEntity.StudentType;
                 StudentData.GradeToEnroll = gradeLevelName;
                 
-                // Update requirements from the entity
-                StudentData.HasPSABirthCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "PSA Birth Certificate") ?? false;
-                StudentData.HasBaptismalCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Baptismal Certificate") ?? false;
-                StudentData.HasReportCard = updatedEntity.Requirements?.Any(r => r.RequirementName == "Report Card") ?? false;
-                StudentData.HasForm138 = updatedEntity.Requirements?.Any(r => r.RequirementName == "Form 138 (Report Card)") ?? false;
-                StudentData.HasForm137 = updatedEntity.Requirements?.Any(r => r.RequirementName == "Form 137 (Permanent Record)") ?? false;
-                StudentData.HasGoodMoralCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Good Moral Certificate") ?? false;
-                StudentData.HasTransferCert = updatedEntity.Requirements?.Any(r => r.RequirementName == "Transfer Certificate") ?? false;
-                StudentData.HasUpdatedEnrollmentForm = updatedEntity.Requirements?.Any(r => r.RequirementName == "Updated Enrollment Form") ?? false;
-                StudentData.HasClearance = updatedEntity.Requirements?.Any(r => r.RequirementName == "Clearance") ?? false;
+                // Update requirements from the entity - check if unchanging requirements were provided
+                // (exists and status is not "not submitted")
+                StudentData.HasPSABirthCert = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "PSA Birth Certificate", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasBaptismalCert = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Baptismal Certificate", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasReportCard = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Report Card", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasForm138 = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Form 138 (Report Card)", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasForm137 = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Form 137 (Permanent Record)", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasGoodMoralCert = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Good Moral Certificate", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasTransferCert = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Transfer Certificate", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasUpdatedEnrollmentForm = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Updated Enrollment Form", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
+                StudentData.HasClearance = updatedEntity.Requirements?.Any(r => 
+                    string.Equals(r.RequirementName, "Clearance", StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(r.Status) &&
+                    !r.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase)) ?? false;
             }
 
             SuccessMessage = "Student information updated successfully!";

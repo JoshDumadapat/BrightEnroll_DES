@@ -23,6 +23,7 @@
 @inject BrightEnroll_DES.Services.QuestPDF.Form1PdfGenerator Form1PdfGenerator
 @inject IJSRuntime JSRuntime
 @inject BrightEnroll_DES.Data.AppDbContext _context
+@inject NavigationManager NavigationManager
 
 <PageTitle>Enrollment</PageTitle>
 
@@ -47,6 +48,8 @@
     <!-- Tabs Card -->
     <div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
         <div class="flex items-center gap-6">
+            @if (!IsCashier)
+            {
             <!-- New Applicants Tab - Clickable but locked -->
             <button @onclick="HandleNewApplicantsClick" 
                     class="flex cursor-not-allowed items-center gap-2 px-3 py-2 text-sm font-semibold text-gray-400 transition-colors">
@@ -56,10 +59,13 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
             </button>
+            }
             <button @onclick="() => HandleTabChange(TabType.ForEnrollment)" 
                     class="@GetTabClasses(TabType.ForEnrollment)">
                 For Enrollment
             </button>
+            @if (!IsCashier)
+            {
             <button @onclick="() => HandleTabChange(TabType.ReEnrollment)" 
                     class="@GetTabClasses(TabType.ReEnrollment)">
                 Re-enrollment
@@ -68,6 +74,7 @@
                     class="@GetTabClasses(TabType.EnrolledStudent)">
                 Enrolled Student
             </button>
+            }
         </div>
     </div>
 
@@ -223,7 +230,8 @@
                           RowsPerPage="RowsPerPage" 
                           IsLoading="isLoading"
                           OnEditStudent="HandleForEnrollmentEdit"
-                          SchoolYear="CurrentSchoolYear" />
+                          SchoolYear="CurrentSchoolYear"
+                          IsViewOnly="@IsCashier" />
         }
         else if (SelectedTab == TabType.ReEnrollment)
         {
@@ -251,6 +259,7 @@
         <NewApplicantEditModal Show="ShowEditModal"
                                Model="EditModel"
                                IsForEnrollmentContext="IsForEnrollmentContext"
+                               IsViewOnly="@IsCashier"
                                OnCancel="CloseEditModal"
                                OnSave="SaveEditedApplicantAsync" />
     }
@@ -442,11 +451,20 @@
 
     private string CurrentSchoolYear { get; set; } = "";
     private bool _isInitialized = false;
+    private bool IsCashier { get; set; } = false;
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
+            // Check if user is cashier
+            IsCashier = AuthorizationService.HasRole("Cashier");
+            
+            // If cashier, ensure only For Enrollment tab is selected
+            if (IsCashier)
+            {
+                SelectedTab = TabType.ForEnrollment;
+            }
             // Load current active school year
             CurrentSchoolYear = await SchoolYearService.GetActiveSchoolYearNameAsync() ?? "";
             
@@ -480,6 +498,37 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        // Handle query parameters for tab navigation (e.g., from Dashboard)
+        var uri = new Uri(NavigationManager.Uri);
+        var query = ParseQueryString(uri.Query);
+        
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            var validTabs = new[] { "NewApplicants", "ForEnrollment", "ReEnrollment", "EnrolledStudent" };
+            if (validTabs.Contains(tabValue, StringComparer.OrdinalIgnoreCase))
+            {
+                var targetTab = tabValue switch
+                {
+                    "NewApplicants" => TabType.NewApplicants,
+                    "ForEnrollment" => TabType.ForEnrollment,
+                    "ReEnrollment" => TabType.ReEnrollment,
+                    "EnrolledStudent" => TabType.EnrolledStudent,
+                    _ => TabType.ForEnrollment
+                };
+                
+                // Only change tab if it's different and user is not cashier (cashier can only see For Enrollment)
+                if (!IsCashier && SelectedTab != targetTab)
+                {
+                    await HandleTabChange(targetTab, skipIfSame: false);
+                }
+                else if (IsCashier && targetTab != TabType.ForEnrollment)
+                {
+                    // Cashier trying to access restricted tab, ignore
+                    return;
+                }
+            }
+        }
+        
         // Skip if not yet initialized (OnInitializedAsync handles first load)
         if (!_isInitialized || isLoading)
         {
@@ -534,6 +583,31 @@
             isLoading = false;
             // Don't throw - allow page to render with existing data
         }
+    }
+
+    private Dictionary<string, string> ParseQueryString(string queryString)
+    {
+        var query = new Dictionary<string, string>();
+        
+        if (string.IsNullOrWhiteSpace(queryString))
+            return query;
+        
+        if (queryString.StartsWith("?"))
+            queryString = queryString.Substring(1);
+        
+        var pairs = queryString.Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var pair in pairs)
+        {
+            var parts = pair.Split('=', 2);
+            if (parts.Length == 2)
+            {
+                var key = Uri.UnescapeDataString(parts[0]);
+                var value = Uri.UnescapeDataString(parts[1]);
+                query[key] = value;
+            }
+        }
+        
+        return query;
     }
 
     private async Task LoadNewApplicantsAsync()

@@ -135,10 +135,19 @@
                     
                     <!-- Status -->
                     <td class="py-3 pr-6 pl-4 text-center" @onclick:stopPropagation="true">
-                        <button @onclick="() => ToggleStatus(item)" 
-                                class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150 whitespace-nowrap @(item.IsActive ? "text-green-700 bg-green-100 hover:bg-green-200" : "text-red-700 bg-red-100 hover:bg-red-200")">
-                            @(item.IsActive ? "Active" : "Inactive")
-                        </button>
+                        @if (IsHRUser)
+                        {
+                            <span class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium whitespace-nowrap @(item.IsActive ? "text-green-700 bg-green-100" : "text-red-700 bg-red-100")">
+                                @(item.IsActive ? "Active" : "Inactive")
+                            </span>
+                        }
+                        else
+                        {
+                            <button @onclick="() => ToggleStatus(item)" 
+                                    class="inline-flex items-center px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors duration-150 whitespace-nowrap @(item.IsActive ? "text-green-700 bg-green-100 hover:bg-green-200" : "text-red-700 bg-red-100 hover:bg-red-200")">
+                                @(item.IsActive ? "Active" : "Inactive")
+                            </button>
+                        }
                     </td>
                 </tr>
                 }
@@ -176,6 +185,7 @@
     [Parameter] public EventCallback<PayrollRoleData> OnSalaryUpdated { get; set; }
     [Parameter] public EventCallback<string> OnRoleSelected { get; set; }
     [Parameter] public string? SelectedRole { get; set; }
+    [Parameter] public bool IsHRUser { get; set; } = false;
 
     // Filter properties
     private string searchText = "";

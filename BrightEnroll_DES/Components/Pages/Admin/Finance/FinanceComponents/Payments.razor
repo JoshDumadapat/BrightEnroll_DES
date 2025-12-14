@@ -5,6 +5,8 @@
 @using BrightEnroll_DES.Services.Authentication
 @using Microsoft.Extensions.Logging
 @using System.Linq
+@using BrightEnroll_DES.Data
+@using Microsoft.EntityFrameworkCore
 @inject IJSRuntime JSRuntime
 @inject PaymentService PaymentService
 @inject FeeService FeeService
@@ -13,6 +15,7 @@
 @inject PaymentReceiptPdfGenerator PdfGenerator
 @inject IAuthService AuthService
 @inject ILogger<Payments> Logger
+@inject AppDbContext AppDbContext
 
 <div class="text-gray-800 p-4 sm:p-6">
     <!-- Header -->
@@ -118,54 +121,310 @@
         <!-- B & C. Main Content: Two-Column Layout -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
             <!-- B. Tuition & Fees Breakdown (Left/Main Panel - 2 columns) -->
-            <div class="lg:col-span-2 rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-                <div class="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2.5 border-b border-gray-200">
-                    <h2 class="text-base font-bold text-gray-800">Tuition & Fees Breakdown</h2>
+            <div class="lg:col-span-2 rounded-lg border border-gray-300 bg-white shadow-lg overflow-hidden">
+                <div class="px-5 py-3 border-b border-gray-200">
+                    <h2 class="text-sm font-bold text-gray-800 uppercase tracking-wide">Tuition & Fees Breakdown</h2>
                 </div>
-                <div class="p-4">
+                <div class="p-5 space-y-4">
                     @if (ledgerCharges != null && ledgerCharges.Any())
                     {
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead>
-                                    <tr class="border-b-2 border-gray-300">
-                                        <th class="text-left py-2 px-3 text-sm font-bold text-gray-800">Charge Type</th>
-                                        <th class="text-left py-2 px-3 text-sm font-bold text-gray-800">Description</th>
-                                        <th class="text-right py-2 px-3 text-sm font-bold text-gray-800">Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var charge in ledgerCharges.OrderBy(c => c.ChargeType == "Discount" ? 1 : 0).ThenBy(c => c.ChargeType).ThenBy(c => c.CreatedAt))
-                                        {
-                                        <tr class="border-b border-gray-100 hover:bg-gray-50 @(charge.ChargeType == "Discount" ? "bg-green-50" : "")">
-                                            <td class="py-2 px-3 text-sm text-gray-700 font-medium">@charge.ChargeType</td>
-                                            <td class="py-2 px-3 text-sm text-gray-700">@(charge.Description ?? charge.ChargeType)</td>
-                                            <td class="py-2 px-3 text-sm text-right font-medium @(charge.Amount < 0 ? "text-green-600" : "text-gray-900")">
-                                                @(charge.Amount < 0 ? "-" : "")₱@Math.Abs(charge.Amount).ToString("N2")
-                                            </td>
+                        // Get all charges grouped by type (excluding Discounts)
+                        var tuitionCharges = ledgerCharges.Where(c => c.ChargeType == "Tuition").OrderBy(c => c.CreatedAt).ToList();
+                        var miscCharges = ledgerCharges.Where(c => c.ChargeType == "Misc").OrderBy(c => c.CreatedAt).ToList();
+                        var otherCharges = ledgerCharges.Where(c => c.ChargeType == "Other").OrderBy(c => c.CreatedAt).ToList();
+                        var discountCharges = ledgerCharges.Where(c => c.ChargeType == "Discount").ToList();
+                        
+                        // Check if we have any fee breakdown items - ALWAYS prioritize fee breakdown table
+                        bool hasTuitionBreakdowns = feeBreakdownsByType != null && feeBreakdownsByType.ContainsKey("Tuition") && feeBreakdownsByType["Tuition"] != null && feeBreakdownsByType["Tuition"].Any();
+                        bool hasMiscBreakdowns = feeBreakdownsByType != null && feeBreakdownsByType.ContainsKey("Misc") && feeBreakdownsByType["Misc"] != null && feeBreakdownsByType["Misc"].Any();
+                        bool hasOtherBreakdowns = feeBreakdownsByType != null && feeBreakdownsByType.ContainsKey("Other") && feeBreakdownsByType["Other"] != null && feeBreakdownsByType["Other"].Any();
+                        
+                        // Get breakdown lists once
+                        List<FeeBreakdown>? tuitionBreakdowns = null;
+                        List<FeeBreakdown>? miscBreakdowns = null;
+                        List<FeeBreakdown>? otherBreakdowns = null;
+                        
+                        if (hasTuitionBreakdowns && feeBreakdownsByType != null && feeBreakdownsByType.TryGetValue("Tuition", out var tuitionList))
+                        {
+                            tuitionBreakdowns = tuitionList;
+                        }
+                        
+                        if (hasMiscBreakdowns && feeBreakdownsByType != null && feeBreakdownsByType.TryGetValue("Misc", out var miscList))
+                        {
+                            miscBreakdowns = miscList;
+                        }
+                        
+                        if (hasOtherBreakdowns && feeBreakdownsByType != null && feeBreakdownsByType.TryGetValue("Other", out var otherList))
+                        {
+                            otherBreakdowns = otherList;
+                        }
+                        
+                        // Calculate totals for each category
+                        decimal tuitionTotal = 0m;
+                        decimal miscTotal = 0m;
+                        decimal otherTotal = 0m;
+                        
+                        if (tuitionBreakdowns != null && tuitionBreakdowns.Any())
+                        {
+                            tuitionTotal = tuitionBreakdowns.Sum(b => b.Amount);
+                        }
+                        else if (tuitionCharges.Any())
+                        {
+                            tuitionTotal = tuitionCharges.Sum(c => c.Amount);
+                        }
+                        
+                        if (miscBreakdowns != null && miscBreakdowns.Any())
+                        {
+                            miscTotal = miscBreakdowns.Sum(b => b.Amount);
+                        }
+                        else if (miscCharges.Any())
+                        {
+                            miscTotal = miscCharges.Sum(c => c.Amount);
+                        }
+                        
+                        if (otherBreakdowns != null && otherBreakdowns.Any())
+                        {
+                            otherTotal = otherBreakdowns.Sum(b => b.Amount);
+                        }
+                        else if (otherCharges.Any())
+                        {
+                            otherTotal = otherCharges.Sum(c => c.Amount);
+                        }
+                        
+                        @* TUITION Category - Separate section with header *@
+                        @if (tuitionCharges.Any() || hasTuitionBreakdowns)
+                        {
+                            <div>
+                                <h3 class="mb-2 text-sm font-bold text-gray-800 uppercase tracking-wide">Tuition</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Charge Type</th>
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Description</th>
+                                                <th class="text-right py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900">TUITION</td>
+                                                <td class="py-2 px-4 text-sm font-semibold text-gray-800">Tuition & Fees</td>
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900 text-right">₱@tuitionTotal.ToString("N2")</td>
+                                            </tr>
+                                            
+                                            @* Tuition Fee Sub-items - Show ALL items from fee breakdown table *@
+                                            @if (tuitionBreakdowns != null && tuitionBreakdowns.Any())
+                                            {
+                                                @foreach (var item in tuitionBreakdowns)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></span>
+                                                                <span class="text-gray-600">Tuition</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@item.ItemName</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@item.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                            else if (tuitionCharges.Any())
+                                            {
+                                                @foreach (var charge in tuitionCharges)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-2"></span>
+                                                                <span class="text-gray-600">Tuition</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@charge.Description</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@charge.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* MISC Category - Separate section with header *@
+                        @if (miscCharges.Any() || hasMiscBreakdowns)
+                        {
+                            <div>
+                                <h3 class="mb-2 text-sm font-bold text-gray-800 uppercase tracking-wide">Miscellaneous Fees</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Charge Type</th>
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Description</th>
+                                                <th class="text-right py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900">MISC</td>
+                                                <td class="py-2 px-4 text-sm font-semibold text-gray-800">Miscellaneous Fees</td>
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900 text-right">₱@miscTotal.ToString("N2")</td>
+                                            </tr>
+                                            
+                                            @* Misc Fee Sub-items - Show ALL items from fee breakdown table *@
+                                            @if (miscBreakdowns != null && miscBreakdowns.Any())
+                                            {
+                                                @foreach (var item in miscBreakdowns)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-purple-500 mr-2"></span>
+                                                                <span class="text-gray-600">Misc</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@item.ItemName</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@item.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                            else if (miscCharges.Any())
+                                            {
+                                                @foreach (var charge in miscCharges)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-purple-500 mr-2"></span>
+                                                                <span class="text-gray-600">Misc</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@charge.Description</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@charge.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* OTHER Category - Separate section with header *@
+                        @if (otherCharges.Any() || hasOtherBreakdowns)
+                        {
+                            <div>
+                                <h3 class="mb-2 text-sm font-bold text-gray-800 uppercase tracking-wide">Other Fees</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Charge Type</th>
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Description</th>
+                                                <th class="text-right py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b-2 border-gray-400 bg-gray-100">
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900">OTHER</td>
+                                                <td class="py-2 px-4 text-sm font-semibold text-gray-800">Other Fees</td>
+                                                <td class="py-2 px-4 text-sm font-bold text-gray-900 text-right">₱@otherTotal.ToString("N2")</td>
+                                            </tr>
+                                            
+                                            @* Other Fee Sub-items - Show ALL items from fee breakdown table *@
+                                            @if (otherBreakdowns != null && otherBreakdowns.Any())
+                                            {
+                                                @foreach (var item in otherBreakdowns)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-2"></span>
+                                                                <span class="text-gray-600">Other</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@item.ItemName</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@item.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                            else if (otherCharges.Any())
+                                            {
+                                                @foreach (var charge in otherCharges)
+                                                {
+                                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                                                        <td class="py-2 px-4 text-xs font-medium text-gray-700 pl-6">
+                                                            <span class="inline-flex items-center">
+                                                                <span class="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 mr-2"></span>
+                                                                <span class="text-gray-600">Other</span>
+                                                            </span>
+                                                        </td>
+                                                        <td class="py-2 px-4 text-xs text-gray-600">@charge.Description</td>
+                                                        <td class="py-2 px-4 text-xs font-semibold text-gray-800 text-right">₱@charge.Amount.ToString("N2")</td>
+                                                    </tr>
+                                                }
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* Discounts *@
+                        @if (discountCharges.Any())
+                        {
+                            <div>
+                                <h3 class="mb-2 text-sm font-bold text-gray-800 uppercase tracking-wide">Discounts</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full border-collapse">
+                                        <thead>
+                                            <tr class="border-b-2 border-gray-300 bg-gray-50">
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Charge Type</th>
+                                                <th class="text-left py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Description</th>
+                                                <th class="text-right py-2 px-4 text-xs font-bold text-gray-800 uppercase tracking-wider">Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var discount in discountCharges)
+                                            {
+                                                <tr class="border-b border-gray-200 bg-green-50 hover:bg-green-100">
+                                                    <td class="py-2 px-4 text-xs font-semibold text-green-800">Discount</td>
+                                                    <td class="py-2 px-4 text-xs font-medium text-green-700">@(discount.Description ?? "Discount Applied")</td>
+                                                    <td class="py-2 px-4 text-xs font-semibold text-green-700 text-right">-₱@Math.Abs(discount.Amount).ToString("N2")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                        
+                        @* Summary Totals *@
+                        <div class="mt-4 pt-4 border-t-2 border-gray-300">
+                            <div class="overflow-x-auto">
+                                <table class="w-full border-collapse">
+                                    <tbody>
+                                        <tr class="bg-blue-50">
+                                            <td colspan="2" class="py-2 px-4 text-sm font-bold text-gray-900">Total Charges</td>
+                                            <td class="py-2 px-4 text-sm font-bold text-blue-900 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
                                         </tr>
-                                    }
-                                </tbody>
-                                <tfoot>
-                                    <tr class="border-t-2 border-gray-400 bg-blue-50">
-                                        <td colspan="2" class="py-2.5 px-3 text-base font-bold text-gray-900">Total Charges</td>
-                                        <td class="py-2.5 px-3 text-base font-bold text-blue-800 text-right">₱@PaymentData.TotalFee.ToString("N2")</td>
-                                    </tr>
-                                    <tr class="bg-green-50">
-                                        <td colspan="2" class="py-2 px-3 text-base font-bold text-gray-900">Total Paid</td>
-                                        <td class="py-2 px-3 text-base font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
-                                    </tr>
-                                    <tr class="bg-red-50">
-                                        <td colspan="2" class="py-2 px-3 text-base font-bold text-gray-900">Remaining Balance</td>
-                                        <td class="py-2 px-3 text-base font-bold text-red-800 text-right">₱@PaymentData.Balance.ToString("N2")</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                                        <tr class="bg-green-50">
+                                            <td colspan="2" class="py-2 px-4 text-sm font-bold text-gray-900">Total Paid</td>
+                                            <td class="py-2 px-4 text-sm font-bold text-green-800 text-right">₱@PaymentData.AmountPaid.ToString("N2")</td>
+                                        </tr>
+                                        <tr class="bg-red-50 border-b-2 border-gray-300">
+                                            <td colspan="2" class="py-2 px-4 text-sm font-bold text-gray-900">Remaining Balance</td>
+                                            <td class="py-2 px-4 text-sm font-bold text-red-700 text-right">₱@PaymentData.Balance.ToString("N2")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     }
                     else
                     {
-                        <p class="text-xs text-gray-500 text-center py-6">No charges available for this ledger.</p>
+                        <p class="text-sm text-gray-500 text-center py-8 font-medium">No charges available for this ledger.</p>
                     }
                 </div>
             </div>
@@ -545,15 +804,15 @@
 <!-- Payment Receipt Modal -->
 @if (ShowReceiptModal)
 {
-    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleReceiptBackdropClick">
-        <div id="payment-receipt-modal" class="w-full max-w-2xl mx-4 bg-white rounded-lg shadow-2xl overflow-hidden" @onclick:stopPropagation="true">
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 py-4" @onclick="HandleReceiptBackdropClick">
+        <div id="payment-receipt-modal" class="w-full max-w-2xl mx-4 bg-white rounded-lg shadow-2xl overflow-hidden flex flex-col max-h-[70vh]" @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-center bg-blue-600 px-6 py-4">
+            <div class="flex items-center justify-center bg-blue-600 px-6 py-4 flex-shrink-0">
                 <h3 class="text-lg font-semibold text-white">Payment Receipt</h3>
             </div>
 
             <!-- Receipt Content (Printable) -->
-            <div id="receipt-content" class="bg-white p-8">
+            <div id="receipt-content" class="bg-white p-8 overflow-y-auto flex-1">
                 <!-- Receipt Header -->
                 <div class="text-center mb-6 border-b-2 border-gray-300 pb-4">
                     <h1 class="text-2xl font-bold text-gray-800 mb-2">BRIGHTENROLL</h1>
@@ -580,6 +839,64 @@
                         <p class="text-sm font-semibold text-gray-800">@ReceiptData.StudentName</p>
                         <p class="text-xs text-gray-600">Student ID: @ReceiptData.StudentId</p>
                         <p class="text-xs text-gray-600">Grade Level: @ReceiptData.GradeLevel</p>
+                    </div>
+
+                    @* Tuition & Fees Breakdown - Only show charge type and total amount *@
+                    <div class="border-t border-gray-200 pt-4">
+                        <p class="text-xs font-bold text-gray-700 mb-3 uppercase tracking-wide">Tuition & Fees Breakdown</p>
+                        <div class="bg-gray-50 rounded-lg p-3 space-y-2">
+                            @{
+                                // Sum all charges by type (not just the first one)
+                                var tuitionChargesReceipt = ledgerCharges?.Where(c => c.ChargeType == "Tuition").ToList() ?? new List<LedgerCharge>();
+                                var miscChargesReceipt = ledgerCharges?.Where(c => c.ChargeType == "Misc").ToList() ?? new List<LedgerCharge>();
+                                var otherChargesReceipt = ledgerCharges?.Where(c => c.ChargeType == "Other").ToList() ?? new List<LedgerCharge>();
+                                var discountChargesReceipt = ledgerCharges?.Where(c => c.ChargeType == "Discount").ToList() ?? new List<LedgerCharge>();
+                                
+                                // Calculate totals for each charge type (sum all charges of that type)
+                                decimal tuitionTotal = tuitionChargesReceipt.Sum(c => c.Amount);
+                                decimal miscTotal = miscChargesReceipt.Sum(c => c.Amount);
+                                decimal otherTotal = otherChargesReceipt.Sum(c => c.Amount);
+                            }
+                            
+                            @* Show only charge type and total amount - no individual items *@
+                            @if (tuitionTotal > 0)
+                            {
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-sm font-semibold text-gray-800">Tuition:</span>
+                                    <span class="text-sm font-bold text-gray-900">₱@tuitionTotal.ToString("N2")</span>
+                                </div>
+                            }
+                            
+                            @if (miscTotal > 0)
+                            {
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-sm font-semibold text-gray-800">Misc:</span>
+                                    <span class="text-sm font-bold text-gray-900">₱@miscTotal.ToString("N2")</span>
+                                </div>
+                            }
+                            
+                            @if (otherTotal > 0)
+                            {
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-sm font-semibold text-gray-800">Other:</span>
+                                    <span class="text-sm font-bold text-gray-900">₱@otherTotal.ToString("N2")</span>
+                                </div>
+                            }
+                            
+                            @* Discounts *@
+                            @if (discountChargesReceipt.Any())
+                            {
+                                @foreach (var discount in discountChargesReceipt)
+                                {
+                                    <div class="mt-2 pt-2 border-t border-gray-200">
+                                        <div class="flex justify-between items-center bg-green-50 p-2 rounded">
+                                            <span class="text-xs font-semibold text-green-800">Discount: @(discount.Description ?? "Discount Applied")</span>
+                                            <span class="text-xs font-semibold text-green-700">-₱@Math.Abs(discount.Amount).ToString("N2")</span>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
                     </div>
 
                     <div class="border-t border-gray-200 pt-4">
@@ -651,7 +968,7 @@
             </div>
 
             <!-- Modal Footer (Non-printable) -->
-            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 no-print">
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end gap-3 no-print flex-shrink-0">
                 <button @onclick="CloseReceiptModal" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                     Close
                 </button>
@@ -726,6 +1043,9 @@
     private string paymentType { get; set; } = "Downpayment";
     private bool isPaymentTypeExplicitlySelected { get; set; } = false;
     private bool showPaymentHistory { get; set; } = false;
+    
+    // Fee breakdown data
+    private Dictionary<string, List<FeeBreakdown>> feeBreakdownsByType { get; set; } = new();
     
     // Discount fields
     private List<DiscountModel>? availableDiscounts { get; set; }
@@ -804,6 +1124,9 @@
                         await LoadLedgerDataAsync(ledger.Id);
                     }
                 }
+                
+                // Load fee breakdown items for the student's grade level
+                await LoadFeeBreakdownsAsync(paymentInfo.GradeLevel);
                 
                 // Load available discounts AFTER ledger data is loaded (to filter out already-applied discounts)
                 await LoadDiscountsAsync();
@@ -1007,11 +1330,8 @@
     // Handle paste to filter invalid characters
     private async Task HandlePaymentAmountPaste(ClipboardEventArgs e)
     {
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("eval", "event.preventDefault();");
-        }
-        catch { }
+        // Blazor handles paste events automatically, no need for JavaScript eval
+        await Task.CompletedTask;
         
         // Get clipboard text
         var clipboardText = await JSRuntime.InvokeAsync<string>("navigator.clipboard.readText");
@@ -1297,6 +1617,77 @@
         }
     }
 
+    private async Task LoadFeeBreakdownsAsync(string gradeLevel)
+    {
+        try
+        {
+            feeBreakdownsByType = new Dictionary<string, List<FeeBreakdown>>();
+            
+            // Get grade level entity
+            var gradeLevels = await FeeService.GetAllGradeLevelsAsync();
+            var normalizedGradeLevel = gradeLevel.Trim();
+            
+            var gradeLevelEntity = gradeLevels.FirstOrDefault(g =>
+            {
+                var dbGradeName = g.GradeLevelName.Trim();
+                if (dbGradeName.Equals(normalizedGradeLevel, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                
+                var dbGradeNoPrefix = dbGradeName.Replace("Grade ", "", StringComparison.OrdinalIgnoreCase).Trim();
+                var inputGradeNoPrefix = normalizedGradeLevel.Replace("Grade ", "", StringComparison.OrdinalIgnoreCase).Trim();
+                if (dbGradeNoPrefix.Equals(inputGradeNoPrefix, StringComparison.OrdinalIgnoreCase))
+                    return true;
+                
+                if (int.TryParse(dbGradeNoPrefix, out var dbNum) && 
+                    int.TryParse(inputGradeNoPrefix, out var inputNum) && 
+                    dbNum == inputNum)
+                    return true;
+                
+                if (dbGradeName.StartsWith("G", StringComparison.OrdinalIgnoreCase) && 
+                    normalizedGradeLevel.StartsWith("G", StringComparison.OrdinalIgnoreCase))
+                {
+                    var dbGNum = dbGradeName.Substring(1).Trim();
+                    var inputGNum = normalizedGradeLevel.Substring(1).Trim();
+                    if (dbGNum.Equals(inputGNum, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                
+                return false;
+            });
+
+            if (gradeLevelEntity == null)
+            {
+                Logger?.LogWarning("Grade level '{GradeLevel}' not found for fee breakdown loading", gradeLevel);
+                return;
+            }
+
+            // Get fee for grade level
+            var fee = await FeeService.GetFeeByGradeLevelIdAsync(gradeLevelEntity.GradeLevelId);
+            if (fee == null)
+            {
+                Logger?.LogWarning("Fee not found for grade level {GradeLevel}", gradeLevel);
+                return;
+            }
+
+            // Get all breakdown items for this fee, grouped by type
+            var breakdowns = await AppDbContext.FeeBreakdowns
+                .Where(fb => fb.FeeId == fee.FeeId)
+                .OrderBy(fb => fb.DisplayOrder)
+                .ThenBy(fb => fb.ItemName)
+                .ToListAsync();
+
+            // Group by breakdown type with case-insensitive key matching
+            feeBreakdownsByType = breakdowns
+                .GroupBy(fb => fb.BreakdownType, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            Logger?.LogError(ex, "Error loading fee breakdowns: {Message}", ex.Message);
+            feeBreakdownsByType = new Dictionary<string, List<FeeBreakdown>>();
+        }
+    }
+
     private string GetEnrollmentStatusColor()
     {
         return enrollmentStatus switch
@@ -1560,9 +1951,6 @@
             StateHasChanged();
 
             Logger?.LogInformation("Payment processed successfully for student {StudentId} with OR {OrNumber}", PaymentData.StudentId, orNumber);
-            
-            // Auto-close receipt modal after a short delay (2 seconds) so user can see the receipt
-            _ = AutoCloseReceiptModalAsync(2000);
         }
         catch (Exception ex)
         {
@@ -1594,15 +1982,6 @@
         StateHasChanged();
     }
 
-    private async Task AutoCloseReceiptModalAsync(int delayMs)
-    {
-        await Task.Delay(delayMs);
-        await InvokeAsync(() =>
-        {
-            CloseReceiptModal();
-        });
-    }
-
     private void HandleReceiptBackdropClick()
     {
         // Don't close on backdrop click for receipt (user should explicitly close or print)
@@ -1614,9 +1993,41 @@
     {
         try
         {
+            // Get ledger charges for breakdown
+            var tuitionCharge = ledgerCharges?.FirstOrDefault(c => c.ChargeType == "Tuition");
+            var miscCharge = ledgerCharges?.FirstOrDefault(c => c.ChargeType == "Misc");
+            var otherCharge = ledgerCharges?.FirstOrDefault(c => c.ChargeType == "Other");
+            var discountCharge = ledgerCharges?.FirstOrDefault(c => c.ChargeType == "Discount");
+            
+            // Convert fee breakdowns to PDF format
+            var tuitionBreakdownItems = feeBreakdownsByType.ContainsKey("Tuition") 
+                ? feeBreakdownsByType["Tuition"].Select(fb => new PaymentReceiptPdfGenerator.FeeBreakdownItem
+                {
+                    ItemName = fb.ItemName,
+                    Amount = fb.Amount,
+                    BreakdownType = fb.BreakdownType
+                }).ToList()
+                : new List<PaymentReceiptPdfGenerator.FeeBreakdownItem>();
+                
+            var miscBreakdownItems = feeBreakdownsByType.ContainsKey("Misc")
+                ? feeBreakdownsByType["Misc"].Select(fb => new PaymentReceiptPdfGenerator.FeeBreakdownItem
+                {
+                    ItemName = fb.ItemName,
+                    Amount = fb.Amount,
+                    BreakdownType = fb.BreakdownType
+                }).ToList()
+                : new List<PaymentReceiptPdfGenerator.FeeBreakdownItem>();
+                
+            var otherBreakdownItems = feeBreakdownsByType.ContainsKey("Other")
+                ? feeBreakdownsByType["Other"].Select(fb => new PaymentReceiptPdfGenerator.FeeBreakdownItem
+                {
+                    ItemName = fb.ItemName,
+                    Amount = fb.Amount,
+                    BreakdownType = fb.BreakdownType
+                }).ToList()
+                : new List<PaymentReceiptPdfGenerator.FeeBreakdownItem>();
+            
             // Convert ReceiptDataModel to PaymentReceiptPdfGenerator.ReceiptData
-            // Note: PDF generator ReceiptData may not have CashReceived/ChangeDue fields yet
-            // For now, pass PaymentAmount (amount applied) - can enhance PDF generator later if needed
             var receiptData = new PaymentReceiptPdfGenerator.ReceiptData
             {
                 OrNumber = ReceiptData.OrNumber,
@@ -1630,7 +2041,14 @@
                 PreviousPaid = ReceiptData.PreviousPaid,
                 TotalPaid = ReceiptData.TotalPaid,
                 Balance = ReceiptData.Balance,
-                ProcessedBy = ReceiptData.ProcessedBy
+                ProcessedBy = ReceiptData.ProcessedBy,
+                TuitionBreakdown = tuitionBreakdownItems,
+                MiscBreakdown = miscBreakdownItems,
+                OtherBreakdown = otherBreakdownItems,
+                TuitionAmount = tuitionCharge?.Amount ?? 0,
+                MiscAmount = miscCharge?.Amount ?? 0,
+                OtherAmount = otherCharge?.Amount ?? 0,
+                DiscountAmount = discountCharge != null ? Math.Abs(discountCharge.Amount) : ReceiptData.DiscountAmount
             };
 
             // Generate PDF
@@ -1646,9 +2064,6 @@
             await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
             
             Logger?.LogInformation("Payment receipt PDF generated and downloaded: {FileName}", fileName);
-            
-            // Auto-close receipt modal after PDF is downloaded
-            CloseReceiptModal();
         }
         catch (Exception ex)
         {

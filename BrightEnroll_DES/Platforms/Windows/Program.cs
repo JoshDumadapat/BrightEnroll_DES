@@ -24,16 +24,69 @@ public class Program
             // Application.Start automatically creates DispatcherQueue on the UI thread
             Microsoft.UI.Xaml.Application.Start((p) =>
             {
-                // Set up SynchronizationContext in the Application.Start callback
-                // This ensures async operations are properly marshalled to the UI thread
-                var context = new DispatcherQueueSynchronizationContext(
-                    DispatcherQueue.GetForCurrentThread() ?? throw new InvalidOperationException(
-                        "DispatcherQueue is null in Application.Start callback. This should not happen."));
-                SynchronizationContext.SetSynchronizationContext(context);
+                try
+                {
+                    // Set up SynchronizationContext in the Application.Start callback
+                    // This ensures async operations are properly marshalled to the UI thread
+                    var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+                    if (dispatcherQueue == null)
+                    {
+                        throw new InvalidOperationException(
+                            "DispatcherQueue is null in Application.Start callback. This should not happen.");
+                    }
+                    
+                    var context = new DispatcherQueueSynchronizationContext(dispatcherQueue);
+                    SynchronizationContext.SetSynchronizationContext(context);
 
-                // Create and initialize the App instance
-                // InitializeComponent will now have access to a properly initialized DispatcherQueue
-                new App();
+                    // Create and initialize the App instance
+                    // InitializeComponent will now have access to a properly initialized DispatcherQueue
+                    // Wrap in try-catch to handle SEHException gracefully
+                    try
+                    {
+                        new App();
+                    }
+                    catch (System.Runtime.InteropServices.SEHException sehEx)
+                    {
+                        // SEHException often indicates missing WinUI runtime or native dependencies
+                        System.Diagnostics.Debug.WriteLine($"[Program.Main] SEHException creating App: {sehEx.Message}");
+                        System.Diagnostics.Debug.WriteLine($"[Program.Main] SEHException ErrorCode: 0x{sehEx.ErrorCode:X8}");
+                        
+                        // Log to file
+                        try
+                        {
+                            var logPath = System.IO.Path.Combine(
+                                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                "BrightEnroll_DES",
+                                "seh_exception.log");
+                            var logDir = System.IO.Path.GetDirectoryName(logPath);
+                            if (!string.IsNullOrEmpty(logDir) && !System.IO.Directory.Exists(logDir))
+                            {
+                                System.IO.Directory.CreateDirectory(logDir);
+                            }
+                            
+                            if (!string.IsNullOrEmpty(logDir))
+                            {
+                                System.IO.File.AppendAllText(logPath,
+                                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SEHException in App() constructor\n" +
+                                    $"ErrorCode: 0x{sehEx.ErrorCode:X8}\n" +
+                                    $"Message: {sehEx.Message}\n" +
+                                    $"StackTrace: {sehEx.StackTrace}\n\n");
+                            }
+                        }
+                        catch { /* Ignore file logging errors */ }
+                        
+                        // Re-throw to show error dialog
+                        throw;
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    // Log any other exceptions in the Application.Start callback
+                    System.Diagnostics.Debug.WriteLine($"[Program.Main] Exception in Application.Start callback: {innerEx.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[Program.Main] Exception Type: {innerEx.GetType().FullName}");
+                    System.Diagnostics.Debug.WriteLine($"[Program.Main] StackTrace: {innerEx.StackTrace}");
+                    throw;
+                }
             });
         }
         catch (Exception ex)

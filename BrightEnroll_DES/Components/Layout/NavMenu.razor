@@ -58,6 +58,17 @@
         }
         return string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase);
     }
+
+    // Check if user is Cashier
+    private bool IsCashier()
+    {
+        var userRole = AuthorizationService.GetUserRole();
+        if (string.IsNullOrWhiteSpace(userRole))
+        {
+            return false;
+        }
+        return string.Equals(userRole, "Cashier", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 <div class="flex h-full w-full min-w-[200px] flex-col bg-white">
@@ -148,7 +159,7 @@
                 </NavLink>
             }
 
-            @if (ShouldShowMenuItem(Permissions.ViewStudentRecord))
+            @if (ShouldShowMenuItem(Permissions.ViewStudentRecord) && !IsCashier())
             {
                 <NavLink href="/student-record" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                     <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">

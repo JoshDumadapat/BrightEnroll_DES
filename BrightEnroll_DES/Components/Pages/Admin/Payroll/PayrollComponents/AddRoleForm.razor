@@ -5,9 +5,13 @@
 @using BrightEnroll_DES.Components
 @inherits AddRoleFormBase
 
+@code {
+    [Parameter] public bool IsHRUser { get; set; } = false;
+}
+
 <div class="space-y-6">
     <!-- Add/Edit Role Form (Hidden by default, shown when showAddForm is true) -->
-    @if (showAddForm)
+    @if (showAddForm && !IsHRUser)
     {
         <div class="overflow-hidden rounded-xl bg-white shadow">
             <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
@@ -284,7 +288,16 @@
     {
         <div class="mb-4">
             <h2 class="text-lg font-semibold text-gray-800">Existing Roles</h2>
-            <p class="mt-1 text-sm text-gray-600">Edit monthly salary and allowance directly in the table. Changes are saved automatically.</p>
+            <p class="mt-1 text-sm text-gray-600">
+                @if (IsHRUser)
+                {
+                    <text>View role information and salary configurations. Editing is restricted.</text>
+                }
+                else
+                {
+                    <text>Edit monthly salary and allowance directly in the table. Changes are saved automatically.</text>
+                }
+            </p>
         </div>
 
         <!-- Roles List Container -->
@@ -317,10 +330,13 @@
                         </svg>
                         Clear
                     </button>
-                    <button @onclick="ToggleAddForm" 
-                            class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
-                        + Add Role
-                    </button>
+                    @if (!IsHRUser)
+                    {
+                        <button @onclick="ToggleAddForm" 
+                                class="w-full rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white shadow transition-all hover:bg-blue-700 sm:w-auto">
+                            + Add Role
+                        </button>
+                    }
                 </div>
             </div>
         </div>
@@ -346,7 +362,7 @@
                             <tr class="border-b border-gray-100 hover:bg-gray-50">
                                 <td class="py-3 pl-6 pr-4 text-sm font-medium text-gray-800">@role.Role</td>
                                 <td class="py-3 px-4">
-                                    @if (editingRoles.ContainsKey(role.Role))
+                                    @if (editingRoles.ContainsKey(role.Role) && !IsHRUser)
                                     {
                                         <div class="relative">
                                             <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600">₱</span>
@@ -369,7 +385,7 @@
                                     }
                                 </td>
                                 <td class="py-3 px-4">
-                                    @if (editingRoles.ContainsKey(role.Role))
+                                    @if (editingRoles.ContainsKey(role.Role) && !IsHRUser)
                                     {
                                         <div class="relative">
                                             <span class="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600">₱</span>
@@ -392,7 +408,7 @@
                                     }
                                 </td>
                                 <td class="py-3 px-4">
-                                    @if (editingRoles.ContainsKey(role.Role))
+                                    @if (editingRoles.ContainsKey(role.Role) && !IsHRUser)
                                     {
                                         <div class="flex items-center gap-2 w-full">
                                             <input
@@ -419,7 +435,7 @@
                                     }
                                 </td>
                                 <td class="py-3 pr-6 pl-4 text-center">
-                                    @if (editingRoles.ContainsKey(role.Role))
+                                    @if (editingRoles.ContainsKey(role.Role) && !IsHRUser)
                                     {
                                         <div class="flex items-center justify-center gap-2">
                                             <button @onclick="() => SaveRoleInTable(editingRole)" 
@@ -438,7 +454,7 @@
                                             </button>
                                         </div>
                                     }
-                                    else
+                                    else if (!IsHRUser)
                                     {
                                         <div class="flex items-center justify-center">
                                             <button @onclick="() => StartEditInTable(role)" 
@@ -449,6 +465,10 @@
                                                 <span class="hidden sm:inline">Edit</span>
                                             </button>
                                         </div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-xs text-gray-500">View Only</span>
                                     }
                                 </td>
                             </tr>

@@ -17,9 +17,54 @@ namespace BrightEnroll_DES.WinUI
         /// </summary>
         public App()
         {
-            // InitializeComponent should be called first and is now safe because
-            // Program.cs ensures DispatcherQueue is properly initialized
-            this.InitializeComponent();
+            try
+            {
+                // InitializeComponent should be called first and is now safe because
+                // Program.cs ensures DispatcherQueue is properly initialized
+                this.InitializeComponent();
+            }
+            catch (System.Runtime.InteropServices.SEHException sehEx)
+            {
+                // Handle SEHException during InitializeComponent
+                // This often indicates missing WinUI runtime, native dependencies, or XAML resource issues
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] SEHException in InitializeComponent: {sehEx.Message}");
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] SEHException ErrorCode: 0x{sehEx.ErrorCode:X8}");
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] SEHException StackTrace: {sehEx.StackTrace}");
+                
+                // Log to file for debugging
+                try
+                {
+                    var logPath = System.IO.Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "BrightEnroll_DES",
+                        "seh_exception.log");
+                    var logDir = System.IO.Path.GetDirectoryName(logPath);
+                    if (!string.IsNullOrEmpty(logDir) && !System.IO.Directory.Exists(logDir))
+                    {
+                        System.IO.Directory.CreateDirectory(logDir);
+                    }
+                    
+                    if (!string.IsNullOrEmpty(logDir))
+                    {
+                        System.IO.File.AppendAllText(logPath,
+                            $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SEHException in App.InitializeComponent\n" +
+                            $"ErrorCode: 0x{sehEx.ErrorCode:X8}\n" +
+                            $"Message: {sehEx.Message}\n" +
+                            $"StackTrace: {sehEx.StackTrace}\n\n");
+                    }
+                }
+                catch { /* Ignore file logging errors */ }
+                
+                // Re-throw to prevent app from starting in a broken state
+                throw;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] Exception in InitializeComponent: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] Exception Type: {ex.GetType().FullName}");
+                System.Diagnostics.Debug.WriteLine($"[App.ctor] StackTrace: {ex.StackTrace}");
+                throw;
+            }
         }
 
         protected override MauiApp CreateMauiApp()

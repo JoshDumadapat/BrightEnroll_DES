@@ -1,5 +1,6 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -9,11 +10,13 @@ public class CurriculumService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<CurriculumService>? _logger;
+    private readonly AuditLogService? _auditLogService;
 
-    public CurriculumService(AppDbContext context, ILogger<CurriculumService>? logger = null)
+    public CurriculumService(AppDbContext context, ILogger<CurriculumService>? logger = null, AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     #region Classroom Operations
@@ -39,6 +42,31 @@ public class CurriculumService
         _context.Classrooms.Add(classroom);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Classroom created: {RoomName}", classroom.RoomName);
+        
+        // Log classroom creation to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Create Classroom",
+                    module: "Curriculum",
+                    description: $"Created classroom: {classroom.RoomName} ({classroom.BuildingName}, Floor {classroom.FloorNumber})",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Classroom",
+                    entityId: classroom.RoomId.ToString(),
+                    status: "Success",
+                    severity: "Low"
+                );
+            }
+            catch
+            {
+                // Don't break classroom creation if audit logging fails
+            }
+        }
+        
         return classroom;
     }
 
@@ -48,6 +76,31 @@ public class CurriculumService
         _context.Classrooms.Update(classroom);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Classroom updated: {RoomName}", classroom.RoomName);
+        
+        // Log classroom update to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Update Classroom",
+                    module: "Curriculum",
+                    description: $"Updated classroom: {classroom.RoomName} ({classroom.BuildingName}, Floor {classroom.FloorNumber})",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Classroom",
+                    entityId: classroom.RoomId.ToString(),
+                    status: "Success",
+                    severity: "Low"
+                );
+            }
+            catch
+            {
+                // Don't break classroom update if audit logging fails
+            }
+        }
+        
         return classroom;
     }
 
@@ -106,6 +159,31 @@ public class CurriculumService
         _context.Sections.Add(section);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Section created: {SectionName}", section.SectionName);
+        
+        // Log section creation to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Create Section",
+                    module: "Curriculum",
+                    description: $"Created section: {section.SectionName}",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Section",
+                    entityId: section.SectionId.ToString(),
+                    status: "Success",
+                    severity: "Medium"
+                );
+            }
+            catch
+            {
+                // Don't break section creation if audit logging fails
+            }
+        }
+        
         return section;
     }
 
@@ -115,6 +193,31 @@ public class CurriculumService
         _context.Sections.Update(section);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Section updated: {SectionName}", section.SectionName);
+        
+        // Log section update to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Update Section",
+                    module: "Curriculum",
+                    description: $"Updated section: {section.SectionName}",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Section",
+                    entityId: section.SectionId.ToString(),
+                    status: "Success",
+                    severity: "Medium"
+                );
+            }
+            catch
+            {
+                // Don't break section update if audit logging fails
+            }
+        }
+        
         return section;
     }
 
@@ -215,6 +318,31 @@ public class CurriculumService
         _context.Subjects.Add(subject);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Subject created: {SubjectName}", subject.SubjectName);
+        
+        // Log subject creation to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Create Subject",
+                    module: "Curriculum",
+                    description: $"Created subject: {subject.SubjectName}",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Subject",
+                    entityId: subject.SubjectId.ToString(),
+                    status: "Success",
+                    severity: "Medium"
+                );
+            }
+            catch
+            {
+                // Don't break subject creation if audit logging fails
+            }
+        }
+        
         return subject;
     }
 
@@ -224,6 +352,31 @@ public class CurriculumService
         _context.Subjects.Update(subject);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Subject updated: {SubjectName}", subject.SubjectName);
+        
+        // Log subject update to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Update Subject",
+                    module: "Curriculum",
+                    description: $"Updated subject: {subject.SubjectName}",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Subject",
+                    entityId: subject.SubjectId.ToString(),
+                    status: "Success",
+                    severity: "Medium"
+                );
+            }
+            catch
+            {
+                // Don't break subject update if audit logging fails
+            }
+        }
+        
         return subject;
     }
 
@@ -238,6 +391,31 @@ public class CurriculumService
         _context.Subjects.Update(subject);
         await _context.SaveChangesAsync();
         _logger?.LogInformation("Subject soft-deleted (set inactive): {SubjectName}", subject.SubjectName);
+        
+        // Log subject deletion to audit trail (non-blocking)
+        if (_auditLogService != null)
+        {
+            try
+            {
+                await _auditLogService.CreateTransactionLogAsync(
+                    action: "Delete Subject",
+                    module: "Curriculum",
+                    description: $"Deleted (deactivated) subject: {subject.SubjectName}",
+                    userName: null,
+                    userRole: null,
+                    userId: null,
+                    entityType: "Subject",
+                    entityId: subject.SubjectId.ToString(),
+                    status: "Success",
+                    severity: "High"
+                );
+            }
+            catch
+            {
+                // Don't break subject deletion if audit logging fails
+            }
+        }
+        
         return true;
     }
 

@@ -1,5 +1,6 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Linq;
@@ -11,11 +12,13 @@ public class ArchiveService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<ArchiveService>? _logger;
+    private readonly AuditLogService? _auditLogService;
 
-    public ArchiveService(AppDbContext context, ILogger<ArchiveService>? logger = null)
+    public ArchiveService(AppDbContext context, ILogger<ArchiveService>? logger = null, AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     // Gets all archived students
@@ -283,6 +286,33 @@ public class ArchiveService
             {
                 await _context.SaveChangesAsync();
                 _logger?.LogInformation("Student {StudentId} status updated to '{Status}' during archiving", studentId, statusToSet);
+                
+                // Log student archive to audit trail (non-blocking)
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        var studentName = $"{student.FirstName} {student.LastName}".Trim();
+                        await _auditLogService.CreateTransactionLogAsync(
+                            action: "Archive Student",
+                            module: "Archive",
+                            description: $"Archived student: {studentName} (ID: {studentId}) - Status: {statusToSet}, Reason: {student.ArchiveReason ?? "N/A"}",
+                            userName: archivedBy,
+                            userRole: null,
+                            userId: null,
+                            entityType: "Student",
+                            entityId: studentId,
+                            oldValues: $"Status: {student.Status}",
+                            newValues: $"Status: {statusToSet}",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                    catch
+                    {
+                        // Don't break archiving if audit logging fails
+                    }
+                }
             }
             catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
             {

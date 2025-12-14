@@ -13,6 +13,7 @@
 @inject CurriculumService CurriculumService
 @inject SchoolYearService SchoolYearService
 @inject ILogger<Curriculum> Logger
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Curriculum</PageTitle>
 
@@ -46,14 +47,20 @@
                     class="@GetTabClasses("subjects")">
                 Subjects
             </button>
-            <button @onclick='async () => await SetActiveTab("teachers")'
-                    class="@GetTabClasses("teachers")">
-                Teacher Assignment
-            </button>
-            <button @onclick='async () => await SetActiveTab("classes")'
-                    class="@GetTabClasses("classes")">
-                Classes Overview
-            </button>
+            @if (!IsTeacher && !IsRegistrar)
+            {
+                <button @onclick='async () => await SetActiveTab("teachers")'
+                        class="@GetTabClasses("teachers")">
+                    Teacher Assignment
+                </button>
+            }
+            @if (!IsTeacher)
+            {
+                <button @onclick='async () => await SetActiveTab("classes")'
+                        class="@GetTabClasses("classes")">
+                    Classes Overview
+                </button>
+            }
         </div>
     </div>
 
@@ -62,6 +69,7 @@
         @if (ActiveTab == "classrooms")
         {
             <Classrooms ClassroomsList="Classrooms" 
+                       IsViewOnly="@IsTeacher"
                        OnAddClassroom="OpenAddClassroomModal" 
                        OnEditClassroom="OpenEditClassroomModal" 
                        OnToggleStatus="ToggleClassroomStatus" />
@@ -69,6 +77,7 @@
         else if (ActiveTab == "sections")
         {
             <Sections SectionsList="Sections" 
+                     IsViewOnly="@IsTeacher"
                      OnAddSection="OpenAddSectionModal" 
                      OnEditSection="OpenEditSectionModal"
                      OnDeleteSection="OpenDeleteSectionModal" />
@@ -77,6 +86,7 @@
         {
             <Subjects SubjectsList="Subjects" 
                      GradeLevels="GradeLevels.Select(g => g.GradeLevelName).ToList()"
+                     IsViewOnly="@IsTeacher"
                      OnAddSubject="OpenAddSubjectModal" 
                      OnEditSubject="OpenEditSubjectModal"
                      OnDeleteSubject="OpenDeleteSubjectModal" />
@@ -84,6 +94,7 @@
         else if (ActiveTab == "teachers")
         {
             <TeacherAssignment Assignments="Assignments" 
+                              IsViewOnly="@IsTeacher"
                               OnAddAssignment="OpenAddAssignmentModal" 
                               OnEditAssignment="@((TeacherAssignmentModel assignment) => OpenEditAssignmentModal(assignment))"
                               OnArchiveAssignment="@((TeacherAssignmentModel assignment) => OpenArchiveAssignmentModal(assignment))" />
@@ -347,6 +358,8 @@
 }
 
 @code {
+    private bool IsTeacher { get; set; } = false;
+    private bool IsRegistrar { get; set; } = false;
     private string ActiveTab = "classrooms";
     
     // Modal visibility flags
@@ -416,6 +429,21 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Check if user is a teacher
+        IsTeacher = AuthorizationService.HasRole("Teacher");
+        
+        // Check if user is a registrar
+        IsRegistrar = AuthorizationService.HasRole("Registrar");
+        
+        // If teacher, ensure active tab is one of the allowed tabs
+        if (IsTeacher && ActiveTab != "classrooms" && ActiveTab != "sections" && ActiveTab != "subjects")
+        {
+            ActiveTab = "classrooms";
+        }
+        
+        // Registrar can see all tabs but in view-only mode
+        // No need to restrict tabs for registrar, just make them view-only
+        
         await LoadDataAsync();
     }
 
@@ -891,6 +919,12 @@
 
     private async Task SetActiveTab(string tab)
     {
+        // Prevent teachers from accessing restricted tabs
+        if (IsTeacher && (tab == "teachers" || tab == "classes"))
+        {
+            return;
+        }
+        
         ActiveTab = tab;
         // Reload data when switching to classes tab to ensure fresh data
         if (tab == "classes")

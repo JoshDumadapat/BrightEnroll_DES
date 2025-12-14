@@ -1598,14 +1598,15 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                             [ip_address] VARCHAR(45) NULL,
                             [status] VARCHAR(20) NULL,
                             [severity] VARCHAR(20) NULL,
+                            [entity_type] VARCHAR(100) NULL,
+                            [entity_id] VARCHAR(50) NULL,
+                            [old_values] NVARCHAR(MAX) NULL,
+                            [new_values] NVARCHAR(MAX) NULL,
                             [student_id] VARCHAR(6) NULL,
                             [student_name] VARCHAR(200) NULL,
                             [grade] VARCHAR(10) NULL,
                             [student_status] VARCHAR(20) NULL,
-                            [registrar_id] INT NULL,
-                            CONSTRAINT FK_tbl_audit_logs_tbl_Users FOREIGN KEY ([user_id]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
-                            CONSTRAINT FK_tbl_audit_logs_tbl_Users_Registrar FOREIGN KEY ([registrar_id]) REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
-                            CONSTRAINT FK_tbl_audit_logs_tbl_Students FOREIGN KEY ([student_id]) REFERENCES [dbo].[tbl_Students]([student_id]) ON DELETE SET NULL
+                            [registrar_id] INT NULL
                         );
                     END",
                 CreateIndexesScripts = new List<string>

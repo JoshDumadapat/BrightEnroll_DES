@@ -1,6 +1,7 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Business.Academic;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +14,7 @@ public class PaymentService
     private readonly StudentLedgerService _ledgerService;
     private readonly SchoolYearService _schoolYearService;
     private readonly JournalEntryService _journalEntryService;
+    private readonly AuditLogService? _auditLogService;
     private readonly ILogger<PaymentService>? _logger;
 
     public PaymentService(
@@ -21,7 +23,8 @@ public class PaymentService
         StudentLedgerService ledgerService,
         SchoolYearService schoolYearService,
         JournalEntryService journalEntryService,
-        ILogger<PaymentService>? logger = null)
+        ILogger<PaymentService>? logger = null,
+        AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _feeService = feeService ?? throw new ArgumentNullException(nameof(feeService));
@@ -29,6 +32,7 @@ public class PaymentService
         _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
         _logger = logger;
+        _auditLogService = auditLogService;
     }
 
     /// <summary>
@@ -290,6 +294,31 @@ public class PaymentService
                 "Payment processed for student {StudentId}: Amount Applied {AmountApplied} (Requested: {RequestedAmount}), Method {Method}, OR Number {OrNumber}, Ledger {LedgerId}",
                 studentId, amountToApplyToLedger, paymentAmount, paymentMethod, orNumber, currentInfo.LedgerId.Value);
 
+            // Log payment to audit trail (non-blocking, after transaction commit)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    var studentName = $"{student.FirstName} {student.LastName}".Trim();
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Process Payment",
+                        module: "Finance",
+                        description: $"Payment processed for student {studentName} (ID: {studentId}): ₱{amountToApplyToLedger:N2} via {paymentMethod}, OR: {orNumber}",
+                        userName: processedBy,
+                        userRole: null,
+                        userId: null,
+                        entityType: "Payment",
+                        entityId: orNumber,
+                        status: "Success",
+                        severity: "Medium"
+                    );
+                }
+                catch
+                {
+                    // Don't break payment processing if audit logging fails
+                }
+            }
+
             // Return updated payment info (GetStudentPaymentInfoAsync will reload and recalculate)
             // No need for manual reload/recalculation here as GetStudentPaymentInfoAsync handles it
             return await GetStudentPaymentInfoAsync(studentId) ?? currentInfo;
@@ -298,6 +327,28 @@ public class PaymentService
         {
             await transaction.RollbackAsync();
             _logger?.LogError(ex, "Error processing payment for {StudentId}: {Message}", studentId, ex.Message);
+            
+            // Log payment failure to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Process Payment",
+                        module: "Finance",
+                        description: $"Failed to process payment for student {studentId}: {ex.Message}",
+                        userName: processedBy,
+                        userRole: null,
+                        userId: null,
+                        entityType: "Payment",
+                        entityId: studentId,
+                        status: "Failed",
+                        severity: "High"
+                    );
+                }
+                catch { }
+            }
+            
             throw;
         }
     }

@@ -2,6 +2,8 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using BrightEnroll_DES.Services.Business.Audit;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
@@ -9,11 +11,16 @@ public class FeeService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<FeeService>? _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
 
-    public FeeService(AppDbContext context, ILogger<FeeService>? logger = null)
+    public FeeService(
+        AppDbContext context, 
+        ILogger<FeeService>? logger = null,
+        IServiceScopeFactory? serviceScopeFactory = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     public async Task<List<Fee>> GetAllFeesAsync()
@@ -152,7 +159,42 @@ public class FeeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Fee created successfully for grade level ID {GradeLevelId}", request.GradeLevelId);
-                return await GetFeeByGradeLevelIdAsync(request.GradeLevelId) ?? fee;
+                
+                var createdFee = await GetFeeByGradeLevelIdAsync(request.GradeLevelId) ?? fee;
+                
+                // Audit logging (non-blocking, background task)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (_serviceScopeFactory != null)
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                            
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Create Fee",
+                                module: "Finance",
+                                description: $"Created fee for Grade Level ID {request.GradeLevelId}: Tuition=₱{request.TuitionFee:N2}, Misc=₱{request.MiscFee:N2}, Other=₱{request.OtherFee:N2}",
+                                userName: request.CreatedBy,
+                                userRole: null,
+                                userId: null,
+                                entityType: "Fee",
+                                entityId: createdFee.FeeId.ToString(),
+                                oldValues: null,
+                                newValues: $"GradeLevelId: {createdFee.GradeLevelId}, Tuition: ₱{createdFee.TuitionFee:N2}, Misc: ₱{createdFee.MiscFee:N2}, Other: ₱{createdFee.OtherFee:N2}",
+                                status: "Success",
+                                severity: "High"
+                            );
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to create audit log for fee creation: {Message}", ex.Message);
+                    }
+                });
+                
+                return createdFee;
             }
             catch (Exception ex)
             {
@@ -240,18 +282,56 @@ public class FeeService
 
                 _logger?.LogInformation("Fee updated successfully: Fee ID {FeeId}", feeId);
                 
+                // Capture old values for audit log
+                var oldTuition = fee.TuitionFee;
+                var oldMisc = fee.MiscFee;
+                var oldOther = fee.OtherFee;
+                
                 // Reload fee with includes, but verify GradeLevel exists first
                 var updatedFee = await _context.Fees
                     .Include(f => f.GradeLevel)
                     .Include(f => f.Breakdowns)
+                    .AsNoTracking()
                     .FirstOrDefaultAsync(f => f.FeeId == feeId);
                 
                 // If reload failed or GradeLevel is null, return the fee we already have
                 if (updatedFee == null || updatedFee.GradeLevel == null)
                 {
                     _logger?.LogWarning("Could not reload fee {FeeId} with includes, returning fee from context", feeId);
-                    return fee;
+                    updatedFee = fee;
                 }
+                
+                // Audit logging (non-blocking, background task)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (_serviceScopeFactory != null)
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                            
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Update Fee",
+                                module: "Finance",
+                                description: $"Updated fee ID {feeId} for Grade Level ID {updatedFee.GradeLevelId}",
+                                userName: request.UpdatedBy,
+                                userRole: null,
+                                userId: null,
+                                entityType: "Fee",
+                                entityId: feeId.ToString(),
+                                oldValues: $"Tuition: ₱{oldTuition:N2}, Misc: ₱{oldMisc:N2}, Other: ₱{oldOther:N2}",
+                                newValues: $"Tuition: ₱{updatedFee.TuitionFee:N2}, Misc: ₱{updatedFee.MiscFee:N2}, Other: ₱{updatedFee.OtherFee:N2}",
+                                status: "Success",
+                                severity: "High"
+                            );
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to create audit log for fee update: {Message}", ex.Message);
+                    }
+                });
                 
                 return updatedFee;
             }

@@ -2,6 +2,9 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
@@ -13,11 +16,19 @@ public class DiscountService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<DiscountService>? _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
+    private readonly IAuthService? _authService;
 
-    public DiscountService(AppDbContext context, ILogger<DiscountService>? logger = null)
+    public DiscountService(
+        AppDbContext context, 
+        ILogger<DiscountService>? logger = null,
+        IServiceScopeFactory? serviceScopeFactory = null,
+        IAuthService? authService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _serviceScopeFactory = serviceScopeFactory;
+        _authService = authService;
     }
 
     /// <summary>
@@ -134,6 +145,44 @@ public class DiscountService
             _logger?.LogInformation("Discount created successfully: {DiscountType} - {DiscountName}", 
                 discount.DiscountType, discount.DiscountName);
             
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = currentUser?.user_ID;
+                        
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: "Create Discount",
+                            module: "Finance",
+                            description: $"Created discount: {discount.DiscountName} ({discount.DiscountType}) - Rate: {discount.RateOrValue}{(discount.IsPercentage ? "%" : "")}",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "Discount",
+                            entityId: discount.DiscountId.ToString(),
+                            oldValues: null,
+                            newValues: $"Type: {discount.DiscountType}, Name: {discount.DiscountName}, Rate: {discount.RateOrValue}, IsPercentage: {discount.IsPercentage}, Active: {discount.IsActive}",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for discount creation: {Message}", ex.Message);
+                }
+            });
+            
             return discount;
         }
         catch (Exception ex)
@@ -180,9 +229,55 @@ public class DiscountService
             discount.IsActive = request.IsActive;
             discount.UpdatedDate = DateTime.Now;
 
+            // Capture old values for audit log
+            var oldType = discount.DiscountType;
+            var oldName = discount.DiscountName;
+            var oldRate = discount.RateOrValue;
+            var oldIsPercentage = discount.IsPercentage;
+            var oldIsActive = discount.IsActive;
+
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Discount updated successfully: Discount ID {DiscountId}", discountId);
+            
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = currentUser?.user_ID;
+                        
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: "Update Discount",
+                            module: "Finance",
+                            description: $"Updated discount ID {discountId}: {discount.DiscountName} ({discount.DiscountType})",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "Discount",
+                            entityId: discountId.ToString(),
+                            oldValues: $"Type: {oldType}, Name: {oldName}, Rate: {oldRate}, IsPercentage: {oldIsPercentage}, Active: {oldIsActive}",
+                            newValues: $"Type: {discount.DiscountType}, Name: {discount.DiscountName}, Rate: {discount.RateOrValue}, IsPercentage: {discount.IsPercentage}, Active: {discount.IsActive}",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for discount update: {Message}", ex.Message);
+                }
+            });
+            
             return discount;
         }
         catch (Exception ex)
@@ -211,6 +306,12 @@ public class DiscountService
             var isUsed = await _context.LedgerCharges
                 .AnyAsync(lc => lc.DiscountId == discountId);
 
+            // Capture discount info for audit log before deletion
+            var discountType = discount.DiscountType;
+            var discountName = discount.DiscountName;
+            var wasActive = discount.IsActive;
+            var isHardDelete = false;
+
             if (isUsed)
             {
                 // Soft delete - just deactivate
@@ -221,11 +322,51 @@ public class DiscountService
             else
             {
                 // Hard delete if not in use
+                isHardDelete = true;
                 _context.Discounts.Remove(discount);
                 _logger?.LogInformation("Discount {DiscountId} deleted permanently", discountId);
             }
 
             await _context.SaveChangesAsync();
+            
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = currentUser?.user_ID;
+                        
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: isHardDelete ? "Delete Discount" : "Deactivate Discount",
+                            module: "Finance",
+                            description: $"{(isHardDelete ? "Deleted" : "Deactivated")} discount: {discountName} ({discountType})",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "Discount",
+                            entityId: discountId.ToString(),
+                            oldValues: $"Type: {discountType}, Name: {discountName}, Active: {wasActive}",
+                            newValues: isHardDelete ? "Deleted" : "Active: false",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for discount deletion: {Message}", ex.Message);
+                }
+            });
+            
             return true;
         }
         catch (Exception ex)

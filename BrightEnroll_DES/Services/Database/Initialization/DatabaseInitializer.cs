@@ -1011,7 +1011,13 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                         }
                     }
                     
+                    System.Diagnostics.Debug.WriteLine("Successfully created tbl_audit_logs table.");
                     return true;
+                }
+                else
+                {
+                    // Table exists, check if it has the new columns and add them if missing
+                    await EnsureAuditLogsColumnsExistAsync(connection);
                 }
 
                 return false;
@@ -1019,7 +1025,83 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error ensuring audit logs table exists: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
+            }
+        }
+
+        // Ensures all required columns exist in tbl_audit_logs
+        private async Task EnsureAuditLogsColumnsExistAsync(SqlConnection connection)
+        {
+            try
+            {
+                // Check and add entity_type column
+                string checkEntityTypeQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_audit_logs') AND name = 'entity_type'";
+                
+                using var checkEntityType = new SqlCommand(checkEntityTypeQuery, connection);
+                var entityTypeExists = await checkEntityType.ExecuteScalarAsync();
+                
+                if (entityTypeExists == null || (int)entityTypeExists == 0)
+                {
+                    using var addEntityType = new SqlCommand("ALTER TABLE [dbo].[tbl_audit_logs] ADD [entity_type] VARCHAR(100) NULL", connection);
+                    await addEntityType.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added entity_type column to tbl_audit_logs");
+                }
+
+                // Check and add entity_id column
+                string checkEntityIdQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_audit_logs') AND name = 'entity_id'";
+                
+                using var checkEntityId = new SqlCommand(checkEntityIdQuery, connection);
+                var entityIdExists = await checkEntityId.ExecuteScalarAsync();
+                
+                if (entityIdExists == null || (int)entityIdExists == 0)
+                {
+                    using var addEntityId = new SqlCommand("ALTER TABLE [dbo].[tbl_audit_logs] ADD [entity_id] VARCHAR(50) NULL", connection);
+                    await addEntityId.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added entity_id column to tbl_audit_logs");
+                }
+
+                // Check and add old_values column
+                string checkOldValuesQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_audit_logs') AND name = 'old_values'";
+                
+                using var checkOldValues = new SqlCommand(checkOldValuesQuery, connection);
+                var oldValuesExists = await checkOldValues.ExecuteScalarAsync();
+                
+                if (oldValuesExists == null || (int)oldValuesExists == 0)
+                {
+                    using var addOldValues = new SqlCommand("ALTER TABLE [dbo].[tbl_audit_logs] ADD [old_values] NVARCHAR(MAX) NULL", connection);
+                    await addOldValues.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added old_values column to tbl_audit_logs");
+                }
+
+                // Check and add new_values column
+                string checkNewValuesQuery = @"
+                    SELECT COUNT(*) 
+                    FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('dbo.tbl_audit_logs') AND name = 'new_values'";
+                
+                using var checkNewValues = new SqlCommand(checkNewValuesQuery, connection);
+                var newValuesExists = await checkNewValues.ExecuteScalarAsync();
+                
+                if (newValuesExists == null || (int)newValuesExists == 0)
+                {
+                    using var addNewValues = new SqlCommand("ALTER TABLE [dbo].[tbl_audit_logs] ADD [new_values] NVARCHAR(MAX) NULL", connection);
+                    await addNewValues.ExecuteNonQueryAsync();
+                    System.Diagnostics.Debug.WriteLine("Added new_values column to tbl_audit_logs");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error ensuring audit logs columns exist: {ex.Message}");
             }
         }
 

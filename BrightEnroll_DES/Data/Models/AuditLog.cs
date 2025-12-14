@@ -54,6 +54,21 @@ public class AuditLog
     [Column("severity")]
     public string? Severity { get; set; } // Low, Medium, High, Critical
 
+    // Transaction tracking fields
+    [MaxLength(100)]
+    [Column("entity_type")]
+    public string? EntityType { get; set; } // Expense, Payment, Student, Employee, etc.
+
+    [MaxLength(50)]
+    [Column("entity_id")]
+    public string? EntityId { get; set; } // ID of the entity being tracked
+
+    [Column("old_values", TypeName = "nvarchar(max)")]
+    public string? OldValues { get; set; } // Previous values before change
+
+    [Column("new_values", TypeName = "nvarchar(max)")]
+    public string? NewValues { get; set; } // New values after change
+
     // Enhanced fields for student registration
     [MaxLength(6)]
     [Column("student_id")]

@@ -20,8 +20,8 @@
         <!-- Header - Fixed, not scrollable -->
         <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3 bg-blue-700 rounded-t-2xl flex-shrink-0">
             <div>
-                <h2 class="text-lg font-semibold text-white">@(IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant")</h2>
-                <p class="text-xs text-blue-100">@(IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements.")</p>
+                <h2 class="text-lg font-semibold text-white">@(IsViewOnly ? "View Student Details" : (IsForEnrollmentContext ? "Review & Enroll Student" : "Edit Applicant"))</h2>
+                <p class="text-xs text-blue-100">@(IsViewOnly ? "View student information and details. (View Only)" : (IsForEnrollmentContext ? "Review student information and change status to Enrolled." : "Update the student information and requirements."))</p>
             </div>
             <button @onclick="OnCancelClicked"
                     class="rounded-full p-1 text-blue-100 hover:bg-blue-600 hover:text-white">
@@ -60,6 +60,7 @@
                                 </label>
                                 <InputText @bind-Value="Model.FirstName"
                                            @bind-Value:after="() => { FormatFirstName(); StateHasChanged(); }"
+                                           disabled="@IsViewOnly"
                                            class="@GetInputClass(nameof(Model.FirstName))" />
                                 <ValidationMessage For="@(() => Model.FirstName)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -67,6 +68,7 @@
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Middle Name</label>
                                 <InputText @bind-Value="Model.MiddleName"
                                            @bind-Value:after="FormatMiddleName"
+                                           disabled="@IsViewOnly"
                                            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base" />
                             </div>
                             <div>
@@ -75,12 +77,14 @@
                                 </label>
                                 <InputText @bind-Value="Model.LastName"
                                            @bind-Value:after="() => { FormatLastName(); StateHasChanged(); }"
+                                           disabled="@IsViewOnly"
                                            class="@GetInputClass(nameof(Model.LastName))" />
                                 <ValidationMessage For="@(() => Model.LastName)" class="text-red-500 text-xs mt-1" />
                             </div>
                             <div>
                                 <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Suffix</label>
                                 <InputSelect @bind-Value="Model.Suffix"
+                                             disabled="@IsViewOnly"
                                              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-0 sm:px-4 sm:py-2.5 sm:text-base">
                                     <option value="">N/A</option>
                                     <option value="Jr.">Jr.</option>
@@ -99,6 +103,7 @@
                                 </label>
                                 <InputDate @bind-Value="Model.BirthDate"
                                            @bind-Value:after="HandleBirthDateChanged"
+                                           disabled="@IsViewOnly"
                                            class="@GetInputClass(nameof(Model.BirthDate))" />
                                 <ValidationMessage For="@(() => Model.BirthDate)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -107,6 +112,7 @@
                                     Age <span class="text-red-500">*</span>
                                 </label>
                                 <InputNumber @bind-Value="Model.Age"
+                                             disabled="@IsViewOnly"
                                              class="@GetInputClass(nameof(Model.Age))" />
                                 <ValidationMessage For="@(() => Model.Age)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -115,6 +121,7 @@
                                     Place of Birth <span class="text-red-500">*</span>
                                 </label>
                                 <InputText @bind-Value="Model.PlaceOfBirth"
+                                           disabled="@IsViewOnly"
                                            class="@GetInputClass(nameof(Model.PlaceOfBirth))" />
                                 <ValidationMessage For="@(() => Model.PlaceOfBirth)" class="text-red-500 text-xs mt-1" />
                             </div>
@@ -123,6 +130,7 @@
                                     Sex <span class="text-red-500">*</span>
                                 </label>
                                 <InputSelect @bind-Value="Model.Sex"
+                                             disabled="@IsViewOnly"
                                              class="@GetInputClass(nameof(Model.Sex))">
                                     <option value="">Select</option>
                                     <option value="Male">Male</option>
@@ -139,6 +147,7 @@
                                 Mother Tongue <span class="text-red-500">*</span>
                             </label>
                             <InputSelect @bind-Value="Model.MotherTongue"
+                                         disabled="@IsViewOnly"
                                          class="@GetInputClass(nameof(Model.MotherTongue))">
                                 <option value="">Select</option>
                                 <option value="Tagalog">Tagalog</option>
@@ -152,6 +161,7 @@
                             @if (Model.MotherTongue == "Other")
                             {
                                 <InputText @bind-Value="Model.MotherTongueOther"
+                                           disabled="@IsViewOnly"
                                            class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none sm:px-4 sm:py-2.5 sm:text-base"
                                            placeholder="Please specify mother tongue" />
                             }
@@ -163,7 +173,7 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 Indigenous Peoples (IP) Community?
                             </label>
-                            <InputRadioGroup @bind-Value="Model.IsIPCommunity">
+                            <InputRadioGroup @bind-Value="Model.IsIPCommunity" disabled="@IsViewOnly">
                                 <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
                                     <label class="flex cursor-pointer items-center">
                                         <InputRadio Value="@("Yes")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -182,7 +192,7 @@
                                 If Yes, please specify:
                             </label>
                             <InputSelect @bind-Value="Model.IPCommunitySpecify"
-                                         disabled="@(Model.IsIPCommunity != "Yes")"
+                                         disabled="@(IsViewOnly || Model.IsIPCommunity != "Yes")"
                                          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base">
                                 <option value="">N/A</option>
                                 <option value="Lumad">Lumad</option>
@@ -193,6 +203,7 @@
                             @if (Model.IPCommunitySpecify == "Other" && Model.IsIPCommunity == "Yes")
                             {
                                 <InputText @bind-Value="Model.IPCommunitySpecifyOther"
+                                           disabled="@IsViewOnly"
                                            class="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none sm:px-4 sm:py-2.5 sm:text-base"
                                            placeholder="Please specify" />
                             }
@@ -202,7 +213,7 @@
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
                                 4Ps Beneficiary?
                             </label>
-                            <InputRadioGroup @bind-Value="Model.Is4PsBeneficiary">
+                            <InputRadioGroup @bind-Value="Model.Is4PsBeneficiary" disabled="@IsViewOnly">
                                 <div class="flex items-center gap-3 pt-1 sm:gap-4 sm:pt-2">
                                     <label class="flex cursor-pointer items-center">
                                         <InputRadio Value="@("Yes")" class="h-4 w-4 border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -218,7 +229,7 @@
                                 If Yes, 4Ps Household ID:
                             </label>
                             <InputText @bind-Value="Model.FourPsHouseholdId"
-                                       disabled="@(Model.Is4PsBeneficiary != "Yes")"
+                                       disabled="@(IsViewOnly || Model.Is4PsBeneficiary != "Yes")"
                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed sm:px-4 sm:py-2.5 sm:text-base"
                                        placeholder="N/A" />
                         </div>
@@ -784,9 +795,11 @@
                 <button type="button"
                         @onclick="OnCancelClicked"
                         class="min-w-[120px] rounded-lg bg-gray-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
-                    Cancel
+                    @(IsViewOnly ? "Close" : "Cancel")
                 </button>
 
+                @if (!IsViewOnly)
+                {
                 @if (Model != null && Model.Status == "For Payment")
                 {
                     <button type="button"
@@ -843,6 +856,7 @@
                         <span>Save Changes</span>
                     }
                 </button>
+                }
             </div>
                 </EditForm>
             }
@@ -1095,6 +1109,7 @@
     [Parameter] public bool IsForEnrollmentContext { get; set; } = false;
     // When true, modal is opened from Enrolled tab for re-enrollment; limit status options.
     [Parameter] public bool IsReEnrollContext { get; set; } = false;
+    [Parameter] public bool IsViewOnly { get; set; } = false;
     [Parameter] public EventCallback OnCancel { get; set; }
     [Parameter] public EventCallback<StudentEditModel> OnSave { get; set; }
 

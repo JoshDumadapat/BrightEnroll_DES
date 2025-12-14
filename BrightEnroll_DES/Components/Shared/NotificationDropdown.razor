@@ -5,6 +5,7 @@
 @using Microsoft.Extensions.DependencyInjection
 @implements IDisposable
 @inject NotificationService NotificationService
+@inject UserNotificationReadService UserNotificationReadService
 @inject IServiceScopeFactory ServiceScopeFactory
 @inject NavigationManager Navigation
 
@@ -281,6 +282,9 @@
                 // Prepare data first
                 var notificationList = allNotifications?.ToList() ?? new List<Notification>();
                 
+                // Update read status based on per-user tracking
+                UserNotificationReadService.UpdateNotificationReadStatus(notificationList);
+                
                 // CRITICAL: Set ALL state together atomically BEFORE StateHasChanged
                 // This prevents any glitch/flicker between states
                 notifications = notificationList;
@@ -333,9 +337,10 @@
 
     private async Task HandleNotificationClick(Notification notification)
     {
-        if (!notification.IsRead)
+        // Mark as read for current user only (in-memory, not database)
+        if (!UserNotificationReadService.IsNotificationReadForCurrentUser(notification.NotificationId))
         {
-            await NotificationService.MarkAsReadAsync(notification.NotificationId);
+            UserNotificationReadService.MarkNotificationAsReadForCurrentUser(notification.NotificationId);
             notification.IsRead = true;
             unreadCount = Math.Max(0, unreadCount - 1);
             
@@ -402,7 +407,9 @@
 
     private async Task MarkAllAsRead()
     {
-        await NotificationService.MarkAllAsReadAsync();
+        // Mark all as read for current user only (in-memory, not database)
+        var notificationIds = notifications.Select(n => n.NotificationId).ToList();
+        UserNotificationReadService.MarkAllNotificationsAsReadForCurrentUser(notificationIds);
         
         foreach (var notification in notifications)
         {

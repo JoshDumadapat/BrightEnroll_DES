@@ -1,5 +1,6 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -57,19 +58,119 @@ public class AuditLogService
                 Severity = severity
             };
 
+            // Add log and save
             _context.AuditLogs.Add(log);
-            await _context.SaveChangesAsync();
+            var saved = await _context.SaveChangesAsync();
             
-            _logger?.LogInformation("Audit log created: {Action} by {UserName}", action, userName ?? "Unknown");
+            if (saved > 0)
+            {
+                _logger?.LogInformation("Audit log created: {Action} by {UserName} (LogId: {LogId})", action, userName ?? "Unknown", log.LogId);
+                System.Diagnostics.Debug.WriteLine($"✓ Audit log saved: {action} by {userName ?? "Unknown"} at {DateTime.Now:yyyy-MM-dd HH:mm:ss} (LogId: {log.LogId})");
+            }
+            else
+            {
+                _logger?.LogWarning("Audit log was not saved: {Action} by {UserName}", action, userName ?? "Unknown");
+                System.Diagnostics.Debug.WriteLine($"✗ Audit log was not saved: {action} by {userName ?? "Unknown"}");
+            }
         }
         catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
         {
             _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Skipping audit log creation. Error: {Message}", sqlEx.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Audit log table does not exist: {sqlEx.Message}");
+            // Don't throw - audit logging should not break the main operation
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 207 || sqlEx.Number == 8152) // Invalid column name or String or binary data would be truncated
+        {
+            _logger?.LogWarning("Audit log table missing columns. Error: {Message}. Please run Add_Transaction_Columns_To_AuditLogs.sql", sqlEx.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Audit log table missing columns: {sqlEx.Message}");
             // Don't throw - audit logging should not break the main operation
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error creating audit log entry: {Message}", ex.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Error creating audit log: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            // Don't throw - audit logging should not break the main operation
+        }
+    }
+
+    /// <summary>
+    /// Creates a transaction audit log entry with entity tracking.
+    /// Supports old/new values for change tracking.
+    /// </summary>
+    public async Task CreateTransactionLogAsync(
+        string action,
+        string? module = null,
+        string? description = null,
+        string? userName = null,
+        string? userRole = null,
+        int? userId = null,
+        string? entityType = null,
+        string? entityId = null,
+        string? oldValues = null,
+        string? newValues = null,
+        string? ipAddress = null,
+        string? status = "Success",
+        string? severity = "Low")
+    {
+        try
+        {
+            // Check if the audit logs table exists before attempting to save
+            if (!await TableExistsAsync("tbl_audit_logs"))
+            {
+                _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Skipping audit log creation. Please ensure database initialization runs.");
+                return;
+            }
+
+            var log = new AuditLog
+            {
+                Timestamp = DateTime.Now,
+                Action = action,
+                Module = module,
+                Description = description,
+                UserName = userName,
+                UserRole = userRole,
+                UserId = userId,
+                EntityType = entityType,
+                EntityId = entityId,
+                OldValues = oldValues,
+                NewValues = newValues,
+                IpAddress = ipAddress,
+                Status = status,
+                Severity = severity
+            };
+
+            _context.AuditLogs.Add(log);
+            var saved = await _context.SaveChangesAsync();
+            
+            if (saved > 0)
+            {
+                _logger?.LogInformation("Transaction audit log created: {Action} by {UserName} (LogId: {LogId})", action, userName ?? "Unknown", log.LogId);
+                System.Diagnostics.Debug.WriteLine($"✓ Transaction audit log saved: {action} by {userName ?? "Unknown"} at {DateTime.Now:yyyy-MM-dd HH:mm:ss} (LogId: {log.LogId})");
+            }
+            else
+            {
+                _logger?.LogWarning("Transaction audit log was not saved: {Action} by {UserName}", action, userName ?? "Unknown");
+                System.Diagnostics.Debug.WriteLine($"✗ Transaction audit log was not saved: {action} by {userName ?? "Unknown"}");
+            }
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
+        {
+            _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Skipping audit log creation. Error: {Message}", sqlEx.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Audit log table does not exist: {sqlEx.Message}");
+            // Don't throw - audit logging should not break the main operation
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 207 || sqlEx.Number == 8152) // Invalid column name or String or binary data would be truncated
+        {
+            _logger?.LogWarning("Audit log table missing columns. Error: {Message}. Please run Add_Transaction_Columns_To_AuditLogs.sql", sqlEx.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Audit log table missing columns: {sqlEx.Message}");
+            // Don't throw - audit logging should not break the main operation
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error creating transaction audit log entry: {Message}", ex.Message);
+            System.Diagnostics.Debug.WriteLine($"✗ Error creating transaction audit log: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             // Don't throw - audit logging should not break the main operation
         }
     }
@@ -118,11 +219,19 @@ public class AuditLogService
             };
 
             _context.AuditLogs.Add(log);
-            await _context.SaveChangesAsync();
+            var saved = await _context.SaveChangesAsync();
             
-            _logger?.LogInformation(
-                "Student registration audit log created: Student {StudentId} ({StudentName}) registered by Registrar {RegistrarId}",
-                studentId, studentName, registrarId);
+            if (saved > 0)
+            {
+                _logger?.LogInformation(
+                    "Student registration audit log created: Student {StudentId} ({StudentName}) registered by Registrar {RegistrarId} (LogId: {LogId})",
+                    studentId, studentName, registrarId, log.LogId);
+                System.Diagnostics.Debug.WriteLine($"✓ Student registration audit log saved: {studentId} by Registrar {registrarId} (LogId: {log.LogId})");
+            }
+            else
+            {
+                _logger?.LogWarning("Student registration audit log was not saved: Student {StudentId}", studentId);
+            }
         }
         catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
         {
@@ -138,24 +247,25 @@ public class AuditLogService
 
     /// <summary>
     /// Checks if a table exists in the database.
+    /// Uses a simple approach: try to query the table directly.
     /// </summary>
     private async Task<bool> TableExistsAsync(string tableName)
     {
         try
         {
-            var sql = @"
-                SELECT COUNT(*) 
-                FROM sys.tables 
-                WHERE name = {0} 
-                AND schema_id = SCHEMA_ID('dbo')";
-            
-            var result = await _context.Database
-                .SqlQueryRaw<int>(sql, tableName)
-                .FirstOrDefaultAsync();
-            return result > 0;
+            // Simple approach: try to query the table directly
+            // This is more reliable than checking sys.tables
+            await _context.Database.ExecuteSqlRawAsync($"SELECT TOP 1 log_id FROM [dbo].[{tableName}]");
+            return true;
         }
-        catch
+        catch (SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
         {
+            // Table doesn't exist
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Error checking if table {TableName} exists: {Message}", tableName, ex.Message);
             return false;
         }
     }
@@ -173,6 +283,13 @@ public class AuditLogService
     {
         try
         {
+            // Check if table exists first
+            if (!await TableExistsAsync("tbl_audit_logs"))
+            {
+                _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Returning empty list.");
+                return new List<AuditLog>();
+            }
+
             var query = _context.AuditLogs.AsQueryable();
 
             if (startDate.HasValue)
@@ -207,12 +324,101 @@ public class AuditLogService
                 query = query.Take(limit.Value);
             }
 
-            return await query.ToListAsync();
+            var logs = await query.ToListAsync();
+            _logger?.LogInformation("Retrieved {Count} audit logs from database", logs.Count);
+            return logs;
+        }
+        catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
+        {
+            _logger?.LogWarning("Audit log table 'tbl_audit_logs' does not exist. Returning empty list. Error: {Message}", sqlEx.Message);
+            return new List<AuditLog>();
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error retrieving audit logs: {Message}", ex.Message);
-            throw;
+            System.Diagnostics.Debug.WriteLine($"Error retrieving audit logs: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            // Return empty list instead of throwing to prevent UI crashes
+            return new List<AuditLog>();
+        }
+    }
+
+    /// <summary>
+    /// Gets total count of audit logs.
+    /// </summary>
+    public async Task<int> GetTotalLogsCountAsync()
+    {
+        try
+        {
+            if (!await TableExistsAsync("tbl_audit_logs"))
+                return 0;
+
+            return await _context.AuditLogs.CountAsync();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets count of failed audit logs.
+    /// </summary>
+    public async Task<int> GetFailedLogsCountAsync()
+    {
+        try
+        {
+            if (!await TableExistsAsync("tbl_audit_logs"))
+                return 0;
+
+            return await _context.AuditLogs
+                .Where(l => l.Status == "Failed")
+                .CountAsync();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets count of high severity audit logs.
+    /// </summary>
+    public async Task<int> GetHighSeverityLogsCountAsync()
+    {
+        try
+        {
+            if (!await TableExistsAsync("tbl_audit_logs"))
+                return 0;
+
+            return await _context.AuditLogs
+                .Where(l => l.Severity == "High" || l.Status == "Failed")
+                .CountAsync();
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets count of recent audit logs (last 7 days).
+    /// </summary>
+    public async Task<int> GetRecentLogsCountAsync()
+    {
+        try
+        {
+            if (!await TableExistsAsync("tbl_audit_logs"))
+                return 0;
+
+            var sevenDaysAgo = DateTime.Now.AddDays(-7);
+            return await _context.AuditLogs
+                .Where(l => l.Timestamp >= sevenDaysAgo)
+                .CountAsync();
+        }
+        catch
+        {
+            return 0;
         }
     }
 }

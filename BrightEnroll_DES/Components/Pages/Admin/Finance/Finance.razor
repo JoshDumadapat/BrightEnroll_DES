@@ -547,7 +547,7 @@
                 _context.ChangeTracker.Clear();
                 
                 // Small delay to ensure any pending database changes are committed
-                await Task.Delay(50);
+                await Task.Delay(100);
                 
                 var fees = await FeeService.GetAllFeesAsync();
                 
@@ -688,10 +688,30 @@
 
             await FeeService.CreateFeeAsync(request);
             
+            // Small delay to ensure transaction is committed and audit logging has started
+            await Task.Delay(100);
+            
+            // Clear change tracker before reloading to avoid concurrency issues
+            _context.ChangeTracker.Clear();
+            
             // Reload fees from database
             await LoadFeesAsync();
             
             StateHasChanged();
+        }
+        catch (InvalidOperationException ioEx) when (ioEx.Message.Contains("second operation") || ioEx.Message.Contains("DbContext"))
+        {
+            Logger?.LogWarning(ioEx, "DbContext concurrency issue when adding fee. Retrying after delay...");
+            await Task.Delay(200);
+            _context.ChangeTracker.Clear();
+            try
+            {
+                await LoadFeesAsync();
+            }
+            catch (Exception retryEx)
+            {
+                Logger?.LogError(retryEx, "Error reloading fees after retry: {Message}", retryEx.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -764,10 +784,30 @@
 
             await FeeService.UpdateFeeAsync(existingFee.FeeId, request);
             
+            // Small delay to ensure transaction is committed and audit logging has started
+            await Task.Delay(100);
+            
+            // Clear change tracker before reloading to avoid concurrency issues
+            _context.ChangeTracker.Clear();
+            
             // Reload fees from database
             await LoadFeesAsync();
             
             StateHasChanged();
+        }
+        catch (InvalidOperationException ioEx) when (ioEx.Message.Contains("second operation") || ioEx.Message.Contains("DbContext"))
+        {
+            Logger?.LogWarning(ioEx, "DbContext concurrency issue when updating fee. Retrying after delay...");
+            await Task.Delay(200);
+            _context.ChangeTracker.Clear();
+            try
+            {
+                await LoadFeesAsync();
+            }
+            catch (Exception retryEx)
+            {
+                Logger?.LogError(retryEx, "Error reloading fees after retry: {Message}", retryEx.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -790,7 +830,7 @@
             _context.ChangeTracker.Clear();
             
             // Small delay to ensure any pending database changes are committed
-            await Task.Delay(50);
+            await Task.Delay(100);
             
             var discounts = await DiscountService.GetAllDiscountsAsync();
             
@@ -837,6 +877,12 @@
 
             await DiscountService.CreateDiscountAsync(request);
             
+            // Small delay to ensure transaction is committed and audit logging has started
+            await Task.Delay(100);
+            
+            // Clear change tracker before reloading to avoid concurrency issues
+            _context.ChangeTracker.Clear();
+            
             // Reload discounts from database
             await LoadDiscountsAsync();
             
@@ -876,11 +922,31 @@
 
             await DiscountService.UpdateDiscountAsync(discount.DiscountId, request);
             
+            // Small delay to ensure transaction is committed and audit logging has started
+            await Task.Delay(100);
+            
+            // Clear change tracker before reloading to avoid concurrency issues
+            _context.ChangeTracker.Clear();
+            
             // Reload discounts from database
             await LoadDiscountsAsync();
             
             // Show success toast
             StateHasChanged();
+        }
+        catch (InvalidOperationException ioEx) when (ioEx.Message.Contains("second operation") || ioEx.Message.Contains("DbContext"))
+        {
+            Logger?.LogWarning(ioEx, "DbContext concurrency issue when updating discount. Retrying after delay...");
+            await Task.Delay(200);
+            _context.ChangeTracker.Clear();
+            try
+            {
+                await LoadDiscountsAsync();
+            }
+            catch (Exception retryEx)
+            {
+                Logger?.LogError(retryEx, "Error reloading discounts after retry: {Message}", retryEx.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -894,6 +960,12 @@
         try
         {
             await DiscountService.DeleteDiscountAsync(discount.DiscountId);
+            
+            // Small delay to ensure transaction is committed and audit logging has started
+            await Task.Delay(100);
+            
+            // Clear change tracker before reloading to avoid concurrency issues
+            _context.ChangeTracker.Clear();
             
             // Reload discounts from database
             await LoadDiscountsAsync();
@@ -910,7 +982,10 @@
     private async Task HandleApprovalProcessed()
     {
         // Small delay to ensure database changes are committed
-        await Task.Delay(100);
+        await Task.Delay(200);
+        
+        // Clear change tracker to ensure fresh data
+        _context.ChangeTracker.Clear();
         
         // Refresh pending approvals count immediately
         await LoadPendingApprovalsCount();

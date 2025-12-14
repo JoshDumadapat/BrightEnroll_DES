@@ -13,6 +13,7 @@
 @inject IJSRuntime JSRuntime
 @inject FinanceReportsPdfGenerator PdfGenerator
 @inject IAuthService AuthService
+@inject BrightEnroll_DES.Services.RoleBase.IAuthorizationService AuthorizationService
 
 <ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
 
@@ -61,9 +62,11 @@
                         <span>Generate Report</span>
                     }
                 </button>
-                <button @onclick="ExportToPdf" 
-                        disabled="@isLoading || isExporting || !HasReportData()"
-                        class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:bg-gray-200 disabled:cursor-not-allowed">
+                <button type="button"
+                        @onclick="ExportToPdf"
+                        @onclick:preventDefault="false"
+                        disabled="@(isLoading || isExporting || !reportGenerated)"
+                        class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-green-700 hover:shadow-lg active:bg-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50">
                     @if (isExporting)
                     {
                         <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -255,8 +258,12 @@
     private List<PaymentHistoryRecord>? cashFlowInflows;
     private List<Data.Models.Expense>? cashFlowOutflows;
 
+    private bool IsCashier { get; set; } = false;
+
     protected override async Task OnInitializedAsync()
     {
+        // Check if user is cashier
+        IsCashier = AuthorizationService.HasRole("Cashier");
         await LoadGradeLevels();
     }
 
@@ -2665,9 +2672,17 @@
 
     private async Task ExportToPdf()
     {
-        if (!HasReportData())
+        // Check if report has been generated first
+        if (!reportGenerated)
         {
             ShowToast("Please generate a report first before exporting.", ToastType.Error);
+            return;
+        }
+
+        // Validate date range
+        if (toDate < fromDate)
+        {
+            ShowToast("Invalid date range. 'To Date' must be greater than or equal to 'From Date'.", ToastType.Error);
             return;
         }
 
@@ -2678,6 +2693,53 @@
 
         try
         {
+            // Check if report data exists (should exist if reportGenerated is true, but double-check)
+            if (!HasReportData())
+            {
+                // Clear EF Core change tracker to ensure fresh data is loaded
+                DbContext.ChangeTracker.Clear();
+                
+                // Small delay to ensure any pending database changes are committed
+                await Task.Delay(100);
+                
+                // Fetch data based on active report type
+                switch (activeReport)
+                {
+                    case "IncomeStatement":
+                        incomeStatement = await AccountingReportService.GetIncomeStatementAsync(fromDate, toDate);
+                        revenueBreakdown = await GetRevenueBreakdownAsync(fromDate, toDate);
+                        incomeStatementPayments = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                        incomeStatementExpenses = await DbContext.Expenses
+                            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                            .OrderByDescending(e => e.ExpenseDate)
+                            .ToListAsync();
+                        break;
+                    case "CashFlow":
+                        cashFlowReport = await AccountingReportService.GetCashFlowReportAsync(fromDate, toDate);
+                        cashFlowInflows = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                        cashFlowOutflows = await DbContext.Expenses
+                            .Where(e => e.ExpenseDate >= fromDate && e.ExpenseDate <= toDate && e.Status == "Approved")
+                            .OrderByDescending(e => e.ExpenseDate)
+                            .ToListAsync();
+                        break;
+                    case "AccountsReceivable":
+                        arRecords = await AccountingReportService.GetAccountsReceivableAsync(toDate);
+                        break;
+                    case "PaymentHistory":
+                        paymentHistory = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                        break;
+                    case "ExpenseAnalysis":
+                        expenseAnalysis = await GetExpenseAnalysisAsync(fromDate, toDate);
+                        break;
+                    case "GeneralLedger":
+                        generalLedger = await GetGeneralLedgerAsync(fromDate, toDate);
+                        break;
+                    case "BalanceSheet":
+                        balanceSheetReport = await AccountingReportService.GetBalanceSheetAsync(toDate);
+                        break;
+                }
+            }
+
             // Get current user for "Generated By"
             var currentUser = AuthService.CurrentUser;
             var generatedBy = currentUser != null 

@@ -157,7 +157,59 @@ public class PaymentReceiptPdfGenerator
                             });
                         });
 
-                        column.Item().PaddingTop(15).BorderTop(2).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Medium).PaddingTop(10);
+                        column.Item().PaddingTop(15).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Lighten2).PaddingTop(10);
+
+                        // Tuition & Fees Breakdown - Only show charge type and total amount (no individual items, no bullets)
+                        if (receiptData.TuitionAmount > 0 || receiptData.MiscAmount > 0 || receiptData.OtherAmount > 0)
+                        {
+                            column.Item().Column(breakdownCol =>
+                            {
+                                breakdownCol.Item().Text("Tuition & Fees Breakdown").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                breakdownCol.Item().PaddingTop(5);
+                                
+                                // Show only charge type and total amount
+                                if (receiptData.TuitionAmount > 0)
+                                {
+                                    breakdownCol.Item().PaddingVertical(2).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Tuition:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        row.RelativeItem().AlignRight().Text($"₱{receiptData.TuitionAmount:N2}").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                }
+                                
+                                if (receiptData.MiscAmount > 0)
+                                {
+                                    breakdownCol.Item().PaddingVertical(2).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Misc:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        row.RelativeItem().AlignRight().Text($"₱{receiptData.MiscAmount:N2}").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                }
+                                
+                                if (receiptData.OtherAmount > 0)
+                                {
+                                    breakdownCol.Item().PaddingVertical(2).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Other:").FontSize(9).FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                        row.RelativeItem().AlignRight().Text($"₱{receiptData.OtherAmount:N2}").FontSize(9).Bold().FontColor(global::QuestPDF.Helpers.Colors.Black);
+                                    });
+                                }
+                                
+                                // Discount
+                                if (receiptData.DiscountAmount > 0)
+                                {
+                                    breakdownCol.Item().PaddingTop(5).BorderTop(1).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Lighten2).PaddingTop(3).PaddingVertical(2).Row(row =>
+                                    {
+                                        row.RelativeItem().Text("Discount Applied").FontSize(8).Bold().FontColor(global::QuestPDF.Helpers.Colors.Green.Darken2);
+                                        row.RelativeItem().AlignRight().Text($"-₱{receiptData.DiscountAmount:N2}").FontSize(8).Bold().FontColor(global::QuestPDF.Helpers.Colors.Green.Darken2);
+                                    });
+                                }
+                            });
+                            
+                            column.Item().PaddingTop(10);
+                        }
+
+                        column.Item().PaddingTop(10).BorderTop(2).BorderColor(global::QuestPDF.Helpers.Colors.Grey.Medium).PaddingTop(10);
 
                         // Summary of Charges
                         column.Item().Column(summaryCol =>
@@ -221,6 +273,24 @@ public class PaymentReceiptPdfGenerator
         public decimal TotalPaid { get; set; }
         public decimal Balance { get; set; }
         public string ProcessedBy { get; set; } = string.Empty;
+        
+        // Fee breakdown data
+        public List<FeeBreakdownItem> TuitionBreakdown { get; set; } = new();
+        public List<FeeBreakdownItem> MiscBreakdown { get; set; } = new();
+        public List<FeeBreakdownItem> OtherBreakdown { get; set; } = new();
+        
+        // Ledger charges data
+        public decimal TuitionAmount { get; set; }
+        public decimal MiscAmount { get; set; }
+        public decimal OtherAmount { get; set; }
+        public decimal DiscountAmount { get; set; }
+    }
+
+    public class FeeBreakdownItem
+    {
+        public string ItemName { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string BreakdownType { get; set; } = string.Empty;
     }
 }
 

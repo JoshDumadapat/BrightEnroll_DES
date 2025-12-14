@@ -315,23 +315,71 @@ public class FinancialReportService
 
         var students = await query.Select(s => s.StudentId).ToListAsync();
 
-        // Get all ledgers for these students, filtered by school year if provided
-        var ledgersQuery = _context.StudentLedgers
-            .Include(l => l.Charges)
-            .Include(l => l.Payments)
-            .Where(l => students.Contains(l.StudentId));
-
-        if (!string.IsNullOrEmpty(schoolYear))
+        // Early return if no students found
+        if (students == null || !students.Any())
         {
-            ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
+            return new List<PaymentStatusDistribution>();
         }
 
-        var ledgers = await ledgersQuery.ToListAsync();
+        // Filter out any null student IDs
+        var validStudentIds = students.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
+        
+        if (!validStudentIds.Any())
+        {
+            return new List<PaymentStatusDistribution>();
+        }
+
+        // Get all ledgers for these students, filtered by school year if provided
+        // Ensure _context is not null (should be injected, but safety check)
+        if (_context == null)
+        {
+            return new List<PaymentStatusDistribution>();
+        }
+
+        List<StudentLedger> ledgers;
+        try
+        {
+            // Ensure validStudentIds is not empty to avoid query issues
+            if (!validStudentIds.Any())
+            {
+                ledgers = new List<StudentLedger>();
+            }
+            else
+            {
+                // Build the query safely
+                var ledgersQuery = _context.StudentLedgers
+                    .Include(l => l.Charges)
+                    .Include(l => l.Payments)
+                    .Where(l => validStudentIds.Contains(l.StudentId));
+
+                // Apply school year filter if provided
+                if (!string.IsNullOrEmpty(schoolYear))
+                {
+                    ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
+                }
+
+                // Execute the query
+                ledgers = await ledgersQuery.ToListAsync();
+                
+                // Ensure result is not null
+                if (ledgers == null)
+                {
+                    ledgers = new List<StudentLedger>();
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // If query fails for any reason, return empty list to prevent crash
+            // This ensures the report can still be generated even if ledger query fails
+            ledgers = new List<StudentLedger>();
+        }
 
         // Calculate payment status for each student based on their ledger(s)
         var studentStatusMap = new Dictionary<string, string>();
 
-        foreach (var studentId in students)
+        // Use validStudentIds to avoid null references
+        foreach (var studentId in validStudentIds)
         {
             // Get all ledgers for this student (filtered by school year if provided)
             var studentLedgers = ledgers.Where(l => l.StudentId == studentId).ToList();

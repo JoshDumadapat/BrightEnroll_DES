@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
+using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.HR;
 
@@ -9,11 +12,19 @@ public class TimeRecordService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<TimeRecordService>? _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
+    private readonly IAuthService? _authService;
 
-    public TimeRecordService(AppDbContext context, ILogger<TimeRecordService>? logger = null)
+    public TimeRecordService(
+        AppDbContext context, 
+        ILogger<TimeRecordService>? logger = null,
+        IServiceScopeFactory? serviceScopeFactory = null,
+        IAuthService? authService = null)
     {
         _context = context;
         _logger = logger;
+        _serviceScopeFactory = serviceScopeFactory;
+        _authService = authService;
     }
 
     /// <summary>
@@ -85,6 +96,44 @@ public class TimeRecordService
 
             await _context.SaveChangesAsync();
             _logger?.LogInformation("Saved {Count} time records for period {Period}", savedCount, period);
+
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = currentUser?.user_ID;
+
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: "Upload Time Records",
+                            module: "HR",
+                            description: $"Uploaded {savedCount} time records for period {period}",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "TimeRecord",
+                            entityId: period,
+                            oldValues: null,
+                            newValues: $"Records: {savedCount}, Period: {period}",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for time record upload: {Message}", ex.Message);
+                }
+            });
 
             return savedCount;
         }

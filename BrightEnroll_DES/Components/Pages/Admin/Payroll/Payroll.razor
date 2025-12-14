@@ -1,4 +1,4 @@
-﻿@page "/payroll"
+@page "/payroll"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Payroll.PayrollCS
@@ -15,6 +15,7 @@
 @inject BrightEnroll_DES.Services.Business.HR.SalaryChangeRequestService SalaryChangeRequestService
 @inject ILogger<Payroll> Logger
 @inject NavigationManager Navigation
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Payroll</PageTitle>
 
@@ -78,16 +79,19 @@
                     class="@GetTabClasses("Records")">
                 Records
             </button>
-            <button @onclick='() => SetActiveTab("Approvals")' 
-                    class="@GetTabClasses("Approvals")">
-                Salary Approvals
-                @if (pendingApprovalsCount > 0)
-                {
-                    <span class="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
-                        @pendingApprovalsCount
-                    </span>
-                }
-            </button>
+            @if (!IsHRUser())
+            {
+                <button @onclick='() => SetActiveTab("Approvals")' 
+                        class="@GetTabClasses("Approvals")">
+                    Salary Approvals
+                    @if (pendingApprovalsCount > 0)
+                    {
+                        <span class="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">
+                            @pendingApprovalsCount
+                        </span>
+                    }
+                </button>
+            }
             <button @onclick='() => SetActiveTab("Reports")' 
                     class="@GetTabClasses("Reports")">
                 Reports
@@ -106,7 +110,7 @@
             </div>
             
             <!-- Salary Configuration Tab -->
-            <PayrollTable PayrollData="payrollData" OnSalaryUpdated="HandleSalaryUpdated" OnRoleSelected="HandleRoleSelected" SelectedRole="selectedRole" />
+            <PayrollTable PayrollData="payrollData" OnSalaryUpdated="HandleSalaryUpdated" OnRoleSelected="HandleRoleSelected" SelectedRole="selectedRole" IsHRUser="@IsHRUser()" />
             
             <!-- Calculation Details Card -->
             <div class="overflow-hidden rounded-xl bg-white shadow">
@@ -475,7 +479,7 @@
         else if (activeTab == "AddRole")
         {
             <!-- Manage Roles Tab -->
-            <AddRoleForm OnRoleAdded="HandleRoleAdded" Roles="payrollData" OnShowToast="HandleShowToast" />
+            <AddRoleForm OnRoleAdded="HandleRoleAdded" Roles="payrollData" OnShowToast="HandleShowToast" IsHRUser="@IsHRUser()" />
         }
         else if (activeTab == "GeneratePayslip")
         {
@@ -879,6 +883,13 @@
     private async Task HandleApprovalChanged()
     {
         await LoadPendingApprovalsCount();
+    }
+    
+    private bool IsHRUser()
+    {
+        var userRole = AuthorizationService?.GetUserRole();
+        return !string.IsNullOrWhiteSpace(userRole) && 
+               string.Equals(userRole, "HR", StringComparison.OrdinalIgnoreCase);
     }
 }
 </RoleAuthorizeView>

@@ -2,6 +2,9 @@ using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
@@ -12,11 +15,19 @@ public class JournalEntryService
 {
     private readonly AppDbContext _context;
     private readonly ILogger<JournalEntryService>? _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
+    private readonly IAuthService? _authService;
 
-    public JournalEntryService(AppDbContext context, ILogger<JournalEntryService>? logger = null)
+    public JournalEntryService(
+        AppDbContext context, 
+        ILogger<JournalEntryService>? logger = null,
+        IServiceScopeFactory? serviceScopeFactory = null,
+        IAuthService? authService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
+        _serviceScopeFactory = serviceScopeFactory;
+        _authService = authService;
     }
 
     /// <summary>
@@ -92,6 +103,44 @@ public class JournalEntryService
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Journal entry {EntryNumber} created for payment {PaymentId}", entryNumber, payment.PaymentId);
+
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = createdBy;
+                        
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: "Create Journal Entry",
+                            module: "Finance",
+                            description: $"Created journal entry {entryNumber} for payment {payment.PaymentId}: Amount ₱{payment.Amount:N2}",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "JournalEntry",
+                            entityId: journalEntry.JournalEntryId.ToString(),
+                            oldValues: null,
+                            newValues: $"EntryNumber: {entryNumber}, PaymentId: {payment.PaymentId}, Amount: ₱{payment.Amount:N2}, Status: Posted",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for journal entry creation: {Message}", ex.Message);
+                }
+            });
 
             return journalEntry.JournalEntryId;
         }
@@ -648,6 +697,47 @@ public class JournalEntryService
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Journal entry {EntryNumber} approved by user {ApprovedBy}", entry.EntryNumber, approvedBy);
+            
+            // Audit logging (non-blocking, background task)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var authService = scope.ServiceProvider.GetService<IAuthService>();
+                        
+                        var currentUser = authService?.CurrentUser;
+                        var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                        var userRole = currentUser?.user_role ?? "System";
+                        var userId = approvedBy;
+                        
+                        var totalDebits = entry.JournalEntryLines.Sum(l => l.DebitAmount);
+                        var totalCredits = entry.JournalEntryLines.Sum(l => l.CreditAmount);
+                        
+                        await auditLogService.CreateTransactionLogAsync(
+                            action: "Approve Journal Entry",
+                            module: "Finance",
+                            description: $"Approved journal entry {entry.EntryNumber}: Debits ₱{totalDebits:N2}, Credits ₱{totalCredits:N2}",
+                            userName: userName,
+                            userRole: userRole,
+                            userId: userId,
+                            entityType: "JournalEntry",
+                            entityId: journalEntryId.ToString(),
+                            oldValues: $"Status: Draft",
+                            newValues: $"Status: Posted, ApprovedBy: {approvedBy}, Notes: {approvalNotes ?? "N/A"}",
+                            status: "Success",
+                            severity: "High"
+                        );
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for journal entry approval: {Message}", ex.Message);
+                }
+            });
         }
         catch (Exception ex)
         {

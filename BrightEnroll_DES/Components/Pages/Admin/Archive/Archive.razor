@@ -3,6 +3,8 @@
 @inject NavigationManager NavigationManager
 @using BrightEnroll_DES.Components.Pages.Admin.ArchiveComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Archive
+@using BrightEnroll_DES.Services.RoleBase
+@inject IAuthorizationService AuthorizationService
 
 <PageTitle>Archive</PageTitle>
 
@@ -15,10 +17,13 @@
                     class="@GetTabClasses(TabType.StudentArchive)">
                 Student Archive
             </button>
-            <button @onclick="() => SelectedTab = TabType.EmployeeArchive" 
-                    class="@GetTabClasses(TabType.EmployeeArchive)">
-                Employee Archive
-            </button>
+            @if (!IsRegistrar)
+            {
+                <button @onclick="() => SelectedTab = TabType.EmployeeArchive" 
+                        class="@GetTabClasses(TabType.EmployeeArchive)">
+                    Employee Archive
+                </button>
+            }
         </div>
     </div>
 
@@ -43,6 +48,7 @@
     }
 
     private TabType SelectedTab { get; set; } = TabType.StudentArchive;
+    private bool IsRegistrar { get; set; } = false;
 
     [Inject] private BrightEnroll_DES.Services.Business.Students.ArchiveService ArchiveService { get; set; } = null!;
 
@@ -69,13 +75,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Check if user is registrar
+        IsRegistrar = AuthorizationService.HasRole("Registrar");
+        
+        // If registrar, ensure only Student Archive tab is selected
+        if (IsRegistrar)
+        {
+            SelectedTab = TabType.StudentArchive;
+        }
+        
         // Check query string for a requested tab (e.g., /archive?tab=employee)
         var uri = new Uri(NavigationManager.Uri);
         var query = ParseQueryString(uri.Query);
 
         if (query.TryGetValue("tab", out var tabValue))
         {
-            if (string.Equals(tabValue, "employee", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tabValue, "employee", StringComparison.OrdinalIgnoreCase) && !IsRegistrar)
             {
                 SelectedTab = TabType.EmployeeArchive;
             }
@@ -86,7 +101,10 @@
         }
 
         await LoadArchivedStudentsAsync();
-        await LoadArchivedEmployeesAsync();
+        if (!IsRegistrar)
+        {
+            await LoadArchivedEmployeesAsync();
+        }
     }
 
     private async Task LoadArchivedStudentsAsync()

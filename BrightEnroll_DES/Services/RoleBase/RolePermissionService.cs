@@ -101,7 +101,7 @@ namespace BrightEnroll_DES.Services.RoleBase
                     // Removed: DeleteStudentRecord - Registrar should only archive, not delete
                     Permissions.CreateStudentRegistration, // Student Registration in sidebar
                     Permissions.ViewCurriculum, // To see sections/subjects for enrollment
-                    Permissions.ViewFinance, // To check payment status for enrollment
+                    // Removed: ViewFinance - Registrar should not have finance access
                     Permissions.ViewArchive, // To view archived students
                     Permissions.ViewProfile, Permissions.EditProfile
                 },

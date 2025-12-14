@@ -105,6 +105,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<PeriodClosingService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService>();
             builder.Services.AddScoped<ExpenseService>();
             builder.Services.AddScoped<StudentLedgerService>();
             builder.Services.AddScoped<PaymentService>();

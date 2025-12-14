@@ -3,6 +3,7 @@ using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Authentication;
 using BrightEnroll_DES.Services.Business.Academic;
 using BrightEnroll_DES.Services.Business.Finance;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -16,19 +17,22 @@ public class EnrollmentStatusService
     private readonly IAuthService? _authService;
     private readonly SchoolYearService? _schoolYearService;
     private readonly StudentLedgerService? _ledgerService;
+    private readonly AuditLogService? _auditLogService;
 
     public EnrollmentStatusService(
         AppDbContext context, 
         ILogger<EnrollmentStatusService>? logger = null, 
         IAuthService? authService = null,
         SchoolYearService? schoolYearService = null,
-        StudentLedgerService? ledgerService = null)
+        StudentLedgerService? ledgerService = null,
+        AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
         _authService = authService;
         _schoolYearService = schoolYearService;
         _ledgerService = ledgerService;
+        _auditLogService = auditLogService;
     }
 
     // Gets students by status (with optional school year filtering)
@@ -131,9 +135,15 @@ public class EnrollmentStatusService
             else
             {
                 // No school year filter - return all students with matching statuses
+                if (_context.Students == null)
+                {
+                    _logger?.LogWarning("Students DbSet is null");
+                    return new List<Student>();
+                }
+
                 var query = _context.Students
                     .Include(s => s.Requirements)
-                    .Where(s => statuses.Contains(s.Status));
+                    .Where(s => s.Status != null && statuses.Contains(s.Status));
 
                 return await query
                     .OrderByDescending(s => s.DateRegistered)

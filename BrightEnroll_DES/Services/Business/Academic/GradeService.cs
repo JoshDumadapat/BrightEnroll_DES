@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlClient;
 using BrightEnroll_DES.Services.Database.Initialization;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using BrightEnroll_DES.Services.Business.Audit;
+using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Academic;
 
@@ -13,14 +16,20 @@ public class GradeService
     private readonly AppDbContext _context;
     private readonly ILogger<GradeService>? _logger;
     private readonly IConfiguration? _configuration;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
     private static bool _tableChecked = false;
     private static readonly object _lockObject = new object();
 
-    public GradeService(AppDbContext context, ILogger<GradeService>? logger = null, IConfiguration? configuration = null)
+    public GradeService(
+        AppDbContext context, 
+        ILogger<GradeService>? logger = null, 
+        IConfiguration? configuration = null,
+        IServiceScopeFactory? serviceScopeFactory = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _logger = logger;
         _configuration = configuration;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     /// <summary>
@@ -455,6 +464,51 @@ public class GradeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Successfully saved {Count} grades", gradeInputs.Count);
+                
+                // Audit logging (non-blocking, background task)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (_serviceScopeFactory != null)
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                            var authService = scope.ServiceProvider.GetService<IAuthService>();
+                            
+                            var currentUser = authService?.CurrentUser;
+                            var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                            var userRole = currentUser?.user_role ?? "Teacher";
+                            var userId = teacherId;
+                            
+                            // Get unique section-subject combinations for description
+                            var uniqueCombinations = gradeInputs
+                                .Select(g => new { g.SectionId, g.SubjectId })
+                                .Distinct()
+                                .Count();
+                            
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Submit Grades",
+                                module: "Academic",
+                                description: $"Submitted {gradeInputs.Count} grades by Teacher ID {teacherId} for {uniqueCombinations} section-subject combination(s)",
+                                userName: userName,
+                                userRole: userRole,
+                                userId: userId,
+                                entityType: "Grade",
+                                entityId: $"Teacher_{teacherId}",
+                                oldValues: null,
+                                newValues: $"Grades submitted for {gradeInputs.Count} student-subject combinations",
+                                status: "Success",
+                                severity: "High"
+                            );
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to create audit log for grade submission: {Message}", ex.Message);
+                    }
+                });
+                
                 return true;
             }
             catch (Exception ex)
@@ -613,6 +667,51 @@ public class GradeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Successfully saved {Count} quarterly grades", gradeInputs.Count);
+                
+                // Audit logging (non-blocking, background task)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        if (_serviceScopeFactory != null)
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                            var authService = scope.ServiceProvider.GetService<IAuthService>();
+                            
+                            var currentUser = authService?.CurrentUser;
+                            var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+                            var userRole = currentUser?.user_role ?? "Teacher";
+                            var userId = teacherId;
+                            
+                            // Get unique section-subject combinations for description
+                            var uniqueCombinations = gradeInputs
+                                .Select(g => new { g.SectionId, g.SubjectId })
+                                .Distinct()
+                                .Count();
+                            
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Submit Quarterly Grades",
+                                module: "Academic",
+                                description: $"Submitted {gradeInputs.Count} quarterly grades by Teacher ID {teacherId} for {uniqueCombinations} section-subject combination(s)",
+                                userName: userName,
+                                userRole: userRole,
+                                userId: userId,
+                                entityType: "Grade",
+                                entityId: $"Teacher_{teacherId}",
+                                oldValues: null,
+                                newValues: $"Quarterly grades submitted for {gradeInputs.Count} student-subject combinations",
+                                status: "Success",
+                                severity: "High"
+                            );
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning(ex, "Failed to create audit log for quarterly grade submission: {Message}", ex.Message);
+                    }
+                });
+                
                 return true;
             }
             catch (Exception ex)

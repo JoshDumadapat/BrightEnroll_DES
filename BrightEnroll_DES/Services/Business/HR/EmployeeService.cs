@@ -4,6 +4,7 @@ using BrightEnroll_DES.Models;
 using BrightEnroll_DES.Services.DataAccess.Repositories;
 using BrightEnroll_DES.Services.Business.Academic;
 using BrightEnroll_DES.Services.Business.Notifications;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,15 +16,17 @@ public class EmployeeService
     private readonly IUserRepository _userRepository;
     private readonly SchoolYearService _schoolYearService;
     private readonly NotificationService? _notificationService;
+    private readonly AuditLogService? _auditLogService;
     private readonly ILogger<EmployeeService>? _logger;
 
-    public EmployeeService(AppDbContext context, IUserRepository userRepository, SchoolYearService schoolYearService, ILogger<EmployeeService>? logger = null, NotificationService? notificationService = null)
+    public EmployeeService(AppDbContext context, IUserRepository userRepository, SchoolYearService schoolYearService, ILogger<EmployeeService>? logger = null, NotificationService? notificationService = null, AuditLogService? auditLogService = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
         _schoolYearService = schoolYearService ?? throw new ArgumentNullException(nameof(schoolYearService));
         _logger = logger;
         _notificationService = notificationService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<int> RegisterEmployeeAsync(EmployeeRegistrationData employeeData)
@@ -176,6 +179,32 @@ public class EmployeeService
 
                 _logger?.LogInformation("=== EMPLOYEE REGISTRATION SUCCESS ===");
                 _logger?.LogInformation("Employee registered successfully: {SystemId} (User ID: {UserId})", user.system_ID, userId);
+                
+                // Log employee registration to audit trail (non-blocking)
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        var employeeName = $"{employeeData.FirstName} {employeeData.LastName}".Trim();
+                        await _auditLogService.CreateTransactionLogAsync(
+                            action: "Create Employee",
+                            module: "Human Resource",
+                            description: $"Created new employee: {employeeName} (System ID: {employeeData.SystemId}, Role: {employeeData.Role})",
+                            userName: null, // Can be retrieved from current user context if available
+                            userRole: null,
+                            userId: null,
+                            entityType: "Employee",
+                            entityId: employeeData.SystemId,
+                            status: "Success",
+                            severity: "Medium"
+                        );
+                    }
+                    catch
+                    {
+                        // Don't break employee registration if audit logging fails
+                    }
+                }
+                
                 return userId;
             }
             catch (Exception ex)
@@ -183,6 +212,27 @@ public class EmployeeService
                 _logger?.LogError(ex, "=== ROLLING BACK TRANSACTION ===");
                 await transaction.RollbackAsync();
                 _logger?.LogError(ex, "Error creating employee records for user {UserId}: {Message}", userId, ex.Message);
+                
+                // Log employee registration failure to audit trail (non-blocking)
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        await _auditLogService.CreateTransactionLogAsync(
+                            action: "Create Employee",
+                            module: "Human Resource",
+                            description: $"Failed to create employee: {ex.Message}",
+                            userName: null,
+                            userRole: null,
+                            userId: null,
+                            entityType: "Employee",
+                            entityId: employeeData.SystemId,
+                            status: "Failed",
+                            severity: "High"
+                        );
+                    }
+                    catch { }
+                }
                 LogDetailedException(ex, "Employee Records Creation");
                 
                 // Delete the user that was created before the transaction
@@ -786,18 +836,86 @@ public class EmployeeService
                 await transaction.CommitAsync();
 
                 _logger?.LogInformation("Employee {UserId} information updated successfully", userId);
+                
+                // Log employee update to audit trail (non-blocking)
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        var employeeName = $"{updateData.FirstName} {updateData.LastName}".Trim();
+                        await _auditLogService.CreateTransactionLogAsync(
+                            action: "Update Employee",
+                            module: "Human Resource",
+                            description: $"Updated employee information: {employeeName} (User ID: {userId})",
+                            userName: null, // Can be retrieved from requestedByUserId if available
+                            userRole: null,
+                            userId: requestedByUserId,
+                            entityType: "Employee",
+                            entityId: userId.ToString(),
+                            status: "Success",
+                            severity: "Medium"
+                        );
+                    }
+                    catch
+                    {
+                        // Don't break employee update if audit logging fails
+                    }
+                }
+                
                 return true;
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
                 _logger?.LogError(ex, "Error updating employee {UserId} information: {Message}", userId, ex.Message);
+                
+                // Log employee update failure to audit trail (non-blocking)
+                if (_auditLogService != null)
+                {
+                    try
+                    {
+                        await _auditLogService.CreateTransactionLogAsync(
+                            action: "Update Employee",
+                            module: "Human Resource",
+                            description: $"Failed to update employee {userId}: {ex.Message}",
+                            userName: null,
+                            userRole: null,
+                            userId: requestedByUserId,
+                            entityType: "Employee",
+                            entityId: userId.ToString(),
+                            status: "Failed",
+                            severity: "High"
+                        );
+                    }
+                    catch { }
+                }
+                
                 throw;
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error updating employee information: {Message}", ex.Message);
+            
+            // Log employee update failure to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Update Employee",
+                        module: "Human Resource",
+                        description: $"Failed to update employee: {ex.Message}",
+                        userName: null,
+                        userRole: null,
+                        userId: requestedByUserId,
+                        status: "Failed",
+                        severity: "High"
+                    );
+                }
+                catch { }
+            }
+            
             return false;
         }
     }

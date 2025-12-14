@@ -1,7 +1,9 @@
 using BrightEnroll_DES.Data;
 using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Services.Business.Notifications;
+using BrightEnroll_DES.Services.Business.Audit;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
@@ -11,14 +13,18 @@ public class ExpenseService
     private readonly AppDbContext _context;
     private readonly JournalEntryService _journalEntryService;
     private readonly NotificationService? _notificationService;
+    private readonly AuditLogService? _auditLogService;
     private readonly ILogger<ExpenseService>? _logger;
+    private readonly IServiceScopeFactory? _serviceScopeFactory;
 
-    public ExpenseService(AppDbContext context, JournalEntryService journalEntryService, ILogger<ExpenseService>? logger = null, NotificationService? notificationService = null)
+    public ExpenseService(AppDbContext context, JournalEntryService journalEntryService, ILogger<ExpenseService>? logger = null, NotificationService? notificationService = null, AuditLogService? auditLogService = null, IServiceScopeFactory? serviceScopeFactory = null)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _journalEntryService = journalEntryService ?? throw new ArgumentNullException(nameof(journalEntryService));
         _logger = logger;
         _notificationService = notificationService;
+        _auditLogService = auditLogService;
+        _serviceScopeFactory = serviceScopeFactory;
     }
 
     public async Task<Expense> CreateExpenseAsync(CreateExpenseRequest request)
@@ -107,11 +113,96 @@ public class ExpenseService
 
             _logger?.LogInformation("Expense created successfully with code {ExpenseCode}", expense.ExpenseCode);
 
+            // Log expense creation to audit trail - fetch from database after save
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Small delay to ensure transaction is committed
+                    await Task.Delay(100);
+                    
+                    if (_serviceScopeFactory != null)
+                    {
+                        // Create a new scope to avoid DbContext concurrency issues
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var newContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        
+                        // Fetch the expense from database to ensure it's saved
+                        var savedExpense = await newContext.Expenses
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(e => e.ExpenseCode == expense.ExpenseCode);
+                        
+                        if (savedExpense != null)
+                        {
+                            // Get user info
+                            int? userId = null;
+                            string? userRole = null;
+                            if (!string.IsNullOrWhiteSpace(savedExpense.RecordedBy))
+                            {
+                                var user = await newContext.Users
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(u => u.Email == savedExpense.RecordedBy || 
+                                        u.SystemId == savedExpense.RecordedBy ||
+                                        (u.FirstName + " " + u.LastName) == savedExpense.RecordedBy);
+                                userId = user?.UserId;
+                                userRole = user?.UserRole;
+                            }
+
+                            var newValues = $"Code: {savedExpense.ExpenseCode}, Category: {savedExpense.Category}, " +
+                                           $"Description: {savedExpense.Description}, Amount: ₱{savedExpense.Amount:N2}, " +
+                                           $"Status: {savedExpense.Status}, Date: {savedExpense.ExpenseDate:yyyy-MM-dd}";
+
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Create Expense",
+                                module: "Finance",
+                                description: $"Created expense {savedExpense.ExpenseCode}: {savedExpense.Description} - ₱{savedExpense.Amount:N2}",
+                                userName: savedExpense.RecordedBy,
+                                userRole: userRole,
+                                userId: userId,
+                                entityType: "Expense",
+                                entityId: savedExpense.ExpenseCode,
+                                oldValues: null,
+                                newValues: newValues,
+                                status: "Success",
+                                severity: "Medium"
+                            );
+                            
+                            System.Diagnostics.Debug.WriteLine($"✓ Audit log created for expense: {savedExpense.ExpenseCode}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for expense {ExpenseCode}", expense.ExpenseCode);
+                }
+            });
+
             return expense;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error creating expense: {Message}", ex.Message);
+            
+            // Log expense creation failure to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Create Expense",
+                        module: "Finance",
+                        description: $"Failed to create expense: {ex.Message}",
+                        userName: request.RecordedBy,
+                        userRole: null,
+                        userId: null,
+                        status: "Failed",
+                        severity: "High"
+                    );
+                }
+                catch { }
+            }
+            
             throw;
         }
     }
@@ -152,6 +243,77 @@ public class ExpenseService
 
             await _context.SaveChangesAsync();
 
+            // Log expense update to audit trail - fetch from database after save
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    // Small delay to ensure transaction is committed
+                    await Task.Delay(100);
+                    
+                    if (_serviceScopeFactory != null)
+                    {
+                        // Create a new scope to avoid DbContext concurrency issues
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var newContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        
+                        // Fetch the updated expense from database
+                        var updatedExpense = await newContext.Expenses
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(e => e.ExpenseCode == expenseCode);
+                        
+                        if (updatedExpense != null)
+                        {
+                            // Get user info
+                            int? userId = null;
+                            string? userRole = null;
+                            string actionUser = request.ApprovedBy ?? request.RecordedBy ?? updatedExpense.RecordedBy ?? string.Empty;
+                            
+                            if (!string.IsNullOrWhiteSpace(actionUser))
+                            {
+                                var user = await newContext.Users
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(u => u.Email == actionUser || 
+                                        u.SystemId == actionUser ||
+                                        (u.FirstName + " " + u.LastName) == actionUser);
+                                userId = user?.UserId;
+                                userRole = user?.UserRole;
+                            }
+
+                            var oldValues = $"Status: {oldStatus}";
+                            var newValues = $"Status: {updatedExpense.Status}, Amount: ₱{updatedExpense.Amount:N2}, " +
+                                           $"Category: {updatedExpense.Category}, Date: {updatedExpense.ExpenseDate:yyyy-MM-dd}";
+
+                            string action = oldStatus != updatedExpense.Status && updatedExpense.Status == "Approved" 
+                                ? "Approve Expense" 
+                                : "Update Expense";
+
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: action,
+                                module: "Finance",
+                                description: $"{action}: {updatedExpense.ExpenseCode} - Status changed from {oldStatus} to {updatedExpense.Status}",
+                                userName: actionUser,
+                                userRole: userRole,
+                                userId: userId,
+                                entityType: "Expense",
+                                entityId: updatedExpense.ExpenseCode,
+                                oldValues: oldValues,
+                                newValues: newValues,
+                                status: "Success",
+                                severity: updatedExpense.Status == "Approved" ? "High" : "Medium"
+                            );
+                            
+                            System.Diagnostics.Debug.WriteLine($"✓ Audit log created for expense update: {updatedExpense.ExpenseCode}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for expense update {ExpenseCode}", expenseCode);
+                }
+            });
+
             // Create journal entry when expense is approved
             if (justApproved)
             {
@@ -190,11 +352,34 @@ public class ExpenseService
             }
 
             _logger?.LogInformation("Expense updated successfully with code {ExpenseCode}", expense.ExpenseCode);
+            
             return expense;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error updating expense {ExpenseCode}: {Message}", expenseCode, ex.Message);
+            
+            // Log expense update failure to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Update Expense",
+                        module: "Finance",
+                        description: $"Failed to update expense {expenseCode}: {ex.Message}",
+                        userName: request.ApprovedBy ?? request.RecordedBy,
+                        userRole: null,
+                        userId: null,
+                        entityType: "Expense",
+                        entityId: expenseCode,
+                        status: "Failed",
+                        severity: "High"
+                    );
+                }
+                catch { }
+            }
+            
             throw;
         }
     }
@@ -220,10 +405,90 @@ public class ExpenseService
             await _context.SaveChangesAsync();
 
             _logger?.LogInformation("Expense archived successfully with code {ExpenseCode}", expense.ExpenseCode);
+            
+            // Log expense archive to audit trail - fetch from database after save
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(100);
+                    
+                    if (_serviceScopeFactory != null)
+                    {
+                        // Create a new scope to avoid DbContext concurrency issues
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var newContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        
+                        var archivedExpense = await newContext.Expenses
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(e => e.ExpenseCode == expenseCode);
+                        
+                        if (archivedExpense != null)
+                        {
+                            int? userId = null;
+                            string? userRole = null;
+                            if (!string.IsNullOrWhiteSpace(archivedExpense.RecordedBy))
+                            {
+                                var user = await newContext.Users
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(u => u.Email == archivedExpense.RecordedBy || 
+                                        u.SystemId == archivedExpense.RecordedBy ||
+                                        (u.FirstName + " " + u.LastName) == archivedExpense.RecordedBy);
+                                userId = user?.UserId;
+                                userRole = user?.UserRole;
+                            }
+
+                            await auditLogService.CreateTransactionLogAsync(
+                                action: "Archive Expense",
+                                module: "Finance",
+                                description: $"Archived expense {archivedExpense.ExpenseCode}: {archivedExpense.Description}",
+                                userName: archivedExpense.RecordedBy,
+                                userRole: userRole,
+                                userId: userId,
+                                entityType: "Expense",
+                                entityId: archivedExpense.ExpenseCode,
+                                oldValues: $"Status: {archivedExpense.Status}",
+                                newValues: "Status: Archived",
+                                status: "Success",
+                                severity: "Low"
+                            );
+                            
+                            System.Diagnostics.Debug.WriteLine($"✓ Audit log created for expense archive: {archivedExpense.ExpenseCode}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, "Failed to create audit log for expense archive {ExpenseCode}", expenseCode);
+                }
+            });
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error archiving expense {ExpenseCode}: {Message}", expenseCode, ex.Message);
+            
+            // Log expense archive failure to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Archive Expense",
+                        module: "Finance",
+                        description: $"Failed to archive expense {expenseCode}: {ex.Message}",
+                        userName: null,
+                        userRole: null,
+                        userId: null,
+                        entityType: "Expense",
+                        entityId: expenseCode,
+                        status: "Failed",
+                        severity: "High"
+                    );
+                }
+                catch { }
+            }
+            
             throw;
         }
     }
@@ -232,7 +497,41 @@ public class ExpenseService
     {
         try
         {
+            // Use AsNoTracking() for read-only queries to avoid DbContext concurrency issues
+            // and improve performance since we don't need change tracking
+            // Note: AsNoTracking() must be applied to the base query before Include()
             var query = _context.Expenses
+                .AsNoTracking()
+                .Include(e => e.Attachments)
+                .AsQueryable();
+
+            if (from.HasValue)
+            {
+                query = query.Where(e => e.ExpenseDate >= from.Value.Date);
+            }
+
+            if (to.HasValue)
+            {
+                query = query.Where(e => e.ExpenseDate <= to.Value.Date);
+            }
+
+            // Execute query with proper isolation
+            var result = await query
+                .OrderByDescending(e => e.ExpenseDate)
+                .ThenByDescending(e => e.ExpenseId)
+                .ToListAsync();
+            
+            return result;
+        }
+        catch (InvalidOperationException ioEx) when (ioEx.Message.Contains("second operation") || ioEx.Message.Contains("concurrently"))
+        {
+            // Retry once after a small delay if we hit a concurrency issue
+            _logger?.LogWarning(ioEx, "DbContext concurrency issue detected in GetExpensesAsync, retrying after delay");
+            await Task.Delay(50);
+            
+            // Retry with a fresh query
+            var query = _context.Expenses
+                .AsNoTracking()
                 .Include(e => e.Attachments)
                 .AsQueryable();
 

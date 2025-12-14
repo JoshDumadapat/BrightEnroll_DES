@@ -1,5 +1,24 @@
 @using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
+@using System.Linq
+@inject AppDbContext Context
 
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-12">
+        <div class="text-center">
+            <svg class="mx-auto h-12 w-12 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-4 text-sm text-gray-600">Loading analytics data...</p>
+        </div>
+    </div>
+}
+else
+{
 <div class="space-y-6">
     <!-- Summary Cards -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -153,21 +172,49 @@
     <div class="overflow-hidden rounded-xl bg-white shadow-lg">
         <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
             <h3 class="text-lg font-semibold text-gray-800">Time & Attendance Analytics</h3>
-            <p class="mt-1 text-sm text-gray-600">Data will be available after uploading time records</p>
+            @if (hasTimeRecords)
+            {
+                <p class="mt-1 text-sm text-gray-600">Based on uploaded time records</p>
+            }
+            else
+            {
+                <p class="mt-1 text-sm text-gray-600">Data will be available after uploading time records</p>
+            }
         </div>
         <div class="p-6">
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div class="text-center p-4 bg-gray-50 rounded-lg">
                     <p class="text-sm text-gray-600">Average Attendance Rate</p>
-                    <p class="mt-2 text-2xl font-bold text-gray-900">--%</p>
+                    @if (hasTimeRecords)
+                    {
+                        <p class="mt-2 text-2xl font-bold text-gray-900">@averageAttendanceRate.ToString("F1")%</p>
+                    }
+                    else
+                    {
+                        <p class="mt-2 text-2xl font-bold text-gray-900">--%</p>
+                    }
                 </div>
                 <div class="text-center p-4 bg-gray-50 rounded-lg">
                     <p class="text-sm text-gray-600">Total Overtime Hours</p>
-                    <p class="mt-2 text-2xl font-bold text-orange-600">-- hrs</p>
+                    @if (hasTimeRecords)
+                    {
+                        <p class="mt-2 text-2xl font-bold text-orange-600">@totalOvertimeHours.ToString("F1") hrs</p>
+                    }
+                    else
+                    {
+                        <p class="mt-2 text-2xl font-bold text-orange-600">-- hrs</p>
+                    }
                 </div>
                 <div class="text-center p-4 bg-gray-50 rounded-lg">
                     <p class="text-sm text-gray-600">Total Leave Days</p>
-                    <p class="mt-2 text-2xl font-bold text-blue-600">-- days</p>
+                    @if (hasTimeRecords)
+                    {
+                        <p class="mt-2 text-2xl font-bold text-blue-600">@totalLeaveDays.ToString("F1") days</p>
+                    }
+                    else
+                    {
+                        <p class="mt-2 text-2xl font-bold text-blue-600">-- days</p>
+                    }
                 </div>
             </div>
         </div>
@@ -200,9 +247,9 @@
         </div>
     </div>
 </div>
+}
 
 @code {
-    // Sample/Mock data - will be replaced with actual data later
     private int totalEmployees = 0;
     private int activeEmployees = 0;
     private int inactiveEmployees = 0;
@@ -212,41 +259,152 @@
     private decimal costPerEmployee = 0;
     private decimal highestSalary = 0;
     private decimal lowestSalary = 0;
+    private bool isLoading = true;
+    
+    // Time & Attendance Analytics
+    private bool hasTimeRecords = false;
+    private double averageAttendanceRate = 0;
+    private decimal totalOvertimeHours = 0;
+    private decimal totalLeaveDays = 0;
 
     private List<RoleDistribution> roleDistribution = new();
     private List<int> salaryRanges = new() { 0, 0, 0, 0 }; // 0-20k, 20k-40k, 40k-60k, 60k+
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
-        // TODO: Load actual data from database
-        // For now, using sample data
-        LoadSampleData();
-        return Task.CompletedTask;
+        await LoadRealData();
     }
 
-    private void LoadSampleData()
+    private async Task LoadRealData()
     {
-        // Sample data - will be replaced with actual database queries
-        totalEmployees = 25;
-        activeEmployees = 23;
-        inactiveEmployees = 2;
-        roleCount = 5;
-        averageSalary = 35000.00m;
-        totalPayrollCost = 875000.00m;
-        costPerEmployee = 35000.00m;
-        highestSalary = 50000.00m;
-        lowestSalary = 20000.00m;
-
-        roleDistribution = new List<RoleDistribution>
+        try
         {
-            new RoleDistribution { RoleName = "Teacher", Count = 15, Percentage = 60 },
-            new RoleDistribution { RoleName = "Admin", Count = 5, Percentage = 20 },
-            new RoleDistribution { RoleName = "HR", Count = 2, Percentage = 8 },
-            new RoleDistribution { RoleName = "Cashier", Count = 2, Percentage = 8 },
-            new RoleDistribution { RoleName = "Registrar", Count = 1, Percentage = 4 }
-        };
-
-        salaryRanges = new List<int> { 5, 10, 7, 3 };
+            isLoading = true;
+            
+            // Load employee data from EmployeeDataView
+            var allEmployees = await Context.EmployeeDataViews.ToListAsync();
+            
+            // Calculate total, active, and inactive employees
+            totalEmployees = allEmployees.Count;
+            activeEmployees = allEmployees.Count(e => e.Status == null || e.Status.ToLower() != "inactive");
+            inactiveEmployees = allEmployees.Count(e => e.Status != null && e.Status.ToLower() == "inactive");
+            
+            // Calculate role distribution
+            var roleGroups = allEmployees
+                .Where(e => !string.IsNullOrWhiteSpace(e.Role))
+                .GroupBy(e => e.Role)
+                .Select(g => new RoleDistribution
+                {
+                    RoleName = g.Key ?? "Unknown",
+                    Count = g.Count(),
+                    Percentage = totalEmployees > 0 ? (g.Count() * 100.0 / totalEmployees) : 0
+                })
+                .OrderByDescending(r => r.Count)
+                .ToList();
+            
+            roleDistribution = roleGroups;
+            roleCount = roleGroups.Count;
+            
+            // Load salary data from SalaryInfo (only active salaries)
+            var activeSalaries = await Context.SalaryInfos
+                .Where(s => s.IsActive)
+                .ToListAsync();
+            
+            if (activeSalaries.Any())
+            {
+                // Calculate total salary (BaseSalary + Allowance) for each employee
+                var totalSalaries = activeSalaries
+                    .Select(s => s.BaseSalary + s.Allowance)
+                    .ToList();
+                
+                // Calculate salary statistics
+                averageSalary = totalSalaries.Any() ? totalSalaries.Average() : 0;
+                highestSalary = totalSalaries.Any() ? totalSalaries.Max() : 0;
+                lowestSalary = totalSalaries.Any() ? totalSalaries.Min() : 0;
+                totalPayrollCost = totalSalaries.Sum();
+                costPerEmployee = activeEmployees > 0 ? totalPayrollCost / activeEmployees : 0;
+                
+                // Calculate salary ranges distribution
+                salaryRanges[0] = totalSalaries.Count(s => s <= 20000); // 0-20k
+                salaryRanges[1] = totalSalaries.Count(s => s > 20000 && s <= 40000); // 20k-40k
+                salaryRanges[2] = totalSalaries.Count(s => s > 40000 && s <= 60000); // 40k-60k
+                salaryRanges[3] = totalSalaries.Count(s => s > 60000); // Above 60k
+            }
+            else
+            {
+                // No salary data available
+                averageSalary = 0;
+                highestSalary = 0;
+                lowestSalary = 0;
+                totalPayrollCost = 0;
+                costPerEmployee = 0;
+                salaryRanges = new List<int> { 0, 0, 0, 0 };
+            }
+            
+            // Load time & attendance data from TimeRecords
+            var allTimeRecords = await Context.TimeRecords.ToListAsync();
+            
+            if (allTimeRecords.Any())
+            {
+                hasTimeRecords = true;
+                
+                // Calculate total overtime hours (sum of all overtime hours)
+                totalOvertimeHours = allTimeRecords.Sum(tr => tr.OvertimeHours);
+                
+                // Calculate total leave days (sum of all leave days)
+                totalLeaveDays = allTimeRecords.Sum(tr => tr.LeaveDays);
+                
+                // Calculate average attendance rate
+                // Attendance rate = (Total Regular Hours / Expected Hours) * 100
+                // Expected hours per employee per month = 160 hours (8 hours/day * 20 working days)
+                // For simplicity, we'll calculate based on regular hours worked vs expected
+                var totalRegularHours = allTimeRecords.Sum(tr => tr.RegularHours);
+                var totalExpectedHours = activeEmployees * 160; // 160 hours per month per employee (standard)
+                
+                if (totalExpectedHours > 0)
+                {
+                    averageAttendanceRate = (double)((totalRegularHours / (decimal)totalExpectedHours) * 100);
+                    // Cap at 100%
+                    if (averageAttendanceRate > 100) averageAttendanceRate = 100;
+                }
+                else
+                {
+                    averageAttendanceRate = 0;
+                }
+            }
+            else
+            {
+                hasTimeRecords = false;
+                averageAttendanceRate = 0;
+                totalOvertimeHours = 0;
+                totalLeaveDays = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading HR Analytics data: {ex.Message}");
+            // Set defaults on error
+            totalEmployees = 0;
+            activeEmployees = 0;
+            inactiveEmployees = 0;
+            roleCount = 0;
+            averageSalary = 0;
+            totalPayrollCost = 0;
+            costPerEmployee = 0;
+            highestSalary = 0;
+            lowestSalary = 0;
+            roleDistribution = new List<RoleDistribution>();
+            salaryRanges = new List<int> { 0, 0, 0, 0 };
+            hasTimeRecords = false;
+            averageAttendanceRate = 0;
+            totalOvertimeHours = 0;
+            totalLeaveDays = 0;
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
     }
 
     private double GetPercentage(int value, int total)

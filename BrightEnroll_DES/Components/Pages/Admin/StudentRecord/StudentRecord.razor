@@ -497,21 +497,26 @@
         // Prioritize enrollment record's school year, but fall back to student's SchoolYr (which is updated during re-enrollment)
         var schoolYear = latestEnrollment?.SchoolYear ?? entity.SchoolYr ?? string.Empty;
 
-        // Helper to check a requirement by name using Status field (\"verified\" => checked)
-        bool IsRequirementChecked(string requirementName)
+        // Helper to check if an unchanging requirement exists (submitted or verified)
+        // Unchanging requirements like PSA Birth Certificate, Baptismal Certificate, etc. 
+        // are valid across all enrollments, so we check if they exist at all
+        bool IsUnchangingRequirementProvided(string requirementName)
         {
-            var requirement = entity.Requirements?.FirstOrDefault(r => r.RequirementName == requirementName);
+            var requirement = entity.Requirements?.FirstOrDefault(r => 
+                string.Equals(r.RequirementName, requirementName, StringComparison.OrdinalIgnoreCase));
             if (requirement == null)
             {
                 return false;
             }
 
+            // Consider requirement as provided if it exists and is not "not submitted"
+            // This includes: "verified", "submitted", "pending", etc.
             return !string.IsNullOrWhiteSpace(requirement.Status) &&
-                   requirement.Status.Equals("verified", StringComparison.OrdinalIgnoreCase);
+                   !requirement.Status.Equals("not submitted", StringComparison.OrdinalIgnoreCase);
         }
 
-        // Determine if PSA Birth Certificate is verified
-        bool hasBirthCert = IsRequirementChecked("PSA Birth Certificate");
+        // Determine if PSA Birth Certificate is provided
+        bool hasBirthCert = IsUnchangingRequirementProvided("PSA Birth Certificate");
 
         SelectedStudentData = new StudentDetailData
         {
@@ -567,16 +572,18 @@
             GradeToEnroll = gradeLevelName,
             HasBirthCertificate = hasBirthCert,
 
-            // Detailed requirement checklist
-            HasPSABirthCert = IsRequirementChecked("PSA Birth Certificate"),
-            HasBaptismalCert = IsRequirementChecked("Baptismal Certificate"),
-            HasReportCard = IsRequirementChecked("Report Card"),
-            HasForm138 = IsRequirementChecked("Form 138 (Report Card)"),
-            HasForm137 = IsRequirementChecked("Form 137 (Permanent Record)"),
-            HasGoodMoralCert = IsRequirementChecked("Good Moral Certificate"),
-            HasTransferCert = IsRequirementChecked("Transfer Certificate"),
-            HasUpdatedEnrollmentForm = IsRequirementChecked("Updated Enrollment Form"),
-            HasClearance = IsRequirementChecked("Clearance"),
+            // Detailed requirement checklist - Show all unchanging requirements from any enrollment
+            // Unchanging requirements persist across all school years
+            HasPSABirthCert = IsUnchangingRequirementProvided("PSA Birth Certificate"),
+            HasBaptismalCert = IsUnchangingRequirementProvided("Baptismal Certificate"),
+            HasReportCard = IsUnchangingRequirementProvided("Report Card"),
+            HasForm138 = IsUnchangingRequirementProvided("Form 138 (Report Card)"),
+            HasForm137 = IsUnchangingRequirementProvided("Form 137 (Permanent Record)"),
+            HasGoodMoralCert = IsUnchangingRequirementProvided("Good Moral Certificate"),
+            HasTransferCert = IsUnchangingRequirementProvided("Transfer Certificate"),
+            // Transient requirements (only shown for returnees in original enrollment context)
+            HasUpdatedEnrollmentForm = IsUnchangingRequirementProvided("Updated Enrollment Form"),
+            HasClearance = IsUnchangingRequirementProvided("Clearance"),
 
             PaymentStatus = entity.PaymentStatus ?? "N/A"
         };
@@ -585,7 +592,7 @@
         await LoadAcademicRecordsAsync(entity.StudentId);
 
         // Build enrollment status records from all enrollments
-        SelectedEnrollmentRecords = entity.SectionEnrollments
+        SelectedEnrollmentRecords = (entity.SectionEnrollments ?? Enumerable.Empty<Data.Models.StudentSectionEnrollment>())
             .OrderByDescending(e => e.CreatedAt)
             .Select(e => new EnrollmentStatusData
             {
