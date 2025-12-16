@@ -1368,7 +1368,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 CreateTableScript = @"
                     CREATE TABLE [dbo].[tbl_discounts](
                         [discount_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-                        [discount_type] VARCHAR(50) NOT NULL UNIQUE,
+                        [discount_type] VARCHAR(50) NOT NULL,
                         [discount_name] VARCHAR(100) NOT NULL,
                         [rate_or_value] DECIMAL(12,4) NOT NULL,
                         [is_percentage] BIT NOT NULL DEFAULT 1,

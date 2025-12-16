@@ -722,23 +722,54 @@ public class DatabaseSyncService : IDatabaseSyncService
                             // Non-identity primary key - use EF Core Add()
                             var entity = Activator.CreateInstance<T>();
                             
+                            // Create case-insensitive dictionary for record lookup
+                            var recordCaseInsensitive = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var kvp in record)
+                            {
+                                recordCaseInsensitive[kvp.Key] = kvp.Value;
+                            }
+                            
                             foreach (var prop in properties)
                             {
                                 var columnName = prop.GetColumnName();
-                                if (record.ContainsKey(columnName) && prop.PropertyInfo != null)
+                                
+                                // Try exact match first, then case-insensitive match
+                                object? value = null;
+                                if (record.ContainsKey(columnName))
                                 {
-                                    var value = record[columnName];
-                                    if (value != DBNull.Value)
+                                    value = record[columnName];
+                                }
+                                else if (recordCaseInsensitive.ContainsKey(columnName))
+                                {
+                                    value = recordCaseInsensitive[columnName];
+                                }
+                                
+                                if (value != null && value != DBNull.Value && prop.PropertyInfo != null)
+                                {
+                                    try
                                     {
                                         // Convert value to property type if needed
                                         var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
                                         prop.PropertyInfo.SetValue(entity, convertedValue);
                                     }
+                                    catch (Exception ex)
+                                    {
+                                        _logger?.LogWarning(ex, "Failed to set property {Property} with value {Value} for table {Table}", 
+                                            prop.Name, value, tableName);
+                                    }
                                 }
                             }
                             
-                            localSet.Add(entity);
-                            recordsSynced++;
+                            try
+                            {
+                                localSet.Add(entity);
+                                recordsSynced++;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogError(ex, "Failed to add entity to {Table}. PK: {PK}", tableName, pkValue);
+                                // Continue with next record instead of failing entire sync
+                            }
                         }
                     }
                     else
@@ -772,23 +803,57 @@ public class DatabaseSyncService : IDatabaseSyncService
                         if (shouldUpdate)
                         {
                             // Update existing entity (cloud wins)
+                            // Create case-insensitive dictionary for record lookup
+                            var recordCaseInsensitive = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var kvp in record)
+                            {
+                                recordCaseInsensitive[kvp.Key] = kvp.Value;
+                            }
+                            
                             foreach (var prop in properties)
                             {
                                 var columnName = prop.GetColumnName();
-                                if (record.ContainsKey(columnName) && prop.PropertyInfo != null && 
-                                    prop.ValueGenerated != Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
+                                
+                                // Skip primary key and auto-generated properties
+                                if (prop.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
+                                    continue;
+                                
+                                // Try exact match first, then case-insensitive match
+                                object? value = null;
+                                if (record.ContainsKey(columnName))
                                 {
-                                    var value = record[columnName];
-                                    if (value != DBNull.Value)
+                                    value = record[columnName];
+                                }
+                                else if (recordCaseInsensitive.ContainsKey(columnName))
+                                {
+                                    value = recordCaseInsensitive[columnName];
+                                }
+                                
+                                if (value != null && value != DBNull.Value && prop.PropertyInfo != null)
+                                {
+                                    try
                                     {
                                         var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
                                         prop.PropertyInfo.SetValue(existing, convertedValue);
                                     }
+                                    catch (Exception ex)
+                                    {
+                                        _logger?.LogWarning(ex, "Failed to update property {Property} with value {Value} for table {Table}", 
+                                            prop.Name, value, tableName);
+                                    }
                                 }
                             }
                             
-                            localSet.Update(existing);
-                            recordsSynced++;
+                            try
+                            {
+                                localSet.Update(existing);
+                                recordsSynced++;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogError(ex, "Failed to update entity in {Table}. PK: {PK}", tableName, pkValue);
+                                // Continue with next record instead of failing entire sync
+                            }
                         }
                     }
                 }
@@ -798,7 +863,37 @@ public class DatabaseSyncService : IDatabaseSyncService
                 }
             }
             
-            // SaveChanges is already called within the using block, context will be disposed
+            // CRITICAL: Save all changes for non-identity primary keys (EF Core Add/Update operations)
+            // Identity columns use raw SQL which executes immediately, but EF Core operations need SaveChanges
+            if (recordsSynced > 0)
+            {
+                try
+                {
+                    await localContext.SaveChangesAsync();
+                    _logger?.LogInformation("Saved {Count} records for table {Table}", recordsSynced, tableName);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    _logger?.LogError(dbEx, "Database update error saving {Count} records for table {Table}. Inner exception: {InnerEx}", 
+                        recordsSynced, tableName, dbEx.InnerException?.Message);
+                    
+                    // Log validation errors if available
+                    if (dbEx.Entries != null && dbEx.Entries.Any())
+                    {
+                        foreach (var entry in dbEx.Entries)
+                        {
+                            _logger?.LogError("Failed entity: {EntityType}, State: {State}", 
+                                entry.Entity.GetType().Name, entry.State);
+                        }
+                    }
+                    throw; // Re-throw to fail the sync operation
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Unexpected error saving {Count} records for table {Table}", recordsSynced, tableName);
+                    throw;
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -1118,22 +1213,53 @@ public class DatabaseSyncService : IDatabaseSyncService
                         // Create new entity
                         var entity = Activator.CreateInstance<T>();
                         
+                        // Create case-insensitive dictionary for record lookup
+                        var recordCaseInsensitive = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var kvp in record)
+                        {
+                            recordCaseInsensitive[kvp.Key] = kvp.Value;
+                        }
+                        
                         foreach (var prop in properties)
                         {
                             var columnName = prop.GetColumnName();
-                            if (record.ContainsKey(columnName) && prop.PropertyInfo != null)
+                            
+                            // Try exact match first, then case-insensitive match
+                            object? value = null;
+                            if (record.ContainsKey(columnName))
                             {
-                                var value = record[columnName];
-                                if (value != DBNull.Value)
+                                value = record[columnName];
+                            }
+                            else if (recordCaseInsensitive.ContainsKey(columnName))
+                            {
+                                value = recordCaseInsensitive[columnName];
+                            }
+                            
+                            if (value != null && value != DBNull.Value && prop.PropertyInfo != null)
+                            {
+                                try
                                 {
                                     var convertedValue = ConvertValue(value, prop.PropertyInfo.PropertyType);
                                     prop.PropertyInfo.SetValue(entity, convertedValue);
                                 }
+                                catch (Exception ex)
+                                {
+                                    _logger?.LogWarning(ex, "Failed to set property {Property} with value {Value} for table {Table}", 
+                                        prop.Name, value, tableName);
+                                }
                             }
                         }
                         
-                        localSet.Add(entity);
-                        recordsSynced++;
+                        try
+                        {
+                            localSet.Add(entity);
+                            recordsSynced++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger?.LogError(ex, "Failed to add entity to {Table}. PK: {PK}", tableName, pkValue);
+                            // Continue with next record instead of failing entire sync
+                        }
                     }
                     else
                     {
@@ -1190,7 +1316,35 @@ public class DatabaseSyncService : IDatabaseSyncService
             }
             
             // Save all changes before disposing context
-            await localContext.SaveChangesAsync();
+            if (recordsSynced > 0)
+            {
+                try
+                {
+                    await localContext.SaveChangesAsync();
+                    _logger?.LogInformation("Saved {Count} records for incremental sync of table {Table}", recordsSynced, tableName);
+                }
+                catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+                {
+                    _logger?.LogError(dbEx, "Database update error saving {Count} records for incremental sync of table {Table}. Inner exception: {InnerEx}", 
+                        recordsSynced, tableName, dbEx.InnerException?.Message);
+                    
+                    // Log validation errors if available
+                    if (dbEx.Entries != null && dbEx.Entries.Any())
+                    {
+                        foreach (var entry in dbEx.Entries)
+                        {
+                            _logger?.LogError("Failed entity: {EntityType}, State: {State}", 
+                                entry.Entity.GetType().Name, entry.State);
+                        }
+                    }
+                    throw; // Re-throw to fail the sync operation
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogError(ex, "Unexpected error saving {Count} records for incremental sync of table {Table}", recordsSynced, tableName);
+                    throw;
+                }
+            }
         }
         catch (Exception ex)
         {

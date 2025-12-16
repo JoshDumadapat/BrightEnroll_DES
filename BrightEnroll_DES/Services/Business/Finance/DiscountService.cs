@@ -117,13 +117,13 @@ public class DiscountService
     {
         try
         {
-            // Check if discount type already exists
+            // Check if discount name already exists (case-insensitive)
             var existing = await _context.Discounts
-                .FirstOrDefaultAsync(d => d.DiscountType == request.DiscountType);
+                .FirstOrDefaultAsync(d => d.DiscountName.ToLower() == request.DiscountName.Trim().ToLower());
 
             if (existing != null)
             {
-                throw new Exception($"Discount type '{request.DiscountType}' already exists.");
+                throw new Exception($"Discount name '{request.DiscountName}' already exists.");
             }
 
             var discount = new Discount
@@ -207,15 +207,15 @@ public class DiscountService
                 throw new Exception($"Discount with ID {discountId} not found.");
             }
 
-            // Check if discount type is being changed and if new type already exists
-            if (discount.DiscountType != request.DiscountType)
+            // Check if discount name is being changed and if new name already exists (case-insensitive)
+            if (discount.DiscountName.ToLower() != request.DiscountName.Trim().ToLower())
             {
                 var existing = await _context.Discounts
-                    .FirstOrDefaultAsync(d => d.DiscountType == request.DiscountType && d.DiscountId != discountId);
+                    .FirstOrDefaultAsync(d => d.DiscountName.ToLower() == request.DiscountName.Trim().ToLower() && d.DiscountId != discountId);
 
                 if (existing != null)
                 {
-                    throw new Exception($"Discount type '{request.DiscountType}' already exists.");
+                    throw new Exception($"Discount name '{request.DiscountName}' already exists.");
                 }
             }
 

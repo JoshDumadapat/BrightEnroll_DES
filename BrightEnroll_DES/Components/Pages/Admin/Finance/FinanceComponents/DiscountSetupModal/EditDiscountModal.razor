@@ -63,7 +63,11 @@
                         </label>
                         <input type="text" @bind="FormData.DiscountName" @bind:after="ValidateForm" required
                                placeholder="e.g., Sibling Discount, Early Payment Discount"
-                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                               class="w-full rounded-lg border @(discountNameError ? "border-red-500" : "border-gray-300") bg-white px-3 py-2.5 text-base text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+                        @if (discountNameError)
+                        {
+                            <p class="mt-1 text-sm text-red-600">@discountNameErrorMessage</p>
+                        }
                     </div>
 
                     <!-- Rate/Value and Type -->
@@ -158,6 +162,8 @@
     // Validation
     private bool discountTypeError = false;
     private string discountTypeErrorMessage = "";
+    private bool discountNameError = false;
+    private string discountNameErrorMessage = "";
     private bool rateOrValueError = false;
     private string rateOrValueErrorMessage = "";
     
@@ -197,6 +203,8 @@
         };
         discountTypeError = false;
         discountTypeErrorMessage = "";
+        discountNameError = false;
+        discountNameErrorMessage = "";
         rateOrValueError = false;
         rateOrValueErrorMessage = "";
     }
@@ -269,8 +277,25 @@
     {
         discountTypeError = false;
         discountTypeErrorMessage = "";
+        discountNameError = false;
+        discountNameErrorMessage = "";
         rateOrValueError = false;
         rateOrValueErrorMessage = "";
+
+        // Validate discount name uniqueness (case-insensitive, excluding current discount)
+        if (!string.IsNullOrWhiteSpace(FormData.DiscountName) && ExistingDiscounts != null && Discount != null)
+        {
+            var trimmedName = FormData.DiscountName.Trim();
+            var existing = ExistingDiscounts
+                .FirstOrDefault(d => d.DiscountId != Discount.DiscountId && 
+                                    d.DiscountName.Equals(trimmedName, StringComparison.OrdinalIgnoreCase));
+            
+            if (existing != null)
+            {
+                discountNameError = true;
+                discountNameErrorMessage = $"Discount name '{trimmedName}' already exists.";
+            }
+        }
 
         // Validate percentage cannot exceed 100
         if (FormData.IsPercentage && FormData.RateOrValue > 100)
@@ -406,6 +431,14 @@
             return;
         }
 
+        // Validate discount name uniqueness
+        ValidateForm();
+        if (discountNameError)
+        {
+            ShowToast(discountNameErrorMessage, ToastType.Error);
+            return;
+        }
+
         if (FormData.RateOrValue <= 0)
         {
             ShowToast("Rate/Value must be greater than zero.", ToastType.Error);
@@ -458,6 +491,8 @@
         FormData = new DiscountFormData();
         discountTypeError = false;
         discountTypeErrorMessage = "";
+        discountNameError = false;
+        discountNameErrorMessage = "";
         rateOrValueError = false;
         rateOrValueErrorMessage = "";
         ShowDiscountTypeDropdown = false;

@@ -302,13 +302,40 @@ public class FinancialReportService
 
         // Filter by school year if provided
         List<string> studentIdsForSchoolYear = new();
+        Dictionary<string, string> enrollmentStatusMap = new();
+        
         if (!string.IsNullOrEmpty(schoolYear))
         {
-            studentIdsForSchoolYear = await _context.StudentSectionEnrollments
+            // Get all enrollments for this school year to get student IDs and their enrollment statuses
+            var enrollments = await _context.StudentSectionEnrollments
                 .Where(e => e.SchoolYear == schoolYear)
-                .Select(e => e.StudentId)
-                .Distinct()
+                .Select(e => new { e.StudentId, e.Status })
                 .ToListAsync();
+            
+            studentIdsForSchoolYear = enrollments.Select(e => e.StudentId).Distinct().ToList();
+            
+            // Create a map of student enrollment statuses (prioritize payment-related statuses)
+            foreach (var enrollment in enrollments)
+            {
+                if (!string.IsNullOrWhiteSpace(enrollment.StudentId))
+                {
+                    // Map enrollment status to payment status
+                    var paymentStatus = enrollment.Status switch
+                    {
+                        "Fully Paid" => "Fully Paid",
+                        "Partially Paid" => "Partially Paid",
+                        "For Payment" => "Unpaid",
+                        "Unpaid" => "Unpaid",
+                        _ => null // Will be determined from ledger
+                    };
+                    
+                    if (paymentStatus != null && (!enrollmentStatusMap.ContainsKey(enrollment.StudentId) || 
+                        enrollmentStatusMap[enrollment.StudentId] == "Unpaid"))
+                    {
+                        enrollmentStatusMap[enrollment.StudentId] = paymentStatus;
+                    }
+                }
+            }
             
             query = query.Where(s => studentIdsForSchoolYear.Contains(s.StudentId));
         }
@@ -375,7 +402,7 @@ public class FinancialReportService
             ledgers = new List<StudentLedger>();
         }
 
-        // Calculate payment status for each student based on their ledger(s)
+        // Calculate payment status for each student based on their ledger(s) or enrollment status
         var studentStatusMap = new Dictionary<string, string>();
 
         // Use validStudentIds to avoid null references
@@ -386,8 +413,15 @@ public class FinancialReportService
 
             if (!studentLedgers.Any())
             {
-                // No ledger means unpaid
-                studentStatusMap[studentId] = "Unpaid";
+                // No ledger - check enrollment status first, then default to Unpaid
+                if (enrollmentStatusMap.ContainsKey(studentId))
+                {
+                    studentStatusMap[studentId] = enrollmentStatusMap[studentId];
+                }
+                else
+                {
+                    studentStatusMap[studentId] = "Unpaid";
+                }
                 continue;
             }
 
@@ -398,7 +432,19 @@ public class FinancialReportService
 
             // Determine payment status based on calculated values
             string paymentStatus;
-            if (totalPayments == 0)
+            if (totalCharges == 0)
+            {
+                // No charges yet - check enrollment status or default to Unpaid
+                if (enrollmentStatusMap.ContainsKey(studentId))
+                {
+                    paymentStatus = enrollmentStatusMap[studentId];
+                }
+                else
+                {
+                    paymentStatus = "Unpaid";
+                }
+            }
+            else if (totalPayments == 0)
             {
                 paymentStatus = "Unpaid";
             }
