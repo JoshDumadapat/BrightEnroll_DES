@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Chart of Accounts - Foundation of double-entry bookkeeping
-/// </summary>
+// Chart of accounts for double-entry bookkeeping
 [Table("tbl_ChartOfAccounts")]
 public class ChartOfAccount
 {

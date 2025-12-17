@@ -111,9 +111,7 @@ public class EnrollmentReportService
         return students;
     }
 
-    /// <summary>
-    /// Get enrollment data grouped by time period for line charts
-    /// </summary>
+    // Get enrollment data grouped by time period for line charts
     public async Task<List<EnrollmentTimeSeries>> GetEnrollmentTimeSeriesAsync(DateTime? fromDate = null, DateTime? toDate = null, string period = "monthly")
     {
         var defaultFromDate = fromDate ?? DateTime.Now.AddMonths(-6);

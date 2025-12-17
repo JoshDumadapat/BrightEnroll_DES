@@ -1,4 +1,4 @@
-
+using System.IO;
 using Microsoft.Extensions.Logging;
 using BrightEnroll_DES.Services.Authentication;
 using BrightEnroll_DES.Services.Business.Students;
@@ -10,20 +10,24 @@ using BrightEnroll_DES.Services.Database.Initialization;
 using BrightEnroll_DES.Services.Infrastructure;
 using BrightEnroll_DES.Services.Seeders;
 using BrightEnroll_DES.Services.RoleBase;
+using BrightEnroll_DES.Services.Business.Audit;
 using BrightEnroll_DES.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.JSInterop;
 using QuestPDF.Infrastructure;
+using Microsoft.Data.SqlClient;
+using System.Runtime.Versioning;
 
 namespace BrightEnroll_DES
 {
     public static class MauiProgram
     {
+        [SupportedOSPlatform("windows10.0.17763.0")]
         public static MauiApp CreateMauiApp()
         {
-
+#pragma warning disable CA1416 // Validate platform compatibility
             QuestPDF.Settings.License = LicenseType.Community;
 
             var builder = MauiApp.CreateBuilder();
@@ -42,8 +46,27 @@ namespace BrightEnroll_DES
             });
 
             builder.Services.AddScoped<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository, BrightEnroll_DES.Services.DataAccess.Repositories.UserRepository>();
-            builder.Services.AddSingleton<ILoginService, LoginService>();
-            builder.Services.AddSingleton<IAuthService, AuthService>();
+            
+            // LoginService with dependencies for cloud SuperAdmin authentication
+            builder.Services.AddSingleton<ILoginService>(sp =>
+            {
+                var userRepo = sp.GetRequiredService<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository>();
+                var config = sp.GetService<IConfiguration>();
+                var superAdminContext = sp.GetService<SuperAdminDbContext>();
+                return new LoginService(userRepo, config, superAdminContext);
+            });
+            
+            // AuthService with dependencies for dynamic login and cloud sync
+            builder.Services.AddSingleton<IAuthService>(sp =>
+            {
+                var loginService = sp.GetRequiredService<ILoginService>();
+                var auditLog = sp.GetService<AuditLogService>();
+                var scopeFactory = sp.GetService<IServiceScopeFactory>();
+                var config = sp.GetService<IConfiguration>();
+                var superAdminContext = sp.GetService<SuperAdminDbContext>();
+                var syncService = sp.GetService<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService>();
+                return new AuthService(loginService, auditLog, scopeFactory, config, superAdminContext, syncService);
+            });
             builder.Services.AddScoped<DatabaseSeeder>();
             builder.Services.AddScoped<CurriculumSeeder>();
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
@@ -55,12 +78,56 @@ namespace BrightEnroll_DES
             builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();
 
             // --- CONFIGURATION SETUP ---
-            // Build and add configuration to service collection
-            var configurationBuilder = new ConfigurationBuilder()
-                .SetBasePath(AppDomain.CurrentDomain.BaseDirectory)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            IConfiguration? configuration = null;
+            
+            try
+            {
+                // Try base directory first
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
+                var appSettingsPath = Path.Combine(basePath, "appsettings.json");
+                
+                // If not found in base directory, try the application directory
+                if (!File.Exists(appSettingsPath))
+                {
+                    var appDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                    if (!string.IsNullOrEmpty(appDirectory))
+                    {
+                        appSettingsPath = Path.Combine(appDirectory, "appsettings.json");
+                        if (File.Exists(appSettingsPath))
+                        {
+                            basePath = appDirectory;
+                        }
+                    }
+                }
+                
+                // If still not found, try current directory
+                if (!File.Exists(appSettingsPath))
+                {
+                    var currentDir = Directory.GetCurrentDirectory();
+                    appSettingsPath = Path.Combine(currentDir, "appsettings.json");
+                    if (File.Exists(appSettingsPath))
+                    {
+                        basePath = currentDir;
+                    }
+                }
 
-            var configuration = configurationBuilder.Build();
+                var configurationBuilder = new ConfigurationBuilder()
+                    .SetBasePath(basePath)
+                    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+
+                configuration = configurationBuilder.Build();
+            }
+            catch (Exception configEx)
+            {
+                // If configuration loading fails, create an empty configuration
+                // The app will use default connection strings defined in code
+                System.Diagnostics.Debug.WriteLine($"Warning: Failed to load appsettings.json: {configEx.Message}");
+                System.Diagnostics.Debug.WriteLine("Application will use default connection strings.");
+                
+                var configurationBuilder = new ConfigurationBuilder();
+                configuration = configurationBuilder.Build();
+            }
+            
             builder.Services.AddSingleton<IConfiguration>(configuration);
 
             // --- LOCAL DATABASE SETUP ---
@@ -70,6 +137,17 @@ namespace BrightEnroll_DES
             if (string.IsNullOrWhiteSpace(localConnectionString))
             {
                 localConnectionString = "Data Source=(localdb)\\MSSQLLocalDB;Integrated Security=True;Persist Security Info=False;Pooling=False;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=True;Initial Catalog=DB_BrightEnroll_DES;";
+            }
+
+            // Get SuperAdmin connection string
+            var superAdminConnectionString = configuration.GetConnectionString("SuperAdminConnection");
+            
+            if (string.IsNullOrWhiteSpace(superAdminConnectionString))
+            {
+                // Default to same server but different database
+                var builderConn = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(localConnectionString);
+                builderConn.InitialCatalog = "DB_BrightEnroll_SuperAdmin";
+                superAdminConnectionString = builderConn.ConnectionString;
             }
 
             builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
@@ -91,6 +169,30 @@ namespace BrightEnroll_DES
 #if DEBUG
                 options.EnableSensitiveDataLogging();
                 options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SQL: {message}"),
+                    Microsoft.Extensions.Logging.LogLevel.Information);
+#endif
+            });
+
+            // Register SuperAdminDbContext with separate connection string
+            builder.Services.AddDbContext<SuperAdminDbContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(superAdminConnectionString);
+
+#if DEBUG
+                options.EnableSensitiveDataLogging();
+                options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SuperAdmin SQL: {message}"),
+                    Microsoft.Extensions.Logging.LogLevel.Information);
+#endif
+            });
+
+            // Add DbContextFactory for SuperAdminDbContext
+            builder.Services.AddDbContextFactory<SuperAdminDbContext>((serviceProvider, options) =>
+            {
+                options.UseSqlServer(superAdminConnectionString);
+
+#if DEBUG
+                options.EnableSensitiveDataLogging();
+                options.LogTo(message => System.Diagnostics.Debug.WriteLine($"SuperAdmin SQL: {message}"),
                     Microsoft.Extensions.Logging.LogLevel.Information);
 #endif
             });
@@ -145,6 +247,8 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.AttendanceReportPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.PayrollReportPdfGenerator>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.FinanceReportsPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.SuperAdminSalesPdfGenerator>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.QuestPDF.CustomerContractPdfGenerator>();
 
             // Inventory services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Inventory.AssetService>();
@@ -154,10 +258,25 @@ namespace BrightEnroll_DES
             // Database Sync Services
             builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IDatabaseSyncService, BrightEnroll_DES.Services.Database.Sync.DatabaseSyncService>();
             builder.Services.AddSingleton<BrightEnroll_DES.Services.Database.Sync.ISyncStatusService, BrightEnroll_DES.Services.Database.Sync.SyncStatusService>();
+            
+            // SuperAdmin Database Sync Services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Database.SuperAdmin_Sync.ISuperAdminDatabaseSyncService, BrightEnroll_DES.Services.Database.SuperAdmin_Sync.SuperAdminDatabaseSyncService>();
+            builder.Services.AddSingleton<BrightEnroll_DES.Services.Database.SuperAdmin_Sync.ISuperAdminSyncStatusService, BrightEnroll_DES.Services.Database.SuperAdmin_Sync.SuperAdminSyncStatusService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Database.Sync.IOfflineQueueService, BrightEnroll_DES.Services.Database.Sync.OfflineQueueService>();
 
             // Auto Sync Scheduler (Background Service)
             builder.Services.AddHostedService<BrightEnroll_DES.Services.Database.Sync.AutoSyncScheduler>();
+
+            // SuperAdmin Services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolDatabaseService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolAdminSeeder>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminBIRService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminBIRFilingService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.AccountsReceivableService>();
+
+            // School Information Service
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SchoolInformationService>();
 
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
@@ -178,8 +297,22 @@ namespace BrightEnroll_DES
                     }
                     var connectionString = connection.ConnectionString;
 
+                    // Initialize main database
                     var initializer = new BrightEnroll_DES.Services.Database.Initialization.DatabaseInitializer(connectionString);
                     await initializer.InitializeDatabaseAsync();
+
+                    // Initialize SuperAdmin database
+                    var superAdminConnectionString = configuration.GetConnectionString("SuperAdminConnection");
+                    if (string.IsNullOrWhiteSpace(superAdminConnectionString))
+                    {
+                        var builderConn = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+                        builderConn.InitialCatalog = "DB_BrightEnroll_SuperAdmin";
+                        superAdminConnectionString = builderConn.ConnectionString;
+                    }
+                    
+                    var superAdminInitializer = new BrightEnroll_DES.Services.Database.Initialization.SuperAdminDatabaseInitializer(superAdminConnectionString);
+                    await superAdminInitializer.InitializeDatabaseAsync();
+                    System.Diagnostics.Debug.WriteLine("SuperAdmin database initialization completed.");
 
                     await Task.Delay(1500);
 
@@ -188,11 +321,11 @@ namespace BrightEnroll_DES
                         var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
                         var loggerFactory = app.Services.GetService<ILoggerFactory>();
                         var logger = loggerFactory?.CreateLogger("MauiProgram");
-                        int maxRetries = 3;
-                        bool seedingSuccess = false;
-                        Exception? lastException = null;
 
-                        // First, seed all roles
+                        // NOTE: Static user seeders have been removed. Users are now created dynamically through the Add Customer feature.
+                        // The SchoolAdminSeeder handles creating admin users for each school's database when a customer is added.
+                        
+                        // First, seed all roles (still needed for role-based access control)
                         try
                         {
                             await seeder.SeedAllRolesAsync();
@@ -202,97 +335,26 @@ namespace BrightEnroll_DES
                             logger?.LogWarning(ex, "Role seeding failed: {Message}", ex.Message);
                         }
 
-                        // Then seed admin user
-                        for (int attempt = 1; attempt <= maxRetries; attempt++)
-                        {
-                            try
-                            {
-                                await seeder.SeedInitialAdminAsync();
-                                seedingSuccess = true;
-                                break;
-                            }
-                            catch (Exception ex)
-                            {
-                                lastException = ex;
-                                if (attempt < maxRetries)
-                                {
-                                    int delayMs = 1000 * attempt;
-                                    await Task.Delay(delayMs);
-                                }
-                            }
-                        }
-
-                        if (!seedingSuccess)
-                        {
-                            logger?.LogWarning(lastException, "Failed to seed admin user after {MaxRetries} attempts: {Message}", maxRetries, lastException?.Message);
-                        }
-
-                        // Seed HR user
-                        seedingSuccess = false; // Reset for HR user
-                        lastException = null;
-                        for (int attempt = 1; attempt <= maxRetries; attempt++)
-                        {
-                            try
-                            {
-                                await seeder.SeedInitialHRAsync();
-                                seedingSuccess = true;
-                                break;
-                            }
-                            catch (Exception ex)
-                            {
-                                lastException = ex;
-                                logger?.LogWarning(ex, "HR seeding attempt {Attempt} failed: {Message}", attempt, ex.Message);
-                                if (attempt < maxRetries)
-                                {
-                                    int delayMs = 1000 * attempt;
-                                    await Task.Delay(delayMs);
-                                }
-                            }
-                        }
-
-                        if (!seedingSuccess)
-                        {
-                            logger?.LogWarning(lastException, "Failed to seed HR user after {MaxRetries} attempts: {Message}", maxRetries, lastException?.Message);
-                        }
-
-                        // Seed SuperAdmin user
+                        // Seed SuperAdmin to SuperAdmin database (for local development/testing)
+                        // NOTE: In production, SuperAdmin should also be in cloud database
+                        // Login logic checks cloud first, then SuperAdmin database
                         try
                         {
-                            await seeder.SeedInitialSuperAdminAsync();
+                            var superAdminContext = scope.ServiceProvider.GetRequiredService<SuperAdminDbContext>();
+                            await seeder.SeedSuperAdminUserToSuperAdminDatabaseAsync(superAdminContext);
                         }
                         catch (Exception ex)
                         {
-                            logger?.LogWarning(ex, "SuperAdmin seeding failed: {Message}", ex.Message);
+                            logger?.LogWarning(ex, "Super Admin user seeding to SuperAdmin database failed: {Message}", ex.Message);
                         }
 
-                        // Seed Teacher user
                         try
                         {
-                            await seeder.SeedInitialTeacherAsync();
+                            await seeder.SeedAdminUserAsync();
                         }
                         catch (Exception ex)
                         {
-                            logger?.LogWarning(ex, "Teacher seeding failed: {Message}", ex.Message);
-                        }
-
-                        // Seed Cashier user
-                        try
-                        {
-                            await seeder.SeedInitialCashierAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            logger?.LogWarning(ex, "Cashier seeding failed: {Message}", ex.Message);
-                        }
-
-                        // Seed Registrar user
-                        try
-                        {
-                            await seeder.SeedInitialRegistrarAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            logger?.LogWarning(ex, "Registrar seeding failed: {Message}", ex.Message);
+                            logger?.LogWarning(ex, "Admin user seeding failed: {Message}", ex.Message);
                         }
 
                         try
@@ -326,68 +388,8 @@ namespace BrightEnroll_DES
                             logger?.LogWarning(ex, "Curriculum seeding failed: {Message}", ex.Message);
                         }
 
-                        // Verify seeded users
-                        var userRepo = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.DataAccess.Repositories.IUserRepository>();
-                        
-                        var adminUser = await userRepo.GetBySystemIdAsync("BDES-0001");
-                        if (adminUser == null)
-                        {
-                            logger?.LogWarning("Admin user (BDES-0001) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("Admin user verified: {SystemId}", adminUser.system_ID);
-                        }
-                        
-                        var hrUser = await userRepo.GetBySystemIdAsync("BDES-0002");
-                        if (hrUser == null)
-                        {
-                            logger?.LogWarning("HR user (BDES-0002) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("HR user verified: {SystemId}", hrUser.system_ID);
-                        }
-                        
-                        var superAdminUser = await userRepo.GetBySystemIdAsync("BDES-SA-0001");
-                        if (superAdminUser == null)
-                        {
-                            logger?.LogWarning("SuperAdmin user (BDES-SA-0001) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("SuperAdmin user verified: {SystemId}", superAdminUser.system_ID);
-                        }
-                        
-                        var teacherUser = await userRepo.GetBySystemIdAsync("BDES-TE-0001");
-                        if (teacherUser == null)
-                        {
-                            logger?.LogWarning("Teacher user (BDES-TE-0001) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("Teacher user verified: {SystemId}", teacherUser.system_ID);
-                        }
-                        
-                        var cashierUser = await userRepo.GetBySystemIdAsync("BDES-CA-0001");
-                        if (cashierUser == null)
-                        {
-                            logger?.LogWarning("Cashier user (BDES-CA-0001) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("Cashier user verified: {SystemId}", cashierUser.system_ID);
-                        }
-                        
-                        var registrarUser = await userRepo.GetBySystemIdAsync("BDES-RE-0001");
-                        if (registrarUser == null)
-                        {
-                            logger?.LogWarning("Registrar user (BDES-RE-0001) not found after seeding verification.");
-                        }
-                        else
-                        {
-                            logger?.LogInformation("Registrar user verified: {SystemId}", registrarUser.system_ID);
-                        }
+                        // NOTE: User verification removed. Users are now created dynamically through the Add Customer feature.
+                        logger?.LogInformation("Database seeding completed. Users will be created dynamically when customers are added.");
                     }
                 }
                 catch (Exception ex)
@@ -398,6 +400,7 @@ namespace BrightEnroll_DES
                 }
             });
 
+#pragma warning restore CA1416 // Validate platform compatibility
             return app;
         }
     }

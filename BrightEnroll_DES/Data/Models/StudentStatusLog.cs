@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Audit trail for student application/enrollment status changes.
-/// </summary>
+// Audit trail for student status changes
 [Table("tbl_student_status_logs")]
 public class StudentStatusLog
 {

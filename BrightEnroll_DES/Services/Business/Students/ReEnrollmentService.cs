@@ -491,7 +491,7 @@ public class ReEnrollmentService
             }
 
             // Get the most recent enrollment to determine current grade level and school year
-            // This ensures we get the grade level from the enrollment record, not the student's main record
+            // Get grade level from enrollment record
             var mostRecentEnrollment = student.SectionEnrollments
                 .OrderByDescending(e => e.SchoolYear)
                 .ThenByDescending(e => e.CreatedAt)
@@ -574,7 +574,7 @@ public class ReEnrollmentService
             var previousGradeLevel = currentGradeLevel;
             var previousSchoolYear = currentSchoolYear;
             
-            // CRITICAL FIX: Explicitly mark entity as modified to ensure EF Core tracks changes
+            // Mark entity as modified to ensure EF Core tracks changes
             // Update student's GradeLevel to the next grade level (e.g., Kinder → G1)
             // This is needed so payment service can show the correct grade level for new enrollment
             // Note: We preserve historical enrollment records, but update the student's current grade level
@@ -582,7 +582,7 @@ public class ReEnrollmentService
             _context.Entry(student).Property(s => s.GradeLevel).IsModified = true;
             
             // Update student's SchoolYr to the current active school year
-            // This ensures modules that reference student.SchoolYr show the correct current school year
+            // Update school year for modules that reference it
             // Historical data is preserved in enrollment records, so this update doesn't affect past records
             student.SchoolYr = currentActiveSchoolYear;
             _context.Entry(student).Property(s => s.SchoolYr).IsModified = true;
@@ -633,11 +633,11 @@ public class ReEnrollmentService
                 result.NewEnrollmentCreated = false;
             }
 
-            // CRITICAL: Save changes and verify the update was successful
+            // Save changes and verify the update was successful
             var saveResult = await _context.SaveChangesAsync();
             
             // Verify the update was persisted by reloading the student from database
-            // This ensures we're working with the actual database state, not cached entity
+            // Refresh from database to get actual state
             await _context.Entry(student).ReloadAsync();
             
             // Double-check that the values were actually saved

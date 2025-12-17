@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @layout Components.Layout.AuthLayout
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services.Authentication
@@ -40,7 +40,7 @@
             var userRole = AuthorizationService.GetUserRole();
             var redirectPath = GetRedirectPathForRole(userRole);
             
-            // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+            // Teachers always go to teacher-dashboard
             if (!string.IsNullOrWhiteSpace(userRole) && 
                 string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
             {
@@ -76,7 +76,8 @@
             return "/dashboard";
         }
 
-        var roleLower = role.ToLower().Trim();
+        // Normalize role: remove spaces and convert to lowercase for comparison
+        var roleLower = role.Replace(" ", "").ToLower().Trim();
         return roleLower switch
         {
             "cashier" => "/finance",
@@ -84,7 +85,7 @@
             "hr" => "/human-resource",
             "teacher" => "/teacher-dashboard",
             "admin" => "/dashboard",
-            "superadmin" => "/dashboard",
+            "superadmin" => "/system-admin/dashboard", // SuperAdmin goes to SuperAdmin dashboard (handles both "Super Admin" and "SuperAdmin")
             _ => "/dashboard"
         };
     }

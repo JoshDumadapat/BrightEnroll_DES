@@ -1,0 +1,496 @@
+@page "/system-admin/subscriptions"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@using System
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+@inject SuperAdminBIRService BIRService
+
+<PageTitle>Subscription Management</PageTitle>
+
+<style>
+    @@keyframes shine {
+        from {
+            transform: translateX(-100%) translateY(-100%) rotate(45deg);
+        }
+        to {
+            transform: translateX(100%) translateY(100%) rotate(45deg);
+        }
+    }
+
+    .shine-effect {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden;
+        border-radius: 1rem;
+        pointer-events: none;
+        z-index: 1;
+        background: transparent;
+    }
+
+    .shine-effect::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+            45deg,
+            transparent 0%,
+            transparent 30%,
+            rgba(255, 255, 255, 0.15) 45%,
+            rgba(255, 255, 255, 0.4) 50%,
+            rgba(255, 255, 255, 0.15) 55%,
+            transparent 70%,
+            transparent 100%
+        );
+        animation: shine 3s ease-in-out infinite;
+        pointer-events: none;
+    }
+</style>
+
+<div class="text-gray-800">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900">Subscription Management</h1>
+    </div>
+
+    <!-- Stats -->
+    <div class="mb-10 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <div class="group relative overflow-hidden rounded-xl border border-blue-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-blue-300 hover:shadow-md">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="rounded-lg bg-blue-50 p-2 flex-shrink-0">
+                        <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-700">Active Subscriptions</p>
+                </div>
+                <p class="text-2xl font-bold text-gray-900 text-right">@ActiveSubscriptions</p>
+            </div>
+        </div>
+        
+        <div class="group relative overflow-hidden rounded-xl border border-orange-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-orange-300 hover:shadow-md">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="rounded-lg bg-orange-50 p-2 flex-shrink-0">
+                        <svg class="h-5 w-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-700">Expiring This Month</p>
+                </div>
+                <p class="text-2xl font-bold text-gray-900 text-right">@ExpiringThisMonth</p>
+            </div>
+        </div>
+        
+        <div class="group relative overflow-hidden rounded-xl border border-green-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-green-300 hover:shadow-md">
+            <div class="flex flex-col">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="rounded-lg bg-green-50 p-2 flex-shrink-0">
+                        <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-700">MRR (Monthly Recurring Revenue)</p>
+                </div>
+                <p class="text-2xl font-bold text-gray-900 text-right">₱@MonthlyRecurringRevenue.ToString("N0")</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing Plans Overview -->
+    <div class="mb-8 grid grid-cols-1 gap-8 md:grid-cols-3">
+        <!-- Basic Plan -->
+        <div class="group relative flex flex-col overflow-hidden rounded-2xl border-2 border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-50/50 p-8 shadow-xl transition-all duration-300 hover:border-blue-300 hover:shadow-2xl hover:scale-[1.02]">
+            <div class="relative z-10 flex flex-col flex-grow">
+                <div class="mb-4">
+                    <span class="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-800">BASIC</span>
+                </div>
+                <h3 class="mb-4 text-xl font-bold text-gray-900">Basic Plan</h3>
+                <div class="mb-6">
+                    <span class="text-3xl font-bold text-gray-900">₱35,000</span>
+                    <span class="text-base text-gray-700">/month</span>
+                </div>
+                <ul class="mb-8 flex-grow space-y-3 text-sm text-gray-800">
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Core Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Enrollment Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Curriculum Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Finance - Payment, Records & Reports</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Archive Student</span>
+                    </li>
+                </ul>
+                <button @onclick="NavigateToAddCustomerBasic" class="mt-auto w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 p-3 text-center text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg">
+                    Add New Subscription
+                </button>
+            </div>
+        </div>
+
+        <!-- Standard Plan -->
+        <div class="group relative flex flex-col overflow-hidden rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 via-white to-blue-50/50 p-8 shadow-xl transition-all duration-300 hover:border-blue-400 hover:shadow-2xl hover:scale-[1.02]">
+            <div class="relative z-10 flex flex-col flex-grow">
+                <div class="mb-4">
+                    <span class="inline-block rounded-full bg-blue-600 px-4 py-1.5 text-xs font-bold text-white shadow-lg">MOST POPULAR</span>
+                </div>
+                <h3 class="mb-4 text-xl font-bold text-gray-900">Standard Plan</h3>
+                <div class="mb-6">
+                    <span class="text-3xl font-bold text-gray-900">₱55,000</span>
+                    <span class="text-base text-gray-700">/month</span>
+                </div>
+                <ul class="mb-8 flex-grow space-y-3 text-sm text-gray-800">
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Core Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Enrollment Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Curriculum Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Finance - Payment, Records & Reports</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Complete Finance Modules</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Teacher Portal</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">HR Records (Names Only)</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Add Employee</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Archive Student & Employee</span>
+                    </li>
+                </ul>
+                <button @onclick="NavigateToAddCustomerStandard" class="mt-auto w-full rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 p-3 text-center text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-blue-700 hover:to-blue-800 hover:shadow-lg">
+                    Add New Subscription
+                </button>
+            </div>
+        </div>
+
+        <!-- Premium Plan -->
+        <div class="group relative flex flex-col overflow-hidden rounded-2xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 p-8 shadow-xl transition-all duration-300 hover:border-purple-400 hover:shadow-2xl hover:scale-[1.02]">
+            <div class="shine-effect"></div>
+            <div class="relative z-10 flex flex-col flex-grow">
+                <div class="mb-4">
+                    <span class="inline-block rounded-full bg-purple-600 px-3 py-1 text-xs font-bold text-white shadow-lg">PREMIUM</span>
+                </div>
+                <h3 class="mb-4 text-xl font-bold text-gray-900">Premium Plan</h3>
+                <div class="mb-6">
+                    <span class="text-3xl font-bold text-gray-900">₱85,000</span>
+                    <span class="text-base text-gray-700">/month</span>
+                </div>
+                <ul class="mb-8 flex-grow space-y-3 text-sm text-gray-800">
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Core Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Enrollment Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Payroll Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Curriculum Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Complete Finance Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Attendance Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Teacher Portal</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">HR & Payroll Package</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <svg class="h-6 w-6 flex-shrink-0 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span class="font-semibold">Inventory Package</span>
+                    </li>
+                </ul>
+                <button @onclick="NavigateToAddCustomerPremium" class="mt-auto w-full rounded-xl bg-gradient-to-r from-purple-600 to-purple-700 p-3 text-center text-sm font-semibold text-white shadow-md transition-all duration-200 hover:from-purple-700 hover:to-purple-800 hover:shadow-lg">
+                    Add New Subscription
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expiring Soon -->
+    <div class="group relative overflow-hidden rounded-2xl border-2 border-gray-200 bg-white p-8 shadow-lg">
+        <div class="shine-effect"></div>
+        <div class="relative z-10 mb-6 flex items-center justify-between">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900">Expiring Soon</h2>
+                <p class="mt-1 text-sm text-gray-600">Subscriptions expiring in the next 30 days</p>
+            </div>
+            <span class="rounded-full bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-700">Next 30 days</span>
+        </div>
+        <div class="relative z-10 space-y-3">
+            @if (ExpiringSubscriptions.Any())
+            {
+                @foreach (var subscription in ExpiringSubscriptions.Take(5))
+                {
+                    var daysUntilExpiry = subscription.ContractEndDate.HasValue 
+                        ? (subscription.ContractEndDate.Value - DateTime.Now).Days 
+                        : 0;
+                    var urgencyClass = daysUntilExpiry <= 7 ? "border-red-300 bg-red-50" : 
+                                       daysUntilExpiry <= 14 ? "border-orange-300 bg-orange-50" : 
+                                       "border-yellow-200 bg-yellow-50";
+                    
+                    <div class="group flex items-center justify-between rounded-xl border-2 @urgencyClass p-5 transition-all hover:shadow-lg hover:scale-[1.01]">
+                        <div class="flex-1">
+                            <p class="text-lg font-bold text-gray-900">@subscription.SchoolName</p>
+                            <p class="mt-2 text-base text-gray-700">
+                                Expires in <span class="font-bold text-orange-700">@daysUntilExpiry days</span>
+                                @(subscription.ContractEndDate.HasValue ? $"({subscription.ContractEndDate.Value.ToString("MMM dd, yyyy")})" : "")
+                            </p>
+                        </div>
+                        <button class="ml-4 rounded-xl bg-orange-600 px-6 py-3 text-sm font-bold text-white transition-all hover:bg-orange-700 hover:shadow-lg flex-shrink-0">
+                            Send Reminder
+                        </button>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="py-16 text-center text-gray-400">
+                    <svg class="mx-auto mb-4 h-20 w-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p class="text-lg font-semibold">No subscriptions expiring soon</p>
+                    <p class="mt-2 text-sm text-gray-500">All subscriptions are up to date</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<Customer> Customers { get; set; } = new();
+    private int ActiveSubscriptions { get; set; }
+    private int ExpiringThisMonth { get; set; }
+    private decimal MonthlyRecurringRevenue { get; set; }
+    private decimal TotalSubtotal { get; set; }
+    private decimal TotalVAT { get; set; }
+    private int BasicPlanCount { get; set; }
+    private int StandardPlanCount { get; set; }
+    private int PremiumPlanCount { get; set; }
+    private List<Customer> ExpiringSubscriptions { get; set; } = new();
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        // Check if user is Super Admin (handle both "Super Admin" and "SuperAdmin")
+        var currentUser = AuthService?.CurrentUser;
+        var userRole = currentUser?.user_role;
+        var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                          (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                           userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        
+        if (!isSuperAdmin)
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            // Load data silently without loading screen
+            try
+            {
+                await LoadSubscriptionData();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Subscription] Error loading data: {ex.Message}");
+                Customers = new List<Customer>();
+                ExpiringSubscriptions = new List<Customer>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Subscription] Critical error: {ex.Message}");
+            Customers = new List<Customer>();
+            ExpiringSubscriptions = new List<Customer>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSubscriptionData()
+    {
+        if (SuperAdminService == null)
+        {
+            Customers = new List<Customer>();
+            return;
+        }
+
+        Customers = await SuperAdminService.GetAllCustomersAsync();
+        
+        ActiveSubscriptions = Customers.Count(c => c.Status == "Active");
+        ExpiringThisMonth = Customers.Count(c => c.Status == "Active" && 
+            c.ContractEndDate.HasValue && 
+            c.ContractEndDate.Value.Month == DateTime.Now.Month && 
+            c.ContractEndDate.Value.Year == DateTime.Now.Year);
+        
+        // Calculate MRR with VAT breakdown for BIR compliance
+        var activeCustomers = Customers.Where(c => c.Status == "Active").ToList();
+        decimal totalSubtotal = 0;
+        decimal totalVAT = 0;
+        foreach (var customer in activeCustomers)
+        {
+            if (customer.IsVatRegistered && customer.VatRate.HasValue && customer.VatRate.Value > 0)
+            {
+                // Calculate subtotal (revenue before VAT) - VAT is included in MonthlyFee
+                decimal subtotal = customer.MonthlyFee / (1 + (customer.VatRate.Value / 100m));
+                decimal vat = customer.MonthlyFee - subtotal;
+                totalSubtotal += subtotal;
+                totalVAT += vat;
+            }
+            else
+            {
+                totalSubtotal += customer.MonthlyFee;
+            }
+        }
+        
+        TotalSubtotal = totalSubtotal;
+        TotalVAT = totalVAT;
+        MonthlyRecurringRevenue = totalSubtotal + totalVAT;
+        
+        BasicPlanCount = Customers.Count(c => c.SubscriptionPlan == "Basic" && c.Status == "Active");
+        StandardPlanCount = Customers.Count(c => c.SubscriptionPlan == "Standard" && c.Status == "Active");
+        PremiumPlanCount = Customers.Count(c => c.SubscriptionPlan == "Premium" && c.Status == "Active");
+
+        ExpiringSubscriptions = Customers
+            .Where(c => c.Status == "Active" && 
+                c.ContractEndDate.HasValue && 
+                c.ContractEndDate.Value >= DateTime.Now && 
+                c.ContractEndDate.Value <= DateTime.Now.AddDays(30))
+            .OrderBy(c => c.ContractEndDate)
+            .ToList();
+    }
+
+    private void NavigateToAddCustomerBasic()
+    {
+        Navigation.NavigateTo("/system-admin/customers/add?plan=Basic");
+    }
+
+    private void NavigateToAddCustomerStandard()
+    {
+        Navigation.NavigateTo("/system-admin/customers/add?plan=Standard");
+    }
+
+    private void NavigateToAddCustomerPremium()
+    {
+        Navigation.NavigateTo("/system-admin/customers/add?plan=Premium");
+    }
+
+}

@@ -495,65 +495,80 @@ public class ExpenseService
 
     public async Task<List<Expense>> GetExpensesAsync(DateTime? from = null, DateTime? to = null)
     {
-        try
+        // Use a new DbContext scope to avoid concurrency issues when this method
+        // is called concurrently or while other operations are using the shared _context
+        if (_serviceScopeFactory != null)
         {
-            // Use AsNoTracking() for read-only queries to avoid DbContext concurrency issues
-            // and improve performance since we don't need change tracking
-            // Note: AsNoTracking() must be applied to the base query before Include()
-            var query = _context.Expenses
-                .AsNoTracking()
-                .Include(e => e.Attachments)
-                .AsQueryable();
-
-            if (from.HasValue)
-            {
-                query = query.Where(e => e.ExpenseDate >= from.Value.Date);
-            }
-
-            if (to.HasValue)
-            {
-                query = query.Where(e => e.ExpenseDate <= to.Value.Date);
-            }
-
-            // Execute query with proper isolation
-            var result = await query
-                .OrderByDescending(e => e.ExpenseDate)
-                .ThenByDescending(e => e.ExpenseId)
-                .ToListAsync();
+            using var scope = _serviceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             
-            return result;
-        }
-        catch (InvalidOperationException ioEx) when (ioEx.Message.Contains("second operation") || ioEx.Message.Contains("concurrently"))
-        {
-            // Retry once after a small delay if we hit a concurrency issue
-            _logger?.LogWarning(ioEx, "DbContext concurrency issue detected in GetExpensesAsync, retrying after delay");
-            await Task.Delay(50);
-            
-            // Retry with a fresh query
-            var query = _context.Expenses
-                .AsNoTracking()
-                .Include(e => e.Attachments)
-                .AsQueryable();
-
-            if (from.HasValue)
+            try
             {
-                query = query.Where(e => e.ExpenseDate >= from.Value.Date);
-            }
+                // Use AsNoTracking() for read-only queries to avoid DbContext concurrency issues
+                // and improve performance since we don't need change tracking
+                // Note: AsNoTracking() must be applied to the base query before Include()
+                var query = context.Expenses
+                    .AsNoTracking()
+                    .Include(e => e.Attachments)
+                    .AsQueryable();
 
-            if (to.HasValue)
+                if (from.HasValue)
+                {
+                    query = query.Where(e => e.ExpenseDate >= from.Value.Date);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(e => e.ExpenseDate <= to.Value.Date);
+                }
+
+                // Execute query with proper isolation
+                var result = await query
+                    .OrderByDescending(e => e.ExpenseDate)
+                    .ThenByDescending(e => e.ExpenseId)
+                    .ToListAsync();
+                
+                return result;
+            }
+            catch (Exception ex)
             {
-                query = query.Where(e => e.ExpenseDate <= to.Value.Date);
+                _logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
+                throw;
             }
-
-            return await query
-                .OrderByDescending(e => e.ExpenseDate)
-                .ThenByDescending(e => e.ExpenseId)
-                .ToListAsync();
         }
-        catch (Exception ex)
+        else
         {
-            _logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
-            throw;
+            // Fallback to shared context if service scope factory is not available
+            // This should not happen in production, but provides backward compatibility
+            try
+            {
+                var query = _context.Expenses
+                    .AsNoTracking()
+                    .Include(e => e.Attachments)
+                    .AsQueryable();
+
+                if (from.HasValue)
+                {
+                    query = query.Where(e => e.ExpenseDate >= from.Value.Date);
+                }
+
+                if (to.HasValue)
+                {
+                    query = query.Where(e => e.ExpenseDate <= to.Value.Date);
+                }
+
+                var result = await query
+                    .OrderByDescending(e => e.ExpenseDate)
+                    .ThenByDescending(e => e.ExpenseId)
+                    .ToListAsync();
+                
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error loading expenses: {Message}", ex.Message);
+                throw;
+            }
         }
     }
 

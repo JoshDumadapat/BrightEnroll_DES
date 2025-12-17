@@ -1,0 +1,582 @@
+@page "/system-admin/profile"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject SuperAdminDbContext SuperAdminDbContext
+@inject Microsoft.JSInterop.IJSRuntime JSRuntime
+
+<PageTitle>Super Admin Profile</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="text-gray-800">
+    <div class="mb-6 rounded-xl bg-gradient-to-br from-blue-50 via-white to-blue-50/50 p-4 border border-blue-100">
+        <h1 class="text-2xl font-bold text-gray-900">Super Admin Profile</h1>
+    </div>
+
+    <div class="mb-6 flex justify-start">
+        <button @onclick="GoToDashboard" class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all duration-300 hover:bg-gray-50">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="flex items-center justify-center py-12">
+            <div class="text-center">
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                <p class="mt-4 text-sm text-gray-600">Loading profile...</p>
+            </div>
+        </div>
+    }
+    else if (profileData == null)
+    {
+        <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+            <p class="text-sm text-red-600">Unable to load profile data. Please try again later.</p>
+        </div>
+    }
+    else
+    {
+        <!-- Profile Header -->
+        <div class="mb-6 mx-auto overflow-hidden rounded-xl bg-white shadow" style="width: 75%;">
+            <div class="px-6 py-6">
+                <div class="flex items-center">
+                    <div class="relative mr-6">
+                        <img src="/images/profile.jpg" alt="Profile Picture" class="h-24 w-24 rounded-full object-cover" />
+                        <button class="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full bg-gray-700 text-white shadow-md transition-all duration-300 hover:bg-gray-800 hover:shadow-lg">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="flex-1">
+                        <div class="grid grid-cols-[1fr_auto] gap-x-8 items-center">
+                            <div class="text-left">
+                                <h3 class="text-xl font-bold text-gray-800">@GetFullName()</h3>
+                                <p class="mb-2 text-sm text-gray-500">@profileData.Email</p>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-sm font-medium text-gray-700">Status:</span>
+                                    <span class="rounded-md bg-green-100 px-3 py-1 text-xs font-medium text-green-700">@CapitalizeFirst(profileData.Status)</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="block text-sm font-medium text-gray-700">Assigned Role:</span>
+                                <span class="block text-base font-bold text-gray-800">@profileData.UserRole</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Personal Information Section -->
+        <div class="mb-6 mx-auto overflow-hidden rounded-xl bg-white shadow" style="width: 75%;">
+            <div class="px-6 py-6">
+                <div class="mb-4 flex items-center justify-between border-b border-gray-200 pb-4">
+                    <h5 class="text-lg font-bold text-gray-800">Personal Information</h5>
+                    <button @onclick="ToggleEditPersonalInfo" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
+                        @(IsEditingPersonalInfo ? "Cancel" : "Edit Information")
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">First Name <span class="text-red-500">*</span></label>
+                        <input type="text" @bind="profileData.FirstName" disabled="@(!IsEditingPersonalInfo)"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        @if (IsEditingPersonalInfo && string.IsNullOrWhiteSpace(profileData.FirstName))
+                        {
+                            <p class="mt-1 text-xs text-red-600">First name is required</p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Middle Name</label>
+                        <input type="text" @bind="profileData.MidName" disabled="@(!IsEditingPersonalInfo)"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Last Name <span class="text-red-500">*</span></label>
+                        <input type="text" @bind="profileData.LastName" disabled="@(!IsEditingPersonalInfo)"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        @if (IsEditingPersonalInfo && string.IsNullOrWhiteSpace(profileData.LastName))
+                        {
+                            <p class="mt-1 text-xs text-red-600">Last name is required</p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Suffix</label>
+                        <input type="text" @bind="profileData.Suffix" disabled="@(!IsEditingPersonalInfo)" maxlength="10"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" 
+                               placeholder="Jr., Sr., III, etc." />
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Birth Date <span class="text-red-500">*</span></label>
+                        <input type="date" value="@birthdateString" @onchange="@((ChangeEventArgs e) => birthdateString = e.Value?.ToString() ?? string.Empty)" disabled="@(!IsEditingPersonalInfo)"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Gender <span class="text-red-500">*</span></label>
+                        <select @bind="profileData.Gender" disabled="@(!IsEditingPersonalInfo)"
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed">
+                            <option value="">Select Gender</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        @if (IsEditingPersonalInfo && string.IsNullOrWhiteSpace(profileData.Gender))
+                        {
+                            <p class="mt-1 text-xs text-red-600">Gender is required</p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Age <span class="text-red-500">*</span></label>
+                        <input type="number" @bind="profileData.Age" @bind:event="oninput" disabled="@(!IsEditingPersonalInfo)" min="1" max="120"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        @if (IsEditingPersonalInfo && profileData.Age < 1)
+                        {
+                            <p class="mt-1 text-xs text-red-600">Age must be at least 1</p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Contact Number <span class="text-red-500">*</span></label>
+                        <input type="tel" @bind="profileData.ContactNum" disabled="@(!IsEditingPersonalInfo)" maxlength="20"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        @if (IsEditingPersonalInfo && string.IsNullOrWhiteSpace(profileData.ContactNum))
+                        {
+                            <p class="mt-1 text-xs text-red-600">Contact number is required</p>
+                        }
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Email <span class="text-red-500">*</span></label>
+                        <input type="email" @bind="profileData.Email" disabled="@(!IsEditingPersonalInfo)" maxlength="150"
+                               class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed" />
+                        @if (IsEditingPersonalInfo && string.IsNullOrWhiteSpace(profileData.Email))
+                        {
+                            <p class="mt-1 text-xs text-red-600">Email is required</p>
+                        }
+                        @if (IsEditingPersonalInfo && !string.IsNullOrWhiteSpace(profileData.Email) && !IsValidEmail(profileData.Email))
+                        {
+                            <p class="mt-1 text-xs text-red-600">Please enter a valid email address</p>
+                        }
+                    </div>
+                </div>
+
+                @if (IsEditingPersonalInfo)
+                {
+                    <div class="mt-4 flex justify-end">
+                        <button @onclick="SavePersonalInfo" 
+                                disabled="@(string.IsNullOrWhiteSpace(profileData.FirstName) || string.IsNullOrWhiteSpace(profileData.LastName) || string.IsNullOrWhiteSpace(profileData.Gender) || string.IsNullOrWhiteSpace(profileData.ContactNum) || string.IsNullOrWhiteSpace(profileData.Email) || !IsValidEmail(profileData.Email) || profileData.Age < 1)"
+                                class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            Save Changes
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- Account Details Section (All tbl_Users fields) -->
+        <div class="mx-auto overflow-hidden rounded-xl bg-white shadow" style="width: 75%;">
+            <div class="px-6 py-6">
+                <h5 class="mb-6 text-lg font-bold text-gray-800">Account Details</h5>
+                
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <!-- User ID (user_ID) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">User ID</label>
+                        <input type="text" value="@profileData.UserId" readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                        <p class="mt-1 text-xs text-gray-500">Unique identifier (cannot be changed)</p>
+                    </div>
+
+                    <!-- System ID (system_ID) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">System ID</label>
+                        <input type="text" value="@profileData.SystemId" readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                        <p class="mt-1 text-xs text-gray-500">System ID is automatically assigned and cannot be changed.</p>
+                    </div>
+
+                    <!-- User Role (user_role) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">User Role</label>
+                        <input type="text" value="@profileData.UserRole" readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                    </div>
+
+                    <!-- Status (status) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+                        <input type="text" value="@CapitalizeFirst(profileData.Status)" readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                    </div>
+
+                    <!-- Date Hired (date_hired) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Date Hired</label>
+                        <input type="text" value="@profileData.DateHired.ToString("MMMM dd, yyyy 'at' HH:mm")" readonly 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                    </div>
+
+                    <!-- Password (password) - Link to change password -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Password</label>
+                        <div class="flex items-center gap-2">
+                            <input type="password" value="••••••••••••" readonly 
+                                   class="flex-1 rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-600" />
+                            <button @onclick="NavigateToSettings" 
+                                    class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg whitespace-nowrap">
+                                Change
+                            </button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Click "Change" to update your password</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private bool IsEditingPersonalInfo { get; set; } = false;
+    private UserEntity? profileData;
+    private UserEntity? originalProfileData;
+    private string birthdateString = string.Empty;
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private ToastType toastType = ToastType.Success;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProfileData();
+    }
+
+    private async Task LoadProfileData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            if (currentUser == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "You must be logged in to view your profile.");
+                NavigationManager.NavigateTo("/login");
+                return;
+            }
+
+            // Load user from SuperAdmin database using SuperAdminDbContext
+            var userEntity = await SuperAdminDbContext.Users
+                .FirstOrDefaultAsync(u => u.UserId == currentUser.user_ID);
+
+            if (userEntity == null)
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "User profile not found in database.");
+                NavigationManager.NavigateTo("/system-admin/dashboard");
+                return;
+            }
+
+            profileData = userEntity;
+            // Create a copy for original data to compare changes
+            originalProfileData = new UserEntity
+            {
+                UserId = userEntity.UserId,
+                SystemId = userEntity.SystemId,
+                FirstName = userEntity.FirstName,
+                MidName = userEntity.MidName,
+                LastName = userEntity.LastName,
+                Suffix = userEntity.Suffix,
+                Birthdate = userEntity.Birthdate,
+                Age = userEntity.Age,
+                Gender = userEntity.Gender,
+                ContactNum = userEntity.ContactNum,
+                UserRole = userEntity.UserRole,
+                Email = userEntity.Email,
+                Password = userEntity.Password,
+                DateHired = userEntity.DateHired,
+                Status = userEntity.Status
+            };
+
+            birthdateString = profileData.Birthdate.ToString("yyyy-MM-dd");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading profile: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading profile: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ToggleEditPersonalInfo()
+    {
+        if (IsEditingPersonalInfo)
+        {
+            // Cancel - restore original data
+            if (originalProfileData != null && profileData != null)
+            {
+                profileData.FirstName = originalProfileData.FirstName;
+                profileData.MidName = originalProfileData.MidName;
+                profileData.LastName = originalProfileData.LastName;
+                profileData.Suffix = originalProfileData.Suffix;
+                profileData.Birthdate = originalProfileData.Birthdate;
+                profileData.Age = originalProfileData.Age;
+                profileData.Gender = originalProfileData.Gender;
+                profileData.ContactNum = originalProfileData.ContactNum;
+                profileData.Email = originalProfileData.Email;
+                birthdateString = profileData.Birthdate.ToString("yyyy-MM-dd");
+            }
+        }
+        IsEditingPersonalInfo = !IsEditingPersonalInfo;
+        StateHasChanged();
+    }
+
+    private async Task SavePersonalInfo()
+    {
+        if (profileData == null)
+        {
+            return;
+        }
+
+        // Validate required fields
+        if (string.IsNullOrWhiteSpace(profileData.FirstName))
+        {
+            ShowToast("First name is required.", ToastType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profileData.LastName))
+        {
+            ShowToast("Last name is required.", ToastType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profileData.Gender))
+        {
+            ShowToast("Gender is required.", ToastType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profileData.ContactNum))
+        {
+            ShowToast("Contact number is required.", ToastType.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(profileData.Email))
+        {
+            ShowToast("Email is required.", ToastType.Error);
+            return;
+        }
+
+        if (!IsValidEmail(profileData.Email))
+        {
+            ShowToast("Please enter a valid email address.", ToastType.Error);
+            return;
+        }
+
+        if (profileData.Age < 1)
+        {
+            ShowToast("Age must be at least 1.", ToastType.Error);
+            return;
+        }
+
+        // Parse birthdate
+        if (DateTime.TryParse(birthdateString, out DateTime parsedBirthdate))
+        {
+            profileData.Birthdate = parsedBirthdate;
+            // Calculate age from birthdate
+            var today = DateTime.Today;
+            var age = today.Year - parsedBirthdate.Year;
+            if (parsedBirthdate.Date > today.AddYears(-age)) age--;
+            profileData.Age = (byte)Math.Max(1, Math.Min(120, age));
+        }
+        else
+        {
+            ShowToast("Please enter a valid birth date.", ToastType.Error);
+            return;
+        }
+
+        // Check if email is already taken by another user
+        var emailExists = await SuperAdminDbContext.Users
+            .AnyAsync(u => u.Email == profileData.Email && u.UserId != profileData.UserId);
+
+        if (emailExists)
+        {
+            ShowToast("This email is already in use by another user.", ToastType.Error);
+            return;
+        }
+
+        try
+        {
+            // Update the user entity in SuperAdminDbContext
+            var userEntity = await SuperAdminDbContext.Users
+                .FirstOrDefaultAsync(u => u.UserId == profileData.UserId);
+
+            if (userEntity == null)
+            {
+                ShowToast("User not found in database.", ToastType.Error);
+                return;
+            }
+
+            // Update fields (aligned with database column names)
+            userEntity.FirstName = profileData.FirstName.Trim();
+            userEntity.MidName = string.IsNullOrWhiteSpace(profileData.MidName) ? null : profileData.MidName.Trim();
+            userEntity.LastName = profileData.LastName.Trim();
+            userEntity.Suffix = string.IsNullOrWhiteSpace(profileData.Suffix) ? null : profileData.Suffix.Trim();
+            userEntity.Birthdate = profileData.Birthdate;
+            userEntity.Age = profileData.Age;
+            userEntity.Gender = profileData.Gender.Trim();
+            userEntity.ContactNum = profileData.ContactNum.Trim();
+            userEntity.Email = profileData.Email.Trim();
+
+            // Save changes
+            var rowsAffected = await SuperAdminDbContext.SaveChangesAsync();
+
+            if (rowsAffected > 0)
+            {
+                // Update original data copy
+                originalProfileData = new UserEntity
+                {
+                    UserId = userEntity.UserId,
+                    SystemId = userEntity.SystemId,
+                    FirstName = userEntity.FirstName,
+                    MidName = userEntity.MidName,
+                    LastName = userEntity.LastName,
+                    Suffix = userEntity.Suffix,
+                    Birthdate = userEntity.Birthdate,
+                    Age = userEntity.Age,
+                    Gender = userEntity.Gender,
+                    ContactNum = userEntity.ContactNum,
+                    UserRole = userEntity.UserRole,
+                    Email = userEntity.Email,
+                    Password = userEntity.Password,
+                    DateHired = userEntity.DateHired,
+                    Status = userEntity.Status
+                };
+
+                // Update AuthService current user to reflect changes
+                var currentUser = AuthService.CurrentUser;
+                if (currentUser != null)
+                {
+                    currentUser.first_name = userEntity.FirstName;
+                    currentUser.mid_name = userEntity.MidName;
+                    currentUser.last_name = userEntity.LastName;
+                    currentUser.suffix = userEntity.Suffix;
+                    currentUser.birthdate = userEntity.Birthdate;
+                    currentUser.age = userEntity.Age;
+                    currentUser.gender = userEntity.Gender;
+                    currentUser.contact_num = userEntity.ContactNum;
+                    currentUser.email = userEntity.Email;
+                }
+
+                IsEditingPersonalInfo = false;
+                ShowToast("Profile information updated successfully!", ToastType.Success);
+            }
+            else
+            {
+                ShowToast("No changes were saved.", ToastType.Edit);
+            }
+        }
+        catch (DbUpdateException ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Database error updating profile: {ex.Message}");
+            if (ex.InnerException != null && ex.InnerException.Message.Contains("UNIQUE"))
+            {
+                ShowToast("This email is already in use by another user.", ToastType.Error);
+            }
+            else
+            {
+                ShowToast($"Error updating profile: {ex.Message}", ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating profile: {ex.Message}");
+            ShowToast($"Error updating profile: {ex.Message}", ToastType.Error);
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private string GetFullName()
+    {
+        if (profileData == null) return string.Empty;
+        
+        var name = $"{profileData.FirstName}";
+        if (!string.IsNullOrWhiteSpace(profileData.MidName))
+        {
+            name += $" {profileData.MidName}";
+        }
+        name += $" {profileData.LastName}";
+        if (!string.IsNullOrWhiteSpace(profileData.Suffix))
+        {
+            name += $" {profileData.Suffix}";
+        }
+        return name;
+    }
+
+    private string CapitalizeFirst(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return text;
+        
+        return char.ToUpper(text[0]) + (text.Length > 1 ? text.Substring(1).ToLower() : "");
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return false;
+
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void NavigateToSettings()
+    {
+        NavigationManager.NavigateTo("/system-admin/settings");
+    }
+
+    private void GoToDashboard()
+    {
+        NavigationManager.NavigateTo("/system-admin/dashboard");
+    }
+
+    private void ShowToast(string message, ToastType type)
+    {
+        toastMessage = message;
+        toastType = type;
+        showToast = true;
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        StateHasChanged();
+    }
+}

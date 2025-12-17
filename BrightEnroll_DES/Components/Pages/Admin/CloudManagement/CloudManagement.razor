@@ -1,4 +1,4 @@
-﻿@page "/cloud-management"
+@page "/cloud-management"
 @layout Components.Layout.MainLayout
 @inject IConnectivityService ConnectivityService
 @inject ILoadingService LoadingService
@@ -17,7 +17,7 @@
 <PageTitle>Cloud Management</PageTitle>
 
 <!-- Toast Notification -->
-<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="@(toastType == ToastType.Loading ? 0 : 4000)" />
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="@(toastType == ToastType.Loading ? 0 : 4000)" Progress="@syncProgress" />
 
 <div class="text-gray-800">
     <h1 class="mb-6 text-2xl font-bold text-gray-800">Cloud Management</h1>
@@ -248,7 +248,7 @@
                 </div>
             </div>
 
-            <!-- Sync Reference Data KPI Card -->
+            @* <!-- Sync Reference Data KPI Card -->
             <div class="group relative overflow-hidden rounded-xl border border-orange-100 bg-gradient-to-br from-orange-50 via-white to-orange-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
                 <div class="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
                 <div class="relative p-6">
@@ -281,7 +281,7 @@
                         }
                     </button>
                 </div>
-            </div>
+            </div> *@
         </div>
     </div>
 
@@ -416,6 +416,8 @@
     private bool showToast = false;
     private string toastMessage = "";
     private ToastType toastType = ToastType.Success;
+    private int syncProgress = 0;
+    private System.Threading.Timer? _progressTimer;
     
     private class SyncLogEntry
     {
@@ -635,6 +637,8 @@
         toastMessage = "Synchronizing data with cloud...";
         toastType = ToastType.Loading;
         showToast = true;
+        syncProgress = 0;
+        StartProgressSimulation();
         StateHasChanged();
         
         try
@@ -688,6 +692,8 @@
         }
         finally
         {
+            StopProgressSimulation();
+            syncProgress = 100;
             isSyncing = false;
             syncType = "";
             StateHasChanged();
@@ -767,6 +773,8 @@
         toastMessage = "Uploading data to cloud...";
         toastType = ToastType.Loading;
         showToast = true;
+        syncProgress = 0;
+        StartProgressSimulation();
         StateHasChanged();
         
         try
@@ -816,6 +824,8 @@
         }
         finally
         {
+            StopProgressSimulation();
+            syncProgress = 100;
             isSyncing = false;
             syncType = "";
             StateHasChanged();
@@ -838,6 +848,8 @@
         toastMessage = "Downloading data from cloud...";
         toastType = ToastType.Loading;
         showToast = true;
+        syncProgress = 0;
+        StartProgressSimulation();
         StateHasChanged();
         
         try
@@ -887,6 +899,8 @@
         }
         finally
         {
+            StopProgressSimulation();
+            syncProgress = 100;
             isSyncing = false;
             syncType = "";
             StateHasChanged();
@@ -908,6 +922,8 @@
         toastMessage = "Syncing reference data from cloud...";
         toastType = ToastType.Loading;
         showToast = true;
+        syncProgress = 0;
+        StartProgressSimulation();
         StateHasChanged();
         
         try
@@ -957,10 +973,37 @@
         }
         finally
         {
+            StopProgressSimulation();
+            syncProgress = 100;
             isSyncing = false;
             syncType = "";
             StateHasChanged();
         }
+    }
+
+    private void StartProgressSimulation()
+    {
+        StopProgressSimulation();
+        syncProgress = 0;
+        
+        // Simulate progress from 0 to 95% (frontend only, not touching backend)
+        _progressTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(() =>
+            {
+                if (isSyncing && syncProgress < 95)
+                {
+                    syncProgress = Math.Min(95, syncProgress + 2);
+                    StateHasChanged();
+                }
+            });
+        }, null, TimeSpan.FromMilliseconds(100), TimeSpan.FromMilliseconds(200));
+    }
+
+    private void StopProgressSimulation()
+    {
+        _progressTimer?.Dispose();
+        _progressTimer = null;
     }
 
     private void CloseToast()
@@ -972,6 +1015,7 @@
 
     public void Dispose()
     {
+        StopProgressSimulation();
         ConnectivityService.ConnectivityChanged -= OnConnectivityChanged;
         SyncStatusService.StatusChanged -= OnSyncStatusChanged;
     }

@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.HR;
 
-/// <summary>
-/// Service for generating attendance reports with recommendations
-/// </summary>
+// Service for generating attendance reports
 public class AttendanceReportService
 {
     private readonly AppDbContext _context;
@@ -19,9 +17,7 @@ public class AttendanceReportService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Generates an attendance summary report for a specific period with recommendations
-    /// </summary>
+    // Generate attendance summary report for period
     public async Task<AttendanceReportDto> GenerateAttendanceReportAsync(string period, DateTime? startDate = null, DateTime? endDate = null)
     {
         try

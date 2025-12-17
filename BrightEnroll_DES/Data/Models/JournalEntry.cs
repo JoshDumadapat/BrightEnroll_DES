@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Journal Entry Header - Represents a complete accounting transaction
-/// </summary>
+// Journal entry header - represents a complete accounting transaction
 [Table("tbl_JournalEntries")]
 public class JournalEntry
 {

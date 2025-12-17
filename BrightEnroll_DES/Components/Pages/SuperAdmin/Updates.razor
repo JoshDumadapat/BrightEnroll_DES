@@ -1,0 +1,191 @@
+@page "/system-admin/updates"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@using System
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Version Management</PageTitle>
+
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">ERP Version & Feature Updates</h1>
+        </div>
+    </div>
+</div>
+
+<!-- Current Version Info -->
+<div class="mb-6 rounded-xl border border-blue-200 bg-blue-50 p-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h2 class="text-2xl font-bold text-blue-800">Current Version: @(LatestVersion?.VersionNumber ?? "N/A")</h2>
+            <p class="text-sm text-blue-600">Released: @(LatestVersion?.ReleaseDate.ToString("MMMM dd, yyyy") ?? "N/A")</p>
+        </div>
+        <button class="rounded-lg bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700">Release New Version</button>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+    <div class="rounded-xl border border-green-200 bg-green-50 p-4">
+        <p class="text-sm text-green-600 mb-2">Total Updates</p>
+        <p class="text-2xl font-bold text-green-800 text-right">@TotalUpdates</p>
+    </div>
+    <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm text-yellow-600 mb-2">In Development</p>
+        <p class="text-2xl font-bold text-yellow-800 text-right">@InDevelopment</p>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-purple-50 p-4">
+        <p class="text-sm text-purple-600 mb-2">Major Updates</p>
+        <p class="text-2xl font-bold text-purple-800 text-right">@MajorUpdates</p>
+    </div>
+    <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <p class="text-sm text-blue-600 mb-2">Released This Year</p>
+        <p class="text-2xl font-bold text-blue-800 text-right">@ReleasedThisYear</p>
+    </div>
+</div>
+
+<!-- Version History -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Version History</h2>
+    <div class="space-y-4">
+        @if (SystemUpdates.Any())
+        {
+            @foreach (var update in SystemUpdates)
+            {
+                var daysAgo = (DateTime.Now - update.ReleaseDate).Days;
+                <div class="rounded-lg border border-gray-200 p-4">
+                    <div class="mb-2 flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <h3 class="text-lg font-semibold text-gray-800">Version @update.VersionNumber</h3>
+                            @if (update.IsMajorUpdate)
+                            {
+                                <span class="inline-flex rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">Major</span>
+                            }
+                            <span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">@update.UpdateType</span>
+                        </div>
+                        <span class="text-sm text-gray-500">Released @(daysAgo == 0 ? "today" : daysAgo == 1 ? "yesterday" : $"{daysAgo} days ago")</span>
+                    </div>
+                    <h4 class="mb-2 font-medium text-gray-700">@update.Title</h4>
+                    @if (!string.IsNullOrWhiteSpace(update.Description))
+                    {
+                        <p class="text-sm text-gray-600">@update.Description</p>
+                    }
+                </div>
+            }
+        }
+        else
+        {
+            <div class="py-8 text-center text-gray-500">
+                <p>No system updates found</p>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Feature Toggles -->
+<div class="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
+    <h2 class="mb-4 text-lg font-bold text-gray-800">Feature Toggles</h2>
+    <div class="space-y-3">
+        @foreach (var feature in new[] { "Advanced Analytics", "AI-Powered Insights", "Mobile App Access", "API Integration", "Custom Reports" })
+        {
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 p-4">
+                <div>
+                    <p class="font-medium text-gray-800">@feature</p>
+                    <p class="text-sm text-gray-500">Available for Premium plans</p>
+                </div>
+                <label class="relative inline-flex cursor-pointer items-center">
+                    <input type="checkbox" checked class="peer sr-only" />
+                    <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                </label>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<SystemUpdate> SystemUpdates { get; set; } = new();
+    private SystemUpdate? LatestVersion { get; set; }
+    private int TotalUpdates { get; set; }
+    private int InDevelopment { get; set; }
+    private int MajorUpdates { get; set; }
+    private int ReleasedThisYear { get; set; }
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        // Check if user is Super Admin (handle both "Super Admin" and "SuperAdmin")
+        var currentUser = AuthService?.CurrentUser;
+        var userRole = currentUser?.user_role;
+        var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                          (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                           userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        
+        if (!isSuperAdmin)
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            // Load data silently without loading screen
+            try
+            {
+                await LoadSystemUpdates();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Updates] Error loading updates: {ex.Message}");
+                SystemUpdates = new List<SystemUpdate>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Updates] Critical error: {ex.Message}");
+            SystemUpdates = new List<SystemUpdate>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadSystemUpdates()
+    {
+        if (SuperAdminService == null)
+        {
+            SystemUpdates = new List<SystemUpdate>();
+            return;
+        }
+
+        SystemUpdates = await SuperAdminService.GetAllSystemUpdatesAsync();
+        
+        LatestVersion = SystemUpdates.OrderByDescending(u => u.ReleaseDate).FirstOrDefault();
+        TotalUpdates = SystemUpdates.Count;
+        InDevelopment = SystemUpdates.Count(u => u.Status == "In Development");
+        MajorUpdates = SystemUpdates.Count(u => u.IsMajorUpdate);
+        ReleasedThisYear = SystemUpdates.Count(u => u.ReleaseDate.Year == DateTime.Now.Year && u.Status == "Released");
+    }
+
+}

@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Student ledger per school year - tracks all charges and payments for a student in a specific school year
-/// </summary>
+// Student ledger per school year - tracks charges and payments
 [Table("tbl_StudentLedgers")]
 public class StudentLedger
 {

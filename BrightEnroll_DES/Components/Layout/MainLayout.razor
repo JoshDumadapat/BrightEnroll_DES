@@ -100,7 +100,7 @@
                                 {
                                     <div class="z-[100] absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-300 bg-white py-1 shadow-xl" @onclick:stopPropagation="true">
                                     <!-- Profile Option -->
-                                    <a href="/profile" @onclick="CloseDropdown" class="flex h-10 items-center gap-4 px-4 text-gray-700 transition-colors hover:bg-gray-100">
+                                    <a href="@GetProfileUrl()" @onclick="CloseDropdown" class="flex h-10 items-center gap-4 px-4 text-gray-700 transition-colors hover:bg-gray-100">
                                         <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                         </svg>
@@ -108,7 +108,7 @@
                                     </a>
 
                                     <!-- Settings Option -->
-                                    <a href="/settings" @onclick="CloseDropdown" class="flex h-10 items-center gap-3 px-4 text-gray-700 transition-colors hover:bg-gray-100">
+                                    <a href="@GetSettingsUrl()" @onclick="CloseDropdown" class="flex h-10 items-center gap-3 px-4 text-gray-700 transition-colors hover:bg-gray-100">
                                         <svg class="h-5 w-5 flex-shrink-0 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -316,36 +316,27 @@
 
     private void OnConnectivityChanged(object? sender, bool isConnected)
     {
-        // Always show toast for connectivity changes (after initial setup)
-        // The flag ensures we don't show on very first load, but we want to show on all subsequent changes
-        if (ConnectivityService.HasShownInitialToast)
+        // Always show toast immediately for connectivity changes without delay
+        // Cancel any existing auto-hide timer
+        _connectivityToastTimer?.Dispose();
+        
+        isOnline = isConnected;
+        connectivityMessage = isConnected 
+            ? "You are now online. Data will sync to cloud." 
+            : "Offline. Changes saved locally, will sync when online.";
+        
+        showConnectivityToast = true;
+        InvokeAsync(StateHasChanged);
+        
+        // Auto-hide after 5 seconds
+        _connectivityToastTimer = new System.Threading.Timer(_ =>
         {
-            // Cancel any existing auto-hide timer
-            _connectivityToastTimer?.Dispose();
-            
-            isOnline = isConnected;
-            connectivityMessage = isConnected 
-                ? "You are now online. Data will sync to cloud." 
-                : "Offline. Changes saved locally, will sync when online.";
-            
-            showConnectivityToast = true;
-            InvokeAsync(StateHasChanged);
-            
-            // Auto-hide after 5 seconds (increased from 3 for better visibility)
-            _connectivityToastTimer = new System.Threading.Timer(_ =>
-            {
-                InvokeAsync(() =>
+            InvokeAsync(() =>
             {
                 showConnectivityToast = false;
-                    StateHasChanged();
+                StateHasChanged();
             });
-            }, null, 5000, Timeout.Infinite);
-        }
-        else
-        {
-            // If flag not set yet, set it now so future changes will show toast
-            ConnectivityService.HasShownInitialToast = true;
-        }
+        }, null, 5000, Timeout.Infinite);
     }
 
     public void Dispose()
@@ -487,5 +478,33 @@
     {
         var user = AuthService.CurrentUser;
         return user?.user_role ?? "User";
+    }
+
+    private string GetSettingsUrl()
+    {
+        var user = AuthService.CurrentUser;
+        if (user != null)
+        {
+            var roleLower = user.user_role?.ToLower().Trim().Replace(" ", "") ?? "";
+            if (roleLower == "superadmin")
+            {
+                return "/system-admin/settings";
+            }
+        }
+        return "/settings";
+    }
+
+    private string GetProfileUrl()
+    {
+        var user = AuthService.CurrentUser;
+        if (user != null)
+        {
+            var roleLower = user.user_role?.ToLower().Trim().Replace(" ", "") ?? "";
+            if (roleLower == "superadmin")
+            {
+                return "/system-admin/profile";
+            }
+        }
+        return "/profile";
     }
 }

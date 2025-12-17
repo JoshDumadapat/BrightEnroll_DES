@@ -1,0 +1,957 @@
+@page "/system-admin/settings"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.DataAccess.Repositories
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Components
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using System.Text.RegularExpressions
+@using Microsoft.JSInterop
+@inject NavigationManager NavigationManager
+@inject IAuthService AuthService
+@inject IUserRepository UserRepository
+@inject ILoginService LoginService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Super Admin Settings</PageTitle>
+
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
+<div class="text-gray-800">
+    <!-- Header without card container - Reduced height -->
+    <div class="mb-6 flex items-center gap-4">
+        <button @onclick="GoToDashboard" class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            </svg>
+            Back
+        </button>
+        <h1 class="text-2xl font-bold text-gray-900">Settings</h1>
+    </div>
+    
+    <div class="mx-auto max-w-4xl">
+        <!-- Account Information -->
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+            <div class="px-6 py-6">
+                <div class="space-y-6">
+                    <!-- Full Name -->
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Full Name</label>
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <input type="text" @bind="firstName" 
+                                       class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       placeholder="First Name" />
+                            </div>
+                            <div>
+                                <input type="text" @bind="lastName" 
+                                       class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       placeholder="Last Name" />
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(middleName))
+                        {
+                            <div class="mt-4">
+                                <input type="text" @bind="middleName" 
+                                       class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       placeholder="Middle Name (Optional)" />
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Email Address -->
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Email Address</label>
+                        <div class="flex items-center gap-2">
+                            <input type="email" @bind="currentEmail" 
+                                   class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(emailError ? "border-red-500" : "")" 
+                                   placeholder="Enter email address" />
+                            <button @onclick="UpdateEmail" 
+                                    class="flex-shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-700 whitespace-nowrap">
+                                Update
+                            </button>
+                        </div>
+                        @if (emailError)
+                        {
+                            <p class="mt-1.5 text-xs text-red-600">@emailErrorMessage</p>
+                        }
+                        @if (!string.IsNullOrEmpty(emailSuccessMessage))
+                        {
+                            <p class="mt-1.5 text-xs text-green-600">@emailSuccessMessage</p>
+                        }
+                    </div>
+
+                    <!-- Phone Number -->
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Phone Number</label>
+                        <div class="flex items-center gap-2">
+                            <input type="tel" @bind="currentPhoneNumber" 
+                                   class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(phoneError ? "border-red-500" : "")" 
+                                   placeholder="Enter phone number" />
+                            <button @onclick="UpdatePhoneNumber" 
+                                    class="flex-shrink-0 rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white transition-all hover:bg-blue-700 whitespace-nowrap">
+                                Update
+                            </button>
+                        </div>
+                        @if (phoneError)
+                        {
+                            <p class="mt-1.5 text-xs text-red-600">@phoneErrorMessage</p>
+                        }
+                        @if (!string.IsNullOrEmpty(phoneSuccessMessage))
+                        {
+                            <p class="mt-1.5 text-xs text-green-600">@phoneSuccessMessage</p>
+                        }
+                    </div>
+
+                    <!-- System ID (Read-only) -->
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">System ID</label>
+                        <input type="text" value="@systemId" 
+                               class="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-500 cursor-not-allowed" 
+                               disabled />
+                        <p class="mt-1.5 text-xs text-gray-500">System ID cannot be changed</p>
+                    </div>
+
+                    <!-- Save Account Changes -->
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                        <button @onclick="SaveAccountInfo" 
+                                class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Password & Security -->
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+            <div class="px-6 py-6">
+                <div class="space-y-6">
+                    <!-- Change Password Section -->
+                    <div>
+                        <button @onclick="ToggleChangePasswordForm" 
+                                class="w-full rounded-lg border-2 border-blue-600 bg-white px-4 py-3 text-sm font-semibold text-blue-600 transition-all hover:bg-blue-50">
+                            <div class="flex items-center justify-center gap-2">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                </svg>
+                                Change Password
+                            </div>
+                        </button>
+
+                        @if (showChangePasswordForm)
+                        {
+                            <div class="mt-4 rounded-lg border-2 border-gray-200 bg-gray-50 p-6 space-y-5">
+                                <h3 class="text-base font-semibold text-gray-800 mb-1">Update Your Password</h3>
+                                
+                                @if (!string.IsNullOrEmpty(passwordErrorMessage))
+                                {
+                                    <div class="rounded-lg bg-red-50 border border-red-200 p-3">
+                                        <p class="text-sm text-red-600">@passwordErrorMessage</p>
+                                    </div>
+                                }
+
+                                @if (!string.IsNullOrEmpty(passwordSuccessMessage))
+                                {
+                                    <div class="rounded-lg bg-green-50 border border-green-200 p-3">
+                                        <p class="text-sm text-green-600">@passwordSuccessMessage</p>
+                                    </div>
+                                }
+
+                                <!-- Current Password -->
+                                <div>
+                                    <label class="mb-2 block text-sm font-semibold text-gray-700">Current Password</label>
+                                    <div class="relative">
+                                        <input type="@(showCurrentPassword ? "text" : "password")" 
+                                               @bind="currentPassword" 
+                                               class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(currentPasswordError ? "border-red-500" : "")" 
+                                               placeholder="Enter your current password" />
+                                        <button type="button" @onclick="ToggleCurrentPasswordVisibility" 
+                                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                                            @if (showCurrentPassword)
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.736m0 0L21 21" />
+                                                </svg>
+                                            }
+                                            else
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            }
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- New Password -->
+                                <div>
+                                    <label class="mb-2 block text-sm font-semibold text-gray-700">New Password</label>
+                                    <div class="relative">
+                                        <input type="@(showNewPassword ? "text" : "password")" 
+                                               @bind="newPassword" 
+                                               @oninput="OnNewPasswordChanged"
+                                               class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(newPasswordError ? "border-red-500" : "")" 
+                                               placeholder="Enter your new password" />
+                                        <button type="button" @onclick="ToggleNewPasswordVisibility" 
+                                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                                            @if (showNewPassword)
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.736m0 0L21 21" />
+                                                </svg>
+                                            }
+                                            else
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            }
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Password Requirements -->
+                                    <div class="mt-3 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                                        <p class="mb-2 text-xs font-semibold text-blue-900">Password Requirements:</p>
+                                        <ul class="ml-4 space-y-1 text-xs text-blue-800">
+                                            <li class="@(newPassword.Length >= 12 ? "text-green-700" : "") flex items-center gap-2">
+                                                @if (newPassword.Length >= 12)
+                                                {
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                }
+                                                Minimum 12 characters
+                                            </li>
+                                            <li class="@(HasUppercase(newPassword) ? "text-green-700" : "") flex items-center gap-2">
+                                                @if (HasUppercase(newPassword))
+                                                {
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                }
+                                                At least one uppercase letter
+                                            </li>
+                                            <li class="@(HasLowercase(newPassword) ? "text-green-700" : "") flex items-center gap-2">
+                                                @if (HasLowercase(newPassword))
+                                                {
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                }
+                                                At least one lowercase letter
+                                            </li>
+                                            <li class="@(HasNumber(newPassword) ? "text-green-700" : "") flex items-center gap-2">
+                                                @if (HasNumber(newPassword))
+                                                {
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                }
+                                                At least one number
+                                            </li>
+                                            <li class="@(HasSpecialChar(newPassword) ? "text-green-700" : "") flex items-center gap-2">
+                                                @if (HasSpecialChar(newPassword))
+                                                {
+                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                }
+                                                At least one special character
+                                            </li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Password Strength Indicator -->
+                                    @if (!string.IsNullOrEmpty(newPassword))
+                                    {
+                                        <div class="mt-3">
+                                            <div class="mb-1 flex items-center justify-between">
+                                                <span class="text-xs font-semibold text-gray-600">Password Strength:</span>
+                                                <span class="text-xs font-bold @GetStrengthColorClass()">@GetPasswordStrength()</span>
+                                            </div>
+                                            <div class="h-2 w-full rounded-full bg-gray-200">
+                                                <div class="h-2 rounded-full transition-all @GetStrengthBarColorClass()" style="width: @GetStrengthPercentage()%"></div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+
+                                <!-- Confirm New Password -->
+                                <div>
+                                    <label class="mb-2 block text-sm font-semibold text-gray-700">Confirm New Password</label>
+                                    <div class="relative">
+                                        <input type="@(showConfirmPassword ? "text" : "password")" 
+                                               @bind="confirmPassword" 
+                                               @oninput="OnConfirmPasswordChanged"
+                                               class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(confirmPasswordError ? "border-red-500" : "")" 
+                                               placeholder="Confirm your new password" />
+                                        <button type="button" @onclick="ToggleConfirmPasswordVisibility" 
+                                                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none">
+                                            @if (showConfirmPassword)
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.736m0 0L21 21" />
+                                                </svg>
+                                            }
+                                            else
+                                            {
+                                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            }
+                                        </button>
+                                    </div>
+                                    @if (confirmPasswordError)
+                                    {
+                                        <p class="mt-1.5 text-xs text-red-600">Passwords do not match</p>
+                                    }
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="flex flex-col sm:flex-row gap-3 pt-2">
+                                    <button @onclick="SubmitPasswordChange" 
+                                            class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700">
+                                        Update Password
+                                    </button>
+                                    <button @onclick="CancelPasswordChange" 
+                                            class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Security Settings -->
+                    <div class="border-t border-gray-200 pt-6 space-y-4">
+                        <h3 class="text-base font-semibold text-gray-800 mb-4">Security Preferences</h3>
+                        
+                        <!-- Two-Factor Authentication -->
+                        <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <div class="flex-1">
+                                <p class="font-semibold text-gray-700">Two-Factor Authentication (2FA)</p>
+                                <p class="mt-1 text-xs text-gray-500">Add an extra layer of security to your account</p>
+                            </div>
+                            <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                                <input type="checkbox" @bind="twoFactorEnabled" class="peer sr-only" />
+                                <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                            </label>
+                        </div>
+
+                        <!-- Session Timeout -->
+                        <div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">Session Timeout</label>
+                            <select @bind="sessionTimeout" class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="15">15 minutes</option>
+                                <option value="30">30 minutes</option>
+                                <option value="60">1 hour</option>
+                                <option value="120">2 hours</option>
+                                <option value="0">Never (Not Recommended)</option>
+                            </select>
+                            <p class="mt-1.5 text-xs text-gray-500">Automatically log out after period of inactivity</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Preferences -->
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+            <div class="px-6 py-6">
+                <div class="space-y-4">
+                    <!-- Notifications -->
+                    <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-700">Email Notifications</p>
+                            <p class="mt-1 text-xs text-gray-500">Receive email alerts for important updates</p>
+                        </div>
+                        <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                            <input type="checkbox" @bind="notificationEnabled" class="peer sr-only" />
+                            <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                        </label>
+                    </div>
+                    
+                    <!-- Dark Mode -->
+                    <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-700">Dark Mode</p>
+                            <p class="mt-1 text-xs text-gray-500">Switch to dark theme for better visibility</p>
+                        </div>
+                        <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                            <input type="checkbox" @bind="darkModeEnabled" class="peer sr-only" />
+                            <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                        </label>
+                    </div>
+
+                    <!-- Auto-save -->
+                    <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex-1">
+                            <p class="font-semibold text-gray-700">Auto-save Changes</p>
+                            <p class="mt-1 text-xs text-gray-500">Automatically save your work as you type</p>
+                        </div>
+                        <label class="relative inline-flex cursor-pointer items-center flex-shrink-0">
+                            <input type="checkbox" @bind="autoSaveEnabled" class="peer sr-only" />
+                            <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@code {
+    // Account Information
+    private string firstName { get; set; } = string.Empty;
+    private string lastName { get; set; } = string.Empty;
+    private string middleName { get; set; } = string.Empty;
+    private string currentEmail { get; set; } = string.Empty;
+    private string currentPhoneNumber { get; set; } = string.Empty;
+    private string systemId { get; set; } = string.Empty;
+    private bool emailError { get; set; } = false;
+    private bool phoneError { get; set; } = false;
+    private string emailErrorMessage { get; set; } = string.Empty;
+    private string phoneErrorMessage { get; set; } = string.Empty;
+    private string emailSuccessMessage { get; set; } = string.Empty;
+    private string phoneSuccessMessage { get; set; } = string.Empty;
+
+    // Password & Security
+    private bool showChangePasswordForm { get; set; } = false;
+    private string currentPassword { get; set; } = string.Empty;
+    private string newPassword { get; set; } = string.Empty;
+    private string confirmPassword { get; set; } = string.Empty;
+    private bool showCurrentPassword { get; set; } = false;
+    private bool showNewPassword { get; set; } = false;
+    private bool showConfirmPassword { get; set; } = false;
+    private bool currentPasswordError { get; set; } = false;
+    private bool newPasswordError { get; set; } = false;
+    private bool confirmPasswordError { get; set; } = false;
+    private string passwordErrorMessage { get; set; } = string.Empty;
+    private string passwordSuccessMessage { get; set; } = string.Empty;
+    private bool twoFactorEnabled { get; set; } = false;
+    private int sessionTimeout { get; set; } = 60;
+
+    // System Preferences
+    private bool notificationEnabled { get; set; } = true;
+    private bool darkModeEnabled { get; set; } = false;
+    private bool autoSaveEnabled { get; set; } = true;
+    
+    
+    // Toast notification
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+
+    protected override Task OnInitializedAsync()
+    {
+        // Load current user's information
+        var currentUser = AuthService.CurrentUser;
+        
+        if (currentUser != null)
+        {
+            firstName = currentUser.first_name ?? string.Empty;
+            lastName = currentUser.last_name ?? string.Empty;
+            middleName = currentUser.mid_name ?? string.Empty;
+            currentEmail = currentUser.email ?? string.Empty;
+            currentPhoneNumber = currentUser.contact_num ?? string.Empty;
+            systemId = currentUser.system_ID ?? string.Empty;
+        }
+        
+        return Task.CompletedTask;
+    }
+
+    private async Task SaveAccountInfo()
+    {
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            toastMessage = "You must be logged in to update your account.";
+            toastType = ToastType.Error;
+            showToast = true;
+            return;
+        }
+
+        try
+        {
+            currentUser.first_name = firstName;
+            currentUser.last_name = lastName;
+            currentUser.mid_name = string.IsNullOrWhiteSpace(middleName) ? null : middleName;
+            
+            var rowsAffected = await UserRepository.UpdateAsync(currentUser);
+            
+            if (rowsAffected > 0)
+            {
+                toastMessage = "Account information updated successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+            }
+            else
+            {
+                throw new Exception("Failed to update account information.");
+            }
+        }
+        catch (Exception ex)
+        {
+            toastMessage = $"Error updating account: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task UpdateEmail()
+    {
+        emailError = false;
+        emailErrorMessage = string.Empty;
+        emailSuccessMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(currentEmail))
+        {
+            emailError = true;
+            emailErrorMessage = "Email address cannot be empty.";
+            StateHasChanged();
+            return;
+        }
+
+        if (!IsValidEmail(currentEmail))
+        {
+            emailError = true;
+            emailErrorMessage = "Please enter a valid email address.";
+            StateHasChanged();
+            return;
+        }
+
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            emailError = true;
+            emailErrorMessage = "You must be logged in to update your email.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            currentUser.email = currentEmail;
+            var rowsAffected = await UserRepository.UpdateAsync(currentUser);
+            
+            if (rowsAffected > 0)
+            {
+                emailSuccessMessage = "Email updated successfully!";
+                toastMessage = "Email updated successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+                
+                await Task.Delay(3000);
+                emailSuccessMessage = string.Empty;
+            }
+            else
+            {
+                throw new Exception("Failed to update email.");
+            }
+        }
+        catch (Exception ex)
+        {
+            emailError = true;
+            emailErrorMessage = $"Error updating email: {ex.Message}";
+            toastMessage = $"Failed to update email: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task UpdatePhoneNumber()
+    {
+        phoneError = false;
+        phoneErrorMessage = string.Empty;
+        phoneSuccessMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(currentPhoneNumber))
+        {
+            phoneError = true;
+            phoneErrorMessage = "Phone number cannot be empty.";
+            StateHasChanged();
+            return;
+        }
+
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            phoneError = true;
+            phoneErrorMessage = "You must be logged in to update your phone number.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            currentUser.contact_num = currentPhoneNumber;
+            var rowsAffected = await UserRepository.UpdateAsync(currentUser);
+            
+            if (rowsAffected > 0)
+            {
+                phoneSuccessMessage = "Phone number updated successfully!";
+                toastMessage = "Phone number updated successfully!";
+                toastType = ToastType.Success;
+                showToast = true;
+                
+                await Task.Delay(3000);
+                phoneSuccessMessage = string.Empty;
+            }
+            else
+            {
+                throw new Exception("Failed to update phone number.");
+            }
+        }
+        catch (Exception ex)
+        {
+            phoneError = true;
+            phoneErrorMessage = $"Error updating phone number: {ex.Message}";
+            toastMessage = $"Failed to update phone number: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return false;
+        
+        try
+        {
+            var regex = new Regex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$");
+            return regex.IsMatch(email);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private void ToggleChangePasswordForm()
+    {
+        showChangePasswordForm = !showChangePasswordForm;
+        if (!showChangePasswordForm)
+        {
+            ResetPasswordForm();
+        }
+        StateHasChanged();
+    }
+
+    private void ResetPasswordForm()
+    {
+        currentPassword = string.Empty;
+        newPassword = string.Empty;
+        confirmPassword = string.Empty;
+        currentPasswordError = false;
+        newPasswordError = false;
+        confirmPasswordError = false;
+        passwordErrorMessage = string.Empty;
+        passwordSuccessMessage = string.Empty;
+        showCurrentPassword = false;
+        showNewPassword = false;
+        showConfirmPassword = false;
+    }
+
+    private void ToggleCurrentPasswordVisibility()
+    {
+        showCurrentPassword = !showCurrentPassword;
+    }
+
+    private void ToggleNewPasswordVisibility()
+    {
+        showNewPassword = !showNewPassword;
+    }
+
+    private void ToggleConfirmPasswordVisibility()
+    {
+        showConfirmPassword = !showConfirmPassword;
+    }
+
+    private void OnNewPasswordChanged(ChangeEventArgs e)
+    {
+        newPassword = e.Value?.ToString() ?? string.Empty;
+        ValidateNewPassword();
+        StateHasChanged();
+    }
+
+    private void OnConfirmPasswordChanged(ChangeEventArgs e)
+    {
+        confirmPassword = e.Value?.ToString() ?? string.Empty;
+        ValidateNewPassword();
+        StateHasChanged();
+    }
+
+    private void ValidateNewPassword()
+    {
+        newPasswordError = false;
+        confirmPasswordError = false;
+
+        if (string.IsNullOrEmpty(newPassword))
+        {
+            return;
+        }
+
+        // Check all requirements
+        if (newPassword.Length < 12 || 
+            !HasUppercase(newPassword) || 
+            !HasLowercase(newPassword) || 
+            !HasNumber(newPassword) || 
+            !HasSpecialChar(newPassword))
+        {
+            newPasswordError = true;
+        }
+
+        // Check if confirm password matches
+        if (!string.IsNullOrEmpty(confirmPassword) && newPassword != confirmPassword)
+        {
+            confirmPasswordError = true;
+        }
+        else if (!string.IsNullOrEmpty(confirmPassword) && newPassword == confirmPassword)
+        {
+            confirmPasswordError = false;
+        }
+    }
+
+    private bool HasUppercase(string password)
+    {
+        return Regex.IsMatch(password, @"[A-Z]");
+    }
+
+    private bool HasLowercase(string password)
+    {
+        return Regex.IsMatch(password, @"[a-z]");
+    }
+
+    private bool HasNumber(string password)
+    {
+        return Regex.IsMatch(password, @"[0-9]");
+    }
+
+    private bool HasSpecialChar(string password)
+    {
+        return Regex.IsMatch(password, @"[!@#$%^&*()_+\-=\[\]{};':""\\|,.<>\/?]");
+    }
+
+    private string GetPasswordStrength()
+    {
+        if (string.IsNullOrEmpty(newPassword))
+            return "";
+
+        int score = 0;
+        if (newPassword.Length >= 12) score++;
+        if (HasUppercase(newPassword)) score++;
+        if (HasLowercase(newPassword)) score++;
+        if (HasNumber(newPassword)) score++;
+        if (HasSpecialChar(newPassword)) score++;
+
+        if (score < 3)
+            return "Weak";
+        else if (score < 5)
+            return "Moderate";
+        else
+            return "Strong";
+    }
+
+    private string GetStrengthColorClass()
+    {
+        var strength = GetPasswordStrength();
+        return strength switch
+        {
+            "Weak" => "text-red-600",
+            "Moderate" => "text-yellow-600",
+            "Strong" => "text-green-600",
+            _ => "text-gray-600"
+        };
+    }
+
+    private string GetStrengthBarColorClass()
+    {
+        var strength = GetPasswordStrength();
+        return strength switch
+        {
+            "Weak" => "bg-red-500",
+            "Moderate" => "bg-yellow-500",
+            "Strong" => "bg-green-500",
+            _ => "bg-gray-300"
+        };
+    }
+
+    private int GetStrengthPercentage()
+    {
+        if (string.IsNullOrEmpty(newPassword))
+            return 0;
+
+        int score = 0;
+        if (newPassword.Length >= 12) score++;
+        if (HasUppercase(newPassword)) score++;
+        if (HasLowercase(newPassword)) score++;
+        if (HasNumber(newPassword)) score++;
+        if (HasSpecialChar(newPassword)) score++;
+
+        return score * 20; // 0%, 20%, 40%, 60%, 80%, 100%
+    }
+
+    private async Task SubmitPasswordChange()
+    {
+        // Reset error states
+        currentPasswordError = false;
+        newPasswordError = false;
+        confirmPasswordError = false;
+        passwordErrorMessage = string.Empty;
+        passwordSuccessMessage = string.Empty;
+
+        // Validate current password is provided
+        if (string.IsNullOrWhiteSpace(currentPassword))
+        {
+            currentPasswordError = true;
+            passwordErrorMessage = "Please enter your current password.";
+            StateHasChanged();
+            return;
+        }
+
+        // Validate new password
+        if (string.IsNullOrWhiteSpace(newPassword))
+        {
+            newPasswordError = true;
+            passwordErrorMessage = "Please enter a new password.";
+            StateHasChanged();
+            return;
+        }
+
+        // Validate password requirements
+        if (newPassword.Length < 12 || 
+            !HasUppercase(newPassword) || 
+            !HasLowercase(newPassword) || 
+            !HasNumber(newPassword) || 
+            !HasSpecialChar(newPassword))
+        {
+            newPasswordError = true;
+            passwordErrorMessage = "New password does not meet the requirements. Please check all requirements above.";
+            StateHasChanged();
+            return;
+        }
+
+        // Validate passwords match
+        if (newPassword != confirmPassword)
+        {
+            confirmPasswordError = true;
+            passwordErrorMessage = "New password and confirm password do not match.";
+            StateHasChanged();
+            return;
+        }
+
+        // Get current user
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser == null)
+        {
+            passwordErrorMessage = "You must be logged in to change your password.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            // Verify current password
+            var isValidCurrentPassword = await LoginService.ValidateUserCredentialsAsync(
+                currentUser.email ?? currentUser.system_ID ?? "", 
+                currentPassword);
+
+            if (isValidCurrentPassword == null)
+            {
+                currentPasswordError = true;
+                passwordErrorMessage = "Current password is incorrect.";
+                StateHasChanged();
+                return;
+            }
+
+            // Hash new password
+            string hashedNewPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+
+            // Verify user ID is set
+            if (currentUser.user_ID <= 0)
+            {
+                passwordErrorMessage = "Invalid user ID. Please log out and log back in.";
+                StateHasChanged();
+                return;
+            }
+
+            // Update user password
+            currentUser.password = hashedNewPassword;
+            var rowsAffected = await UserRepository.UpdateAsync(currentUser);
+            
+            if (rowsAffected <= 0)
+            {
+                throw new Exception("Password update failed. No rows were affected in the database.");
+            }
+
+            // Success - Show toast notification
+            toastMessage = "Password updated successfully!";
+            toastType = ToastType.Success;
+            showToast = true;
+            
+            // Also keep inline success message for form feedback
+            passwordSuccessMessage = "Password updated successfully!";
+            ResetPasswordForm();
+            showChangePasswordForm = false;
+
+            // Clear success message after 3 seconds
+            await Task.Delay(3000);
+            passwordSuccessMessage = string.Empty;
+        }
+        catch (Exception ex)
+        {
+            passwordErrorMessage = $"An error occurred while updating your password: {ex.Message}";
+            
+            // Show error toast
+            toastMessage = $"Failed to update password: {ex.Message}";
+            toastType = ToastType.Error;
+            showToast = true;
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
+        toastMessage = "";
+        StateHasChanged();
+    }
+
+    private void CancelPasswordChange()
+    {
+        ResetPasswordForm();
+        showChangePasswordForm = false;
+        StateHasChanged();
+    }
+
+    private void GoToDashboard()
+    {
+        NavigationManager.NavigateTo("/system-admin/dashboard");
+    }
+
+
+}

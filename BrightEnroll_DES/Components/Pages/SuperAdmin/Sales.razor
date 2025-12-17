@@ -1,0 +1,2237 @@
+@page "/system-admin/sales"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Services.Business.Reports
+@using BrightEnroll_DES.Services.QuestPDF
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Data.Models.SuperAdmin
+@using System
+@using Microsoft.JSInterop
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Rendering
+@using BrightEnroll_DES.Data
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+@inject SuperAdminBIRService BIRService
+@inject AccountsReceivableService ARService
+@inject AccountingReportService AccountingReportService
+@inject SuperAdminSalesPdfGenerator PdfGenerator
+@inject AppDbContext DbContext
+@inject SuperAdminDbContext SuperAdminDbContext
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Sales & Reports</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Sales & Reports</h1>
+            <p class="mt-1 text-sm text-gray-600">Sales summary and financial reports</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Navigation in Card -->
+<div class="mb-6 overflow-hidden rounded-xl border-b border-gray-200 bg-white px-4 py-2 shadow">
+    <div class="flex items-center gap-6">
+        <button @onclick='() => SetActiveTab("Sales")' class="@GetTabClasses("Sales")">
+            <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+            </svg>
+            Sales Summary
+        </button>
+        <button @onclick='() => SetActiveTab("Reports")' class="@GetTabClasses("Reports")">
+            <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Financial Reports
+        </button>
+    </div>
+</div>
+
+<!-- Card Container -->
+<div class="overflow-hidden rounded-xl bg-white shadow">
+
+@if (activeTab == "Sales")
+{
+    <!-- Sales Summary Tab -->
+    <!-- Filter Section -->
+    <div class="border-b border-gray-200 bg-gray-50 p-4">
+        <div class="mb-4 flex flex-wrap items-end gap-4">
+            <div class="flex-1 min-w-[200px]">
+                <label class="mb-2 block text-sm font-medium text-gray-700">Date Range</label>
+                <div class="flex gap-2">
+                    <input type="date" @bind="salesFromDate" @bind:format="yyyy-MM-dd"
+                           class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <span class="self-center text-gray-500">to</span>
+                    <input type="date" @bind="salesToDate" @bind:format="yyyy-MM-dd"
+                           class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <select @bind="salesYearFilter" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                    <option value="">All Years</option>
+                    @foreach (var year in availableYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+                <select @bind="salesMonthFilter" class="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                    <option value="">All Months</option>
+                    @foreach (var month in availableMonths)
+                    {
+                        <option value="@month.Key">@month.Value</option>
+                    }
+                </select>
+                <button @onclick="ClearSalesFilters" class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Clear
+                </button>
+                <button @onclick="ApplySalesFilters" class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    Apply Filters
+                </button>
+                <button @onclick="ExportSalesToPdf" class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-6">
+        <!-- Summary Stats -->
+        <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div class="rounded-xl border border-green-200 bg-gradient-to-br from-white to-green-50/30 p-3 shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex flex-col">
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-2">
+                            <div class="rounded-lg bg-green-100 p-1.5 flex-shrink-0 shadow-sm">
+                                <svg class="h-4 w-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            </div>
+                            <p class="text-sm font-semibold text-gray-700">Active Customers</p>
+                        </div>
+                        <div class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100">
+                            <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                            <span class="text-xs font-medium text-green-700">Live</span>
+                        </div>
+                    </div>
+                    <div class="flex items-end justify-between mt-1">
+                        <p class="text-3xl font-bold text-gray-900">@ActiveCustomers</p>
+                        <div class="flex items-center gap-1 text-xs text-green-600 font-medium">
+                            <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                            <span>Active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+                <div class="flex flex-col">
+                    <div class="flex items-start gap-2 mb-2">
+                        <div class="rounded-lg bg-purple-50 p-2 flex-shrink-0">
+                            <svg class="h-4 w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-700">Total Gross Income</p>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900 text-right">₱@MonthlyRevenue.ToString("N2")</p>
+                    @if (TotalRevenueVAT > 0)
+                    {
+                        <p class="text-xs text-gray-500 text-right mt-1">
+                            Subtotal: ₱@TotalRevenueSubtotal.ToString("N2") | VAT: ₱@TotalRevenueVAT.ToString("N2")
+                        </p>
+                    }
+                </div>
+            </div>
+            <div class="rounded-xl border border-yellow-200 bg-white p-4 shadow-sm">
+                <div class="flex flex-col">
+                    <div class="flex items-start gap-2 mb-2">
+                        <div class="rounded-lg bg-yellow-50 p-2 flex-shrink-0">
+                            <svg class="h-4 w-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                            </svg>
+                        </div>
+                        <p class="text-sm font-semibold text-gray-700">Total Payments</p>
+                    </div>
+                    <p class="text-3xl font-bold text-gray-900 text-right">@TotalPayments</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sales Analytics Section -->
+        <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <!-- Monthly Revenue Chart -->
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-800">Monthly Revenue Trend</h2>
+                </div>
+                <div class="h-64">
+                    <canvas id="revenueChart" class="w-full h-full"></canvas>
+                </div>
+            </div>
+
+            <!-- Customer Growth Chart -->
+            <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-gray-800">Customer Growth</h2>
+                </div>
+                <div class="h-64 flex items-end justify-center gap-2 px-4">
+                    <!-- Static Graph Design -->
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-200 rounded-t mb-1" style="height: 25%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Jan</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-300 rounded-t mb-1" style="height: 35%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Feb</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-400 rounded-t mb-1" style="height: 45%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Mar</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-500 rounded-t mb-1" style="height: 55%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Apr</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-600 rounded-t mb-1" style="height: 65%"></div>
+                        <span class="text-xs text-gray-500 mt-1">May</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-500 rounded-t mb-1" style="height: 60%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Jun</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-600 rounded-t mb-1" style="height: 70%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Jul</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-500 rounded-t mb-1" style="height: 65%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Aug</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-400 rounded-t mb-1" style="height: 50%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Sep</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-500 rounded-t mb-1" style="height: 60%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Oct</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-600 rounded-t mb-1" style="height: 75%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Nov</span>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center">
+                        <div class="w-full bg-blue-500 rounded-t mb-1" style="height: 70%"></div>
+                        <span class="text-xs text-gray-500 mt-1">Dec</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Insights Section -->
+        <div class="mb-6 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-indigo-50/50 p-6 shadow-sm">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-indigo-900">📊 Sales Insights</h2>
+            </div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div class="rounded-lg border border-indigo-100 bg-white p-4">
+                    <p class="text-xs font-medium text-indigo-700 mb-1">Payment Rate</p>
+                    <p class="text-2xl font-bold text-indigo-900 text-right">
+                        @(TotalInvoices > 0 ? ((TotalPayments * 100.0m / TotalInvoices).ToString("F1")) : "0.0")%
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1 text-right">
+                        @TotalPayments of @TotalInvoices invoices paid
+                    </p>
+                </div>
+                <div class="rounded-lg border border-green-100 bg-white p-4">
+                    <p class="text-xs font-medium text-green-700 mb-1">Average Revenue per Customer</p>
+                    <p class="text-2xl font-bold text-green-900 text-right">
+                        ₱@(ActiveCustomers > 0 ? (MonthlyRevenue / ActiveCustomers).ToString("N0") : "0")
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1 text-right">
+                        Average monthly revenue per active customer
+                    </p>
+                </div>
+                <div class="rounded-lg border border-amber-100 bg-white p-4">
+                    <p class="text-xs font-medium text-amber-700 mb-1">Outstanding Balance</p>
+                    <p class="text-2xl font-bold text-amber-900 text-right">
+                        ₱@OutstandingBalance.ToString("N2")
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1 text-right">
+                        Total unpaid invoices
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mb-6 flex justify-end gap-3">
+            <button @onclick="ShowPaymentEntryModal" 
+                    class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-green-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Record Payment
+            </button>
+        </div>
+
+        <!-- Recent Payments Table -->
+        <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="border-b border-gray-200 p-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-gray-800">Recent Payments</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Customer</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Invoice</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Payment Method</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        @if (RecentPayments.Any())
+                        {
+                            @foreach (var payment in RecentPayments)
+                            {
+                                <tr class="hover:bg-gray-50">
+                                    <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600">@payment.PaymentDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-800">@payment.CustomerName</td>
+                                    <td class="whitespace-nowrap px-4 py-3 text-sm text-gray-600">@payment.InvoiceNumber</td>
+                                    <td class="whitespace-nowrap px-4 py-3">
+                                        <span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">@payment.PaymentMethod</span>
+                                    </td>
+                                    <td class="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-green-600">₱@payment.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="px-4 py-12 text-center text-gray-500">
+                                    <p>No recent payments found</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Entry Modal -->
+    @if (showPaymentModal)
+    {
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" @onclick="ClosePaymentModal">
+            <div class="relative max-h-[90vh] w-full max-w-3xl mx-4 my-4 overflow-y-auto rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+                <div class="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-2xl font-bold text-gray-900">Record Payment</h2>
+                        <button @onclick="ClosePaymentModal" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-6 space-y-6">
+                    <!-- Customer Selection -->
+                    <div>
+                        <label class="mb-2 block text-sm font-medium text-gray-700">Customer <span class="text-red-500">*</span></label>
+                        <select @bind="paymentCustomerId" @bind:after="LoadCustomerInvoices" 
+                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                            <option value="0">Select Customer...</option>
+                            @foreach (var customer in AllCustomers.Where(c => c.Status == "Active"))
+                            {
+                                <option value="@customer.CustomerId">@customer.SchoolName (@customer.CustomerCode)</option>
+                            }
+                        </select>
+                    </div>
+
+                    @if (paymentCustomerId > 0 && availableInvoices.Any())
+                    {
+                        <!-- Invoice Selection -->
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Invoice <span class="text-red-500">*</span></label>
+                            <select @bind="selectedInvoiceId" @bind:after="LoadInvoiceDetails"
+                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                                <option value="0">Select Invoice...</option>
+                                @foreach (var invoice in availableInvoices)
+                                {
+                                    <option value="@invoice.InvoiceId">
+                                        @invoice.InvoiceNumber - ₱@invoice.Balance.ToString("N2") balance (Due: @invoice.DueDate.ToString("MMM dd, yyyy"))
+                                    </option>
+                                }
+                            </select>
+                            @if (selectedInvoice != null)
+                            {
+                                <div class="mt-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm">
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div><span class="font-semibold">Invoice Total:</span> ₱@selectedInvoice.TotalAmount.ToString("N2")</div>
+                                        <div><span class="font-semibold">Already Paid:</span> ₱@selectedInvoice.AmountPaid.ToString("N2")</div>
+                                        <div class="col-span-2"><span class="font-semibold">Balance:</span> ₱@selectedInvoice.Balance.ToString("N2")</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Payment Details -->
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Date <span class="text-red-500">*</span></label>
+                                <input type="date" @bind="paymentDate" @bind:format="yyyy-MM-dd"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Method <span class="text-red-500">*</span></label>
+                                <select @bind="paymentMethod" @bind:after="OnPaymentMethodChanged"
+                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                                    <option value="Cash">Cash</option>
+                                    <option value="Credit">Credit</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Amount <span class="text-red-500">*</span></label>
+                                <input type="number" @bind="paymentAmount" step="0.01" min="0" 
+                                       @bind:after="ValidatePaymentAmount"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                                @if (selectedInvoice != null && paymentAmount > selectedInvoice.Balance)
+                                {
+                                    <p class="mt-1 text-xs text-amber-600">⚠️ Amount exceeds balance. Excess will be recorded as advance payment.</p>
+                                }
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-medium text-gray-700">Payment Reference</label>
+                                <input type="text" @bind="paymentReference" maxlength="50"
+                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                       placeholder="OR Number, Transaction ID, etc." />
+                            </div>
+                        </div>
+
+                        @if (paymentMethod == "Credit")
+                        {
+                            <!-- Credit Terms Section -->
+                            <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                <h3 class="mb-3 text-sm font-semibold text-amber-900">Credit Terms</h3>
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <div>
+                                        <label class="mb-2 block text-sm font-medium text-gray-700">Number of Months <span class="text-red-500">*</span></label>
+                                        <input type="number" @bind="creditMonths" @bind:after="CalculateCreditInterest" min="1" max="60"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-medium text-gray-700">Interest Rate (%) <span class="text-red-500">*</span></label>
+                                        <input type="number" @bind="creditInterestRate" @bind:after="CalculateCreditInterest" step="0.01" min="0" max="100"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                                    </div>
+                                    <div>
+                                        <label class="mb-2 block text-sm font-medium text-gray-700">Payment Frequency</label>
+                                        <select @bind="creditPaymentFrequency" @bind:after="CalculateCreditInterest"
+                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                                            <option value="Monthly">Monthly</option>
+                                            <option value="Quarterly">Quarterly</option>
+                                            <option value="Semi-Annual">Semi-Annual</option>
+                                            <option value="Annual">Annual</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                @if (creditMonths > 0 && creditInterestRate > 0 && paymentAmount > 0)
+                                {
+                                    <div class="mt-4 rounded-lg border border-amber-300 bg-white p-3">
+                                        <h4 class="mb-2 text-sm font-semibold text-amber-900">Credit Calculation (ERP Standard - Simple Interest)</h4>
+                                        <div class="space-y-1 text-sm">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Principal Amount:</span>
+                                                <span class="font-medium text-gray-900">₱@paymentAmount.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Interest Rate:</span>
+                                                <span class="font-medium text-gray-900">@creditInterestRate.ToString("F2")%</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Term:</span>
+                                                <span class="font-medium text-gray-900">@creditMonths months (@creditPaymentFrequency)</span>
+                                            </div>
+                                            <div class="flex justify-between border-t border-gray-200 pt-1">
+                                                <span class="text-gray-600">Total Interest:</span>
+                                                <span class="font-semibold text-amber-700">₱@creditTotalInterest.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between border-t-2 border-amber-300 pt-1">
+                                                <span class="font-semibold text-gray-900">Total Amount Due:</span>
+                                                <span class="font-bold text-amber-900">₱@creditTotalAmount.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between pt-1">
+                                                <span class="text-gray-600">Monthly Payment:</span>
+                                                <span class="font-medium text-gray-900">₱@creditMonthlyPayment.ToString("N2")</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <div>
+                            <label class="mb-2 block text-sm font-medium text-gray-700">Notes</label>
+                            <textarea @bind="paymentNotes" rows="2" maxlength="500"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                      placeholder="Additional payment notes (optional)"></textarea>
+                        </div>
+                    }
+                    else if (paymentCustomerId > 0 && !availableInvoices.Any())
+                    {
+                        <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                            No invoices found for this customer. Please create an invoice first.
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(paymentErrorMessage))
+                    {
+                        <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                            @paymentErrorMessage
+                        </div>
+                    }
+                </div>
+
+                <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 flex justify-end gap-3">
+                    <button @onclick="ClosePaymentModal" 
+                            disabled="@isRecordingPayment"
+                            class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Cancel
+                    </button>
+                    <button @onclick="RecordPayment" 
+                            disabled="@(isRecordingPayment || selectedInvoiceId == 0 || paymentAmount <= 0)"
+                            class="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                        @if (isRecordingPayment)
+                        {
+                            <span>Recording...</span>
+                        }
+                        else
+                        {
+                            <span>Record Payment</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <!-- Financial Reports Tab -->
+    <!-- Filter Bar -->
+    <div class="border-b border-gray-200 bg-gray-50 p-4">
+        <div class="mb-4 grid grid-cols-1 gap-4 md:grid-cols-12 md:items-end">
+            <div class="md:col-span-3">
+                <label class="mb-2 block text-sm font-medium text-gray-700">Date Range</label>
+                <div class="flex gap-2">
+                    <input type="date" @bind="fromDate" @bind:format="yyyy-MM-dd"
+                           class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                    <span class="self-center text-gray-500 text-sm">to</span>
+                    <input type="date" @bind="toDate" @bind:format="yyyy-MM-dd"
+                           class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                </div>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-2 block text-sm font-medium text-gray-700">Year</label>
+                <select @bind="reportYearFilter" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                    <option value="">All Years</option>
+                    @foreach (var year in availableYears)
+                    {
+                        <option value="@year">@year</option>
+                    }
+                </select>
+            </div>
+            <div class="md:col-span-2">
+                <label class="mb-2 block text-sm font-medium text-gray-700">Month</label>
+                <select @bind="reportMonthFilter" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+                    <option value="">All Months</option>
+                    @foreach (var month in availableMonths)
+                    {
+                        <option value="@month.Key">@month.Value</option>
+                    }
+                </select>
+            </div>
+            <div class="md:col-span-5 flex gap-3 justify-end">
+                @if (activeReport != "AccountsReceivable")
+                {
+                    <button @onclick="GenerateReport" 
+                            disabled="@isLoading"
+                            class="flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap">
+                        @if (isLoading)
+                        {
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Generating...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                            </svg>
+                            <span>Generate Report</span>
+                        }
+                    </button>
+                    @if (reportGenerated)
+                    {
+                        <button @onclick="ExportFinancialReportToPdf" disabled="@(isExporting || isLoading)" class="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed whitespace-nowrap">
+                            @if (isExporting)
+                            {
+                                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Exporting...</span>
+                            }
+                            else
+                            {
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span>Export</span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+        @if (activeReport != "AccountsReceivable")
+        {
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs text-gray-500 mr-1">Quick presets:</span>
+            <button @onclick='() => SetDatePreset("ThisMonth")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                This Month
+            </button>
+            <button @onclick='() => SetDatePreset("LastMonth")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last Month
+            </button>
+            <button @onclick='() => SetDatePreset("ThisYear")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                This Year
+            </button>
+            <button @onclick='() => SetDatePreset("LastYear")' 
+                    class="rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                Last Year
+            </button>
+            <button @onclick="ClearFinancialFilters" class="flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Clear
+            </button>
+        </div>
+        }
+    </div>
+
+    <div class="p-6">
+
+        <!-- Report Type Selector -->
+        <div class="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <h3 class="mb-4 text-sm font-semibold text-gray-700">Select Report Type</h3>
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            <button @onclick='async () => await SetActiveReport("IncomeStatement")' 
+                    class="@GetReportButtonClasses("IncomeStatement")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span class="text-xs font-medium">Income Statement</span>
+            </button>
+            <button @onclick='async () => await SetActiveReport("CashFlow")' 
+                    class="@GetReportButtonClasses("CashFlow")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-xs font-medium">Cash Flow</span>
+            </button>
+            <button @onclick='async () => await SetActiveReport("BalanceSheet")' 
+                    class="@GetReportButtonClasses("BalanceSheet")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                <span class="text-xs font-medium">Balance Sheet</span>
+            </button>
+            <button @onclick='async () => await SetActiveReport("PaymentHistory")' 
+                    class="@GetReportButtonClasses("PaymentHistory")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-xs font-medium">Payment History</span>
+            </button>
+            <button @onclick='async () => await SetActiveReport("AccountsReceivable")' 
+                    class="@GetReportButtonClasses("AccountsReceivable")">
+                <svg class="mx-auto h-6 w-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span class="text-xs font-medium">Accounts Receivable</span>
+            </button>
+        </div>
+    </div>
+
+        <!-- Report Content -->
+        @if (activeReport == "AccountsReceivable")
+        {
+            <!-- Accounts Receivable Report (Always visible, doesn't need Generate button) -->
+            <div class="border-b border-gray-200 bg-gray-50 p-4">
+                <div class="mb-4 flex flex-wrap items-end justify-between gap-4">
+                    <div class="flex flex-wrap items-end gap-4">
+                        <div class="flex-1 min-w-[200px]">
+                            <label class="mb-2 block text-sm font-medium text-gray-700">As of Date</label>
+                            <input type="date" @bind="arAsOfDate" @bind:format="yyyy-MM-dd"
+                                   class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200" />
+                        </div>
+                        <button @onclick="RecalculateInvoiceBalances" 
+                                disabled="@isRecalculatingBalances"
+                                class="flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-amber-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                title="Recalculate all invoice balances from actual payments to ensure data accuracy">
+                            @if (isRecalculatingBalances)
+                            {
+                                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Recalculating...</span>
+                            }
+                            else
+                            {
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Recalculate Balances</span>
+                            }
+                        </button>
+                        <button @onclick="LoadARData" 
+                                disabled="@isLoadingAR"
+                                class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                            @if (isLoadingAR)
+                            {
+                                <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span>Loading...</span>
+                            }
+                            else
+                            {
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                                </svg>
+                                <span>Refresh</span>
+                            }
+                        </button>
+                    </div>
+                    <button @onclick="ExportARToPdf" disabled="@(isExportingAR || isLoadingAR)" 
+                            class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-green-700 hover:shadow-lg disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        @if (isExportingAR)
+                        {
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Exporting...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Export PDF</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <!-- A/R Summary Cards -->
+                <div class="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
+                    <div class="rounded-xl border border-blue-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="rounded-lg bg-blue-50 p-3 flex-shrink-0">
+                                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">Total A/R</p>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-900 text-right">₱@(agingReport?.Total.ToString("N2") ?? "0.00")</p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-green-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="rounded-lg bg-green-50 p-3 flex-shrink-0">
+                                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">Current</p>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-900 text-right">₱@(agingReport?.Current.ToString("N2") ?? "0.00")</p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-yellow-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="rounded-lg bg-yellow-50 p-3 flex-shrink-0">
+                                    <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">1-30 Days</p>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-900 text-right">₱@(agingReport?.Days1_30.ToString("N2") ?? "0.00")</p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-orange-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="rounded-lg bg-orange-50 p-3 flex-shrink-0">
+                                    <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">31-60 Days</p>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-900 text-right">₱@(agingReport?.Days31_60.ToString("N2") ?? "0.00")</p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl border border-red-200 bg-white p-6 shadow-sm">
+                        <div class="flex flex-col">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="rounded-lg bg-red-50 p-3 flex-shrink-0">
+                                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p class="text-sm font-semibold text-gray-700">Over 90 Days</p>
+                            </div>
+                            <p class="text-3xl font-bold text-gray-900 text-right">₱@(agingReport?.DaysOver90.ToString("N2") ?? "0.00")</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aging Analysis Table -->
+                <div class="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div class="border-b border-gray-200 bg-gray-50 p-4">
+                        <h2 class="text-lg font-semibold text-gray-800">Aging Analysis</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Aging Bucket</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Amount</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                @if (agingReport != null)
+                                {
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm font-medium text-gray-800">Current</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900">₱@agingReport.Current.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-600">@(agingReport.Total > 0 ? (agingReport.Current / agingReport.Total * 100).ToString("F1") : "0.0")%</td>
+                                    </tr>
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm font-medium text-gray-800">1-30 Days</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900">₱@agingReport.Days1_30.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-600">@(agingReport.Total > 0 ? (agingReport.Days1_30 / agingReport.Total * 100).ToString("F1") : "0.0")%</td>
+                                    </tr>
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm font-medium text-gray-800">31-60 Days</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900">₱@agingReport.Days31_60.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-600">@(agingReport.Total > 0 ? (agingReport.Days31_60 / agingReport.Total * 100).ToString("F1") : "0.0")%</td>
+                                    </tr>
+                                    <tr class="hover:bg-gray-50">
+                                        <td class="px-4 py-3 text-sm font-medium text-gray-800">61-90 Days</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-900">₱@agingReport.Days61_90.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right text-gray-600">@(agingReport.Total > 0 ? (agingReport.Days61_90 / agingReport.Total * 100).ToString("F1") : "0.0")%</td>
+                                    </tr>
+                                    <tr class="hover:bg-gray-50 bg-red-50">
+                                        <td class="px-4 py-3 text-sm font-bold text-red-800">Over 90 Days</td>
+                                        <td class="px-4 py-3 text-sm text-right font-bold text-red-900">₱@agingReport.DaysOver90.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right font-bold text-red-600">@(agingReport.Total > 0 ? (agingReport.DaysOver90 / agingReport.Total * 100).ToString("F1") : "0.0")%</td>
+                                    </tr>
+                                    <tr class="bg-gray-100">
+                                        <td class="px-4 py-3 text-sm font-bold text-gray-900">Total A/R</td>
+                                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">₱@agingReport.Total.ToString("N2")</td>
+                                        <td class="px-4 py-3 text-sm text-right font-bold text-gray-900">100.0%</td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="3" class="px-4 py-12 text-center text-gray-500">
+                                            <p>No accounts receivable data available</p>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Customer A/R Details -->
+                <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+                    <div class="border-b border-gray-200 bg-gray-50 p-4">
+                        <h2 class="text-lg font-semibold text-gray-800">Customer A/R Details</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Customer</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Total Invoiced</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Total Paid</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Balance</th>
+                                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase text-gray-600">Days Overdue</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Aging</th>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase text-gray-600">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                @if (arSummaries != null && arSummaries.Any())
+                                {
+                                    @foreach (var ar in arSummaries)
+                                    {
+                                        var statusColor = ar.Status == "Overdue" ? "text-red-600 bg-red-50" : "text-green-600 bg-green-50";
+                                        var agingColor = ar.AgingBucket switch
+                                        {
+                                            "Over 90" => "text-red-800 bg-red-100",
+                                            "61-90" => "text-orange-800 bg-orange-100",
+                                            "31-60" => "text-yellow-800 bg-yellow-100",
+                                            "1-30" => "text-blue-800 bg-blue-100",
+                                            _ => "text-green-800 bg-green-100"
+                                        };
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-800">@ar.CustomerName</td>
+                                            <td class="px-4 py-3 text-sm text-right text-gray-900">₱@ar.TotalInvoiced.ToString("N2")</td>
+                                            <td class="px-4 py-3 text-sm text-right text-green-600">₱@ar.TotalPaid.ToString("N2")</td>
+                                            <td class="px-4 py-3 text-sm text-right font-semibold text-gray-900">₱@ar.Balance.ToString("N2")</td>
+                                            <td class="px-4 py-3 text-sm text-right text-gray-600">@ar.DaysOverdue</td>
+                                            <td class="px-4 py-3">
+                                                <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @agingColor">@ar.AgingBucket</span>
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @statusColor">@ar.Status</span>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="7" class="px-4 py-12 text-center text-gray-500">
+                                            <p>No outstanding accounts receivable</p>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (reportGenerated)
+        {
+            <div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+            <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <h2 class="text-xl font-bold text-gray-800">@GetReportTitle()</h2>
+                @if (activeReport == "BalanceSheet")
+                {
+                    <p class="mt-1 text-sm text-gray-600">As of: @toDate.ToString("MMM dd, yyyy")</p>
+                }
+                else
+                {
+                    <p class="mt-1 text-sm text-gray-600">Period: @fromDate.ToString("MMM dd, yyyy") - @toDate.ToString("MMM dd, yyyy")</p>
+                }
+            </div>
+
+            <div class="p-6">
+                @RenderReportContent()
+            </div>
+        </div>
+            }
+            else
+            {
+                <div class="rounded-xl border border-gray-200 bg-white p-12 text-center shadow-sm">
+            <svg class="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+                    <p class="text-lg font-medium text-gray-600">Select filters and generate a report</p>
+                    <p class="mt-2 text-sm text-gray-500">Choose a report type above and click "Generate Report" to view financial data</p>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Markup/Footer -->
+<div class="mt-8 flex items-center justify-start">
+    <p class="text-xs font-medium text-gray-500">
+        © @DateTime.Now.Year BrightEnroll. All rights reserved.
+    </p>
+</div>
+
+@code {
+    // Tab management
+    private string activeTab = "Sales";
+    
+    // Sales Summary data (from real database)
+    private int ActiveCustomers { get; set; }
+    private int TotalPayments { get; set; }
+    private int TotalInvoices { get; set; }
+    private decimal MonthlyRevenue { get; set; }
+    private decimal TotalRevenueSubtotal { get; set; }
+    private decimal TotalRevenueVAT { get; set; }
+    private decimal OutstandingBalance { get; set; }
+    private List<Customer> AllCustomers { get; set; } = new();
+    private List<RecentPaymentViewModel> RecentPayments { get; set; } = new();
+    
+    // Sales Summary Filters
+    private DateTime salesFromDate = DateTime.Now.AddMonths(-1);
+    private DateTime salesToDate = DateTime.Now;
+    private string salesYearFilter = "";
+    private string salesMonthFilter = "";
+
+    // Payment Entry Modal
+    private bool showPaymentModal = false;
+    private int paymentCustomerId = 0;
+    private int selectedInvoiceId = 0;
+    private CustomerInvoice? selectedInvoice = null;
+    private List<CustomerInvoice> availableInvoices = new();
+    private DateTime paymentDate = DateTime.Today;
+    private string paymentMethod = "Cash";
+    private decimal paymentAmount = 0;
+    private string paymentReference = string.Empty;
+    private string paymentNotes = string.Empty;
+    private bool isRecordingPayment = false;
+    private string paymentErrorMessage = string.Empty;
+
+    // Credit Terms
+    private int creditMonths = 1;
+    private decimal creditInterestRate = 0;
+    private string creditPaymentFrequency = "Monthly";
+    private decimal creditTotalInterest = 0;
+    private decimal creditTotalAmount = 0;
+    private decimal creditMonthlyPayment = 0;
+    
+    // Accounts Receivable
+    private List<AccountsReceivableSummary> arSummaries { get; set; } = new();
+    private AgingReport? agingReport { get; set; }
+    private DateTime arAsOfDate { get; set; } = DateTime.Now;
+    private bool isLoadingAR { get; set; } = false;
+    private bool isExportingAR { get; set; } = false;
+    private List<int> availableYears = new();
+    private Dictionary<int, string> availableMonths = new()
+    {
+        { 1, "January" }, { 2, "February" }, { 3, "March" }, { 4, "April" },
+        { 5, "May" }, { 6, "June" }, { 7, "July" }, { 8, "August" },
+        { 9, "September" }, { 10, "October" }, { 11, "November" }, { 12, "December" }
+    };
+
+    // Report data
+    private string activeReport = "IncomeStatement";
+    private DateTime fromDate = DateTime.Now.AddMonths(-1);
+    private DateTime toDate = DateTime.Now;
+    private string reportYearFilter = "";
+    private string reportMonthFilter = "";
+    private bool isLoading = false;
+    private bool isExporting = false;
+    private bool reportGenerated = false;
+    
+    // Report data
+    private IncomeStatement? incomeStatement;
+    private CashFlowReport? cashFlowReport;
+    private BalanceSheetReport? balanceSheetReport;
+    private List<PaymentHistoryRecord>? paymentHistory;
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        ActiveCustomers = 0;
+        TotalPayments = 0;
+        TotalInvoices = 0;
+        MonthlyRevenue = 0;
+        TotalRevenueSubtotal = 0;
+        TotalRevenueVAT = 0;
+        OutstandingBalance = 0;
+        AllCustomers = new List<Customer>();
+        RecentPayments = new List<RecentPaymentViewModel>();
+        
+        // Initialize available years (current year and 5 years back)
+        var currentYear = DateTime.Now.Year;
+        availableYears = Enumerable.Range(currentYear - 5, 6).ToList();
+    }
+
+    private void ShowPaymentEntryModal()
+    {
+        showPaymentModal = true;
+        paymentCustomerId = 0;
+        selectedInvoiceId = 0;
+        selectedInvoice = null;
+        availableInvoices = new();
+        paymentDate = DateTime.Today;
+        paymentMethod = "Cash";
+        paymentAmount = 0;
+        paymentReference = string.Empty;
+        paymentNotes = string.Empty;
+        paymentErrorMessage = string.Empty;
+        creditMonths = 1;
+        creditInterestRate = 0;
+        creditPaymentFrequency = "Monthly";
+        creditTotalInterest = 0;
+        creditTotalAmount = 0;
+        creditMonthlyPayment = 0;
+        StateHasChanged();
+    }
+
+    private void ClosePaymentModal()
+    {
+        showPaymentModal = false;
+        paymentCustomerId = 0;
+        selectedInvoiceId = 0;
+        selectedInvoice = null;
+        availableInvoices = new();
+        paymentErrorMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task LoadCustomerInvoices()
+    {
+        if (paymentCustomerId <= 0)
+        {
+            availableInvoices = new();
+            selectedInvoiceId = 0;
+            selectedInvoice = null;
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var invoices = await SuperAdminDbContext.CustomerInvoices
+                .Where(i => i.CustomerId == paymentCustomerId && i.Status != "Cancelled" && i.Balance > 0)
+                .OrderByDescending(i => i.InvoiceDate)
+                .ToListAsync();
+
+            availableInvoices = invoices;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            paymentErrorMessage = $"Error loading invoices: {ex.Message}";
+            StateHasChanged();
+        }
+    }
+
+    private void LoadInvoiceDetails()
+    {
+        if (selectedInvoiceId <= 0)
+        {
+            selectedInvoice = null;
+            paymentAmount = 0;
+            StateHasChanged();
+            return;
+        }
+
+        selectedInvoice = availableInvoices.FirstOrDefault(i => i.InvoiceId == selectedInvoiceId);
+        if (selectedInvoice != null)
+        {
+            paymentAmount = selectedInvoice.Balance;
+        }
+        StateHasChanged();
+    }
+
+    private void OnPaymentMethodChanged()
+    {
+        if (paymentMethod == "Credit")
+        {
+            // Set default credit terms
+            if (creditMonths == 0) creditMonths = 1;
+            if (creditInterestRate == 0) creditInterestRate = 2.0m; // Default 2% per month
+            CalculateCreditInterest();
+        }
+        else
+        {
+            // Reset credit calculations for Cash
+            creditTotalInterest = 0;
+            creditTotalAmount = 0;
+            creditMonthlyPayment = 0;
+        }
+        StateHasChanged();
+    }
+
+    private void ValidatePaymentAmount()
+    {
+        paymentErrorMessage = string.Empty;
+        if (paymentAmount <= 0)
+        {
+            paymentErrorMessage = "Payment amount must be greater than zero.";
+        }
+        else if (paymentMethod == "Credit")
+        {
+            CalculateCreditInterest();
+        }
+        StateHasChanged();
+    }
+
+    private void CalculateCreditInterest()
+    {
+        if (paymentMethod != "Credit" || paymentAmount <= 0 || creditMonths <= 0 || creditInterestRate < 0)
+        {
+            creditTotalInterest = 0;
+            creditTotalAmount = 0;
+            creditMonthlyPayment = 0;
+            return;
+        }
+
+        // ERP Standard: Simple Interest Calculation
+        // Interest = Principal × Rate × Time
+        // Where Rate is per period (monthly, quarterly, etc.)
+        
+        decimal periodsPerYear = creditPaymentFrequency switch
+        {
+            "Monthly" => 12,
+            "Quarterly" => 4,
+            "Semi-Annual" => 2,
+            "Annual" => 1,
+            _ => 12
+        };
+
+        // Convert annual rate to period rate if needed, or use as-is if already period rate
+        // Assuming creditInterestRate is monthly rate (standard ERP practice)
+        decimal periodRate = creditInterestRate / 100m;
+        
+        // Calculate number of payment periods
+        int paymentPeriods = creditPaymentFrequency switch
+        {
+            "Monthly" => creditMonths,
+            "Quarterly" => (int)Math.Ceiling(creditMonths / 3.0m),
+            "Semi-Annual" => (int)Math.Ceiling(creditMonths / 6.0m),
+            "Annual" => (int)Math.Ceiling(creditMonths / 12.0m),
+            _ => creditMonths
+        };
+
+        // Simple Interest: I = P × R × T
+        creditTotalInterest = paymentAmount * periodRate * paymentPeriods;
+        creditTotalAmount = paymentAmount + creditTotalInterest;
+        
+        // Calculate monthly payment (total divided by months)
+        creditMonthlyPayment = creditTotalAmount / creditMonths;
+    }
+
+    private async Task RecordPayment()
+    {
+        if (selectedInvoiceId <= 0 || paymentAmount <= 0)
+        {
+            paymentErrorMessage = "Please select an invoice and enter a payment amount.";
+            StateHasChanged();
+            return;
+        }
+
+        if (selectedInvoice == null)
+        {
+            paymentErrorMessage = "Invoice not found.";
+            StateHasChanged();
+            return;
+        }
+
+        isRecordingPayment = true;
+        paymentErrorMessage = string.Empty;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = AuthService?.CurrentUser;
+            var userId = currentUser?.user_ID;
+
+            // Generate payment reference if not provided
+            if (string.IsNullOrWhiteSpace(paymentReference))
+            {
+                var year = DateTime.Now.Year;
+                var month = DateTime.Now.Month.ToString("00");
+                var day = DateTime.Now.Day.ToString("00");
+                var hour = DateTime.Now.Hour.ToString("00");
+                var minute = DateTime.Now.Minute.ToString("00");
+                paymentReference = $"PAY-{year}{month}{day}{hour}{minute}";
+            }
+
+            // Build notes with credit terms if applicable
+            var finalNotes = paymentNotes;
+            if (paymentMethod == "Credit" && creditMonths > 0 && creditInterestRate > 0)
+            {
+                var creditInfo = $"\n\n--- CREDIT TERMS ---\n" +
+                               $"Term: {creditMonths} months\n" +
+                               $"Interest Rate: {creditInterestRate}% per period\n" +
+                               $"Payment Frequency: {creditPaymentFrequency}\n" +
+                               $"Total Interest: ₱{creditTotalInterest:N2}\n" +
+                               $"Total Amount Due: ₱{creditTotalAmount:N2}\n" +
+                               $"Monthly Payment: ₱{creditMonthlyPayment:N2}";
+                finalNotes = string.IsNullOrWhiteSpace(paymentNotes) 
+                    ? creditInfo.Trim() 
+                    : paymentNotes + creditInfo;
+            }
+
+            var payment = new CustomerPayment
+            {
+                InvoiceId = selectedInvoiceId,
+                CustomerId = paymentCustomerId,
+                PaymentReference = paymentReference,
+                PaymentDate = paymentDate,
+                Amount = paymentMethod == "Credit" ? creditTotalAmount : paymentAmount, // Use total amount for credit
+                PaymentMethod = paymentMethod,
+                Notes = finalNotes,
+                CreatedBy = userId
+            };
+
+            await ARService.RecordPaymentAsync(payment, userId);
+
+            // Reload sales data to refresh totals
+            await LoadSalesData();
+
+            ClosePaymentModal();
+
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert", $"Payment of ₱{paymentAmount:N2} recorded successfully for invoice {selectedInvoice.InvoiceNumber}.");
+        }
+        catch (Exception ex)
+        {
+            paymentErrorMessage = $"Error recording payment: {ex.Message}";
+        }
+        finally
+        {
+            isRecordingPayment = false;
+            StateHasChanged();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Handle Cloud tab initialization
+            // Handle initial data loading
+            if (!_dataLoaded && !_isLoading)
+            {
+                _isLoading = true;
+
+                try
+                {
+                    var currentUser = AuthService?.CurrentUser;
+                    var userRole = currentUser?.user_role;
+                    var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                                      (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                                       userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (!isSuperAdmin)
+                    {
+                        Navigation.NavigateTo("/dashboard");
+                        _isLoading = false;
+                        return;
+                    }
+
+                    // Load data silently without loading screen
+                    try
+                    {
+                        await LoadSalesData(); // Load sales data on initial load
+                        await LoadARData(); // Load A/R data on initial load
+                        _dataLoaded = true;
+                        StateHasChanged();
+                    }
+                    catch (InvalidOperationException ioEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Sales] InvalidOperationException: {ioEx.Message}");
+                        _dataLoaded = true;
+                        StateHasChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[Sales] Error loading data: {ex.Message}");
+                        _dataLoaded = true;
+                        StateHasChanged();
+                    }
+                    finally
+                    {
+                        _isLoading = false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Sales] Critical error: {ex.Message}");
+                    _dataLoaded = true;
+                    _isLoading = false;
+                    StateHasChanged();
+                }
+            }
+        }
+    }
+
+    private async Task LoadSalesData()
+    {
+        try
+        {
+            if (SuperAdminService == null) return;
+
+            // Load all customers
+            AllCustomers = await SuperAdminService.GetAllCustomersAsync();
+            
+            // Apply date filters
+            var filteredCustomers = AllCustomers.AsEnumerable();
+            var filteredFromDate = salesFromDate;
+            var filteredToDate = salesToDate;
+            
+            if (!string.IsNullOrEmpty(salesYearFilter) && int.TryParse(salesYearFilter, out int year))
+            {
+                filteredFromDate = new DateTime(year, 1, 1);
+                filteredToDate = new DateTime(year, 12, 31);
+            }
+            
+            if (!string.IsNullOrEmpty(salesMonthFilter) && int.TryParse(salesMonthFilter, out int month))
+            {
+                var now = DateTime.Now;
+                filteredFromDate = new DateTime(now.Year, month, 1);
+                filteredToDate = new DateTime(now.Year, month, DateTime.DaysInMonth(now.Year, month));
+            }
+
+            // Get active customers
+            ActiveCustomers = AllCustomers.Count(c => c.Status == "Active" && 
+                (!c.ContractEndDate.HasValue || c.ContractEndDate.Value >= DateTime.Now));
+
+            // Load invoices and payments from database
+            var invoices = await SuperAdminDbContext.CustomerInvoices
+                    .Where(i => i.Status != "Cancelled" && 
+                               i.InvoiceDate >= filteredFromDate && 
+                               i.InvoiceDate <= filteredToDate)
+                    .Include(i => i.Customer)
+                    .ToListAsync();
+
+                var payments = await SuperAdminDbContext.CustomerPayments
+                    .Where(p => p.PaymentDate >= filteredFromDate && 
+                               p.PaymentDate <= filteredToDate)
+                    .Include(p => p.Invoice)
+                    .Include(p => p.Customer)
+                    .OrderByDescending(p => p.PaymentDate)
+                    .Take(20)
+                    .ToListAsync();
+
+            TotalInvoices = invoices.Count;
+            TotalPayments = payments.Count;
+
+            // Calculate revenue from ACTUAL PAYMENTS ONLY (ERP Cash Basis)
+            decimal totalSubtotal = 0;
+            decimal totalVat = 0;
+            decimal totalRevenue = 0;
+
+            foreach (var payment in payments)
+            {
+                if (payment.Invoice != null)
+                {
+                    // Calculate subtotal and VAT from invoice proportions
+                    var invoiceSubtotal = payment.Invoice.Subtotal;
+                    var invoiceVat = payment.Invoice.VatAmount;
+                    var invoiceTotal = payment.Invoice.TotalAmount;
+                    
+                    // If payment amount matches invoice total, use invoice amounts
+                    // Otherwise, proportionally allocate payment amount
+                    if (invoiceTotal > 0)
+                    {
+                        var proportion = payment.Amount / invoiceTotal;
+                        totalSubtotal += invoiceSubtotal * proportion;
+                        totalVat += invoiceVat * proportion;
+                    }
+                    totalRevenue += payment.Amount;
+                }
+            }
+
+            // Use actual payments for revenue (ERP cash basis - revenue recognized when payment received)
+            MonthlyRevenue = totalRevenue;
+            TotalRevenueSubtotal = totalSubtotal;
+            TotalRevenueVAT = totalVat;
+
+            // Calculate outstanding balance from actual payments (same method as A/R for consistency)
+            var allPayments = await SuperAdminDbContext.CustomerPayments
+                .Where(p => p.PaymentDate <= salesToDate)
+                .GroupBy(p => p.InvoiceId)
+                .Select(g => new { InvoiceId = g.Key, TotalPaid = g.Sum(p => p.Amount) })
+                .ToDictionaryAsync(x => x.InvoiceId, x => x.TotalPaid);
+
+            OutstandingBalance = invoices
+                .Where(i => i.Status != "Cancelled")
+                .Sum(i =>
+                {
+                    var paid = allPayments.GetValueOrDefault(i.InvoiceId, 0);
+                    var balance = i.TotalAmount - paid;
+                    return balance > 0 ? balance : 0;
+                });
+
+            // Build recent payments list
+            RecentPayments = payments.Select(p => new RecentPaymentViewModel
+            {
+                PaymentDate = p.PaymentDate,
+                CustomerName = p.Customer?.SchoolName ?? "Unknown",
+                InvoiceNumber = p.Invoice?.InvoiceNumber ?? "N/A",
+                PaymentMethod = p.PaymentMethod,
+                Amount = p.Amount
+            }).ToList();
+
+            // Initialize charts after data loads
+            await Task.Delay(100);
+            await InitializeCharts();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Sales] Error loading sales data: {ex.Message}");
+        }
+    }
+
+    private async Task InitializeCharts()
+    {
+        try
+        {
+            // Wait for DOM to be ready
+            await Task.Delay(200);
+            
+            // Check if canvas elements exist
+            var revenueExists = await JSRuntime.InvokeAsync<bool>("eval", "document.getElementById('revenueChart') !== null");
+            var customerGrowthExists = await JSRuntime.InvokeAsync<bool>("eval", "document.getElementById('customerGrowthChart') !== null");
+            
+            if (!revenueExists || !customerGrowthExists)
+            {
+                // Retry after a delay
+                await Task.Delay(300);
+            }
+
+            // Prepare monthly revenue data from payments
+            var payments = await SuperAdminDbContext.CustomerPayments
+                .Where(p => p.PaymentDate >= salesFromDate && p.PaymentDate <= salesToDate)
+                .Include(p => p.Invoice)
+                .ToListAsync();
+
+            var monthlyData = payments
+                .Where(p => p.Invoice != null)
+                .GroupBy(p => new { Year = p.PaymentDate.Year, Month = p.PaymentDate.Month })
+                .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+                .Select(g => new
+                {
+                    Label = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                    Revenue = g.Sum(p => p.Amount)
+                })
+                .ToList();
+
+            // Prepare customer growth data
+            var customerGrowthData = AllCustomers
+                .Where(c => c.DateRegistered >= salesFromDate && c.DateRegistered <= salesToDate)
+                .GroupBy(c => new { Year = c.DateRegistered.Year, Month = c.DateRegistered.Month })
+                .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
+                .Select(g => new
+                {
+                    Label = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMM yyyy"),
+                    Count = g.Count()
+                })
+                .ToList();
+
+            // Render charts using JavaScript
+            await JSRuntime.InvokeVoidAsync("renderSalesCharts", 
+                monthlyData.Select(d => d.Label).ToArray(),
+                monthlyData.Select(d => (double)d.Revenue).ToArray(),
+                customerGrowthData.Select(d => d.Label).ToArray(),
+                customerGrowthData.Select(d => d.Count).ToArray());
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error initializing charts: {ex.Message}");
+        }
+    }
+
+    private async Task ApplySalesFilters()
+    {
+        await LoadSalesData();
+        StateHasChanged();
+    }
+
+    private async Task ClearSalesFilters()
+    {
+        salesFromDate = DateTime.Now.AddMonths(-1);
+        salesToDate = DateTime.Now;
+        salesYearFilter = "";
+        salesMonthFilter = "";
+        await LoadSalesData();
+        StateHasChanged();
+    }
+
+    private async Task ExportSalesToPdf()
+    {
+        if (isExporting) return;
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            var currentUser = AuthService?.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+
+            // Prepare sales report data from real database
+            var payments = await SuperAdminDbContext.CustomerPayments
+                .Where(p => p.PaymentDate >= salesFromDate && p.PaymentDate <= salesToDate)
+                .Include(p => p.Customer)
+                .Include(p => p.Invoice)
+                .ToListAsync();
+
+            var invoices = await SuperAdminDbContext.CustomerInvoices
+                .Where(i => i.InvoiceDate >= salesFromDate && i.InvoiceDate <= salesToDate)
+                .Include(i => i.Customer)
+                .ToListAsync();
+
+            var salesData = new SalesReportData
+            {
+                TotalRevenue = MonthlyRevenue,
+                TotalSubtotal = TotalRevenueSubtotal,
+                TotalVAT = TotalRevenueVAT,
+                ActiveLeads = ActiveCustomers, // Using ActiveCustomers for compatibility
+                ConvertedSales = TotalPayments, // Using TotalPayments for compatibility
+                RecentConversions = RecentPayments.Select(p => new SaleConversionData
+                {
+                    SchoolName = p.CustomerName,
+                    Plan = "N/A",
+                    ConversionDate = p.PaymentDate,
+                    Amount = p.Amount
+                }).ToList(),
+                AccountsReceivable = agingReport
+            };
+
+            var pdfBytes = PdfGenerator.GenerateSalesReport(salesData, generatedBy, salesFromDate, salesToDate);
+            var fileName = $"Sales_Report_{DateTime.Now:yyyyMMdd_HHmmss}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error exporting sales PDF: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+        if (tab == "Sales" && !RecentPayments.Any())
+        {
+            // Auto-load sales data when switching to Sales tab
+            _ = Task.Run(async () => await LoadSalesData());
+        }
+        else if (tab == "AR" && !arSummaries.Any())
+        {
+            // Auto-load A/R data when switching to AR tab
+            _ = Task.Run(async () => await LoadARData());
+        }
+        StateHasChanged();
+    }
+
+    private string GetTabClasses(string tab)
+    {
+        var baseClasses = "px-4 py-2 text-sm font-semibold transition-colors duration-200 border-b-2 flex items-center";
+        if (activeTab == tab)
+        {
+            return $"{baseClasses} border-blue-600 text-blue-600";
+        }
+        return $"{baseClasses} border-transparent text-gray-600 hover:text-gray-800";
+    }
+
+    private async Task SetActiveReport(string report)
+    {
+        activeReport = report;
+        reportGenerated = false;
+        
+        // Load AR data automatically when Accounts Receivable is selected
+        if (report == "AccountsReceivable")
+        {
+            await LoadARData();
+        }
+        
+        StateHasChanged();
+    }
+
+    private string GetReportButtonClasses(string report)
+    {
+        var baseClasses = "flex flex-col items-center justify-center rounded-lg border-2 p-4 transition-all hover:shadow-md";
+        if (activeReport == report)
+        {
+            return $"{baseClasses} border-blue-600 bg-blue-50 text-blue-700";
+        }
+        return $"{baseClasses} border-gray-200 bg-white text-gray-700 hover:border-gray-300";
+    }
+
+    private async Task GenerateReport()
+    {
+        if (fromDate > toDate)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "From date must be before or equal to To date.");
+            return;
+        }
+
+        isLoading = true;
+        reportGenerated = false;
+        StateHasChanged();
+
+        try
+        {
+            DbContext.ChangeTracker.Clear();
+            await Task.Delay(100);
+
+            switch (activeReport)
+            {
+                case "IncomeStatement":
+                    incomeStatement = await AccountingReportService.GetIncomeStatementAsync(fromDate, toDate);
+                    break;
+                case "CashFlow":
+                    cashFlowReport = await AccountingReportService.GetCashFlowReportAsync(fromDate, toDate);
+                    break;
+                case "BalanceSheet":
+                    balanceSheetReport = await AccountingReportService.GetBalanceSheetAsync(toDate);
+                    break;
+                case "PaymentHistory":
+                    paymentHistory = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                    break;
+            }
+
+            reportGenerated = true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error generating report: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating report: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SetDatePreset(string preset)
+    {
+        var now = DateTime.Now;
+        switch (preset)
+        {
+            case "ThisMonth":
+                fromDate = new DateTime(now.Year, now.Month, 1);
+                toDate = now;
+                break;
+            case "LastMonth":
+                var lastMonth = now.AddMonths(-1);
+                fromDate = new DateTime(lastMonth.Year, lastMonth.Month, 1);
+                toDate = new DateTime(lastMonth.Year, lastMonth.Month, DateTime.DaysInMonth(lastMonth.Year, lastMonth.Month));
+                break;
+            case "ThisYear":
+                fromDate = new DateTime(now.Year, 1, 1);
+                toDate = now;
+                break;
+            case "LastYear":
+                fromDate = new DateTime(now.Year - 1, 1, 1);
+                toDate = new DateTime(now.Year - 1, 12, 31);
+                break;
+        }
+        StateHasChanged();
+    }
+
+    private string GetReportTitle()
+    {
+        return activeReport switch
+        {
+            "IncomeStatement" => "Income Statement",
+            "CashFlow" => "Cash Flow Statement",
+            "BalanceSheet" => "Balance Sheet",
+            "PaymentHistory" => "Payment History",
+            "AccountsReceivable" => "Accounts Receivable Report",
+            _ => "Financial Report"
+        };
+    }
+
+    private RenderFragment RenderReportContent()
+    {
+        return builder =>
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "space-y-6");
+
+            switch (activeReport)
+            {
+                case "IncomeStatement":
+                    RenderIncomeStatement(builder);
+                    break;
+                case "CashFlow":
+                    RenderCashFlow(builder);
+                    break;
+                case "BalanceSheet":
+                    RenderBalanceSheet(builder);
+                    break;
+                case "PaymentHistory":
+                    RenderPaymentHistory(builder);
+                    break;
+                case "AccountsReceivable":
+                    // Accounts Receivable is rendered separately in markup
+                    break;
+            }
+
+            builder.CloseElement();
+        };
+    }
+
+    private void RenderIncomeStatement(RenderTreeBuilder builder)
+    {
+        if (incomeStatement == null) return;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        // Summary Cards
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "grid grid-cols-1 gap-4 md:grid-cols-3");
+        
+        builder.OpenElement(4, "div");
+        builder.AddAttribute(5, "class", "rounded-lg border border-green-200 bg-green-50 p-4");
+        builder.OpenElement(6, "p");
+        builder.AddAttribute(7, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(8, "Total Gross Income");
+        builder.CloseElement();
+        builder.OpenElement(9, "p");
+        builder.AddAttribute(10, "class", "text-2xl font-bold text-green-700 text-right");
+        builder.AddContent(11, $"₱{incomeStatement.Revenue.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(12, "div");
+        builder.AddAttribute(13, "class", "rounded-lg border border-red-200 bg-red-50 p-4");
+        builder.OpenElement(14, "p");
+        builder.AddAttribute(15, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(16, "Total Expenses");
+        builder.CloseElement();
+        builder.OpenElement(17, "p");
+        builder.AddAttribute(18, "class", "text-2xl font-bold text-red-700 text-right");
+        builder.AddContent(19, $"₱{incomeStatement.TotalExpenses.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(20, "div");
+        builder.AddAttribute(21, "class", $"rounded-lg border p-4 {(incomeStatement.NetIncome >= 0 ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")}");
+        builder.OpenElement(22, "p");
+        builder.AddAttribute(23, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(24, "Net Income");
+        builder.CloseElement();
+        builder.OpenElement(25, "p");
+        builder.AddAttribute(26, "class", $"text-2xl font-bold text-right {(incomeStatement.NetIncome >= 0 ? "text-green-700" : "text-red-700")}");
+        builder.AddContent(27, $"₱{incomeStatement.NetIncome.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+
+        // Expenses by Category
+        if (incomeStatement.ExpensesByCategory != null && incomeStatement.ExpensesByCategory.Any())
+        {
+            builder.OpenElement(28, "div");
+            builder.AddAttribute(29, "class", "mt-6");
+            builder.OpenElement(30, "h3");
+            builder.AddAttribute(31, "class", "text-lg font-semibold text-gray-800 mb-4");
+            builder.AddContent(32, "Expenses by Category");
+            builder.CloseElement();
+            builder.OpenElement(33, "div");
+            builder.AddAttribute(34, "class", "overflow-x-auto");
+            builder.OpenElement(35, "table");
+            builder.AddAttribute(36, "class", "w-full");
+            builder.OpenElement(37, "thead");
+            builder.AddAttribute(38, "class", "bg-gray-50");
+            builder.OpenElement(39, "tr");
+            builder.OpenElement(40, "th");
+            builder.AddAttribute(41, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-600");
+            builder.AddContent(42, "Category");
+            builder.CloseElement();
+            builder.OpenElement(43, "th");
+            builder.AddAttribute(44, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-600");
+            builder.AddContent(45, "Amount");
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.OpenElement(46, "tbody");
+            builder.AddAttribute(47, "class", "divide-y divide-gray-200");
+
+            foreach (var expense in incomeStatement.ExpensesByCategory)
+            {
+                builder.OpenElement(48, "tr");
+                builder.AddAttribute(49, "class", "hover:bg-gray-50");
+                builder.OpenElement(50, "td");
+                builder.AddAttribute(51, "class", "px-4 py-3 text-sm text-gray-800");
+                builder.AddContent(52, expense.Category);
+                builder.CloseElement();
+                builder.OpenElement(53, "td");
+                builder.AddAttribute(54, "class", "px-4 py-3 text-sm font-semibold text-gray-800 text-right");
+                builder.AddContent(55, $"₱{expense.Amount.ToString("N0")}");
+                builder.CloseElement();
+                builder.CloseElement();
+            }
+
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    }
+
+    private void RenderCashFlow(RenderTreeBuilder builder)
+    {
+        if (cashFlowReport == null) return;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        // Summary
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "grid grid-cols-1 gap-4 md:grid-cols-2");
+        
+        builder.OpenElement(4, "div");
+        builder.AddAttribute(5, "class", "rounded-lg border border-green-200 bg-green-50 p-4");
+        builder.OpenElement(6, "p");
+        builder.AddAttribute(7, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(8, "Total Inflows");
+        builder.CloseElement();
+        builder.OpenElement(9, "p");
+        builder.AddAttribute(10, "class", "text-2xl font-bold text-green-700 text-right");
+        builder.AddContent(11, $"₱{cashFlowReport.TotalInflow.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(12, "div");
+        builder.AddAttribute(13, "class", "rounded-lg border border-red-200 bg-red-50 p-4");
+        builder.OpenElement(14, "p");
+        builder.AddAttribute(15, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(16, "Total Outflows");
+        builder.CloseElement();
+        builder.OpenElement(17, "p");
+        builder.AddAttribute(18, "class", "text-2xl font-bold text-red-700 text-right");
+        builder.AddContent(19, $"₱{cashFlowReport.TotalOutflow.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+
+        builder.OpenElement(20, "div");
+        builder.AddAttribute(21, "class", $"rounded-lg border p-4 mt-4 {(cashFlowReport.NetCashFlow >= 0 ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50")}");
+        builder.OpenElement(22, "p");
+        builder.AddAttribute(23, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(24, "Net Cash Flow");
+        builder.CloseElement();
+        builder.OpenElement(25, "p");
+        builder.AddAttribute(26, "class", $"text-2xl font-bold text-right {(cashFlowReport.NetCashFlow >= 0 ? "text-green-700" : "text-red-700")}");
+        builder.AddContent(27, $"₱{cashFlowReport.NetCashFlow.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+    }
+
+    private void RenderBalanceSheet(RenderTreeBuilder builder)
+    {
+        if (balanceSheetReport == null) return;
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "space-y-4");
+
+        builder.OpenElement(2, "div");
+        builder.AddAttribute(3, "class", "grid grid-cols-1 gap-4 md:grid-cols-3");
+        
+        builder.OpenElement(4, "div");
+        builder.AddAttribute(5, "class", "rounded-lg border border-blue-200 bg-blue-50 p-4");
+        builder.OpenElement(6, "p");
+        builder.AddAttribute(7, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(8, "Total Assets");
+        builder.CloseElement();
+        builder.OpenElement(9, "p");
+        builder.AddAttribute(10, "class", "text-2xl font-bold text-blue-700 text-right");
+        builder.AddContent(11, $"₱{balanceSheetReport.TotalAssets.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(12, "div");
+        builder.AddAttribute(13, "class", "rounded-lg border border-orange-200 bg-orange-50 p-4");
+        builder.OpenElement(14, "p");
+        builder.AddAttribute(15, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(16, "Total Liabilities");
+        builder.CloseElement();
+        builder.OpenElement(17, "p");
+        builder.AddAttribute(18, "class", "text-2xl font-bold text-orange-700 text-right");
+        builder.AddContent(19, $"₱{balanceSheetReport.TotalLiabilities.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.OpenElement(20, "div");
+        builder.AddAttribute(21, "class", "rounded-lg border border-green-200 bg-green-50 p-4");
+        builder.OpenElement(22, "p");
+        builder.AddAttribute(23, "class", "text-sm font-medium text-gray-600");
+        builder.AddContent(24, "Total Equity");
+        builder.CloseElement();
+        builder.OpenElement(25, "p");
+        builder.AddAttribute(26, "class", "text-2xl font-bold text-green-700 text-right");
+        builder.AddContent(27, $"₱{balanceSheetReport.TotalEquity.ToString("N0")}");
+        builder.CloseElement();
+        builder.CloseElement();
+
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+
+    private void RenderPaymentHistory(RenderTreeBuilder builder)
+    {
+        if (paymentHistory == null || !paymentHistory.Any())
+        {
+            builder.OpenElement(0, "p");
+            builder.AddAttribute(1, "class", "text-gray-500 text-center py-8");
+            builder.AddContent(2, "No payment history found for the selected period.");
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "overflow-x-auto");
+        builder.OpenElement(2, "table");
+        builder.AddAttribute(3, "class", "w-full");
+        builder.OpenElement(4, "thead");
+        builder.AddAttribute(5, "class", "bg-gray-50");
+        builder.OpenElement(6, "tr");
+        builder.OpenElement(7, "th");
+        builder.AddAttribute(8, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-600");
+        builder.AddContent(9, "Date");
+        builder.CloseElement();
+        builder.OpenElement(10, "th");
+        builder.AddAttribute(11, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-600");
+        builder.AddContent(12, "Student");
+        builder.CloseElement();
+        builder.OpenElement(13, "th");
+        builder.AddAttribute(14, "class", "px-4 py-3 text-left text-xs font-semibold text-gray-600");
+        builder.AddContent(15, "Payment Type");
+        builder.CloseElement();
+        builder.OpenElement(16, "th");
+        builder.AddAttribute(17, "class", "px-4 py-3 text-right text-xs font-semibold text-gray-600");
+        builder.AddContent(18, "Amount");
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.OpenElement(19, "tbody");
+        builder.AddAttribute(20, "class", "divide-y divide-gray-200");
+
+        foreach (var payment in paymentHistory.Take(50))
+        {
+            builder.OpenElement(21, "tr");
+            builder.AddAttribute(22, "class", "hover:bg-gray-50");
+            builder.OpenElement(23, "td");
+            builder.AddAttribute(24, "class", "px-4 py-3 text-sm text-gray-800");
+            builder.AddContent(25, payment.PaymentDate.ToString("MMM dd, yyyy"));
+            builder.CloseElement();
+            builder.OpenElement(26, "td");
+            builder.AddAttribute(27, "class", "px-4 py-3 text-sm text-gray-800");
+            builder.AddContent(28, payment.StudentName);
+            builder.CloseElement();
+            builder.OpenElement(29, "td");
+            builder.AddAttribute(30, "class", "px-4 py-3 text-sm text-gray-800");
+            builder.AddContent(31, payment.PaymentMethod);
+            builder.CloseElement();
+            builder.OpenElement(32, "td");
+            builder.AddAttribute(33, "class", "px-4 py-3 text-sm font-semibold text-green-600 text-right");
+            builder.AddContent(34, $"₱{payment.Amount.ToString("N0")}");
+            builder.CloseElement();
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+        builder.CloseElement();
+        builder.CloseElement();
+    }
+
+    private async Task ExportFinancialReportToPdf()
+    {
+        isExporting = true;
+        StateHasChanged();
+        
+        try
+        {
+            var currentUser = AuthService?.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+            
+            // This would use FinanceReportsPdfGenerator for financial reports
+            // For now, generate a basic PDF report
+            await JSRuntime.InvokeVoidAsync("alert", "Financial report PDF export will be implemented with FinanceReportsPdfGenerator.");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+
+    // ApplySalesFilters and ClearSalesFilters methods removed - Sales Lead functionality not needed
+
+    private void ClearFinancialFilters()
+    {
+        fromDate = DateTime.Now.AddMonths(-1);
+        toDate = DateTime.Now;
+        reportYearFilter = "";
+        reportMonthFilter = "";
+        reportGenerated = false;
+        StateHasChanged();
+    }
+
+    // PrintSalesReport method removed - Sales Lead functionality not needed
+
+    private async Task PrintFinancialReport()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("window.print");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error printing report: {ex.Message}");
+        }
+    }
+
+    // GenerateReportHtmlAsync method removed - Sales Lead functionality not needed
+
+    private bool isRecalculatingBalances = false;
+
+    private async Task RecalculateInvoiceBalances()
+    {
+        isRecalculatingBalances = true;
+        StateHasChanged();
+
+        try
+        {
+            await ARService.RecalculateInvoiceBalancesAsync();
+            await LoadARData(); // Refresh A/R data after recalculation
+            await LoadSalesData(); // Refresh sales data
+            
+            await JSRuntime.InvokeVoidAsync("alert", "Invoice balances have been recalculated successfully. All data is now synchronized with actual payments.");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error recalculating invoice balances: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error recalculating balances: {ex.Message}");
+        }
+        finally
+        {
+            isRecalculatingBalances = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadARData()
+    {
+        isLoadingAR = true;
+        StateHasChanged();
+
+        try
+        {
+            arSummaries = await ARService.GetAccountsReceivableSummaryAsync(arAsOfDate);
+            agingReport = await ARService.GetAgingReportAsync(arAsOfDate);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading AR data: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading accounts receivable data: {ex.Message}");
+            arSummaries = new List<AccountsReceivableSummary>();
+            agingReport = null;
+        }
+        finally
+        {
+            isLoadingAR = false;
+            StateHasChanged();
+        }
+    }
+
+    // ExportSalesToPdf method removed - Sales Lead functionality not needed
+
+    private async Task ExportARToPdf()
+    {
+        if (isExportingAR || isLoadingAR) return;
+        isExportingAR = true;
+        StateHasChanged();
+
+        try
+        {
+            // Ensure data is loaded
+            if (arSummaries == null || !arSummaries.Any() || agingReport == null)
+            {
+                await LoadARData();
+            }
+
+            if (agingReport == null || arSummaries == null || !arSummaries.Any())
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "No accounts receivable data to export.");
+                return;
+            }
+
+            var currentUser = AuthService?.CurrentUser;
+            var generatedBy = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
+
+            var pdfBytes = PdfGenerator.GenerateAccountsReceivableReport(arSummaries, agingReport, generatedBy, arAsOfDate);
+            var fileName = $"Accounts_Receivable_Report_{arAsOfDate:yyyyMMdd}.pdf";
+            var base64Content = Convert.ToBase64String(pdfBytes);
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "application/pdf", base64Content);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error exporting AR PDF: {ex.Message}");
+            await JSRuntime.InvokeVoidAsync("alert", $"Error generating PDF: {ex.Message}");
+        }
+        finally
+        {
+            isExportingAR = false;
+            StateHasChanged();
+        }
+    }
+
+    // View Models
+    public class RecentPaymentViewModel
+    {
+        public DateTime PaymentDate { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public string PaymentMethod { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+    }
+
+}

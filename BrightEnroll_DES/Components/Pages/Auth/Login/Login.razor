@@ -1,4 +1,4 @@
-﻿@page "/login"
+@page "/login"
 @layout Components.Layout.AuthLayout
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services.Authentication
@@ -291,7 +291,7 @@
             var userRole = AuthorizationService.GetUserRole();
             var redirectPath = GetRedirectPathForRole(userRole);
             
-            // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+            // Teachers always go to teacher-dashboard
             if (!string.IsNullOrWhiteSpace(userRole) && 
                 string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
             {
@@ -358,7 +358,7 @@
                 var userRole = AuthorizationService.GetUserRole();
                 var redirectPath = GetRedirectPathForRole(userRole);
                 
-                // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+                // Teachers always go to teacher-dashboard
                 if (!string.IsNullOrWhiteSpace(userRole) && 
                     string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
                 {
@@ -438,7 +438,7 @@
                     // Debug: Log the redirect path
                     Console.WriteLine($"[Login] Redirecting to: '{redirectPath}'");
                     
-                    // CRITICAL: For teachers, ALWAYS redirect to teacher-dashboard, never gradebook
+                    // Teachers always go to teacher-dashboard
                     if (!string.IsNullOrWhiteSpace(userRole) && 
                         string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase))
                     {
@@ -449,6 +449,13 @@
                     // Small delay to ensure state is updated before navigation
                     await Task.Delay(150);
                     
+                    // Hide loading before navigation (the target page will show its own loading if needed)
+                    LoadingService.HideLoading();
+                    StateHasChanged();
+                    
+                    // Small delay to ensure loading is hidden before navigation
+                    await Task.Delay(100);
+                    
                     // Navigate to the appropriate page with forceLoad to prevent any cached redirects
                     Navigation.NavigateTo(redirectPath, forceLoad: true);
                 }
@@ -457,7 +464,11 @@
                     // Log the exception for diagnostics, but fall back to dashboard
                     Console.WriteLine($"Error determining redirect path after login: {ex}");
 
-                    await Task.Delay(50);
+                    // Hide loading before fallback navigation
+                    LoadingService.HideLoading();
+                    StateHasChanged();
+                    
+                    await Task.Delay(100);
                     Navigation.NavigateTo("/dashboard", forceLoad: true);
                 }
             }
@@ -539,8 +550,9 @@
         }
 
         // Redirect based on role - you can customize these paths
-        var roleLower = role.ToLower().Trim();
-        Console.WriteLine($"[GetRedirectPathForRole] Normalized role: '{roleLower}'");
+        // Normalize role: remove spaces and convert to lowercase for comparison
+        var roleLower = role.Replace(" ", "").ToLower().Trim();
+        Console.WriteLine($"[GetRedirectPathForRole] Normalized role: '{roleLower}' (original: '{role}')");
         
         var redirectPath = roleLower switch
         {
@@ -549,7 +561,7 @@
             "hr" => "/human-resource", // HR goes to HR page
             "teacher" => "/teacher-dashboard", // Teacher goes to Teacher Dashboard first
             "admin" => "/dashboard",
-            "superadmin" => "/dashboard", // SuperAdmin goes to dashboard
+            "superadmin" => "/system-admin/dashboard", // SuperAdmin goes to SuperAdmin dashboard (handles both "Super Admin" and "SuperAdmin")
             _ => "/dashboard" // Default to dashboard for other roles
         };
         

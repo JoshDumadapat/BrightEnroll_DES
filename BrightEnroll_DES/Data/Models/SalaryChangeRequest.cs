@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Tracks salary change requests from HR that require Payroll/Admin approval
-/// </summary>
+// Tracks salary change requests requiring approval
 [Table("tbl_salary_change_requests")]
 public class SalaryChangeRequest
 {

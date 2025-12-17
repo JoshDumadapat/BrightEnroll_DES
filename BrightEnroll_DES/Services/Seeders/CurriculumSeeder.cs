@@ -16,9 +16,7 @@ public class CurriculumSeeder
         _logger = logger;
     }
 
-    /// <summary>
-    /// Seeds all curriculum-related data: Grade Levels, Classrooms, Sections, and Subjects
-    /// </summary>
+    // Seeds all curriculum-related data
     public async Task SeedAllAsync()
     {
         try
@@ -39,9 +37,7 @@ public class CurriculumSeeder
         }
     }
 
-    /// <summary>
-    /// Seeds Grade Levels: Preschool, Kinder, Grade 1-6
-    /// </summary>
+    // Seeds grade levels
     private async Task SeedGradeLevelsAsync()
     {
         try
@@ -83,9 +79,7 @@ public class CurriculumSeeder
         }
     }
 
-    /// <summary>
-    /// Seeds Classrooms/Rooms for different grade levels
-    /// </summary>
+    // Seeds classrooms for different grade levels
     private async Task SeedClassroomsAsync()
     {
         try
@@ -344,9 +338,7 @@ public class CurriculumSeeder
         }
     }
 
-    /// <summary>
-    /// Seeds Sections for each Grade Level
-    /// </summary>
+    // Seeds sections for each grade level
     private async Task SeedSectionsAsync()
     {
         try
@@ -409,9 +401,7 @@ public class CurriculumSeeder
         }
     }
 
-    /// <summary>
-    /// Seeds Subjects according to DepEd K-12 Curriculum
-    /// </summary>
+    // Seeds subjects according to DepEd K-12 curriculum
     private async Task SeedSubjectsAsync()
     {
         try

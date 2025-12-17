@@ -1,0 +1,256 @@
+@page "/system-admin/support"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@using System
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+
+<PageTitle>Support Tickets</PageTitle>
+
+<div class="mb-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Support Ticket System</h1>
+        </div>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-4">
+    <div class="rounded-xl border-2 border-gray-200 bg-white p-6 shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-start gap-3 mb-3">
+                <div class="rounded-lg bg-red-50 p-2.5 flex-shrink-0">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-red-700">Open Tickets</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-3xl font-bold text-gray-900">@OpenTickets</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-xl border-2 border-gray-200 bg-white p-6 shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-start gap-3 mb-3">
+                <div class="rounded-lg bg-yellow-50 p-2.5 flex-shrink-0">
+                    <svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-yellow-700">In Progress</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-3xl font-bold text-gray-900">@InProgressTickets</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-xl border-2 border-gray-200 bg-white p-6 shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-start gap-3 mb-3">
+                <div class="rounded-lg bg-green-50 p-2.5 flex-shrink-0">
+                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-green-700">Resolved Today</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-3xl font-bold text-gray-900">@ResolvedToday</p>
+            </div>
+        </div>
+    </div>
+    <div class="rounded-xl border-2 border-gray-200 bg-white p-6 shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-start gap-3 mb-3">
+                <div class="rounded-lg bg-blue-50 p-2.5 flex-shrink-0">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-bold text-blue-700">Total Tickets</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-3xl font-bold text-gray-900">@TotalTickets</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tickets Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b p-6">
+        <h2 class="text-lg font-bold text-gray-800">Support Tickets</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Ticket ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">School</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Issue</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Priority</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase text-gray-600">Assigned To</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                @if (Tickets.Any())
+                {
+                    @foreach (var ticket in Tickets)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 text-sm font-medium text-blue-600">@ticket.TicketNumber</td>
+                            <td class="px-6 py-4 text-sm text-gray-800">@(ticket.Customer?.SchoolName ?? "N/A")</td>
+                            <td class="px-6 py-4 text-sm text-gray-600">@ticket.Subject</td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPriorityClass(ticket.Priority)">@ticket.Priority</span>
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600">
+                                @if (ticket.AssignedToUser != null)
+                                {
+                                    @($"{ticket.AssignedToUser.FirstName ?? ""} {ticket.AssignedToUser.LastName ?? ""}".Trim())
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">Unassigned</span>
+                                }
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(ticket.Status)">@ticket.Status</span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+                            </svg>
+                            <p>No support tickets found</p>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    private List<SupportTicket> Tickets { get; set; } = new();
+    private int OpenTickets { get; set; }
+    private int InProgressTickets { get; set; }
+    private int ResolvedToday { get; set; }
+    private int TotalTickets { get; set; }
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        // Check if user is Super Admin (handle both "Super Admin" and "SuperAdmin")
+        var currentUser = AuthService?.CurrentUser;
+        var userRole = currentUser?.user_role;
+        var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                          (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                           userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+        
+        if (!isSuperAdmin)
+        {
+            Navigation.NavigateTo("/dashboard");
+            return;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            // Load data silently without loading screen
+            try
+            {
+                await LoadTickets();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Support] Error loading tickets: {ex.Message}");
+                Tickets = new List<SupportTicket>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Support] Critical error: {ex.Message}");
+            Tickets = new List<SupportTicket>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadTickets()
+    {
+        if (SuperAdminService == null)
+        {
+            Tickets = new List<SupportTicket>();
+            return;
+        }
+
+        Tickets = await SuperAdminService.GetAllSupportTicketsAsync();
+        
+        OpenTickets = Tickets.Count(t => t.Status == "Open");
+        InProgressTickets = Tickets.Count(t => t.Status == "In Progress");
+        ResolvedToday = Tickets.Count(t => t.Status == "Resolved" && t.ResolvedAt.HasValue && t.ResolvedAt.Value.Date == DateTime.Today);
+        TotalTickets = Tickets.Count;
+    }
+
+
+
+    private string GetPriorityClass(string priority) => priority switch
+    {
+        "Critical" => "bg-red-100 text-red-800",
+        "High" => "bg-orange-100 text-orange-800",
+        "Medium" => "bg-yellow-100 text-yellow-800",
+        "Low" => "bg-blue-100 text-blue-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Open" => "bg-red-100 text-red-800",
+        "In Progress" => "bg-yellow-100 text-yellow-800",
+        "Resolved" => "bg-green-100 text-green-800",
+        "Closed" => "bg-gray-100 text-gray-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+}

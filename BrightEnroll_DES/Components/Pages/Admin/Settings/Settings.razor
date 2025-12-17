@@ -3,6 +3,7 @@
 @using BrightEnroll_DES.Services
 @using BrightEnroll_DES.Services.Authentication
 @using BrightEnroll_DES.Services.DataAccess.Repositories
+@using BrightEnroll_DES.Services.Business
 @using BrightEnroll_DES.Components
 @using System.Text.RegularExpressions
 @using Microsoft.AspNetCore.Components.Rendering
@@ -11,6 +12,7 @@
 @inject IUserRepository UserRepository
 @inject ILoginService LoginService
 @inject ILoadingService LoadingService
+@inject SchoolInformationService SchoolInformationService
 
 <PageTitle>Settings</PageTitle>
 
@@ -440,6 +442,51 @@
                                 }
                             </div>
                         </div>
+
+                        <!-- BIR Information Display -->
+                        @if (!string.IsNullOrWhiteSpace(schoolInfo.BirTin) || !string.IsNullOrWhiteSpace(schoolInfo.BirBusinessName))
+                        {
+                            <div class="border-t border-gray-200 pt-4">
+                                <h6 class="mb-3 text-sm font-semibold text-gray-700">BIR Information</h6>
+                                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    @if (!string.IsNullOrWhiteSpace(schoolInfo.BirTin))
+                                    {
+                                        <div class="rounded-lg border border-gray-200 bg-white/60 p-4">
+                                            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">TIN Number</label>
+                                            <p class="text-sm font-semibold text-gray-800">@schoolInfo.BirTin</p>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(schoolInfo.BirBusinessName))
+                                    {
+                                        <div class="rounded-lg border border-gray-200 bg-white/60 p-4">
+                                            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">BIR Business Name</label>
+                                            <p class="text-sm font-semibold text-gray-800">@schoolInfo.BirBusinessName</p>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(schoolInfo.BirAddress))
+                                    {
+                                        <div class="md:col-span-2 rounded-lg border border-gray-200 bg-white/60 p-4">
+                                            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">BIR Address</label>
+                                            <p class="text-sm font-semibold text-gray-800">@schoolInfo.BirAddress</p>
+                                        </div>
+                                    }
+                                    @if (!string.IsNullOrWhiteSpace(schoolInfo.BirRegistrationType))
+                                    {
+                                        <div class="rounded-lg border border-gray-200 bg-white/60 p-4">
+                                            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">Registration Type</label>
+                                            <p class="text-sm font-semibold text-gray-800">@schoolInfo.BirRegistrationType</p>
+                                        </div>
+                                    }
+                                    @if (schoolInfo.IsVatRegistered)
+                                    {
+                                        <div class="rounded-lg border border-gray-200 bg-white/60 p-4">
+                                            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">VAT Status</label>
+                                            <p class="text-sm font-semibold text-gray-800">VAT Registered @(schoolInfo.VatRate.HasValue ? $"({schoolInfo.VatRate}%)" : "")</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
                 }
                 else
@@ -577,6 +624,69 @@
                                            class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
                                            placeholder="Zip code" />
                                 </div>
+                            </div>
+                        </div>
+
+                        <!-- BIR Information Section -->
+                        <div class="border-t border-gray-200 pt-4">
+                            <h6 class="mb-3 text-sm font-semibold text-gray-700">BIR Information</h6>
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <!-- TIN Number -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">TIN Number</label>
+                                    <input type="text" @bind="schoolInfo.BirTin" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="000-000-000-000" />
+                                </div>
+
+                                <!-- Business Name -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">BIR Business Name</label>
+                                    <input type="text" @bind="schoolInfo.BirBusinessName" 
+                                           class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                           placeholder="Registered business name" />
+                                </div>
+
+                                <!-- BIR Address -->
+                                <div class="md:col-span-2">
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">BIR Address</label>
+                                    <textarea @bind="schoolInfo.BirAddress" 
+                                              rows="2"
+                                              class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                              placeholder="Complete BIR registered address"></textarea>
+                                </div>
+
+                                <!-- Registration Type -->
+                                <div>
+                                    <label class="mb-1 block text-xs font-medium text-gray-700">Registration Type</label>
+                                    <select @bind="schoolInfo.BirRegistrationType" 
+                                            class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                                        <option value="">Select type</option>
+                                        <option value="VAT">VAT</option>
+                                        <option value="Non-VAT">Non-VAT</option>
+                                        <option value="Exempt">Tax Exempt</option>
+                                    </select>
+                                </div>
+
+                                <!-- VAT Registered -->
+                                <div class="flex items-center pt-6">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" @bind="schoolInfo.IsVatRegistered" 
+                                               class="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                                        <span class="text-xs font-medium text-gray-700">VAT Registered</span>
+                                    </label>
+                                </div>
+
+                                <!-- VAT Rate -->
+                                @if (schoolInfo.IsVatRegistered)
+                                {
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700">VAT Rate (%)</label>
+                                        <input type="number" step="0.01" @bind="schoolInfo.VatRate" 
+                                               class="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                                               placeholder="12.00" />
+                                    </div>
+                                }
                             </div>
                         </div>
 
@@ -720,8 +830,10 @@
     private string schoolInfoErrorMessage = string.Empty;
     private string schoolInfoSuccessMessage = string.Empty;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        await LoadSchoolInfoAsync();
+        
         // Load current user's email and phone number
         var currentUser = AuthService.CurrentUser;
         if (currentUser != null)
@@ -729,9 +841,6 @@
             currentEmail = currentUser.email ?? string.Empty;
             currentPhoneNumber = currentUser.contact_num ?? string.Empty;
         }
-
-        // Initialize mock school information data
-        LoadSchoolInfo();
     }
 
     private bool IsAdminUser()
@@ -744,8 +853,9 @@
             var userRole = currentUser.user_role?.Trim() ?? "";
             if (string.IsNullOrEmpty(userRole)) return false;
             
-            var roleLower = userRole.ToLower();
-            return roleLower == "admin" || roleLower == "superadmin";
+            var roleLower = userRole.ToLower().Replace(" ", "");
+            // Only return true for Admin, not SuperAdmin
+            return roleLower == "admin";
         }
         catch
         {
@@ -753,41 +863,70 @@
         }
     }
 
-    private void LoadSchoolInfo()
+    private async Task LoadSchoolInfoAsync()
     {
-        // Mock data - will be replaced with database call later
-        schoolInfo = new SchoolInfoModel
+        try
         {
-            SchoolName = "Bright Enroll Academy",
-            SchoolCode = "BEA-001",
-            ContactNumber = "09123456789",
-            Email = "info@brightenroll.edu.ph",
-            Website = "https://www.brightenroll.edu.ph",
-            HouseNo = "123",
-            StreetName = "Main Street",
-            Barangay = "Centro",
-            City = "Davao City",
-            Province = "Davao del Sur",
-            Country = "Philippines",
-            ZipCode = "8000"
-        };
-        
-        // Store original for cancel functionality
-        originalSchoolInfo = new SchoolInfoModel
+            var existing = await SchoolInformationService.GetSchoolInformationAsync();
+            if (existing != null)
+            {
+                schoolInfo = new SchoolInfoModel
+                {
+                    SchoolName = existing.SchoolName ?? string.Empty,
+                    SchoolCode = existing.SchoolCode ?? string.Empty,
+                    ContactNumber = existing.ContactNumber ?? string.Empty,
+                    Email = existing.Email ?? string.Empty,
+                    Website = existing.Website ?? string.Empty,
+                    HouseNo = existing.HouseNo ?? string.Empty,
+                    StreetName = existing.StreetName ?? string.Empty,
+                    Barangay = existing.Barangay ?? string.Empty,
+                    City = existing.City ?? string.Empty,
+                    Province = existing.Province ?? string.Empty,
+                    Country = existing.Country ?? "Philippines",
+                    ZipCode = existing.ZipCode ?? string.Empty,
+                    BirTin = existing.BirTin,
+                    BirBusinessName = existing.BirBusinessName,
+                    BirAddress = existing.BirAddress,
+                    BirRegistrationType = existing.BirRegistrationType,
+                    VatRate = existing.VatRate,
+                    IsVatRegistered = existing.IsVatRegistered
+                };
+            }
+            else
+            {
+                schoolInfo = new SchoolInfoModel
+                {
+                    Country = "Philippines"
+                };
+            }
+            
+            // Store original for cancel functionality
+            originalSchoolInfo = new SchoolInfoModel
+            {
+                SchoolName = schoolInfo.SchoolName,
+                SchoolCode = schoolInfo.SchoolCode,
+                ContactNumber = schoolInfo.ContactNumber,
+                Email = schoolInfo.Email,
+                Website = schoolInfo.Website,
+                HouseNo = schoolInfo.HouseNo,
+                StreetName = schoolInfo.StreetName,
+                Barangay = schoolInfo.Barangay,
+                City = schoolInfo.City,
+                Province = schoolInfo.Province,
+                Country = schoolInfo.Country,
+                ZipCode = schoolInfo.ZipCode,
+                BirTin = schoolInfo.BirTin,
+                BirBusinessName = schoolInfo.BirBusinessName,
+                BirAddress = schoolInfo.BirAddress,
+                BirRegistrationType = schoolInfo.BirRegistrationType,
+                VatRate = schoolInfo.VatRate,
+                IsVatRegistered = schoolInfo.IsVatRegistered
+            };
+        }
+        catch (Exception ex)
         {
-            SchoolName = schoolInfo.SchoolName,
-            SchoolCode = schoolInfo.SchoolCode,
-            ContactNumber = schoolInfo.ContactNumber,
-            Email = schoolInfo.Email,
-            Website = schoolInfo.Website,
-            HouseNo = schoolInfo.HouseNo,
-            StreetName = schoolInfo.StreetName,
-            Barangay = schoolInfo.Barangay,
-            City = schoolInfo.City,
-            Province = schoolInfo.Province,
-            Country = schoolInfo.Country,
-            ZipCode = schoolInfo.ZipCode
-        };
+            schoolInfoErrorMessage = $"Error loading school information: {ex.Message}";
+        }
     }
 
     private void ToggleEditSchoolInfo()
@@ -849,7 +988,7 @@
         return isValid;
     }
 
-    private void SaveSchoolInfo()
+    private async Task SaveSchoolInfo()
     {
         schoolInfoErrorMessage = string.Empty;
         schoolInfoSuccessMessage = string.Empty;
@@ -862,10 +1001,36 @@
             return;
         }
 
+        LoadingService.ShowLoading("Saving school information...");
+
         try
         {
-            // TODO: Save to database here (not implemented yet)
-            // For now, just simulate success
+            var currentUser = AuthService.CurrentUser;
+            int? updatedBy = currentUser?.user_ID;
+
+            var schoolInfoEntity = new BrightEnroll_DES.Data.Models.SchoolInformation
+            {
+                SchoolName = schoolInfo.SchoolName,
+                SchoolCode = schoolInfo.SchoolCode,
+                ContactNumber = schoolInfo.ContactNumber,
+                Email = schoolInfo.Email,
+                Website = schoolInfo.Website,
+                HouseNo = schoolInfo.HouseNo,
+                StreetName = schoolInfo.StreetName,
+                Barangay = schoolInfo.Barangay,
+                City = schoolInfo.City,
+                Province = schoolInfo.Province,
+                Country = schoolInfo.Country,
+                ZipCode = schoolInfo.ZipCode,
+                BirTin = schoolInfo.BirTin,
+                BirBusinessName = schoolInfo.BirBusinessName,
+                BirAddress = schoolInfo.BirAddress,
+                BirRegistrationType = schoolInfo.BirRegistrationType,
+                VatRate = schoolInfo.VatRate,
+                IsVatRegistered = schoolInfo.IsVatRegistered
+            };
+
+            await SchoolInformationService.SaveSchoolInformationAsync(schoolInfoEntity, updatedBy);
             
             // Update original data
             originalSchoolInfo = new SchoolInfoModel
@@ -881,7 +1046,13 @@
                 City = schoolInfo.City,
                 Province = schoolInfo.Province,
                 Country = schoolInfo.Country,
-                ZipCode = schoolInfo.ZipCode
+                ZipCode = schoolInfo.ZipCode,
+                BirTin = schoolInfo.BirTin,
+                BirBusinessName = schoolInfo.BirBusinessName,
+                BirAddress = schoolInfo.BirAddress,
+                BirRegistrationType = schoolInfo.BirRegistrationType,
+                VatRate = schoolInfo.VatRate,
+                IsVatRegistered = schoolInfo.IsVatRegistered
             };
 
             // Exit edit mode
@@ -896,11 +1067,9 @@
             StateHasChanged();
 
             // Clear success message after 3 seconds
-            Task.Delay(3000).ContinueWith(_ =>
-            {
-                schoolInfoSuccessMessage = string.Empty;
-                InvokeAsync(StateHasChanged);
-            });
+            await Task.Delay(3000);
+            schoolInfoSuccessMessage = string.Empty;
+            StateHasChanged();
         }
         catch (Exception ex)
         {
@@ -909,6 +1078,10 @@
             toastType = ToastType.Error;
             showToast = true;
             StateHasChanged();
+        }
+        finally
+        {
+            LoadingService.HideLoading();
         }
     }
 
@@ -1592,5 +1765,12 @@
         public string Province { get; set; } = string.Empty;
         public string Country { get; set; } = "Philippines";
         public string ZipCode { get; set; } = string.Empty;
+        // BIR Information
+        public string? BirTin { get; set; }
+        public string? BirBusinessName { get; set; }
+        public string? BirAddress { get; set; }
+        public string? BirRegistrationType { get; set; }
+        public decimal? VatRate { get; set; }
+        public bool IsVatRegistered { get; set; }
     }
 }

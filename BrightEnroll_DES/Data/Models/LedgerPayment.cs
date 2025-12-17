@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Payment records linked to a student ledger
-/// </summary>
+// Payment records linked to student ledger
 [Table("tbl_LedgerPayments")]
 public class LedgerPayment
 {

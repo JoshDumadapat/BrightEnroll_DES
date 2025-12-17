@@ -3,54 +3,17 @@ using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.RoleBase
 {
-    /// <summary>
-    /// Service for checking user authorization based on roles and permissions.
-    /// </summary>
+    // Service for checking user authorization based on roles and permissions
     public interface IAuthorizationService
     {
-        /// <summary>
-        /// Checks if the current user has a specific permission.
-        /// </summary>
         bool HasPermission(string permission);
-
-        /// <summary>
-        /// Checks if the current user has any of the specified permissions.
-        /// </summary>
         bool HasAnyPermission(params string[] permissions);
-
-        /// <summary>
-        /// Checks if the current user has all of the specified permissions.
-        /// </summary>
         bool HasAllPermissions(params string[] permissions);
-
-        /// <summary>
-        /// Checks if the current user has a specific role.
-        /// </summary>
         bool HasRole(string roleName);
-
-        /// <summary>
-        /// Checks if the current user has any of the specified roles.
-        /// </summary>
         bool HasAnyRole(params string[] roleNames);
-
-        /// <summary>
-        /// Gets all permissions for the current user.
-        /// </summary>
         List<string> GetUserPermissions();
-
-        /// <summary>
-        /// Gets the current user's role.
-        /// </summary>
         string? GetUserRole();
-
-        /// <summary>
-        /// Checks if a specific user has a permission (for checking other users).
-        /// </summary>
         bool UserHasPermission(User user, string permission);
-
-        /// <summary>
-        /// Checks if a specific user has a role (for checking other users).
-        /// </summary>
         bool UserHasRole(User user, string roleName);
     }
 

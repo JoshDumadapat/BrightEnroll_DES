@@ -2,9 +2,7 @@ using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Notifications;
 
-/// <summary>
-/// Service to track notification read status per user/role in memory (no database changes)
-/// </summary>
+// Service to track notification read status per user in memory
 public class UserNotificationReadService
 {
     private readonly IAuthService _authService;
@@ -20,9 +18,7 @@ public class UserNotificationReadService
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
     }
 
-    /// <summary>
-    /// Gets the current user identifier (user ID)
-    /// </summary>
+    // Get current user identifier
     private string GetCurrentUserIdentifier()
     {
         if (!_authService.IsAuthenticated || _authService.CurrentUser == null)
@@ -35,9 +31,7 @@ public class UserNotificationReadService
         return user.user_ID.ToString();
     }
 
-    /// <summary>
-    /// Checks if a notification is read for the current user
-    /// </summary>
+    // Check if notification is read for current user
     public bool IsNotificationReadForCurrentUser(int notificationId)
     {
         var userIdentifier = GetCurrentUserIdentifier();
@@ -49,9 +43,7 @@ public class UserNotificationReadService
         }
     }
 
-    /// <summary>
-    /// Marks a notification as read for the current user
-    /// </summary>
+    // Mark notification as read for current user
     public void MarkNotificationAsReadForCurrentUser(int notificationId)
     {
         var userIdentifier = GetCurrentUserIdentifier();
@@ -63,9 +55,7 @@ public class UserNotificationReadService
         }
     }
 
-    /// <summary>
-    /// Marks all notifications as read for the current user
-    /// </summary>
+    // Mark all notifications as read for current user
     public void MarkAllNotificationsAsReadForCurrentUser(List<int> notificationIds)
     {
         var userIdentifier = GetCurrentUserIdentifier();
@@ -80,9 +70,7 @@ public class UserNotificationReadService
         }
     }
 
-    /// <summary>
-    /// Gets unread count for the current user from a list of notifications
-    /// </summary>
+    // Get unread count for current user from notification list
     public int GetUnreadCountForCurrentUser(List<BrightEnroll_DES.Data.Models.Notification> notifications)
     {
         if (notifications == null || !notifications.Any())
@@ -109,9 +97,7 @@ public class UserNotificationReadService
         return unreadCount;
     }
 
-    /// <summary>
-    /// Updates notification read status for display (combines database and user-specific read status)
-    /// </summary>
+    // Update notification read status for display
     public void UpdateNotificationReadStatus(List<BrightEnroll_DES.Data.Models.Notification> notifications)
     {
         if (notifications == null || !notifications.Any())
@@ -133,9 +119,7 @@ public class UserNotificationReadService
         }
     }
 
-    /// <summary>
-    /// Clears read status for a specific user (useful for testing or cleanup)
-    /// </summary>
+    // Clear read status for a specific user
     public void ClearReadStatusForUser(string userIdentifier)
     {
         lock (_lock)

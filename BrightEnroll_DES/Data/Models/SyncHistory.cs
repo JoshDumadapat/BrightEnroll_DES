@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Database entity for tracking cloud sync history and logs.
-/// Persists sync operations, status, and results to database.
-/// </summary>
+// Tracks cloud sync history and logs
 [Table("tbl_SyncHistory")]
 public class SyncHistory
 {

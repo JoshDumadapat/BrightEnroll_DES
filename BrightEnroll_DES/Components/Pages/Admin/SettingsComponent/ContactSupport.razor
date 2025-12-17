@@ -1,7 +1,14 @@
 @page "/contact-support"
 @layout Components.Layout.MainLayout
 @inject NavigationManager NavigationManager
+@inject BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService SuperAdminService
+@inject BrightEnroll_DES.Data.SuperAdminDbContext SuperAdminDbContext
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
+@inject BrightEnroll_DES.Services.Infrastructure.ILoadingService LoadingService
 @using System.ComponentModel.DataAnnotations
+@using BrightEnroll_DES.Data.Models
+@using Microsoft.EntityFrameworkCore
 
 <PageTitle>Contact Support</PageTitle>
 
@@ -120,7 +127,7 @@
                             <option value="Low">Low</option>
                             <option value="Medium">Medium</option>
                             <option value="High">High</option>
-                            <option value="Urgent">Urgent</option>
+                            <option value="Critical">Critical</option>
                         </InputSelect>
                         <ValidationMessage For="@(() => supportTicket.Priority)" class="text-red-500 text-xs mt-1" />
                     </div>
@@ -275,7 +282,30 @@
 </div>
 
 @code {
-    private SupportTicket supportTicket = new();
+    // Form model for support ticket submission
+    private class SupportTicketForm
+    {
+        [Required(ErrorMessage = "Full name is required")]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Email is required")]
+        [EmailAddress(ErrorMessage = "Invalid email address")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Category is required")]
+        public string Category { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Priority is required")]
+        public string Priority { get; set; } = "Medium";
+
+        [Required(ErrorMessage = "Subject is required")]
+        public string Subject { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "Description is required")]
+        public string Description { get; set; } = string.Empty;
+    }
+
+    private SupportTicketForm supportTicket = new();
     private bool isSubmitting = false;
     private bool showSuccessMessage = false;
     private int openFaqIndex = -1;
@@ -294,24 +324,78 @@
     private async Task HandleSubmit()
     {
         isSubmitting = true;
+        LoadingService.ShowLoading("Submitting support ticket...");
         
-        // Simulate API call
-        await Task.Delay(1500);
-        
-        // TODO: Implement actual ticket submission logic
-        // Send data to backend API
-        
-        showSuccessMessage = true;
-        isSubmitting = false;
-        
-        // Reset form after 3 seconds
-        await Task.Delay(3000);
-        ResetForm();
+        try
+        {
+            // Get current school's connection string from configuration
+            var currentConnectionString = Configuration["ConnectionStrings:DefaultConnection"];
+            
+            // Find CustomerId by matching connection string
+            int? customerId = null;
+            if (!string.IsNullOrWhiteSpace(currentConnectionString))
+            {
+                try
+                {
+                    var customer = await SuperAdminDbContext.Customers
+                        .Where(c => c.DatabaseConnectionString == currentConnectionString)
+                        .FirstOrDefaultAsync();
+                    
+                    if (customer != null)
+                    {
+                        customerId = customer.CustomerId;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error finding customer by connection string: {ex.Message}");
+                }
+            }
+
+            // Create SupportTicket entity model from form data
+            var ticket = new BrightEnroll_DES.Data.Models.SupportTicket
+            {
+                CustomerId = customerId,
+                Subject = supportTicket.Subject,
+                Description = $@"Submitted by: {supportTicket.FullName}
+Email: {supportTicket.Email}
+Category: {supportTicket.Category}
+Priority: {supportTicket.Priority}
+
+Description:
+{supportTicket.Description}",
+                Priority = supportTicket.Priority,
+                Status = "Open",
+                Category = supportTicket.Category,
+                CreatedAt = DateTime.Now
+            };
+
+            // Submit to SuperAdmin
+            var createdTicket = await SuperAdminService.CreateSupportTicketAsync(ticket);
+            
+            showSuccessMessage = true;
+            isSubmitting = false;
+            LoadingService.HideLoading();
+            
+            // Reset form after 3 seconds
+            await Task.Delay(3000);
+            ResetForm();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error submitting support ticket: {ex.Message}");
+            showSuccessMessage = false;
+            isSubmitting = false;
+            LoadingService.HideLoading();
+            
+            // Show error message (you can enhance this with a proper error display)
+            await Task.Delay(1000);
+        }
     }
 
     private void ResetForm()
     {
-        supportTicket = new SupportTicket();
+        supportTicket = new SupportTicketForm();
         showSuccessMessage = false;
         StateHasChanged();
     }
@@ -319,30 +403,6 @@
     private void ToggleFaq(int index)
     {
         openFaqIndex = openFaqIndex == index ? -1 : index;
-    }
-
-    public class SupportTicket
-    {
-        [Required(ErrorMessage = "Full name is required")]
-        public string FullName { get; set; } = "";
-
-        [Required(ErrorMessage = "Email is required")]
-        [EmailAddress(ErrorMessage = "Invalid email address")]
-        public string Email { get; set; } = "";
-
-        [Required(ErrorMessage = "Category is required")]
-        public string Category { get; set; } = "";
-
-        [Required(ErrorMessage = "Priority is required")]
-        public string Priority { get; set; } = "";
-
-        [Required(ErrorMessage = "Subject is required")]
-        [MinLength(5, ErrorMessage = "Subject must be at least 5 characters")]
-        public string Subject { get; set; } = "";
-
-        [Required(ErrorMessage = "Description is required")]
-        [MinLength(20, ErrorMessage = "Description must be at least 20 characters")]
-        public string Description { get; set; } = "";
     }
 }
 

@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Discount configuration table - stores discount types and rules
-/// Similar to Deduction model but for student discounts
-/// </summary>
+// Discount configuration - stores discount types and rules for students
 [Table("tbl_discounts")]
 public class Discount
 {

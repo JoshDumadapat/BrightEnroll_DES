@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Stores student grades for subjects by grading period.
-/// Teachers can input component grades (Written Work, Performance Tasks, Quarterly Assessment) per DepEd standards.
-/// </summary>
+// Stores student grades for subjects by grading period
 [Table("tbl_Grades")]
 public class Grade
 {

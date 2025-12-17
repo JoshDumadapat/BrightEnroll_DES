@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Links a student to a section for a specific school year and tracks enrollment status.
-/// Used by the enrollment module when assigning students to sections.
-/// </summary>
+// Links student to section for a school year
 [Table("tbl_StudentSectionEnrollment")]
 public class StudentSectionEnrollment
 {

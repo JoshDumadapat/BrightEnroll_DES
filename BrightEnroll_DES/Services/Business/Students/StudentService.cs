@@ -890,7 +890,7 @@ public class StudentService
             var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
             
             // Query from tbl_Student directly for current school year display
-            // This ensures accurate display of all enrolled students for the current school year
+            // Filter enrolled students for current school year
             var studentQuery = _context.Students
                 .Include(s => s.Requirements)
                 .Where(s => s.Status == "Enrolled" && // ONLY enrolled students
@@ -940,7 +940,7 @@ public class StudentService
                     student.Requirements, student.StudentType);
 
                 // FIXED: Prioritize student.GradeLevel (updated during re-enrollment) over enrollment record
-                // This ensures re-enrolled students show the correct updated grade level
+                // Update grade level for re-enrolled students
                 var enrollment = enrollmentDict.GetValueOrDefault(student.StudentId);
                 
                 // Prioritize student's GradeLevel (updated during re-enrollment) over enrollment record's grade level
@@ -1047,9 +1047,9 @@ public class StudentService
             }
 
             // Force fresh query from database - use AsNoTracking to prevent EF Core caching
-            // This ensures we get the latest grade_level from tbl_Student
+            // Get latest grade level from database
             var students = await studentQuery
-                .AsNoTracking() // CRITICAL: Prevent EF Core from caching student entities
+                .AsNoTracking() // Prevent EF Core from caching student entities
                 .OrderByDescending(s => s.DateRegistered)
                 .ToListAsync();
 
@@ -1180,7 +1180,7 @@ public class StudentService
                 var enrollment = enrollmentDict.GetValueOrDefault(student.StudentId);
                 
                 // ALWAYS use student's main GradeLevel from tbl_Student (database column: grade_level)
-                // This ensures the UI always shows the correct grade level from the database
+                // Update grade level from database
                 string gradeLevel = student.GradeLevel ?? "N/A";
                 
                 // For section, use enrollment record if it exists for current year, otherwise "N/A"
@@ -1538,7 +1538,7 @@ public class StudentService
                         _context.StudentSectionEnrollments.Add(newEnrollment);
                         
                         // FIXED: When creating new enrollment, update student's GradeLevel from the section's grade level
-                        // This ensures student record shows correct grade level after enrollment
+                        // Update grade level after enrollment
                         if (targetSection != null)
                         {
                             await _context.Entry(targetSection).Reference(s => s.GradeLevel).LoadAsync();
@@ -1566,7 +1566,7 @@ public class StudentService
                         existingEnrollment.UpdatedAt = DateTime.Now;
                         
                         // FIXED: When enrolling, update student's GradeLevel from the section's grade level
-                        // This ensures student record shows correct grade level after enrollment
+                        // Update grade level after enrollment
                         if (targetSection != null)
                         {
                             await _context.Entry(targetSection).Reference(s => s.GradeLevel).LoadAsync();
@@ -1693,7 +1693,7 @@ public class StudentService
                 student.Requirements = new List<StudentRequirement>();
             }
             
-            // Update or create ALL requirements - this ensures all requirements exist for proper mapping
+            // Update or create all requirements for proper mapping
             // UpdateRequirement will create missing requirements if they don't exist
             // Pass student ID and type to help create new requirements
             UpdateRequirement(student.Requirements, student.StudentId, "PSA Birth Certificate", model.HasPSABirthCert, student.StudentType);

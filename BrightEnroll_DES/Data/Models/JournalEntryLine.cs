@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Journal Entry Line - Individual debit/credit entries within a journal entry
-/// </summary>
+// Journal entry line - individual debit/credit entries
 [Table("tbl_JournalEntryLines")]
 public class JournalEntryLine
 {

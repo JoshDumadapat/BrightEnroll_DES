@@ -35,10 +35,7 @@ public class PaymentService
         _auditLogService = auditLogService;
     }
 
-    /// <summary>
-    /// Search for a student by ID and get their payment information using ledger system.
-    /// Priority: previous ledger with balance > 0, otherwise current/open school year ledger (if exists).
-    /// </summary>
+    // Get student payment info using ledger system
     public async Task<StudentPaymentInfo?> GetStudentPaymentInfoAsync(string studentId)
     {
         try
@@ -96,10 +93,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Process a payment for a student using ledger system (no enrollment/status side effects)
-    /// Uses database transaction to ensure atomicity of all operations
-    /// </summary>
+    // Process payment for a student using ledger system
     public async Task<StudentPaymentInfo> ProcessPaymentAsync(string studentId, decimal paymentAmount, string paymentMethod, string orNumber, string? processedBy = null)
     {
         // Use database transaction to ensure atomicity
@@ -119,14 +113,8 @@ public class PaymentService
                 throw new Exception("OR number is required.");
             }
 
-            // Minimum payment validation
-            // NOTE: UI already validates minimum payment and allows exceptions when discounts are applied
-            // This service-level validation is a safety net, but we allow amounts below minimum
-            // since UI handles discount cases where amount due might be below minimum
-            // The UI ensures minimum is enforced unless discount reduces amount due below minimum
+            // Minimum payment validation (UI handles discount cases)
             const decimal MINIMUM_PAYMENT = 1700m;
-            // Only enforce minimum if amount is very small (likely an error)
-            // Allow amounts below minimum since UI handles discount scenarios
             if (paymentAmount < 100m)
             {
                 throw new Exception($"Payment amount is too small. Minimum payment is Php {MINIMUM_PAYMENT:N2}.");
@@ -190,7 +178,7 @@ public class PaymentService
                     studentId, amountToApplyToLedger, studentPayment.SchoolYear);
                 
                 // Create journal entry for double-entry bookkeeping
-                // This ensures Balance Sheet and General Ledger reflect the payment
+                // Update balance sheet and general ledger
                 try
                 {
                     // Get the user ID from processedBy if it's a numeric string
@@ -207,7 +195,7 @@ public class PaymentService
                 }
                 catch (Exception journalEx)
                 {
-                    // Log error but don't fail the payment - journal entry creation is important but not critical
+                    // Log error but don't fail payment if journal entry creation fails
                     // This allows backward compatibility if Chart of Accounts isn't set up yet
                     _logger?.LogError(journalEx, 
                         "Failed to create journal entry for payment {PaymentId}, Student {StudentId}: {Message}",
@@ -353,9 +341,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get all students with their payment status
-    /// </summary>
+    // Get all students with payment status
     public async Task<List<StudentPaymentInfo>> GetAllStudentsWithPaymentStatusAsync()
     {
         try
@@ -395,9 +381,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Determine enrollment status based on payment status (display only)
-    /// </summary>
+    // Determine enrollment status from payment status
     private string DetermineEnrollmentStatus(string paymentStatus)
     {
         return paymentStatus switch
@@ -409,9 +393,7 @@ public class PaymentService
         };
     }
 
-    /// <summary>
-    /// Get all payments for a specific student from all ledgers
-    /// </summary>
+    // Get all payments for a student from all ledgers
     public async Task<List<LedgerPayment>> GetPaymentsByStudentIdAsync(string studentId)
     {
         try
@@ -433,9 +415,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get the latest payment for a specific student
-    /// </summary>
+    // Get latest payment for a student
     public async Task<LedgerPayment?> GetLatestPaymentAsync(string studentId)
     {
         try
@@ -450,9 +430,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get payment by OR number (for receipt lookup)
-    /// </summary>
+    // Get payment by OR number
     public async Task<LedgerPayment?> GetPaymentByOrNumberAsync(string orNumber)
     {
         try
@@ -477,9 +455,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Get payment information for a student for a specific school year using ledger system
-    /// </summary>
+    // Get payment info for student by school year
     public async Task<StudentPaymentInfo?> GetStudentPaymentInfoBySchoolYearAsync(string studentId, string schoolYear)
     {
         try
@@ -511,9 +487,7 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Helper method to calculate next grade level (e.g., Grade 1 → Grade 2)
-    /// </summary>
+    // Calculate next grade level
     private string? CalculateNextGradeLevel(string? currentGradeLevel)
     {
         if (string.IsNullOrWhiteSpace(currentGradeLevel))
@@ -569,13 +543,10 @@ public class PaymentService
         }
     }
 
-    /// <summary>
-    /// Maps a ledger to StudentPaymentInfo
-    /// </summary>
+    // Maps ledger to payment info
     private async Task<StudentPaymentInfo> MapLedgerToPaymentInfoAsync(Student student, StudentLedger ledger, bool hasPreviousBalance, string? activeSchoolYear = null)
     {
-        // Always reload payments and charges from database to ensure we have the latest data
-        // This is critical after payment processing to avoid stale data
+        // Reload payments and charges to get latest data
         await _context.Entry(ledger)
             .Collection(l => l.Payments)
             .Query()
@@ -587,7 +558,7 @@ public class PaymentService
             .LoadAsync();
 
         // Recalculate totals to ensure status is up-to-date based on actual payments and charges
-        // IMPORTANT: Sum ALL charges including Tuition, Misc, Other, and Discounts (discounts are negative)
+        // Sum all charges including discounts (discounts are negative)
         var totalCharges = ledger.Charges?.Sum(c => c.Amount) ?? 0m;
         var totalPayments = ledger.Payments?.Sum(p => p.Amount) ?? 0m;
         var balance = totalCharges - totalPayments;
@@ -606,7 +577,7 @@ public class PaymentService
         }
 
         // Determine payment status based on current calculations (not stored status)
-        // This ensures the status is always accurate even if ledger.Status is stale
+        // Update status from ledger
         string paymentStatus;
         if (totalPayments == 0)
         {
@@ -622,7 +593,7 @@ public class PaymentService
         }
 
         // Update ledger totals and status if they don't match calculated values
-        // This ensures the database stays in sync
+        // Keep database in sync
         bool needsUpdate = false;
         if (Math.Abs(ledger.TotalCharges - totalCharges) > 0.01m)
         {
@@ -673,7 +644,7 @@ public class PaymentService
         else
         {
             // For current school year ledgers, prioritize student's current grade level
-            // This ensures re-enrolled students show their new grade level
+            // Update grade level for re-enrolled students
             if (!string.IsNullOrWhiteSpace(activeSchoolYear) && ledger.SchoolYear == activeSchoolYear)
             {
                 // Current school year - use student's current grade level (may have been updated via re-enrollment)
@@ -705,9 +676,7 @@ public class PaymentService
     }
 }
 
-/// <summary>
-/// Student payment information DTO
-/// </summary>
+// Student payment information DTO
 public class StudentPaymentInfo
 {
     public string StudentId { get; set; } = string.Empty;

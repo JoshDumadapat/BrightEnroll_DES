@@ -146,8 +146,7 @@ public class FinancialReportService
         return expensesByCategory;
     }
 
-    // Get financial data grouped by time period (daily, monthly, yearly) for line charts
-    /// </summary>
+    // Get financial data grouped by time period for line charts
     public async Task<List<FinancialTimeSeries>> GetFinancialTimeSeriesAsync(DateTime? fromDate = null, DateTime? toDate = null, string period = "monthly", string? schoolYear = null)
     {
         var defaultFromDate = fromDate ?? DateTime.Now.AddMonths(-6);
@@ -284,7 +283,6 @@ public class FinancialReportService
     }
 
     // Get payment status distribution for pie chart
-    /// </summary>
     public async Task<List<PaymentStatusDistribution>> GetPaymentStatusDistributionAsync(DateTime? fromDate = null, DateTime? toDate = null, string? schoolYear = null)
     {
         // Get students based on filters
@@ -398,7 +396,7 @@ public class FinancialReportService
         catch (Exception)
         {
             // If query fails for any reason, return empty list to prevent crash
-            // This ensures the report can still be generated even if ledger query fails
+            // Allow report generation even if ledger query fails
             ledgers = new List<StudentLedger>();
         }
 

@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Activity log specifically for teachers to track their actions and activities.
-/// Used for teacher dashboard recent activity feed.
-/// </summary>
+// Activity log for teachers - tracks actions and activities
 [Table("tbl_TeacherActivityLogs")]
 public class TeacherActivityLog
 {

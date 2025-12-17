@@ -1681,6 +1681,280 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 return false;
             }
         }
+
+        // Initializes tables, views, procedures ONLY (for existing cloud databases)
+        // Skips database creation - assumes database already exists
+        public static async Task<bool> InitializeTablesOnlyAsync(string connectionString)
+        {
+            try
+            {
+                // Extract database name from connection string
+                var builder = new SqlConnectionStringBuilder(connectionString);
+                var dbName = builder.InitialCatalog;
+                
+                if (string.IsNullOrWhiteSpace(dbName))
+                {
+                    System.Diagnostics.Debug.WriteLine("No database name found in connection string");
+                    return false;
+                }
+
+                // Use the provided connection string directly (database already exists)
+                using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync();
+
+                // Create all tables
+                var tableDefinitions = TableDefinitions.GetAllTableDefinitions();
+                var existingTables = new HashSet<string>();
+                
+                string checkAllTablesQuery = @"
+                    SELECT t.name, s.name as schema_name
+                    FROM sys.tables t
+                    INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                    WHERE s.name = 'dbo'";
+                
+                using var checkCommand = new SqlCommand(checkAllTablesQuery, connection);
+                using var reader = await checkCommand.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    existingTables.Add(reader["name"].ToString() ?? string.Empty);
+                }
+                await reader.CloseAsync();
+
+                bool anyTableCreated = false;
+
+                // Create missing tables and indexes
+                foreach (var tableDef in tableDefinitions)
+                {
+                    string tableKey = tableDef.TableName;
+                    if (!existingTables.Contains(tableKey))
+                    {
+                        try
+                        {
+                            using var createCommand = new SqlCommand(tableDef.CreateTableScript, connection);
+                            await createCommand.ExecuteNonQueryAsync();
+                            anyTableCreated = true;
+                            System.Diagnostics.Debug.WriteLine($"Successfully created table: {tableKey}");
+
+                            // Create indexes
+                            if (tableDef.CreateIndexesScripts.Any())
+                            {
+                                foreach (var indexScript in tableDef.CreateIndexesScripts)
+                                {
+                                    try
+                                    {
+                                        using var indexCommand = new SqlCommand(indexScript, connection);
+                                        await indexCommand.ExecuteNonQueryAsync();
+                                    }
+                                    catch (Exception indexEx)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"Warning: Could not create index for {tableDef.TableName}: {indexEx.Message}");
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception tableEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error creating table {tableKey}: {tableEx.Message}");
+                        }
+                    }
+                }
+
+                // Create views
+                try
+                {
+                    var viewDefinitions = BrightEnroll_DES.Services.Database.Definitions.ViewDefinitions.GetAllViewDefinitions();
+                    foreach (var viewDef in viewDefinitions)
+                    {
+                        try
+                        {
+                            string dropViewScript = $@"
+                                IF EXISTS (SELECT * FROM sys.views WHERE object_id = OBJECT_ID(N'[dbo].[{viewDef.ViewName}]'))
+                                DROP VIEW [dbo].[{viewDef.ViewName}];";
+                            
+                            using var dropCommand = new SqlCommand(dropViewScript, connection);
+                            await dropCommand.ExecuteNonQueryAsync();
+                        }
+                        catch { }
+
+                        try
+                        {
+                            using var createCommand = new SqlCommand(viewDef.CreateViewScript, connection);
+                            await createCommand.ExecuteNonQueryAsync();
+                        }
+                        catch (Exception viewEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error creating view {viewDef.ViewName}: {viewEx.Message}");
+                        }
+                    }
+                }
+                catch (Exception viewListEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Warning: Could not load view definitions: {viewListEx.Message}");
+                }
+
+                // Create stored procedures
+                string dropProcScript = @"
+                    IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[sp_CreateStudent]') AND type in (N'P', N'PC'))
+                    DROP PROCEDURE [dbo].[sp_CreateStudent];";
+                
+                using var dropProcCommand = new SqlCommand(dropProcScript, connection);
+                await dropProcCommand.ExecuteNonQueryAsync();
+
+                string createProcScript = @"
+                    CREATE PROCEDURE [dbo].[sp_CreateStudent]
+                            @first_name VARCHAR(50),
+                            @middle_name VARCHAR(50),
+                            @last_name VARCHAR(50),
+                            @suffix VARCHAR(10) = NULL,
+                            @birthdate DATE,
+                            @age INT,
+                            @place_of_birth VARCHAR(100) = NULL,
+                            @sex VARCHAR(10),
+                            @mother_tongue VARCHAR(50) = NULL,
+                            @ip_comm BIT = 0,
+                            @ip_specify VARCHAR(50) = NULL,
+                            @four_ps BIT = 0,
+                            @four_ps_hseID VARCHAR(50) = NULL,
+                            @hse_no VARCHAR(20) = NULL,
+                            @street VARCHAR(100) = NULL,
+                            @brngy VARCHAR(50) = NULL,
+                            @province VARCHAR(50) = NULL,
+                            @city VARCHAR(50) = NULL,
+                            @country VARCHAR(50) = NULL,
+                            @zip_code VARCHAR(10) = NULL,
+                            @phse_no VARCHAR(20) = NULL,
+                            @pstreet VARCHAR(100) = NULL,
+                            @pbrngy VARCHAR(50) = NULL,
+                            @pprovince VARCHAR(50) = NULL,
+                            @pcity VARCHAR(50) = NULL,
+                            @pcountry VARCHAR(50) = NULL,
+                            @pzip_code VARCHAR(10) = NULL,
+                            @student_type VARCHAR(20),
+                            @LRN VARCHAR(20) = NULL,
+                            @school_yr VARCHAR(20) = NULL,
+                            @grade_level VARCHAR(10) = NULL,
+                            @guardian_id INT,
+                            @student_id VARCHAR(6) OUTPUT
+                        AS
+                        BEGIN
+                            SET NOCOUNT ON;
+                            
+                            BEGIN TRY
+                                BEGIN TRANSACTION;
+                                
+                                DECLARE @NewID INT;
+                                DECLARE @FormattedID VARCHAR(6);
+                                
+                                SELECT @NewID = [LastStudentID]
+                                FROM [dbo].[tbl_StudentID_Sequence] WITH (UPDLOCK, HOLDLOCK);
+                                
+                                IF @NewID >= 999999
+                                BEGIN
+                                    ROLLBACK TRANSACTION;
+                                    RAISERROR('Student ID limit reached (999999). Cannot generate more student IDs.', 16, 1);
+                                    RETURN;
+                                END;
+                                
+                                SET @NewID = @NewID + 1;
+                                SET @FormattedID = RIGHT('000000' + CAST(@NewID AS VARCHAR(6)), 6);
+                                
+                                UPDATE [dbo].[tbl_StudentID_Sequence]
+                                SET [LastStudentID] = @NewID;
+                                
+                                INSERT INTO [dbo].[tbl_Students] (
+                                    [student_id], [first_name], [middle_name], [last_name], [suffix],
+                                    [birthdate], [age], [place_of_birth], [sex], [mother_tongue],
+                                    [ip_comm], [ip_specify], [four_ps], [four_ps_hseID],
+                                    [hse_no], [street], [brngy], [province], [city], [country], [zip_code],
+                                    [phse_no], [pstreet], [pbrngy], [pprovince], [pcity], [pcountry], [pzip_code],
+                                    [student_type], [LRN], [school_yr], [grade_level], [guardian_id],
+                                    [date_registered], [status]
+                                )
+                                VALUES (
+                                    @FormattedID, @first_name, @middle_name, @last_name, @suffix,
+                                    @birthdate, @age, @place_of_birth, @sex, @mother_tongue,
+                                    @ip_comm, @ip_specify, @four_ps, @four_ps_hseID,
+                                    @hse_no, @street, @brngy, @province, @city, @country, @zip_code,
+                                    @phse_no, @pstreet, @pbrngy, @pprovince, @pcity, @pcountry, @pzip_code,
+                                    @student_type, @LRN, @school_yr, @grade_level, @guardian_id,
+                                    GETDATE(), 'Pending'
+                                );
+                                
+                                SET @student_id = @FormattedID;
+                                
+                                COMMIT TRANSACTION;
+                            END TRY
+                            BEGIN CATCH
+                                IF @@TRANCOUNT > 0
+                                    ROLLBACK TRANSACTION;
+                                
+                                DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+                                DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+                                DECLARE @ErrorState INT = ERROR_STATE();
+                                
+                                RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+                            END CATCH;
+                        END;";
+
+                using var createProcCommand = new SqlCommand(createProcScript, connection);
+                await createProcCommand.ExecuteNonQueryAsync();
+
+                // Seed initial data
+                string checkGradeLevelsQuery = "SELECT COUNT(*) FROM [dbo].[tbl_GradeLevel]";
+                using var checkGradeCommand = new SqlCommand(checkGradeLevelsQuery, connection);
+                var gradeCount = await checkGradeCommand.ExecuteScalarAsync();
+                if (gradeCount != null && (int)gradeCount == 0)
+                {
+                    string insertGradeLevelsQuery = @"
+                        INSERT INTO [dbo].[tbl_GradeLevel] ([grade_level_name]) VALUES
+                        ('Pre-School'),
+                        ('Kinder'),
+                        ('Grade 1'),
+                        ('Grade 2'),
+                        ('Grade 3'),
+                        ('Grade 4'),
+                        ('Grade 5'),
+                        ('Grade 6');";
+                    using var insertGradeCommand = new SqlCommand(insertGradeLevelsQuery, connection);
+                    await insertGradeCommand.ExecuteNonQueryAsync();
+                }
+
+                // Initialize sequence table
+                string checkSequenceQuery = "SELECT COUNT(*) FROM [dbo].[tbl_StudentID_Sequence]";
+                using var checkSequenceCommand = new SqlCommand(checkSequenceQuery, connection);
+                var seqCount = await checkSequenceCommand.ExecuteScalarAsync();
+                if (seqCount != null && (int)seqCount == 0)
+                {
+                    string insertSequenceQuery = "INSERT INTO [dbo].[tbl_StudentID_Sequence] ([LastStudentID]) VALUES (158021)";
+                    using var insertSequenceCommand = new SqlCommand(insertSequenceQuery, connection);
+                    await insertSequenceCommand.ExecuteNonQueryAsync();
+                }
+
+                // Apply column additions (for existing databases) - create instance to call instance methods
+                var tempInitializer = new DatabaseInitializer(connectionString);
+                await tempInitializer.AddStatusColumnIfNotExistsAsync();
+                await tempInitializer.AddStudentColumnsIfNotExistAsync();
+                await tempInitializer.AddStudentRequirementsColumnsIfNotExistAsync();
+                await tempInitializer.AddSubjectColumnsIfNotExistAsync();
+                await tempInitializer.AddSectionAdviserColumnIfNotExistsAsync();
+                await tempInitializer.AddTeacherAssignmentArchiveColumnIfNotExistsAsync();
+                await tempInitializer.AddThresholdPercentageColumnIfNotExistsAsync();
+                await tempInitializer.AddBatchTimestampColumnIfNotExistsAsync();
+                await tempInitializer.AddPayrollAuditTrailAndCompanyContributionsAsync();
+                await tempInitializer.AddEffectiveDateColumnIfNotExistsAsync();
+                await tempInitializer.AddDiscountIdColumnIfNotExistsAsync();
+                await tempInitializer.EnsureAuditLogsTableExistsAsync();
+
+                System.Diagnostics.Debug.WriteLine($"Successfully initialized tables for database: {dbName}");
+                return anyTableCreated;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing tables: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
+        }
     }
 }
 

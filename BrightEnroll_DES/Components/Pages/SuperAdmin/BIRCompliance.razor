@@ -1,0 +1,954 @@
+@page "/system-admin/bir-compliance"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data
+@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Data.Models.SuperAdmin
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+@inject SuperAdminBIRService BIRService
+@inject SuperAdminBIRFilingService BIRFilingService
+@inject SuperAdminDbContext SuperAdminDbContext
+@inject IJSRuntime JSRuntime
+
+<PageTitle>BIR Compliance</PageTitle>
+
+<div class="text-gray-800">
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">BIR Compliance</h1>
+                <p class="mt-1 text-sm text-gray-600">Manage BIR information, filing records, and compliance tracking</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div class="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-medium text-gray-600">SuperAdmin BIR</p>
+                    <p class="mt-1 text-lg font-bold text-blue-700">@(superAdminBIRInfo != null ? "Configured" : "Not Set")</p>
+                </div>
+                <div class="rounded-full bg-blue-100 p-3">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-green-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div class="w-full">
+                    <p class="text-xs font-medium text-gray-600">VAT Registered</p>
+                    <p class="mt-1 text-lg font-bold text-green-700 text-right w-full">@vatRegisteredCount</p>
+                </div>
+                <div class="rounded-full bg-green-100 p-3">
+                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-amber-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div class="w-full">
+                    <p class="text-xs font-medium text-gray-600">Non-VAT</p>
+                    <p class="mt-1 text-lg font-bold text-amber-700 text-right w-full">@nonVatCount</p>
+                </div>
+                <div class="rounded-full bg-amber-100 p-3">
+                    <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="rounded-xl border border-purple-200 bg-white p-4 shadow-sm">
+            <div class="flex items-center justify-between">
+                <div class="w-full">
+                    <p class="text-xs font-medium text-gray-600">With BIR Info</p>
+                    <p class="mt-1 text-lg font-bold text-purple-700 text-right w-full">@customersWithBIRInfo</p>
+                </div>
+                <div class="rounded-full bg-purple-100 p-3">
+                    <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SuperAdmin BIR Information Configuration -->
+    <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">SuperAdmin BIR Information</h2>
+                        <p class="mt-1 text-sm text-gray-600">Configure your business registration and tax information</p>
+                    </div>
+                </div>
+                @if (!isEditingBIRInfo)
+                {
+                    <button @onclick="EnableBIRInfoEdit" 
+                            class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
+                    </button>
+                }
+            </div>
+        </div>
+        
+        <div class="px-6 py-6">
+            @if (!string.IsNullOrEmpty(birErrorMessage))
+            {
+                <div class="mb-4 rounded-lg bg-red-50 border border-red-200 p-3">
+                    <p class="text-sm text-red-600">@birErrorMessage</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(birSuccessMessage))
+            {
+                <div class="mb-4 rounded-lg bg-green-50 border border-green-200 p-3">
+                    <p class="text-sm text-green-600">@birSuccessMessage</p>
+                </div>
+            }
+
+            <div class="space-y-6">
+                <!-- Business Information -->
+                <div>
+                    <h3 class="mb-4 text-base font-semibold text-gray-800">Business Information</h3>
+                    <div class="space-y-4">
+                        <!-- TIN Number -->
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                TIN Number <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="birInfo.TinNumber" 
+                                   disabled="@(!isEditingBIRInfo)"
+                                   class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm @(isEditingBIRInfo ? "text-gray-700 bg-white" : "text-gray-500 bg-gray-50 cursor-not-allowed") focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(birErrors.ContainsKey("TinNumber") ? "border-red-500" : "")" 
+                                   placeholder="000-000-000-000" />
+                            @if (birErrors.ContainsKey("TinNumber"))
+                            {
+                                <p class="mt-1.5 text-xs text-red-600">@birErrors["TinNumber"]</p>
+                            }
+                        </div>
+
+                        <!-- Business Name -->
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                Business Name <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" @bind="birInfo.BusinessName" 
+                                   disabled="@(!isEditingBIRInfo)"
+                                   class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm @(isEditingBIRInfo ? "text-gray-700 bg-white" : "text-gray-500 bg-gray-50 cursor-not-allowed") focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 @(birErrors.ContainsKey("BusinessName") ? "border-red-500" : "")" 
+                                   placeholder="Enter registered business name" />
+                            @if (birErrors.ContainsKey("BusinessName"))
+                            {
+                                <p class="mt-1.5 text-xs text-red-600">@birErrors["BusinessName"]</p>
+                            }
+                        </div>
+
+                        <!-- Business Address -->
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">Business Address</label>
+                            <textarea @bind="birInfo.BusinessAddress" 
+                                      rows="3"
+                                      disabled="@(!isEditingBIRInfo)"
+                                      class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm @(isEditingBIRInfo ? "text-gray-700 bg-white" : "text-gray-500 bg-gray-50 cursor-not-allowed") focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                      placeholder="Enter complete business address"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tax Registration -->
+                <div class="border-t border-gray-200 pt-6">
+                    <h3 class="mb-4 text-base font-semibold text-gray-800">Tax Registration</h3>
+                    <div class="space-y-4">
+                        <!-- Registration Type -->
+                        <div>
+                            <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                Registration Type <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="birInfo.RegistrationType" 
+                                    disabled="@(!isEditingBIRInfo)"
+                                    class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm @(isEditingBIRInfo ? "bg-white text-gray-700" : "bg-gray-50 text-gray-500 cursor-not-allowed") focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="VAT">VAT (Value Added Tax)</option>
+                                <option value="Non-VAT">Non-VAT</option>
+                                <option value="Exempt">Tax Exempt</option>
+                            </select>
+                        </div>
+
+                        <!-- VAT Registered Toggle -->
+                        <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                            <div class="flex-1">
+                                <p class="font-semibold text-gray-700">VAT Registered</p>
+                                <p class="mt-1 text-xs text-gray-500">Enable if business is VAT registered with BIR</p>
+                            </div>
+                            <label class="relative inline-flex @(isEditingBIRInfo ? "cursor-pointer" : "cursor-not-allowed") items-center flex-shrink-0">
+                                <input type="checkbox" @bind="birInfo.IsVatRegistered" disabled="@(!isEditingBIRInfo)" class="peer sr-only" />
+                                <span class="peer h-6 w-11 rounded-full bg-gray-200 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 @(!isEditingBIRInfo ? "opacity-50" : "")"></span>
+                            </label>
+                        </div>
+
+                        <!-- VAT Rate -->
+                        @if (birInfo.IsVatRegistered && birInfo.RegistrationType == "VAT")
+                        {
+                            <div>
+                                <label class="mb-2 block text-sm font-semibold text-gray-700">
+                                    VAT Rate (%) <span class="text-red-500">*</span>
+                                </label>
+                                <input type="number" step="0.01" @bind="birInfo.VatRate" 
+                                       disabled="@(!isEditingBIRInfo)"
+                                       class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm @(isEditingBIRInfo ? "text-gray-700 bg-white" : "text-gray-500 bg-gray-50 cursor-not-allowed") focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       placeholder="12.00" />
+                                <p class="mt-1.5 text-xs text-gray-500">Default VAT rate in Philippines is 12%</p>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                @if (isEditingBIRInfo)
+                {
+                    <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                        <button @onclick="CancelBIRInfoEdit" 
+                                class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 transition-all hover:bg-gray-50 shadow-sm">
+                            Cancel
+                        </button>
+                        <button @onclick="SaveBIRInfo" 
+                                class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue-700 shadow-sm">
+                            Save BIR Information
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- BIR Filing/Submission Tracking -->
+    <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-900">BIR Filing/Submission Records</h2>
+                        <p class="mt-1 text-sm text-gray-600">Track your BIR tax return submissions (Quarterly VAT, Annual ITR, etc.)</p>
+                    </div>
+                </div>
+                <button @onclick="ShowAddFilingModal" 
+                        class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-green-700 shadow-sm">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Record Filing
+                </button>
+            </div>
+        </div>
+        
+        <div class="px-6 py-6">
+            @if (!string.IsNullOrEmpty(filingErrorMessage))
+            {
+                <div class="mb-4 rounded-lg bg-red-50 border border-red-200 p-3">
+                    <p class="text-sm text-red-600">@filingErrorMessage</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(filingSuccessMessage))
+            {
+                <div class="mb-4 rounded-lg bg-green-50 border border-green-200 p-3">
+                    <p class="text-sm text-green-600">@filingSuccessMessage</p>
+                </div>
+            }
+
+            <!-- Summary Cards -->
+            <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                    <p class="text-xs font-medium text-gray-600">Pending Filings</p>
+                    <p class="mt-1 text-2xl font-bold text-amber-700 text-right w-full">@birFilings.Count(f => f.Status == "Pending")</p>
+                </div>
+                <div class="rounded-lg border border-red-200 bg-red-50 p-4">
+                    <p class="text-xs font-medium text-gray-600">Overdue</p>
+                    <p class="mt-1 text-2xl font-bold text-red-700 text-right w-full">@birFilings.Count(f => f.Status == "Overdue")</p>
+                </div>
+                <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+                    <p class="text-xs font-medium text-gray-600">Filed</p>
+                    <p class="mt-1 text-2xl font-bold text-green-700 text-right w-full">@birFilings.Count(f => f.Status == "Filed" || f.Status == "Late Filed")</p>
+                </div>
+            </div>
+
+            <!-- Filings Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Filing Type</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Period</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Due Date</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Filing Date</th>
+                            <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Amount</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Reference</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        @if (birFilings != null && birFilings.Any())
+                        {
+                            @foreach (var filing in birFilings)
+                            {
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">@filing.FilingType</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@filing.Period</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@filing.DueDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@filing.FilingDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 text-right">@(filing.Amount.HasValue ? $"₱{filing.Amount.Value:N2}" : "N/A")</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">@(filing.ReferenceNumber ?? "N/A")</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @GetFilingStatusClass(filing.Status)">
+                                            @filing.Status
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm">
+                                        <button @onclick='() => EditFiling(filing)' 
+                                                class="text-blue-600 hover:text-blue-800">Edit</button>
+                                        <span class="mx-2 text-gray-300">|</span>
+                                        <button @onclick='() => DeleteFiling(filing.FilingId)' 
+                                                class="text-red-600 hover:text-red-800">Delete</button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="px-4 py-12 text-center text-gray-500">
+                                    <p>No BIR filing records found. Click "Record Filing" to add your first submission.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer BIR Compliance Table -->
+    <div class="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">Customer BIR Compliance</h2>
+                    <p class="mt-1 text-sm text-gray-600">BIR information for all customers</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="text" @bind="searchText" @bind:event="oninput" 
+                           placeholder="Search customers..." 
+                           class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <button @onclick="ExportBIRReport" 
+                            disabled="@isExporting"
+                            class="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        @if (isExporting)
+                        {
+                            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Exporting...</span>
+                        }
+                        else
+                        {
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            <span>Export Report</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Customer</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">BIR TIN</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Business Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Registration Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">VAT Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">VAT Rate</th>
+                        <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    @if (filteredCustomers != null && filteredCustomers.Any())
+                    {
+                        @foreach (var customer in filteredCustomers)
+                        {
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-gray-900">@customer.SchoolName</div>
+                                    <div class="text-xs text-gray-500">@customer.CustomerCode</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">@(customer.BirTin ?? "N/A")</div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <div class="text-sm text-gray-900">@(customer.BirBusinessName ?? "N/A")</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    @if (!string.IsNullOrWhiteSpace(customer.BirRegistrationType))
+                                    {
+                                        <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @GetRegistrationTypeClass(customer.BirRegistrationType)">
+                                            @customer.BirRegistrationType
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-xs text-gray-400">Not Set</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    @if (customer.IsVatRegistered && customer.VatRate.HasValue && customer.VatRate.Value > 0)
+                                    {
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                                            <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                                            </svg>
+                                            VAT Registered
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-800">Non-VAT</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">
+                                        @if (customer.VatRate.HasValue && customer.VatRate.Value > 0)
+                                        {
+                                            @customer.VatRate.Value.ToString("P2")
+                                        }
+                                        else
+                                        {
+                                            <span class="text-gray-400">N/A</span>
+                                        }
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @GetStatusClass(customer.Status)">
+                                        @customer.Status
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <p class="mt-2 text-sm font-medium text-gray-600">No customers found</p>
+                                <p class="mt-1 text-xs text-gray-500">@(string.IsNullOrWhiteSpace(searchText) ? "No customers with BIR information" : "Try adjusting your search")</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private SuperAdminBIRInfo? superAdminBIRInfo;
+    private List<Customer> allCustomers = new();
+    private string searchText = string.Empty;
+    private bool isExporting = false;
+    
+    // BIR Information Configuration
+    private SuperAdminBIRInfo birInfo = new SuperAdminBIRInfo();
+    private SuperAdminBIRInfo birInfoBackup = new SuperAdminBIRInfo();
+    private bool isEditingBIRInfo = false;
+    private Dictionary<string, string> birErrors = new Dictionary<string, string>();
+    private string birErrorMessage = string.Empty;
+    private string birSuccessMessage = string.Empty;
+    
+    // BIR Filing/Submission Tracking
+    private List<SuperAdminBIRFiling> birFilings = new();
+    private bool showFilingModal = false;
+    private SuperAdminBIRFiling? editingFiling = null;
+    private SuperAdminBIRFiling newFiling = new SuperAdminBIRFiling
+    {
+        FilingDate = DateTime.Today,
+        DueDate = DateTime.Today,
+        Status = "Pending"
+    };
+    private string filingErrorMessage = string.Empty;
+    private string filingSuccessMessage = string.Empty;
+
+    private List<Customer> filteredCustomers
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchText))
+                return allCustomers;
+
+            var searchLower = searchText.ToLower();
+            return allCustomers.Where(c =>
+                (c.SchoolName?.ToLower().Contains(searchLower) ?? false) ||
+                (c.CustomerCode?.ToLower().Contains(searchLower) ?? false) ||
+                (c.BirTin?.ToLower().Contains(searchLower) ?? false) ||
+                (c.BirBusinessName?.ToLower().Contains(searchLower) ?? false)
+            ).ToList();
+        }
+    }
+
+    private int vatRegisteredCount => allCustomers.Count(c => c.IsVatRegistered && c.VatRate.HasValue && c.VatRate.Value > 0);
+    private int nonVatCount => allCustomers.Count(c => !c.IsVatRegistered || !c.VatRate.HasValue || c.VatRate.Value == 0);
+    private int customersWithBIRInfo => allCustomers.Count(c => !string.IsNullOrWhiteSpace(c.BirTin) || !string.IsNullOrWhiteSpace(c.BirBusinessName));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBIRData();
+        await LoadBIRInfoAsync();
+        await LoadBIRFilingsAsync();
+    }
+
+    private async Task LoadBIRData()
+    {
+        try
+        {
+            superAdminBIRInfo = await BIRService.GetBIRInfoAsync();
+            allCustomers = await SuperAdminService.GetAllCustomersAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error loading BIR data: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadBIRInfoAsync()
+    {
+        try
+        {
+            var existing = await BIRService.GetBIRInfoAsync();
+            if (existing != null)
+            {
+                birInfo = existing;
+            }
+            else
+            {
+                birInfo = new SuperAdminBIRInfo
+                {
+                    RegistrationType = "VAT",
+                    VatRate = 0.12m,
+                    IsVatRegistered = true
+                };
+            }
+            // Create backup copy
+            birInfoBackup = new SuperAdminBIRInfo
+            {
+                BirInfoId = birInfo.BirInfoId,
+                TinNumber = birInfo.TinNumber,
+                BusinessName = birInfo.BusinessName,
+                BusinessAddress = birInfo.BusinessAddress,
+                RegistrationType = birInfo.RegistrationType,
+                IsVatRegistered = birInfo.IsVatRegistered,
+                VatRate = birInfo.VatRate
+            };
+        }
+        catch (Exception ex)
+        {
+            birErrorMessage = $"Error loading BIR information: {ex.Message}";
+        }
+    }
+
+    private void EnableBIRInfoEdit()
+    {
+        // Create backup copy before editing
+        birInfoBackup = new SuperAdminBIRInfo
+        {
+            BirInfoId = birInfo.BirInfoId,
+            TinNumber = birInfo.TinNumber,
+            BusinessName = birInfo.BusinessName,
+            BusinessAddress = birInfo.BusinessAddress,
+            RegistrationType = birInfo.RegistrationType,
+            IsVatRegistered = birInfo.IsVatRegistered,
+            VatRate = birInfo.VatRate
+        };
+        isEditingBIRInfo = true;
+        birErrors.Clear();
+        birErrorMessage = string.Empty;
+        birSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CancelBIRInfoEdit()
+    {
+        // Restore from backup
+        birInfo = new SuperAdminBIRInfo
+        {
+            BirInfoId = birInfoBackup.BirInfoId,
+            TinNumber = birInfoBackup.TinNumber,
+            BusinessName = birInfoBackup.BusinessName,
+            BusinessAddress = birInfoBackup.BusinessAddress,
+            RegistrationType = birInfoBackup.RegistrationType,
+            IsVatRegistered = birInfoBackup.IsVatRegistered,
+            VatRate = birInfoBackup.VatRate
+        };
+        isEditingBIRInfo = false;
+        birErrors.Clear();
+        birErrorMessage = string.Empty;
+        birSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task SaveBIRInfo()
+    {
+        birErrors.Clear();
+        birErrorMessage = string.Empty;
+        birSuccessMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(birInfo.TinNumber))
+        {
+            birErrors["TinNumber"] = "TIN number is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(birInfo.BusinessName))
+        {
+            birErrors["BusinessName"] = "Business name is required.";
+        }
+
+        if (birErrors.Count > 0)
+        {
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            int? updatedBy = currentUser?.user_ID;
+
+            await BIRService.SaveBIRInfoAsync(birInfo, updatedBy);
+            await LoadBIRData(); // Reload to update display
+            await LoadBIRInfoAsync(); // Reload to update backup
+
+            birSuccessMessage = "BIR information saved successfully!";
+            isEditingBIRInfo = false; // Exit edit mode after successful save
+        }
+        catch (Exception ex)
+        {
+            birErrorMessage = $"Error saving BIR information: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    // BIR Filing Methods
+    private async Task LoadBIRFilingsAsync()
+    {
+        try
+        {
+            birFilings = await BIRFilingService.GetAllFilingsAsync();
+        }
+        catch (Exception ex)
+        {
+            filingErrorMessage = $"Error loading BIR filings: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
+    private void ShowAddFilingModal()
+    {
+        editingFiling = null;
+        newFiling = new SuperAdminBIRFiling
+        {
+            FilingDate = DateTime.Today,
+            DueDate = DateTime.Today,
+            Status = "Pending"
+        };
+        showFilingModal = true;
+        filingErrorMessage = string.Empty;
+        filingSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void EditFiling(SuperAdminBIRFiling filing)
+    {
+        editingFiling = filing;
+        newFiling = new SuperAdminBIRFiling
+        {
+            FilingId = filing.FilingId,
+            FilingType = filing.FilingType,
+            Period = filing.Period,
+            FilingDate = filing.FilingDate,
+            DueDate = filing.DueDate,
+            Amount = filing.Amount,
+            ReferenceNumber = filing.ReferenceNumber,
+            Notes = filing.Notes,
+            Status = filing.Status
+        };
+        showFilingModal = true;
+        filingErrorMessage = string.Empty;
+        filingSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private void CloseFilingModal()
+    {
+        showFilingModal = false;
+        editingFiling = null;
+        filingErrorMessage = string.Empty;
+        filingSuccessMessage = string.Empty;
+        StateHasChanged();
+    }
+
+    private async Task SaveFiling()
+    {
+        filingErrorMessage = string.Empty;
+        filingSuccessMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(newFiling.FilingType))
+        {
+            filingErrorMessage = "Filing type is required.";
+            StateHasChanged();
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newFiling.Period))
+        {
+            filingErrorMessage = "Period is required.";
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var currentUser = AuthService.CurrentUser;
+            int? userId = currentUser?.user_ID;
+
+            if (editingFiling != null)
+            {
+                await BIRFilingService.UpdateFilingAsync(newFiling, userId);
+                filingSuccessMessage = "BIR filing updated successfully!";
+            }
+            else
+            {
+                await BIRFilingService.CreateFilingAsync(newFiling, userId);
+                filingSuccessMessage = "BIR filing recorded successfully!";
+            }
+
+            await LoadBIRFilingsAsync();
+            CloseFilingModal();
+        }
+        catch (Exception ex)
+        {
+            filingErrorMessage = $"Error saving BIR filing: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteFiling(int filingId)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this BIR filing record?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await BIRFilingService.DeleteFilingAsync(filingId);
+            await LoadBIRFilingsAsync();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error deleting BIR filing: {ex.Message}");
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private string GetFilingStatusClass(string status)
+    {
+        return status switch
+        {
+            "Filed" => "bg-green-100 text-green-800",
+            "Late Filed" => "bg-yellow-100 text-yellow-800",
+            "Overdue" => "bg-red-100 text-red-800",
+            "Pending" => "bg-blue-100 text-blue-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+    private string GetRegistrationTypeClass(string? registrationType)
+    {
+        return registrationType switch
+        {
+            "VAT" => "bg-blue-100 text-blue-800",
+            "Non-VAT" => "bg-gray-100 text-gray-800",
+            "Exempt" => "bg-purple-100 text-purple-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+    private string GetStatusClass(string status)
+    {
+        return status switch
+        {
+            "Active" => "bg-green-100 text-green-800",
+            "Inactive" => "bg-red-100 text-red-800",
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+
+    private async Task ExportBIRReport()
+    {
+        isExporting = true;
+        StateHasChanged();
+
+        try
+        {
+            // Create CSV content
+            var csv = new System.Text.StringBuilder();
+            csv.AppendLine("Customer Code,School Name,BIR TIN,Business Name,Registration Type,VAT Registered,VAT Rate,Status");
+
+            foreach (var customer in allCustomers)
+            {
+                csv.AppendLine($"{customer.CustomerCode}," +
+                              $"\"{customer.SchoolName}\"," +
+                              $"{customer.BirTin ?? "N/A"}," +
+                              $"\"{customer.BirBusinessName ?? "N/A"}\"," +
+                              $"{customer.BirRegistrationType ?? "N/A"}," +
+                              $"{(customer.IsVatRegistered ? "Yes" : "No")}," +
+                              $"{(customer.VatRate.HasValue ? customer.VatRate.Value.ToString("P2") : "N/A")}," +
+                              $"{customer.Status}");
+            }
+
+            var csvBytes = System.Text.Encoding.UTF8.GetBytes(csv.ToString());
+            var base64Content = Convert.ToBase64String(csvBytes);
+            var fileName = $"BIR_Compliance_Report_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, "text/csv", base64Content);
+            await JSRuntime.InvokeVoidAsync("alert", "BIR compliance report exported successfully!");
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error exporting report: {ex.Message}");
+        }
+        finally
+        {
+            isExporting = false;
+            StateHasChanged();
+        }
+    }
+}
+
+<!-- Add/Edit Filing Modal -->
+@if (showFilingModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseFilingModal">
+        <div class="relative max-h-[90vh] w-full max-w-2xl mx-4 overflow-y-auto rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+            <div class="sticky top-0 border-b border-gray-200 bg-gray-50 px-6 py-4">
+                <h3 class="text-lg font-bold text-gray-900">@(editingFiling != null ? "Edit" : "Record") BIR Filing</h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Filing Type <span class="text-red-500">*</span></label>
+                    <select @bind="newFiling.FilingType" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200">
+                        <option value="">Select filing type</option>
+                        <option value="Quarterly VAT (BIR Form 2550Q)">Quarterly VAT (BIR Form 2550Q)</option>
+                        <option value="Monthly VAT (BIR Form 2550M)">Monthly VAT (BIR Form 2550M)</option>
+                        <option value="Annual ITR (BIR Form 1701)">Annual ITR (BIR Form 1701)</option>
+                        <option value="Annual ITR (BIR Form 1702)">Annual ITR (BIR Form 1702)</option>
+                        <option value="Withholding Tax (BIR Form 1601E)">Withholding Tax (BIR Form 1601E)</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Period <span class="text-red-500">*</span></label>
+                    <input type="text" @bind="newFiling.Period" 
+                           placeholder="e.g., Q1 2024, 2024, Jan 2024" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Filing Date <span class="text-red-500">*</span></label>
+                        <input type="date" @bind="newFiling.FilingDate" @bind:format="yyyy-MM-dd"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    </div>
+                    <div>
+                        <label class="mb-2 block text-sm font-semibold text-gray-700">Due Date <span class="text-red-500">*</span></label>
+                        <input type="date" @bind="newFiling.DueDate" @bind:format="yyyy-MM-dd"
+                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    </div>
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Amount (if applicable)</label>
+                    <input type="number" step="0.01" @bind="newFiling.Amount" 
+                           placeholder="0.00" 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Reference Number</label>
+                    <input type="text" @bind="newFiling.ReferenceNumber" 
+                           placeholder="BIR confirmation number, receipt number, etc." 
+                           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                </div>
+                <div>
+                    <label class="mb-2 block text-sm font-semibold text-gray-700">Notes</label>
+                    <textarea @bind="newFiling.Notes" rows="3" 
+                              placeholder="Additional notes or remarks" 
+                              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+                </div>
+                @if (!string.IsNullOrEmpty(filingErrorMessage))
+                {
+                    <div class="rounded-lg bg-red-50 border border-red-200 p-3">
+                        <p class="text-sm text-red-600">@filingErrorMessage</p>
+                    </div>
+                }
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200">
+                    <button @onclick="CloseFilingModal" 
+                            class="rounded-lg border border-gray-300 bg-white px-6 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <button @onclick="SaveFiling" 
+                            class="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                        @(editingFiling != null ? "Update" : "Save") Filing
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}

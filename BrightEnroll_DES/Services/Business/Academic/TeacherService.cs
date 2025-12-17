@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Academic;
 
-/// <summary>
-/// Service for teacher-specific operations including dashboard data retrieval.
-/// </summary>
+// Service for teacher-specific operations
 public class TeacherService
 {
     private readonly AppDbContext _context;
@@ -21,9 +19,7 @@ public class TeacherService
 
     #region Dashboard Data
 
-    /// <summary>
-    /// Gets the count of assigned classes for a teacher.
-    /// </summary>
+    // Get count of assigned classes for teacher
     public async Task<int> GetAssignedClassesCountAsync(int teacherId)
     {
         try
@@ -61,9 +57,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets today's schedule for a teacher based on ClassSchedule table.
-    /// </summary>
+    // Get today's schedule for teacher
     public async Task<List<TodayScheduleItem>> GetTodayScheduleAsync(int teacherId)
     {
         try
@@ -129,9 +123,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets sections with pending attendance entries (no attendance recorded today).
-    /// </summary>
+    // Get sections with pending attendance entries
     public async Task<List<PendingAttendanceItem>> GetPendingAttendanceAsync(int teacherId)
     {
         try
@@ -186,9 +178,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets grading periods where the teacher has not submitted grades yet.
-    /// </summary>
+    // Get grading periods with pending grades
     public async Task<List<PendingGradeItem>> GetPendingGradesAsync(int teacherId)
     {
         try
@@ -251,9 +241,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets recent activity logs for a teacher.
-    /// </summary>
+    // Get recent activity logs for teacher
     public async Task<List<TeacherActivityLog>> GetRecentActivityAsync(int teacherId, int limit = 10)
     {
         try
@@ -275,9 +263,7 @@ public class TeacherService
 
     #region Activity Logging
 
-    /// <summary>
-    /// Logs a teacher activity.
-    /// </summary>
+    // Log teacher activity
     public async Task LogActivityAsync(int teacherId, string action, string? details = null)
     {
         try
@@ -300,9 +286,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets all assigned sections for a teacher with details.
-    /// </summary>
+    // Get all assigned sections for teacher with details
     public async Task<List<AssignedSectionItem>> GetAssignedSectionsAsync(int teacherId, string? schoolYear = null, string? gradeLevel = null)
     {
         try
@@ -397,9 +381,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets sections assigned to a teacher for grade entry (filtered by school year).
-    /// </summary>
+    // Get sections assigned to teacher for grade entry
     public async Task<List<Section>> GetAssignedSectionsForGradeEntryAsync(int teacherId, string schoolYear)
     {
         try
@@ -424,9 +406,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets subjects assigned to a teacher for a specific section.
-    /// </summary>
+    // Get subjects assigned to teacher for section
     public async Task<List<Subject>> GetAssignedSubjectsForGradeEntryAsync(int teacherId, int sectionId)
     {
         try
@@ -452,9 +432,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Validates if a teacher is assigned to a section and subject.
-    /// </summary>
+    // Validate if teacher is assigned to section and subject
     public async Task<bool> IsTeacherAssignedToSectionSubjectAsync(int teacherId, int sectionId, int subjectId)
     {
         try
@@ -472,9 +450,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets class roster (enrolled students) for a section.
-    /// </summary>
+    // Get class roster for section
     public async Task<List<ClassRosterItem>> GetClassRosterAsync(int sectionId, string schoolYear)
     {
         try
@@ -503,9 +479,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets detailed section information including adviser and co-teachers.
-    /// </summary>
+    // Get detailed section information
     public async Task<SectionDetailsItem?> GetSectionDetailsAsync(int sectionId, string? schoolYear = null)
     {
         try
@@ -582,9 +556,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets all enrolled students in a section with their enrollment status.
-    /// </summary>
+    // Get all enrolled students in section
     public async Task<List<EnrolledStudentItem>> GetEnrolledStudentsAsync(int sectionId, string schoolYear)
     {
         try
@@ -614,9 +586,7 @@ public class TeacherService
         }
     }
 
-    /// <summary>
-    /// Gets complete student information including personal, guardian, and enrollment details.
-    /// </summary>
+    // Get complete student information
     public async Task<StudentDetailsItem?> GetStudentDetailsAsync(string studentId, int sectionId, string schoolYear)
     {
         try

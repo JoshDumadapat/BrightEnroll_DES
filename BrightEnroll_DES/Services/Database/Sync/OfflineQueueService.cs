@@ -6,10 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Database.Sync;
 
-/// <summary>
-/// Service to manage offline operations queue.
-/// When offline, operations are queued locally and synced when back online.
-/// </summary>
+// Service to manage offline operations queue
 public interface IOfflineQueueService
 {
     Task QueueCreateAsync<T>(T entity, string tableName, string primaryKeyColumn) where T : class;

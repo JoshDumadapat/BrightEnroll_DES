@@ -212,7 +212,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
         _pollingCancellationTokenSource = new System.Threading.CancellationTokenSource();
 
         // Start periodic polling using Timer
-        // Note: Timer callback must be synchronous, so we fire-and-forget the async operation
+        // Timer callback is synchronous, fire-and-forget async operation
         _pollingTimer = new System.Threading.Timer(_ =>
         {
             if (_pollingCancellationTokenSource?.Token.IsCancellationRequested == true)
@@ -290,8 +290,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
     [JSInvokable]
     public async void OnConnectivityChanged(bool isOnline)
     {
-        // This method is called from JavaScript when connectivity changes
-        // Note: Must remain async void for JSInvokable, but we handle it carefully
+        // Called from JavaScript when connectivity changes
         try
         {
             // If navigator says offline, we're definitely offline (no need to check cloud)

@@ -4,10 +4,7 @@ using QuestPDF.Infrastructure;
 
 namespace BrightEnroll_DES.Services.QuestPDF;
 
-/// <summary>
-/// Generates a payment slip PDF for students with "For Payment" status.
-/// This slip is given to parents to present to the cashier for downpayment.
-/// </summary>
+// Generates payment slip PDF for students with "For Payment" status
 public class PaymentSlipPdfGenerator
 {
     private byte[]? _logoBytes;

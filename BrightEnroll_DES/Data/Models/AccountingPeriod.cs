@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Represents an accounting period (month/year) with closing status
-/// </summary>
+// Represents an accounting period (month/year) with closing status
 [Table("tbl_AccountingPeriods")]
 public class AccountingPeriod
 {

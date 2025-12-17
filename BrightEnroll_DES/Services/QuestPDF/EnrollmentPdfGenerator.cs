@@ -1129,7 +1129,6 @@ public class EnrollmentPdfGenerator
     }
 
     // Generates a PDF report for enrollment status records
-    /// </summary>
     public Task<byte[]> GenerateEnrollmentStatusReportAsync(string studentId, string studentName, List<Components.Pages.Admin.StudentRecord.StudentRecordCS.EnrollmentStatusData> records)
     {
         var logoBytes = GetLogoBytes();

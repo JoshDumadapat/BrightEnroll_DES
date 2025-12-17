@@ -64,3 +64,38 @@ window.downloadFile = function (filename, contentType, content) {
     }
 };
 
+// Print report utility for Blazor
+window.printReport = function (htmlContent) {
+    try {
+        if (!htmlContent) {
+            console.error('Invalid HTML content for printReport');
+            alert('Error: No content to print. Please try again.');
+            return;
+        }
+
+        // Create a new window for printing
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        
+        if (!printWindow) {
+            alert('Please allow pop-ups to print the report.');
+            return;
+        }
+
+        // Write HTML content to the new window
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        // Wait for content to load, then trigger print
+        printWindow.onload = function() {
+            setTimeout(function() {
+                printWindow.print();
+                // Optionally close the window after printing (user can cancel)
+                // printWindow.close();
+            }, 250);
+        };
+    } catch (error) {
+        console.error('Error printing report:', error);
+        alert('Error printing report: ' + error.message + '. Please try again.');
+    }
+};
+

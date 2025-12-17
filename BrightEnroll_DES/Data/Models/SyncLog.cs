@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Database entity for detailed sync operation logs.
-/// Stores individual log entries for sync operations.
-/// </summary>
+// Detailed sync operation logs
 [Table("tbl_SyncLogs")]
 public class SyncLog
 {

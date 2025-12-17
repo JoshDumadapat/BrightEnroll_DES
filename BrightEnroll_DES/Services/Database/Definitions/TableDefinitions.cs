@@ -78,6 +78,8 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 // Sync History and Logs (must be after tbl_SyncHistory for FK in tbl_SyncLogs)
                 GetSyncHistoryTableDefinition(),
                 GetSyncLogsTableDefinition(),
+                // School Information (standalone, no dependencies)
+                GetSchoolInformationTableDefinition(),
             };
         }
 
@@ -2042,7 +2044,462 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 }
             };
         }
+
+    // ============================================
+    // SUPERADMIN TABLE DEFINITIONS
+    // These tables are for the SuperAdmin database only
+    // FK constraints to tbl_Users removed (that table is in main database)
+    // ============================================
+
+    // Returns all SuperAdmin table definitions for separate database initialization
+    public static List<TableDefinition> GetSuperAdminTableDefinitions()
+    {
+        return new List<TableDefinition>
+        {
+            GetUsersTableDefinition(),               // Must be first - for SuperAdmin users (local dev/testing)
+            GetCustomersTableDefinition(),           // FK columns reference tbl_Users (within SuperAdmin DB)
+            // GetSalesLeadsTableDefinition() removed - Sales Lead functionality not needed
+            GetSupportTicketsTableDefinition(),      // FK to tbl_Customers (within SuperAdmin DB)
+            GetCustomerInvoicesTableDefinition(),    // FK to tbl_Customers (within SuperAdmin DB)
+            GetCustomerPaymentsTableDefinition(),    // FK to tbl_CustomerInvoices and tbl_Customers
+            // GetContractsTableDefinition() removed - Contract information is stored in tbl_Customers table
+            GetSystemUpdatesTableDefinition(),       // FK columns reference tbl_Users (within SuperAdmin DB)
+            GetSuperAdminBIRInfoTableDefinition(),    // Standalone BIR configuration
+            GetSuperAdminBIRFilingsTableDefinition() // BIR filing/submission records
+        };
     }
+
+    // Creates tbl_Customers table for SuperAdmin database
+    public static TableDefinition GetCustomersTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_Customers",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_Customers](
+                    [customer_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [customer_code] VARCHAR(50) NOT NULL UNIQUE,
+                    [school_name] VARCHAR(200) NOT NULL,
+                    [school_type] VARCHAR(50) NULL,
+                    [address] VARCHAR(500) NULL,
+                    [contact_person] VARCHAR(200) NULL,
+                    [contact_position] VARCHAR(100) NULL,
+                    [contact_email] VARCHAR(150) NULL,
+                    [contact_phone] VARCHAR(20) NULL,
+                    [subscription_plan] VARCHAR(50) NULL,
+                    [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [contract_start_date] DATE NULL,
+                    [contract_end_date] DATE NULL,
+                    [contract_duration_months] INT NULL,
+                    [student_count] INT NULL,
+                    [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                    [notes] NVARCHAR(MAX) NULL,
+                    [date_registered] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    [updated_at] DATETIME NULL,
+                    [database_name] NVARCHAR(200) NULL,
+                    [database_connection_string] NVARCHAR(MAX) NULL,
+                    [cloud_connection_string] NVARCHAR(MAX) NULL,
+                    [admin_username] NVARCHAR(100) NULL,
+                    [admin_password] NVARCHAR(255) NULL,
+                    -- BIR Compliance Information
+                    [bir_tin] VARCHAR(50) NULL,
+                    [bir_business_name] VARCHAR(200) NULL,
+                    [bir_address] NVARCHAR(500) NULL,
+                    [bir_registration_type] VARCHAR(20) NULL,
+                    [is_vat_registered] BIT NOT NULL DEFAULT 0,
+                    [vat_rate] DECIMAL(5,2) NULL,
+                    -- Contract Terms & Services
+                    [warranty_period] NVARCHAR(100) NULL,
+                    [maintenance_schedule] NVARCHAR(200) NULL,
+                    [free_services] NVARCHAR(500) NULL,
+                    [payment_terms] NVARCHAR(200) NULL,
+                    [termination_clause] NVARCHAR(500) NULL,
+                    [sla_details] NVARCHAR(500) NULL,
+                    [contract_terms_text] NVARCHAR(MAX) NULL,
+                    [auto_renewal] BIT NOT NULL DEFAULT 0
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_CustomerCode' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                    CREATE INDEX IX_tbl_Customers_CustomerCode ON [dbo].[tbl_Customers]([customer_code])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                    CREATE INDEX IX_tbl_Customers_SchoolName ON [dbo].[tbl_Customers]([school_name])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_Status' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                    CREATE INDEX IX_tbl_Customers_Status ON [dbo].[tbl_Customers]([status])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Customers_ContractEndDate' AND object_id = OBJECT_ID('dbo.tbl_Customers'))
+                    CREATE INDEX IX_tbl_Customers_ContractEndDate ON [dbo].[tbl_Customers]([contract_end_date])"
+            }
+        };
+    }
+
+    // Creates tbl_SalesLeads table for SuperAdmin database (assigned_to references tbl_Users in main DB, no FK constraint)
+    public static TableDefinition GetSalesLeadsTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SalesLeads",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SalesLeads](
+                    [lead_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [lead_code] VARCHAR(50) NOT NULL UNIQUE,
+                    [school_name] VARCHAR(200) NOT NULL,
+                    [contact_person] VARCHAR(200) NULL,
+                    [contact_email] VARCHAR(150) NULL,
+                    [contact_phone] VARCHAR(20) NULL,
+                    [address] VARCHAR(500) NULL,
+                    [stage] VARCHAR(50) NOT NULL DEFAULT 'New Lead',
+                    [interested_plan] VARCHAR(50) NULL,
+                    [estimated_value] DECIMAL(18,2) NULL,
+                    [follow_up_date] DATE NULL,
+                    [conversion_date] DATE NULL,
+                    [converted_amount] DECIMAL(18,2) NULL,
+                    [assigned_to] INT NULL,
+                    [notes] NVARCHAR(MAX) NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [updated_at] DATETIME NULL
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_LeadCode' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                    CREATE INDEX IX_tbl_SalesLeads_LeadCode ON [dbo].[tbl_SalesLeads]([lead_code])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_Stage' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                    CREATE INDEX IX_tbl_SalesLeads_Stage ON [dbo].[tbl_SalesLeads]([stage])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_FollowUpDate' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                    CREATE INDEX IX_tbl_SalesLeads_FollowUpDate ON [dbo].[tbl_SalesLeads]([follow_up_date])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SalesLeads_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SalesLeads'))
+                    CREATE INDEX IX_tbl_SalesLeads_CreatedAt ON [dbo].[tbl_SalesLeads]([created_at])"
+            }
+        };
+    }
+
+    // Creates tbl_SupportTickets table for SuperAdmin database (assigned_to references tbl_Users in main DB, no FK constraint)
+    public static TableDefinition GetSupportTicketsTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SupportTickets",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SupportTickets](
+                    [ticket_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [ticket_number] VARCHAR(50) NOT NULL UNIQUE,
+                    [customer_id] INT NULL,
+                    [subject] VARCHAR(200) NOT NULL,
+                    [description] NVARCHAR(MAX) NULL,
+                    [priority] VARCHAR(50) NOT NULL DEFAULT 'Medium',
+                    [status] VARCHAR(50) NOT NULL DEFAULT 'Open',
+                    [category] VARCHAR(50) NULL,
+                    [assigned_to] INT NULL,
+                    [resolved_at] DATETIME NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [updated_at] DATETIME NULL,
+                    CONSTRAINT FK_SupportTickets_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id])
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_TicketNumber' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                    CREATE INDEX IX_tbl_SupportTickets_TicketNumber ON [dbo].[tbl_SupportTickets]([ticket_number])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                    CREATE INDEX IX_tbl_SupportTickets_CustomerId ON [dbo].[tbl_SupportTickets]([customer_id])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Status' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                    CREATE INDEX IX_tbl_SupportTickets_Status ON [dbo].[tbl_SupportTickets]([status])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_Priority' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                    CREATE INDEX IX_tbl_SupportTickets_Priority ON [dbo].[tbl_SupportTickets]([priority])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SupportTickets_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SupportTickets'))
+                    CREATE INDEX IX_tbl_SupportTickets_CreatedAt ON [dbo].[tbl_SupportTickets]([created_at])"
+            }
+        };
+    }
+
+    // Creates tbl_Contracts table for SuperAdmin database (created_by references tbl_Users in main DB, no FK constraint)
+    public static TableDefinition GetContractsTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_Contracts",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_Contracts](
+                    [contract_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [contract_number] VARCHAR(50) NOT NULL UNIQUE,
+                    [customer_id] INT NOT NULL,
+                    [contract_type] VARCHAR(200) NULL,
+                    [start_date] DATE NOT NULL,
+                    [end_date] DATE NOT NULL,
+                    [renewal_date] DATE NULL,
+                    [monthly_fee] DECIMAL(18,2) NOT NULL,
+                    [status] VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    [auto_renew] BIT NOT NULL DEFAULT 0,
+                    [contract_file_path] NVARCHAR(MAX) NULL,
+                    [notes] NVARCHAR(MAX) NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    [updated_at] DATETIME NULL,
+                    CONSTRAINT FK_Contracts_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id])
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_ContractNumber' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                    CREATE INDEX IX_tbl_Contracts_ContractNumber ON [dbo].[tbl_Contracts]([contract_number])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                    CREATE INDEX IX_tbl_Contracts_CustomerId ON [dbo].[tbl_Contracts]([customer_id])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_Status' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                    CREATE INDEX IX_tbl_Contracts_Status ON [dbo].[tbl_Contracts]([status])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_StartDate' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                    CREATE INDEX IX_tbl_Contracts_StartDate ON [dbo].[tbl_Contracts]([start_date])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_Contracts_EndDate' AND object_id = OBJECT_ID('dbo.tbl_Contracts'))
+                    CREATE INDEX IX_tbl_Contracts_EndDate ON [dbo].[tbl_Contracts]([end_date])"
+            }
+        };
+    }
+
+    // Creates tbl_SystemUpdates table for SuperAdmin database (created_by references tbl_Users in main DB, no FK constraint)
+    public static TableDefinition GetSystemUpdatesTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SystemUpdates",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SystemUpdates](
+                    [update_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [version_number] VARCHAR(50) NOT NULL UNIQUE,
+                    [title] VARCHAR(200) NOT NULL,
+                    [description] NVARCHAR(MAX) NULL,
+                    [update_type] VARCHAR(50) NOT NULL DEFAULT 'Feature',
+                    [release_date] DATE NOT NULL,
+                    [status] VARCHAR(20) NOT NULL DEFAULT 'Released',
+                    [is_major_update] BIT NOT NULL DEFAULT 0,
+                    [requires_action] BIT NOT NULL DEFAULT 0,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    [updated_at] DATETIME NULL
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_VersionNumber' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                    CREATE INDEX IX_tbl_SystemUpdates_VersionNumber ON [dbo].[tbl_SystemUpdates]([version_number])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_ReleaseDate' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                    CREATE INDEX IX_tbl_SystemUpdates_ReleaseDate ON [dbo].[tbl_SystemUpdates]([release_date])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SystemUpdates_Status' AND object_id = OBJECT_ID('dbo.tbl_SystemUpdates'))
+                    CREATE INDEX IX_tbl_SystemUpdates_Status ON [dbo].[tbl_SystemUpdates]([status])"
+            }
+        };
+    }
+
+    // Creates tbl_SchoolInformation table for main database (school-specific information including BIR)
+    public static TableDefinition GetSchoolInformationTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SchoolInformation",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SchoolInformation](
+                    [school_info_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [school_name] VARCHAR(200) NOT NULL,
+                    [school_code] VARCHAR(50) NULL,
+                    [contact_number] VARCHAR(20) NULL,
+                    [email] VARCHAR(150) NULL,
+                    [website] VARCHAR(255) NULL,
+                    [house_no] VARCHAR(50) NULL,
+                    [street_name] VARCHAR(200) NULL,
+                    [barangay] VARCHAR(100) NULL,
+                    [city] VARCHAR(100) NULL,
+                    [province] VARCHAR(100) NULL,
+                    [country] VARCHAR(100) NULL DEFAULT 'Philippines',
+                    [zip_code] VARCHAR(20) NULL,
+                    -- BIR Information
+                    [bir_tin] VARCHAR(50) NULL,
+                    [bir_business_name] VARCHAR(200) NULL,
+                    [bir_address] NVARCHAR(500) NULL,
+                    [bir_registration_type] VARCHAR(20) NULL,
+                    [vat_rate] DECIMAL(5,2) NULL DEFAULT 0.12,
+                    [is_vat_registered] BIT NOT NULL DEFAULT 0,
+                    [updated_at] DATETIME NULL,
+                    [updated_by] INT NULL
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SchoolInformation_SchoolName' AND object_id = OBJECT_ID('dbo.tbl_SchoolInformation'))
+                    CREATE INDEX IX_tbl_SchoolInformation_SchoolName ON [dbo].[tbl_SchoolInformation]([school_name])"
+            }
+        };
+    }
+
+    // Creates tbl_SuperAdminBIRInfo table for SuperAdmin database
+    public static TableDefinition GetSuperAdminBIRInfoTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SuperAdminBIRInfo",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SuperAdminBIRInfo](
+                    [bir_info_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [tin_number] VARCHAR(50) NULL,
+                    [business_name] VARCHAR(200) NOT NULL,
+                    [business_address] NVARCHAR(500) NULL,
+                    [registration_type] VARCHAR(20) NOT NULL DEFAULT 'VAT',
+                    [vat_rate] DECIMAL(5,2) NOT NULL DEFAULT 0.12,
+                    [is_vat_registered] BIT NOT NULL DEFAULT 1,
+                    [updated_at] DATETIME NULL,
+                    [updated_by] INT NULL
+                )",
+            CreateIndexesScripts = new List<string>()
+        };
+    }
+
+    // Creates tbl_SuperAdminBIRFilings table for SuperAdmin database
+    public static TableDefinition GetSuperAdminBIRFilingsTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_SuperAdminBIRFilings",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_SuperAdminBIRFilings](
+                    [filing_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [filing_type] VARCHAR(50) NOT NULL,
+                    [period] VARCHAR(20) NOT NULL,
+                    [filing_date] DATETIME NOT NULL,
+                    [due_date] DATETIME NOT NULL,
+                    [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                    [amount] DECIMAL(18,2) NULL,
+                    [reference_number] VARCHAR(100) NULL,
+                    [notes] NVARCHAR(1000) NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    [updated_at] DATETIME NULL,
+                    [updated_by] INT NULL
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                "CREATE INDEX IX_SuperAdminBIRFilings_FilingType ON [dbo].[tbl_SuperAdminBIRFilings]([filing_type]);",
+                "CREATE INDEX IX_SuperAdminBIRFilings_Period ON [dbo].[tbl_SuperAdminBIRFilings]([period]);",
+                "CREATE INDEX IX_SuperAdminBIRFilings_Status ON [dbo].[tbl_SuperAdminBIRFilings]([status]);",
+                "CREATE INDEX IX_SuperAdminBIRFilings_DueDate ON [dbo].[tbl_SuperAdminBIRFilings]([due_date]);",
+                "CREATE INDEX IX_SuperAdminBIRFilings_FilingDate ON [dbo].[tbl_SuperAdminBIRFilings]([filing_date]);"
+            }
+        };
+    }
+
+    // Creates tbl_CustomerInvoices table for SuperAdmin database (must be before GetCustomerPaymentsTableDefinition)
+    public static TableDefinition GetCustomerInvoicesTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_CustomerInvoices",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_CustomerInvoices](
+                    [invoice_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [customer_id] INT NOT NULL,
+                    [invoice_number] VARCHAR(50) NOT NULL UNIQUE,
+                    [invoice_date] DATE NOT NULL,
+                    [due_date] DATE NOT NULL,
+                    [billing_period_start] DATE NULL,
+                    [billing_period_end] DATE NULL,
+                    [subtotal] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [vat_amount] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [total_amount] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [amount_paid] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [balance] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                    [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+                    [payment_terms] NVARCHAR(200) NULL,
+                    [notes] NVARCHAR(MAX) NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    [paid_at] DATETIME NULL,
+                    CONSTRAINT FK_CustomerInvoices_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id])
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerInvoices_InvoiceNumber' AND object_id = OBJECT_ID('dbo.tbl_CustomerInvoices'))
+                    CREATE INDEX IX_tbl_CustomerInvoices_InvoiceNumber ON [dbo].[tbl_CustomerInvoices]([invoice_number])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerInvoices_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_CustomerInvoices'))
+                    CREATE INDEX IX_tbl_CustomerInvoices_CustomerId ON [dbo].[tbl_CustomerInvoices]([customer_id])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerInvoices_Status' AND object_id = OBJECT_ID('dbo.tbl_CustomerInvoices'))
+                    CREATE INDEX IX_tbl_CustomerInvoices_Status ON [dbo].[tbl_CustomerInvoices]([status])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerInvoices_DueDate' AND object_id = OBJECT_ID('dbo.tbl_CustomerInvoices'))
+                    CREATE INDEX IX_tbl_CustomerInvoices_DueDate ON [dbo].[tbl_CustomerInvoices]([due_date])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerInvoices_InvoiceDate' AND object_id = OBJECT_ID('dbo.tbl_CustomerInvoices'))
+                    CREATE INDEX IX_tbl_CustomerInvoices_InvoiceDate ON [dbo].[tbl_CustomerInvoices]([invoice_date])"
+            }
+        };
+    }
+
+    // Creates tbl_CustomerPayments table for SuperAdmin database
+    public static TableDefinition GetCustomerPaymentsTableDefinition()
+    {
+        return new TableDefinition
+        {
+            TableName = "tbl_CustomerPayments",
+            SchemaName = "dbo",
+            CreateTableScript = @"
+                CREATE TABLE [dbo].[tbl_CustomerPayments](
+                    [payment_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    [invoice_id] INT NOT NULL,
+                    [customer_id] INT NOT NULL,
+                    [payment_reference] VARCHAR(50) NOT NULL,
+                    [payment_date] DATE NOT NULL,
+                    [amount] DECIMAL(18,2) NOT NULL,
+                    [payment_method] VARCHAR(50) NOT NULL DEFAULT 'Bank Transfer',
+                    [notes] NVARCHAR(MAX) NULL,
+                    [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                    [created_by] INT NULL,
+                    CONSTRAINT FK_CustomerPayments_Invoice FOREIGN KEY ([invoice_id]) REFERENCES [dbo].[tbl_CustomerInvoices]([invoice_id]),
+                    CONSTRAINT FK_CustomerPayments_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id])
+                )",
+            CreateIndexesScripts = new List<string>
+            {
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerPayments_PaymentReference' AND object_id = OBJECT_ID('dbo.tbl_CustomerPayments'))
+                    CREATE INDEX IX_tbl_CustomerPayments_PaymentReference ON [dbo].[tbl_CustomerPayments]([payment_reference])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerPayments_InvoiceId' AND object_id = OBJECT_ID('dbo.tbl_CustomerPayments'))
+                    CREATE INDEX IX_tbl_CustomerPayments_InvoiceId ON [dbo].[tbl_CustomerPayments]([invoice_id])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerPayments_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_CustomerPayments'))
+                    CREATE INDEX IX_tbl_CustomerPayments_CustomerId ON [dbo].[tbl_CustomerPayments]([customer_id])",
+                @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerPayments_PaymentDate' AND object_id = OBJECT_ID('dbo.tbl_CustomerPayments'))
+                    CREATE INDEX IX_tbl_CustomerPayments_PaymentDate ON [dbo].[tbl_CustomerPayments]([payment_date])"
+            }
+        };
+    }
+
+    } // End of TableDefinitions static class
 
     // Holds table creation script and index definitions
     public class TableDefinition
@@ -2051,6 +2508,14 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         public string SchemaName { get; set; } = "dbo";
         public string CreateTableScript { get; set; } = string.Empty;
         public List<string> CreateIndexesScripts { get; set; } = new List<string>();
+    }
+
+    // Holds view creation script
+    public class ViewDefinition
+    {
+        public string ViewName { get; set; } = string.Empty;
+        public string SchemaName { get; set; } = "dbo";
+        public string CreateViewScript { get; set; } = string.Empty;
     }
 
     // Holds view creation scripts
@@ -2288,14 +2753,6 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                         ON tsa.[TeacherID] = u.[user_ID];"
             };
         }
-    }
-
-    // Holds view creation script
-    public class ViewDefinition
-    {
-        public string ViewName { get; set; } = string.Empty;
-        public string SchemaName { get; set; } = "dbo";
-        public string CreateViewScript { get; set; } = string.Empty;
     }
 }
 

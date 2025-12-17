@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Tracks employee attendance/time records for payroll calculations
-/// </summary>
+// Tracks employee attendance/time records for payroll
 [Table("tbl_TimeRecords")]
 public class TimeRecord
 {

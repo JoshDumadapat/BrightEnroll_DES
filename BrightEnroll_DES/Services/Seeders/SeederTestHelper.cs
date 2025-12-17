@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Seeders;
 
-/// <summary>
-/// Helper class to manually test and run database seeding
-/// </summary>
+// Helper class to test and run database seeding
 public class SeederTestHelper
 {
     private readonly DatabaseSeeder _seeder;
@@ -27,9 +25,7 @@ public class SeederTestHelper
         _logger = logger;
     }
 
-    /// <summary>
-    /// Manually run the seeder and return detailed results
-    /// </summary>
+    // Manually run seeder and return detailed results
     public async Task<SeederTestResult> RunSeederManuallyAsync()
     {
         var result = new SeederTestResult();
@@ -68,49 +64,17 @@ public class SeederTestHelper
                 System.Diagnostics.Debug.WriteLine($"ERROR seeding roles: {ex.Message}");
             }
             
-            // Seed admin user
-            try
-            {
-                await _seeder.SeedInitialAdminAsync();
-                result.AdminSeeded = true;
-                System.Diagnostics.Debug.WriteLine("Admin user seeded successfully");
-            }
-            catch (Exception ex)
-            {
-                result.AdminSeeded = false;
-                result.AdminError = ex.Message;
-                System.Diagnostics.Debug.WriteLine($"ERROR seeding admin: {ex.Message}");
-            }
+            // NOTE: Static user seeders have been removed. Users are now created dynamically through the Add Customer feature.
+            // The SchoolAdminSeeder handles creating admin users for each school's database when a customer is added.
             
-            // Seed HR user
-            try
-            {
-                await _seeder.SeedInitialHRAsync();
-                result.HRSeeded = true;
-                System.Diagnostics.Debug.WriteLine("HR user seeded successfully");
-            }
-            catch (Exception ex)
-            {
-                result.HRSeeded = false;
-                result.HRError = ex.Message;
-                System.Diagnostics.Debug.WriteLine($"ERROR seeding HR: {ex.Message}");
-            }
+            result.AdminSeeded = false; // Not applicable - users created dynamically
+            result.HRSeeded = false; // Not applicable - users created dynamically
+            result.AdminUserExists = false; // Will be created when customer is added
             
-            // Verify admin user exists
-            var adminUser = await _userRepository.GetBySystemIdAsync("BDES-0001");
-            result.AdminUserExists = adminUser != null;
+            System.Diagnostics.Debug.WriteLine("NOTE: User seeding is now handled dynamically through the Add Customer feature.");
+            System.Diagnostics.Debug.WriteLine("Users will be created in each school's database when a customer is added.");
             
-            if (adminUser != null)
-            {
-                result.AdminUserId = adminUser.user_ID;
-                System.Diagnostics.Debug.WriteLine($"Admin user verified: ID={adminUser.user_ID}, SystemID={adminUser.system_ID}");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("WARNING: Admin user not found after seeding!");
-            }
-            
-            result.Success = result.AdminSeeded && result.AdminUserExists;
+            result.Success = result.RolesSeeded; // Success if roles were seeded
             
             System.Diagnostics.Debug.WriteLine("=== MANUAL SEEDER TEST COMPLETED ===");
         }

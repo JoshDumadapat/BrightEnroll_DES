@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Logs all student payments with OR numbers for audit and receipt history.
-/// </summary>
+// Logs student payments with OR numbers
 [Table("tbl_StudentPayments")]
 public class StudentPayment
 {

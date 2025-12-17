@@ -1,0 +1,423 @@
+@page "/system-admin/cloud-management"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Database.SuperAdmin_Sync
+@inject BrightEnroll_DES.Services.Database.SuperAdmin_Sync.ISuperAdminDatabaseSyncService SuperAdminSyncService
+@inject BrightEnroll_DES.Services.Database.SuperAdmin_Sync.ISuperAdminSyncStatusService SuperAdminSyncStatusService
+
+<PageTitle>Cloud Management</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Cloud Management</h1>
+            <p class="mt-1 text-sm text-gray-600">Synchronize SuperAdmin data with cloud database</p>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="mb-6 flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="flex items-center gap-4">
+            <div class="flex h-12 w-12 items-center justify-center rounded-lg @(superAdminIsConnected ? "bg-green-100" : "bg-red-100")">
+                <svg class="h-6 w-6 @(superAdminIsConnected ? "text-green-600" : "text-red-600")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                </svg>
+            </div>
+            <div>
+                <p class="text-sm font-semibold text-gray-700">Cloud Connection Status</p>
+                <p class="text-xs text-gray-500">
+                    @if (superAdminIsConnected)
+                    {
+                        <span class="text-green-600">Connected</span>
+                    }
+                    else
+                    {
+                        <span class="text-red-600">Disconnected</span>
+                    }
+                    @if (superAdminLastSyncTime.HasValue)
+                    {
+                        <span> • Last sync: @superAdminLastSyncTime.Value.ToString("MMM dd, yyyy HH:mm")</span>
+                    }
+                </p>
+            </div>
+        </div>
+        <button @onclick="TestSuperAdminConnection" 
+                disabled="@superAdminIsTestingConnection"
+                class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+            @if (superAdminIsTestingConnection)
+            {
+                <span>Testing...</span>
+            }
+            else
+            {
+                <span>Test Connection</span>
+            }
+        </button>
+    </div>
+
+    <!-- Sync Action Cards -->
+    <div class="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-3 w-full">
+        <!-- Full Sync Card -->
+        <div class="group relative overflow-hidden rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+            <div class="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+            <div class="relative p-6">
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                </div>
+                <h6 class="mb-2 text-base font-bold text-gray-800">Full Sync</h6>
+                <p class="mb-4 text-xs leading-relaxed text-gray-600">Syncs all SuperAdmin data to and from cloud</p>
+                <button @onclick="SuperAdminFullSync" 
+                        disabled="@(superAdminIsSyncing || !superAdminIsConnected)"
+                        class="flex @(superAdminIsSyncing || !superAdminIsConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
+                    @if (superAdminIsSyncing && superAdminSyncType == "full")
+                    {
+                        <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Syncing...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Sync Now</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        <!-- Push to Cloud Card -->
+        <div class="group relative overflow-hidden rounded-xl border border-green-100 bg-gradient-to-br from-green-50 via-white to-green-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+            <div class="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+            <div class="relative p-6">
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-green-500 to-green-600 shadow-lg">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                    </div>
+                </div>
+                <h6 class="mb-2 text-base font-bold text-gray-800">Push to Cloud</h6>
+                <p class="mb-4 text-xs leading-relaxed text-gray-600">Uploads all SuperAdmin changes to cloud</p>
+                <button @onclick="SuperAdminSyncToCloud" 
+                        disabled="@(superAdminIsSyncing || !superAdminIsConnected)"
+                        class="flex @(superAdminIsSyncing || !superAdminIsConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
+                    @if (superAdminIsSyncing && superAdminSyncType == "toCloud")
+                    {
+                        <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Uploading...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <span>Push to Cloud</span>
+                    }
+                </button>
+            </div>
+        </div>
+
+        <!-- Pull from Cloud Card -->
+        <div class="group relative overflow-hidden rounded-xl border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-purple-50/50 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl">
+            <div class="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+            <div class="relative p-6">
+                <div class="mb-4 flex items-center justify-between">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                    </div>
+                </div>
+                <h6 class="mb-2 text-base font-bold text-gray-800">Pull from Cloud</h6>
+                <p class="mb-4 text-xs leading-relaxed text-gray-600">Downloads all cloud data to local</p>
+                <button @onclick="SuperAdminSyncFromCloud" 
+                        disabled="@(superAdminIsSyncing || !superAdminIsConnected)"
+                        class="flex @(superAdminIsSyncing || !superAdminIsConnected ? "bg-gray-400 cursor-not-allowed" : "bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800") w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-200">
+                    @if (superAdminIsSyncing && superAdminSyncType == "fromCloud")
+                    {
+                        <svg class="h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Downloading...</span>
+                    }
+                    else
+                    {
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                        </svg>
+                        <span>Pull from Cloud</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sync Status Card -->
+    @if (!string.IsNullOrEmpty(superAdminSyncStatusMessage))
+    {
+        <div class="mb-6 overflow-hidden rounded-xl border border-gray-100 bg-white shadow-lg">
+            <div class="px-6 py-6">
+                <div class="@(superAdminSyncStatusType == "error" ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200") rounded-lg p-4 shadow-sm">
+                    <div class="flex items-start gap-3">
+                        @if (superAdminSyncStatusType == "error")
+                        {
+                            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        }
+                        else
+                        {
+                            <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        }
+                        <div class="flex-1">
+                            <p class="text-sm font-medium @(superAdminSyncStatusType == "error" ? "text-red-700" : "text-green-700")">@superAdminSyncStatusMessage</p>
+                            @if (superAdminResultDetails != null)
+                            {
+                                <div class="mt-3 space-y-1.5 text-xs @(superAdminSyncStatusType == "error" ? "text-red-600" : "text-green-600")">
+                                    <div class="flex items-center gap-2">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                        <span>Records Pushed: <strong>@superAdminResultDetails.RecordsPushed</strong></span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                                        </svg>
+                                        <span>Records Pulled: <strong>@superAdminResultDetails.RecordsPulled</strong></span>
+                                    </div>
+                                    @if (superAdminResultDetails.Errors.Any())
+                                    {
+                                        <div class="mt-3 border-t pt-3 @(superAdminSyncStatusType == "error" ? "border-red-200" : "border-green-200")">
+                                            <strong class="font-semibold">Errors:</strong>
+                                            <ul class="ml-4 mt-1.5 list-disc space-y-1">
+                                                @foreach (var error in superAdminResultDetails.Errors)
+                                                {
+                                                    <li>@error</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // SuperAdmin Cloud Management Properties
+    private bool superAdminIsConnected = false;
+    private bool superAdminIsSyncing = false;
+    private bool superAdminIsTestingConnection = false;
+    private string superAdminSyncType = "";
+    private DateTime? superAdminLastSyncTime = null;
+    private string superAdminSyncStatusMessage = "";
+    private string superAdminSyncStatusType = "success";
+    private SuperAdminSyncResult? superAdminResultDetails = null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Test connection on first render
+            await TestSuperAdminConnection();
+            superAdminLastSyncTime = SuperAdminSyncStatusService.LastSyncTime;
+            superAdminIsConnected = SuperAdminSyncStatusService.IsOnline;
+            StateHasChanged();
+        }
+    }
+
+    private async Task TestSuperAdminConnection()
+    {
+        superAdminIsTestingConnection = true;
+        StateHasChanged();
+
+        try
+        {
+            var isConnected = await SuperAdminSyncService.TestCloudConnectionAsync();
+            superAdminIsConnected = isConnected;
+            SuperAdminSyncStatusService.SetOnline(isConnected);
+
+            if (isConnected)
+            {
+                superAdminSyncStatusMessage = "Connection test successful!";
+                superAdminSyncStatusType = "success";
+            }
+            else
+            {
+                superAdminSyncStatusMessage = "Connection test failed. Please check your cloud connection settings.";
+                superAdminSyncStatusType = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            superAdminIsConnected = false;
+            superAdminSyncStatusMessage = $"Connection test error: {ex.Message}";
+            superAdminSyncStatusType = "error";
+            SuperAdminSyncStatusService.AddError(ex.Message);
+        }
+        finally
+        {
+            superAdminIsTestingConnection = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SuperAdminFullSync()
+    {
+        if (superAdminIsSyncing) return;
+
+        superAdminIsSyncing = true;
+        superAdminSyncType = "full";
+        superAdminSyncStatusMessage = "";
+        SuperAdminSyncStatusService.SetSyncing(true);
+        StateHasChanged();
+
+        try
+        {
+            var result = await SuperAdminSyncService.FullSyncAsync();
+            superAdminResultDetails = result;
+            
+            if (result.Success)
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "success";
+                superAdminLastSyncTime = result.SyncTime;
+                SuperAdminSyncStatusService.UpdateLastSyncTime(result.SyncTime);
+            }
+            else
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "error";
+                foreach (var error in result.Errors)
+                {
+                    SuperAdminSyncStatusService.AddError(error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            superAdminSyncStatusMessage = $"Sync error: {ex.Message}";
+            superAdminSyncStatusType = "error";
+            SuperAdminSyncStatusService.AddError(ex.Message);
+        }
+        finally
+        {
+            superAdminIsSyncing = false;
+            superAdminSyncType = "";
+            SuperAdminSyncStatusService.SetSyncing(false);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SuperAdminSyncToCloud()
+    {
+        if (superAdminIsSyncing) return;
+
+        superAdminIsSyncing = true;
+        superAdminSyncType = "toCloud";
+        superAdminSyncStatusMessage = "";
+        SuperAdminSyncStatusService.SetSyncing(true);
+        StateHasChanged();
+
+        try
+        {
+            var result = await SuperAdminSyncService.SyncToCloudAsync();
+            superAdminResultDetails = result;
+            
+            if (result.Success)
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "success";
+                superAdminLastSyncTime = result.SyncTime;
+                SuperAdminSyncStatusService.UpdateLastSyncTime(result.SyncTime);
+            }
+            else
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "error";
+                foreach (var error in result.Errors)
+                {
+                    SuperAdminSyncStatusService.AddError(error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            superAdminSyncStatusMessage = $"Push error: {ex.Message}";
+            superAdminSyncStatusType = "error";
+            SuperAdminSyncStatusService.AddError(ex.Message);
+        }
+        finally
+        {
+            superAdminIsSyncing = false;
+            superAdminSyncType = "";
+            SuperAdminSyncStatusService.SetSyncing(false);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SuperAdminSyncFromCloud()
+    {
+        if (superAdminIsSyncing) return;
+
+        superAdminIsSyncing = true;
+        superAdminSyncType = "fromCloud";
+        superAdminSyncStatusMessage = "";
+        SuperAdminSyncStatusService.SetSyncing(true);
+        StateHasChanged();
+
+        try
+        {
+            var result = await SuperAdminSyncService.SyncFromCloudAsync();
+            superAdminResultDetails = result;
+            
+            if (result.Success)
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "success";
+                superAdminLastSyncTime = result.SyncTime;
+                SuperAdminSyncStatusService.UpdateLastSyncTime(result.SyncTime);
+            }
+            else
+            {
+                superAdminSyncStatusMessage = result.Message;
+                superAdminSyncStatusType = "error";
+                foreach (var error in result.Errors)
+                {
+                    SuperAdminSyncStatusService.AddError(error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            superAdminSyncStatusMessage = $"Pull error: {ex.Message}";
+            superAdminSyncStatusType = "error";
+            SuperAdminSyncStatusService.AddError(ex.Message);
+        }
+        finally
+        {
+            superAdminIsSyncing = false;
+            superAdminSyncType = "";
+            SuperAdminSyncStatusService.SetSyncing(false);
+            StateHasChanged();
+        }
+    }
+}

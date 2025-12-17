@@ -20,6 +20,7 @@
 @inject FinancialReportService FinancialReportService
 @inject EnrollmentReportService EnrollmentReportService
 @inject SchoolYearService SchoolYearService
+@inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
 
 <PageTitle>Dashboard</PageTitle>
 
@@ -623,8 +624,24 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Check if user is SuperAdmin and redirect to SuperAdmin dashboard
+        if (AuthService?.CurrentUser != null)
+        {
+            var userRole = AuthService.CurrentUser.user_role;
+            var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                              (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                               userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+            
+            if (isSuperAdmin)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Admin Dashboard] SuperAdmin detected. Redirecting to /system-admin/dashboard");
+                NavigationManager.NavigateTo("/system-admin/dashboard", forceLoad: true);
+                return;
+            }
+        }
+
         // Hide loading immediately - dashboard loads data inline (no full-screen loading)
-        // This ensures smooth transition from login without showing "Loading dashboard..."
+        // Smooth transition from login
         LoadingService.HideLoading();
 
         try
@@ -762,7 +779,7 @@
     }
 
     // Separate method to load revenue data early and independently
-    // This ensures revenue shows immediately on page load
+    // Load revenue on page load
     private async Task LoadRevenueData(string? schoolYear = null)
     {
         try
@@ -866,7 +883,7 @@
     protected override async Task OnParametersSetAsync()
     {
         // Reload data when navigating back to dashboard from another page
-        // This ensures data is fresh when returning to the dashboard
+        // Refresh data when returning to dashboard
         // Only reload if we've already initialized (to avoid double-loading on first render)
         if (_hasInitialized)
         {
@@ -999,7 +1016,7 @@
             var forPaymentStatus = "For Payment";
             
             // Query students with "For Payment" status from StudentSectionEnrollments for the school year
-            // This ensures we get students who are in the "for enrollment" process
+            // Get students in "for enrollment" process
             if (!string.IsNullOrEmpty(effectiveSchoolYear))
             {
                 // Count students with "For Payment" status in enrollments for the school year
@@ -1075,7 +1092,7 @@
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
             // Calculate TotalTuitionCollected - sum of all student payments from StudentPayments table
-            // This ensures we fetch actual payment records (read-only query, no transactions affected)
+            // Fetch payment records (read-only query)
             // FIXED: When effectiveSchoolYear is null (All School Years), LoadRevenueData will show all payments
             await LoadRevenueData(effectiveSchoolYear);
 
@@ -1717,7 +1734,7 @@
                  s.Status.Equals("Partially Paid", StringComparison.OrdinalIgnoreCase)));
 
             // Calculate TotalTuitionCollected - sum of all student payments from StudentPayments table
-            // This ensures we fetch actual payment records (read-only query, no transactions affected)
+            // Fetch payment records (read-only query)
             // Filter by school year - when no filter is applied, show current school year data
             var paymentsQuery = Context.StudentPayments.AsQueryable();
             
@@ -1984,7 +2001,7 @@
     }
 
     // Load current school year from SchoolYear table
-    // Note: This sets CurrentSchoolYear for display purposes, but does NOT auto-set SelectedSchoolYear
+    // Sets CurrentSchoolYear for display only
     private async Task LoadCurrentSchoolYear()
     {
         try

@@ -158,15 +158,15 @@
     <!-- Expense Details Modal -->
     @if (ShowDetailsPanel)
     {
-        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto p-4" @onclick="HandleBackdropClick">
-            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-y-auto" @onclick:stopPropagation="true">
+        <div class="fixed inset-0 z-50 flex items-start justify-center bg-black bg-opacity-50 overflow-y-auto pt-0" @onclick="HandleBackdropClick">
+            <div class="w-full max-w-4xl rounded-2xl bg-white shadow-xl max-h-[90vh] overflow-y-auto mt-0" @onclick:stopPropagation="true">
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between border-b border-gray-200 px-6 py-3">
                     <div>
-                        <h2 class="text-base font-semibold text-orange-600">Expense Details</h2>
+                        <h2 class="text-lg font-semibold text-orange-600">Expense Details</h2>
                         @if (!string.IsNullOrWhiteSpace(ExpenseForm.ExpenseId))
                         {
-                            <p class="mt-0.5 text-xs text-gray-500">ID: @ExpenseForm.ExpenseId</p>
+                            <p class="mt-0.5 text-sm text-gray-500">ID: @ExpenseForm.ExpenseId</p>
                         }
                     </div>
                     <button type="button"
@@ -189,30 +189,48 @@
                    readonly />
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Category:</label>
-            <select @bind="ExpenseForm.Category"
-                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+            <label class="mb-2 block text-sm font-medium text-gray-700">
+                Expense Category: <span class="text-red-500">*</span>
+            </label>
+            <select @bind="ExpenseForm.Category" @bind:after="OnCategoryChanged"
+                    class="w-full rounded-lg border @(validationErrors.ContainsKey("Category") ? "border-red-500" : "border-gray-300") bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                     disabled="@IsViewMode">
                 <option value="">Select category</option>
-                <option value="Utilities">Utilities (Water, Electricity, Internet)</option>
+                <option value="Maintenance">Maintenance</option>
+                <option value="Payroll">Payroll</option>
+                <option value="Utilities">Utilities</option>
                 <option value="Office Supplies">Office Supplies</option>
-                <option value="Teaching Materials">Teaching Materials</option>
-                <option value="Equipment & Maintenance">Equipment &amp; Maintenance</option>
-                <option value="Salaries and Honorarium">Salaries and Honorarium</option>
-                <option value="Events and Activities">Events and Activities</option>
-                <option value="Miscellaneous">Miscellaneous</option>
             </select>
+            @if (validationErrors.ContainsKey("Category"))
+            {
+                <p class="mt-1 text-xs text-red-500">@validationErrors["Category"]</p>
+            }
         </div>
         <div class="md:col-span-2">
-            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Description:</label>
-            <textarea @bind="ExpenseForm.Description"
-                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
-                      readonly="@IsViewMode"
-                      rows="3"
-                      placeholder="Describe the expense..."></textarea>
+            <label class="mb-2 block text-sm font-medium text-gray-700">
+                Expense Description: <span class="text-red-500">*</span>
+            </label>
+            <select @bind="ExpenseForm.Description"
+                    class="w-full rounded-lg border @(validationErrors.ContainsKey("Description") ? "border-red-500" : "border-gray-300") bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                    disabled="@IsViewMode || string.IsNullOrWhiteSpace(ExpenseForm.Category)">
+                <option value="">@(string.IsNullOrWhiteSpace(ExpenseForm.Category) ? "Select category first" : "Select description")</option>
+                @if (!string.IsNullOrWhiteSpace(ExpenseForm.Category) && categoryDescriptions.ContainsKey(ExpenseForm.Category))
+                {
+                    @foreach (var desc in categoryDescriptions[ExpenseForm.Category])
+                    {
+                        <option value="@desc">@desc</option>
+                    }
+                }
+            </select>
+            @if (validationErrors.ContainsKey("Description"))
+            {
+                <p class="mt-1 text-xs text-red-500">@validationErrors["Description"]</p>
+            }
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Amount:</label>
+            <label class="mb-2 block text-sm font-medium text-gray-700">
+                Amount: <span class="text-red-500">*</span>
+            </label>
             <div class="relative">
                 <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-600">₱</span>
                 <input type="text" 
@@ -225,24 +243,40 @@
                        pattern="[0-9.]*"
                        inputmode="decimal"
                        placeholder="0.00"
-                       class="w-full rounded-lg border border-gray-300 pl-8 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                       class="w-full rounded-lg border @(validationErrors.ContainsKey("Amount") ? "border-red-500" : "border-gray-300") pl-8 pr-3 py-2 text-sm text-right text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                        readonly="@IsViewMode" />
             </div>
+            @if (validationErrors.ContainsKey("Amount"))
+            {
+                <p class="mt-1 text-xs text-red-500">@validationErrors["Amount"]</p>
+            }
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Expense Date:</label>
+            <label class="mb-2 block text-sm font-medium text-gray-700">
+                Expense Date: <span class="text-red-500">*</span>
+            </label>
             <input type="date" value="@(ExpenseForm.ExpenseDate.ToString("yyyy-MM-dd"))" 
                    @onchange="@((ChangeEventArgs e) => { if (!IsViewMode && DateTime.TryParse(e.Value?.ToString(), out var date)) ExpenseForm.ExpenseDate = date; })"
-                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   class="w-full rounded-lg border @(validationErrors.ContainsKey("ExpenseDate") ? "border-red-500" : "border-gray-300") bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                    disabled="@IsViewMode" />
+            @if (validationErrors.ContainsKey("ExpenseDate"))
+            {
+                <p class="mt-1 text-xs text-red-500">@validationErrors["ExpenseDate"]</p>
+            }
         </div>
         <div>
-            <label class="mb-2 block text-sm font-medium text-gray-700">Payee:</label>
+            <label class="mb-2 block text-sm font-medium text-gray-700">
+                Payee: <span class="text-red-500">*</span>
+            </label>
             <input type="text" @bind="ExpenseForm.Payee"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
+                   class="w-full rounded-lg border @(validationErrors.ContainsKey("Payee") ? "border-red-500" : "border-gray-300") px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
                    readonly="@IsViewMode"
                    placeholder="Enter payee name" />
             <p class="mt-1 text-xs text-gray-500">Name of person or company receiving payment</p>
+            @if (validationErrors.ContainsKey("Payee"))
+            {
+                <p class="mt-1 text-xs text-red-500">@validationErrors["Payee"]</p>
+            }
         </div>
         <div>
             <label class="mb-2 block text-sm font-medium text-gray-700">Receipt Number:</label>
@@ -304,13 +338,6 @@
                    readonly />
             <p class="mt-1 text-xs text-gray-500">Will be set automatically when expense is approved.</p>
         </div>
-        <div class="md:col-span-2">
-            <label class="mb-2 block text-sm font-medium text-gray-700">Attachments:</label>
-            <input type="file"
-                   class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-orange-400"
-                   disabled="@IsViewMode" />
-            <p class="mt-1 text-xs text-gray-400">Upload receipts, invoices, or supporting documents.</p>
-        </div>
             </div>
                 </div>
 
@@ -322,7 +349,7 @@
                     </button>
                     @if (!IsViewMode)
                     {
-                        <button type="button" @onclick="OpenAddConfirmation"
+                        <button type="button" @onclick="ValidateAndOpenConfirmation"
                                 class="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-orange-600 hover:shadow-lg">
                             Save Expense
                         </button>
@@ -338,25 +365,25 @@
         <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="() => ShowAddConfirmModal = false">
             <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
                 <div class="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-                    <h3 class="text-sm font-semibold text-orange-600">Confirm Add Expense</h3>
+                    <h3 class="text-base font-semibold text-orange-600">Confirm Add Expense</h3>
                     <button class="text-gray-400 hover:text-gray-600" @onclick="() => ShowAddConfirmModal = false" style="background: transparent; border: none;">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 </div>
-                <div class="px-5 py-4 text-sm text-gray-700">
+                <div class="px-5 py-4 text-base text-gray-700">
                     <p>Are you sure you want to add this expense?</p>
-                    <p class="mt-2 text-xs text-gray-500">
+                    <p class="mt-2 text-sm text-gray-500">
                         Note: Once confirmed, this expense record will not be editable.
                     </p>
                 </div>
                 <div class="flex justify-end gap-3 border-t border-gray-200 px-5 py-3">
-                    <button class="rounded-lg bg-gray-200 px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-300"
+                    <button class="rounded-lg bg-gray-200 px-4 py-1.5 text-sm font-semibold text-gray-700 hover:bg-gray-300"
                             @onclick="() => ShowAddConfirmModal = false">
                         Cancel
                     </button>
-                    <button class="rounded-lg bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white hover:bg-orange-600"
+                    <button class="rounded-lg bg-orange-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-orange-600"
                             @onclick="ConfirmAddAsync">
                         Confirm
                     </button>
@@ -420,6 +447,18 @@
     // Amount formatting state
     private string expenseAmountRawInput { get; set; } = "";
     private bool isEditingExpenseAmount { get; set; } = false;
+
+    // Validation state
+    private Dictionary<string, string> validationErrors { get; set; } = new Dictionary<string, string>();
+
+    // Category descriptions mapping
+    private Dictionary<string, List<string>> categoryDescriptions = new Dictionary<string, List<string>>
+    {
+        { "Maintenance", new List<string> { "Wall painting", "Roof repair", "Plumbing", "Electrical repair", "Flooring", "Door and window repair", "General maintenance" } },
+        { "Payroll", new List<string> { "Teacher salaries", "Staff salaries", "Administrative salaries", "Overtime pay", "Bonuses", "Allowances" } },
+        { "Utilities", new List<string> { "Water", "Electricity", "Internet", "Telephone", "Gas" } },
+        { "Office Supplies", new List<string> { "Paper and stationery", "Printing materials", "Office equipment", "Cleaning supplies", "Filing supplies" } }
+    };
 
     protected override void OnInitialized()
     {
@@ -522,6 +561,7 @@
         };
         expenseAmountRawInput = "";
         isEditingExpenseAmount = false;
+        validationErrors.Clear();
         ShowDetailsPanel = true;
         IsViewMode = false;
     }
@@ -554,6 +594,7 @@
         IsViewMode = false;
         expenseAmountRawInput = "";
         isEditingExpenseAmount = false;
+        validationErrors.Clear();
     }
 
     private void HandleBackdropClick()
@@ -788,6 +829,67 @@
                 expenseAmountRawInput = cleaned;
                 StateHasChanged();
             }
+        }
+    }
+
+    private void OnCategoryChanged()
+    {
+        // Clear description when category changes
+        ExpenseForm.Description = "";
+        // Clear validation error for description
+        validationErrors.Remove("Description");
+        StateHasChanged();
+    }
+
+    private void ValidateAndOpenConfirmation()
+    {
+        validationErrors.Clear();
+
+        // Validate Category
+        if (string.IsNullOrWhiteSpace(ExpenseForm.Category))
+        {
+            validationErrors["Category"] = "Expense category is required.";
+        }
+
+        // Validate Description
+        if (string.IsNullOrWhiteSpace(ExpenseForm.Description))
+        {
+            validationErrors["Description"] = "Expense description is required.";
+        }
+
+        // Validate Amount
+        if (string.IsNullOrWhiteSpace(ExpenseForm.Amount))
+        {
+            validationErrors["Amount"] = "Amount is required.";
+        }
+        else
+        {
+            var cleaned = ExpenseForm.Amount.Replace("₱", "").Replace(",", "").Replace(" ", "").Trim();
+            if (!decimal.TryParse(cleaned, out decimal amount) || amount <= 0)
+            {
+                validationErrors["Amount"] = "Amount must be a valid positive number.";
+            }
+        }
+
+        // Validate Expense Date
+        if (ExpenseForm.ExpenseDate == default)
+        {
+            validationErrors["ExpenseDate"] = "Expense date is required.";
+        }
+
+        // Validate Payee
+        if (string.IsNullOrWhiteSpace(ExpenseForm.Payee))
+        {
+            validationErrors["Payee"] = "Payee is required.";
+        }
+
+        if (validationErrors.Count == 0)
+        {
+            ShowAddConfirmModal = true;
+        }
+        else
+        {
+            StateHasChanged();
         }
     }
 

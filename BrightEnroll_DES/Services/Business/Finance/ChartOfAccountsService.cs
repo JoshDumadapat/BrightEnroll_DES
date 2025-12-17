@@ -5,9 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
-/// <summary>
-/// Service for managing Chart of Accounts
-/// </summary>
+// Service for managing Chart of Accounts
 public class ChartOfAccountsService
 {
     private readonly AppDbContext _context;
@@ -19,9 +17,7 @@ public class ChartOfAccountsService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Gets all active accounts
-    /// </summary>
+    // Get all active accounts
     public async Task<List<ChartOfAccount>> GetAllAccountsAsync(bool includeInactive = false)
     {
         try
@@ -45,9 +41,7 @@ public class ChartOfAccountsService
         }
     }
 
-    /// <summary>
-    /// Gets account by code
-    /// </summary>
+    // Get account by code
     public async Task<ChartOfAccount?> GetAccountByCodeAsync(string accountCode)
     {
         try
@@ -63,9 +57,7 @@ public class ChartOfAccountsService
         }
     }
 
-    /// <summary>
-    /// Gets account by ID
-    /// </summary>
+    // Get account by ID
     public async Task<ChartOfAccount?> GetAccountByIdAsync(int accountId)
     {
         try
@@ -81,9 +73,7 @@ public class ChartOfAccountsService
         }
     }
 
-    /// <summary>
-    /// Gets accounts by type
-    /// </summary>
+    // Get accounts by type
     public async Task<List<ChartOfAccount>> GetAccountsByTypeAsync(string accountType)
     {
         try
@@ -100,9 +90,7 @@ public class ChartOfAccountsService
         }
     }
 
-    /// <summary>
-    /// Calculates account balance from journal entries
-    /// </summary>
+    // Calculate account balance from journal entries
     public async Task<decimal> GetAccountBalanceAsync(int accountId, DateTime? asOfDate = null)
     {
         try

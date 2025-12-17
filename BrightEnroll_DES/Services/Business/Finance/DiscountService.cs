@@ -8,10 +8,6 @@ using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
 
-/// <summary>
-/// Service for managing discount configurations
-/// Handles CRUD operations for discount types and rules
-/// </summary>
 public class DiscountService
 {
     private readonly AppDbContext _context;
@@ -31,9 +27,7 @@ public class DiscountService
         _authService = authService;
     }
 
-    /// <summary>
-    /// Gets all discounts (active and inactive)
-    /// </summary>
+    // Gets all discounts
     public async Task<List<Discount>> GetAllDiscountsAsync()
     {
         try
@@ -53,9 +47,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Gets only active discounts
-    /// </summary>
+    // Gets only active discounts
     public async Task<List<Discount>> GetActiveDiscountsAsync()
     {
         try
@@ -76,9 +68,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Gets a discount by ID
-    /// </summary>
+    // Gets discount by ID
     public async Task<Discount?> GetDiscountByIdAsync(int discountId)
     {
         try
@@ -93,9 +83,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Gets a discount by discount type
-    /// </summary>
+    // Gets discount by type
     public async Task<Discount?> GetDiscountByTypeAsync(string discountType)
     {
         try
@@ -110,9 +98,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Creates a new discount
-    /// </summary>
+    // Creates a new discount
     public async Task<Discount> CreateDiscountAsync(CreateDiscountRequest request)
     {
         try
@@ -192,9 +178,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Updates an existing discount
-    /// </summary>
+    // Updates an existing discount
     public async Task<Discount> UpdateDiscountAsync(int discountId, UpdateDiscountRequest request)
     {
         try
@@ -287,9 +271,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Deletes a discount (soft delete by setting IsActive to false)
-    /// </summary>
+    // Deletes a discount (soft delete)
     public async Task<bool> DeleteDiscountAsync(int discountId)
     {
         try
@@ -376,9 +358,7 @@ public class DiscountService
         }
     }
 
-    /// <summary>
-    /// Calculates discount amount based on discount configuration and base amount
-    /// </summary>
+    // Calculates discount amount
     public decimal CalculateDiscountAmount(Discount discount, decimal baseAmount)
     {
         if (discount == null || !discount.IsActive)
@@ -412,9 +392,7 @@ public class DiscountService
     }
 }
 
-/// <summary>
-/// Request DTO for creating a discount
-/// </summary>
+// Request DTO for creating a discount
 public class CreateDiscountRequest
 {
     public string DiscountType { get; set; } = string.Empty;
@@ -427,9 +405,7 @@ public class CreateDiscountRequest
     public bool IsActive { get; set; } = true;
 }
 
-/// <summary>
-/// Request DTO for updating a discount
-/// </summary>
+// Request DTO for updating a discount
 public class UpdateDiscountRequest
 {
     public string DiscountType { get; set; } = string.Empty;

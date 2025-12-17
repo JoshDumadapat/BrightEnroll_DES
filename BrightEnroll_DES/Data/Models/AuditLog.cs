@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Audit log for tracking system actions and events.
-/// Enhanced to support detailed student registration logging.
-/// </summary>
+// Audit log for tracking system actions and events
 [Table("tbl_audit_logs")]
 public class AuditLog
 {

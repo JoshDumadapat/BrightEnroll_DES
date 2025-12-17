@@ -271,3 +271,117 @@ window.dashboardCharts = {
     }
 };
 
+// Sales Charts Helper
+window.renderSalesCharts = function (revenueLabels, revenueData, stageLabels, stageData) {
+    try {
+        // Revenue Chart
+        const revenueCanvas = document.getElementById('revenueChart');
+        if (revenueCanvas) {
+            const revenueCtx = revenueCanvas.getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.revenueChartInstance) {
+                window.revenueChartInstance.destroy();
+            }
+            
+            window.revenueChartInstance = new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: revenueLabels || [],
+                    datasets: [{
+                        label: 'Revenue (₱)',
+                        data: revenueData || [],
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return '₱' + context.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '₱' + value.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Conversion Chart
+        const conversionCanvas = document.getElementById('conversionChart');
+        if (conversionCanvas) {
+            const conversionCtx = conversionCanvas.getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (window.conversionChartInstance) {
+                window.conversionChartInstance.destroy();
+            }
+            
+            const colors = [
+                'rgba(34, 197, 94, 0.8)',   // green
+                'rgba(59, 130, 246, 0.8)',  // blue
+                'rgba(234, 179, 8, 0.8)',  // yellow
+                'rgba(239, 68, 68, 0.8)',   // red
+                'rgba(168, 85, 247, 0.8)',  // purple
+                'rgba(249, 115, 22, 0.8)'   // orange
+            ];
+            
+            window.conversionChartInstance = new Chart(conversionCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: stageLabels || [],
+                    datasets: [{
+                        data: stageData || [],
+                        backgroundColor: colors.slice(0, stageLabels?.length || 0),
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                    return label + ': ' + value + ' (' + percentage + '%)';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error rendering sales charts:', error);
+    }
+};
+

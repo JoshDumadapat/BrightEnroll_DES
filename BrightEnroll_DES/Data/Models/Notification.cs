@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Notification model for tracking approval requests and system notifications
-/// </summary>
+// Notification model for approval requests and system notifications
 [Table("tbl_Notifications")]
 public class Notification
 {

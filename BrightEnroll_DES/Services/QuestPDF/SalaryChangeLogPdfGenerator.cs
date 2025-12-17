@@ -1316,9 +1316,7 @@ public class SchoolYearStats
     public double AverageIncreasePercent { get; set; }
 }
 
-/// <summary>
-/// DTO for Salary Approval History Report
-/// </summary>
+// DTO for salary approval history report
 public class SalaryApprovalHistoryItemDto
 {
     public int RequestId { get; set; }

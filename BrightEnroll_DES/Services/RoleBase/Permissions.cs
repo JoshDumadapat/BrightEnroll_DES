@@ -1,9 +1,6 @@
 namespace BrightEnroll_DES.Services.RoleBase
 {
-    /// <summary>
-    /// Defines all available permissions in the system.
-    /// These permissions map to features and pages in the application.
-    /// </summary>
+    // Defines all available permissions in the system
     public static class Permissions
     {
         // Dashboard
@@ -111,9 +108,7 @@ namespace BrightEnroll_DES.Services.RoleBase
         public const string DeleteInventory = "delete_inventory";
         public const string ManageAssets = "manage_assets";
 
-        /// <summary>
-        /// Gets all available permissions as a list.
-        /// </summary>
+        // Get all available permissions as a list
         public static List<string> GetAllPermissions()
         {
             return new List<string>

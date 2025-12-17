@@ -11,10 +11,7 @@ using QuestPdfColors = QuestPDF.Helpers.Colors;
 
 namespace BrightEnroll_DES.Services.QuestPDF;
 
-/// <summary>
-/// Generates DepEd SF9 (Learner's Progress Report Card) compliant PDF documents.
-/// Optimized for A4 page size with automatic scaling and overflow prevention.
-/// </summary>
+// Generates DepEd SF9 compliant report card PDFs
 public class ReportCardPdfGenerator
 {
     private readonly AppDbContext _context;

@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Stores configurable grade weights per subject for computing final grades.
-/// DepEd Standard: Written Work (20%), Performance Tasks (60%), Quarterly Assessment (20%).
-/// </summary>
+// Stores configurable grade weights per subject
 [Table("tbl_GradeWeights")]
 public class GradeWeight
 {

@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Tracks all changes to grades for audit trail purposes.
-/// </summary>
+// Tracks grade changes for audit trail
 [Table("tbl_GradeHistory")]
 public class GradeHistory
 {

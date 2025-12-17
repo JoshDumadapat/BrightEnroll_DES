@@ -190,7 +190,7 @@ public class ArchiveService
                 throw new InvalidOperationException($"Student {studentId} not found for archiving");
             }
 
-            // CRITICAL: Normalize status values to fit database column (VARCHAR(20) or VARCHAR(50))
+            // Normalize status values to fit database column
             // Map "Application Withdrawn" (21 chars) to "Withdrawn" (9 chars) to avoid truncation
             var statusToSet = (archiveReason ?? "").Trim();
             

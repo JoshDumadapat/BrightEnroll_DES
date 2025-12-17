@@ -137,11 +137,15 @@ public class AccountingReportService
             .SumAsync(l => (decimal?)l.CreditAmount) ?? 0m;
 
         // If no journal entries exist, use direct payments (backward compatibility)
+        // Exclude credit payments - only count actual cash/bank/online payments
         decimal revenue = revenueFromLedger;
         if (revenueFromLedger == 0)
         {
             revenue = await _context.StudentPayments
-                .Where(p => p.CreatedAt >= fromDate && p.CreatedAt <= toDate)
+                .Where(p => p.CreatedAt >= fromDate && 
+                           p.CreatedAt <= toDate &&
+                           p.PaymentMethod != null &&
+                           !p.PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
                 .SumAsync(p => (decimal?)p.Amount) ?? 0m;
         }
 

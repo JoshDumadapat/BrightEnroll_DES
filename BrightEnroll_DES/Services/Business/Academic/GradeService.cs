@@ -32,9 +32,7 @@ public class GradeService
         _serviceScopeFactory = serviceScopeFactory;
     }
 
-    /// <summary>
-    /// Checks if a school year is open for editing (grades can be saved)
-    /// </summary>
+    // Check if school year is open for editing
     private async Task<bool> IsSchoolYearOpenAsync(string schoolYear)
     {
         try
@@ -59,9 +57,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Ensures tbl_Grades table exists before querying
-    /// </summary>
+    // Ensure grades table exists before querying
     private async Task EnsureGradesTableExistsAsync()
     {
         // Double-check locking pattern to avoid multiple initializations
@@ -236,9 +232,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Gets all students enrolled in a section for a specific school year
-    /// </summary>
+    // Get all students enrolled in section for school year
     public async Task<List<StudentGradeDto>> GetStudentsForGradeEntryAsync(int sectionId, string schoolYear)
     {
         try
@@ -296,9 +290,7 @@ public class GradeService
         }
     }
 
-    /// <summary>
-    /// Saves or updates grades for multiple students
-    /// </summary>
+    // Save or update grades for multiple students
     public async Task<bool> SaveGradesAsync(List<GradeInputDto> gradeInputs, int teacherId)
     {
         try
@@ -1261,9 +1253,7 @@ public class GradeService
     #endregion
 }
 
-/// <summary>
-/// DTO for student information in grade entry
-/// </summary>
+// DTO for student information in grade entry
 public class StudentGradeDto
 {
     public string StudentId { get; set; } = string.Empty;
@@ -1272,9 +1262,7 @@ public class StudentGradeDto
     public string SchoolYear { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// DTO for grade input from teacher (DepEd-compliant components)
-/// </summary>
+// DTO for grade input from teacher
 public class GradeInputDto
 {
     public string StudentId { get; set; } = string.Empty;
@@ -1288,9 +1276,7 @@ public class GradeInputDto
     public decimal? FinalGrade { get; set; }
 }
 
-/// <summary>
-/// DTO for grade records display
-/// </summary>
+// DTO for grade records display
 public class GradeRecordDto
 {
     public string StudentId { get; set; } = string.Empty;
@@ -1305,9 +1291,7 @@ public class GradeRecordDto
     public string Remarks { get; set; } = string.Empty;
 }
 
-/// <summary>
-/// DTO for grade weights (DepEd-compliant: WW 20%, PT 60%, QA 20%)
-/// </summary>
+// DTO for grade weights
 public class GradeWeightDto
 {
     public int SubjectId { get; set; }
@@ -1316,9 +1300,7 @@ public class GradeWeightDto
     public decimal QuarterlyAssessmentWeight { get; set; }
 }
 
-/// <summary>
-/// DTO for report card
-/// </summary>
+// DTO for report card
 public class ReportCardDto
 {
     public string StudentId { get; set; } = string.Empty;

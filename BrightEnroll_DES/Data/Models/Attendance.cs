@@ -3,10 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Student attendance records tracked by teachers.
-/// Tracks daily attendance for students in sections/subjects.
-/// </summary>
+// Student attendance records tracked by teachers
 [Table("tbl_Attendance")]
 public class Attendance
 {

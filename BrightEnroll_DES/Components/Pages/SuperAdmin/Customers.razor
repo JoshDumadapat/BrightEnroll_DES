@@ -1,0 +1,1356 @@
+@page "/system-admin/customers"
+@layout Components.Layout.MainLayout
+@using BrightEnroll_DES.Services
+@using BrightEnroll_DES.Services.Authentication
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models
+@using System
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject SuperAdminService SuperAdminService
+@inject BrightEnroll_DES.Services.Business.SuperAdmin.AccountsReceivableService ARService
+@inject BrightEnroll_DES.Data.SuperAdminDbContext SuperAdminDbContext
+@using BrightEnroll_DES.Data.Models.SuperAdmin
+@using Microsoft.EntityFrameworkCore
+
+<PageTitle>Customer Management</PageTitle>
+
+<div class="text-gray-800">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Customer Management</h1>
+        </div>
+        <div class="flex items-center gap-3">
+            <button @onclick="ShowAddCustomerModal" class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Customer
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-6">
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Subscription Plan</label>
+            <select @bind="SelectedPlan" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All Plans</option>
+                <option value="Basic">Basic</option>
+                <option value="Standard">Standard</option>
+                <option value="Premium">Premium</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Status</label>
+            <select @bind="SelectedStatus" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Suspended">Suspended</option>
+                <option value="Expired">Expired</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Yearly Monthly</label>
+            <select @bind="SelectedBillingPeriod" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="">All Periods</option>
+                <option value="Monthly">Monthly</option>
+                <option value="Yearly">Yearly</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Sort By</label>
+            <select @bind="SortBy" @bind:after="FilterCustomers" class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400">
+                <option value="name">School Name</option>
+                <option value="date">Registration Date</option>
+                <option value="revenue">Revenue</option>
+            </select>
+        </div>
+        <div>
+            <label class="mb-2 block text-sm font-medium text-gray-700">Search</label>
+            <input type="text" @bind="SearchTerm" @bind:event="oninput" @bind:after="FilterCustomers" placeholder="School name..." class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-400" />
+        </div>
+        <div class="flex items-end">
+            <button @onclick="ClearFilters" class="w-full rounded-lg bg-gray-500 px-4 py-2 text-sm font-medium text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
+                Clear
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-4">
+    <div class="rounded-xl border border-blue-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-blue-300 hover:shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="rounded-lg bg-blue-50 p-2 flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                </div>
+                <p class="text-xs font-semibold text-gray-700">Total Customers</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-900 text-right w-full">@FilteredCustomers.Count</p>
+        </div>
+    </div>
+    <div class="rounded-xl border border-green-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-green-300 hover:shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="rounded-lg bg-green-50 p-2 flex-shrink-0">
+                    <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <p class="text-xs font-semibold text-gray-700">Active</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-900 text-right w-full">@GetActiveCount()</p>
+        </div>
+    </div>
+    <div class="rounded-xl border border-orange-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-orange-300 hover:shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="rounded-lg bg-orange-50 p-2 flex-shrink-0">
+                    <svg class="h-5 w-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <p class="text-xs font-semibold text-gray-700">Expiring Soon</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-900 text-right w-full">@GetExpiringSoonCount()</p>
+        </div>
+    </div>
+    <div class="rounded-xl border border-purple-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-purple-300 hover:shadow-md">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="rounded-lg bg-purple-50 p-2 flex-shrink-0">
+                    <svg class="h-5 w-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <p class="text-xs font-semibold text-gray-700">Total Revenue</p>
+            </div>
+            <p class="text-2xl font-bold text-gray-900 text-right w-full">₱@GetTotalRevenue().ToString("N0")</p>
+        </div>
+    </div>
+</div>
+
+<!-- Customers Table -->
+<div class="rounded-xl border border-gray-100 bg-white shadow-sm">
+    <div class="border-b border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-800">School Customers</h2>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">School Name</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Contact Person</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Plan</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">Contract Period</th>
+                    <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-600">Monthly Fee</th>
+                    <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-600">BIR/VAT</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Status</th>
+                    <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-600">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+                @foreach (var customer in FilteredCustomers)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <div>
+                                <p class="font-semibold text-gray-800">@customer.SchoolName</p>
+                                <p class="text-xs text-gray-500">@(customer.Address ?? "N/A")</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-800">
+                            <div>
+                                <p class="font-medium">@(customer.ContactPerson ?? "N/A")</p>
+                                <p class="text-xs text-gray-500">@(customer.ContactEmail ?? "N/A")</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetPlanClass(customer.SubscriptionPlan ?? "")">
+                                @(customer.SubscriptionPlan ?? "Custom")
+                            </span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-600">
+                            <div>
+                                <p class="text-xs">Start: @(customer.ContractStartDate?.ToString("MMM dd, yyyy") ?? "N/A")</p>
+                                <p class="text-xs">End: @(customer.ContractEndDate?.ToString("MMM dd, yyyy") ?? "N/A")</p>
+                                <p class="text-xs text-gray-500">@(customer.ContractDurationMonths?.ToString() ?? "N/A") months</p>
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-semibold text-gray-800">
+                            <div>
+                                <p>₱@customer.MonthlyFee.ToString("N2")</p>
+                                @if (customer.IsVatRegistered && customer.VatRate.HasValue)
+                                {
+                                    <p class="text-xs text-amber-600">VAT @customer.VatRate%</p>
+                                }
+                            </div>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm">
+                            @if (customer.IsVatRegistered && customer.VatRate.HasValue)
+                            {
+                                <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">
+                                    VAT ✓
+                                </span>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(customer.BirTin))
+                            {
+                                <span class="text-xs text-gray-500">TIN: @customer.BirTin</span>
+                            }
+                            else
+                            {
+                                <span class="text-xs text-gray-400">-</span>
+                            }
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                            <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(customer.Status)">
+                                @customer.Status
+                            </span>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-center">
+                            <button @onclick='() => ViewCustomer(customer.CustomerId)' 
+                                    class="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+                                View
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!FilteredCustomers.Any())
+    {
+        <div class="py-12 text-center text-gray-500">
+            <svg class="mx-auto mb-4 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <p>No customers found</p>
+        </div>
+    }
+</div>
+
+<!-- View/Edit Customer Modal -->
+@if (showViewModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 overflow-y-auto" @onclick="CloseViewModal">
+        <div class="relative max-h-[95vh] w-full max-w-5xl mx-4 my-4 overflow-y-auto rounded-xl bg-white shadow-2xl" @onclick:stopPropagation="true">
+            @if (currentCustomer == null)
+            {
+                <!-- Loading State -->
+                <div class="flex flex-col items-center justify-center p-12">
+                    <div class="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+                    <p class="text-sm text-gray-600">Loading customer details...</p>
+                </div>
+            }
+            else
+            {
+                <div class="sticky top-0 bg-white border-b border-gray-200 p-6 z-10">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-2xl font-bold text-gray-900">@(isEditMode ? "Edit Customer" : "View Customer")</h2>
+                            <p class="mt-1 text-sm text-gray-600">Customer Code: @currentCustomer.CustomerCode</p>
+                        </div>
+                    <div class="flex items-center gap-3">
+                        @if (!isEditMode)
+                        {
+                            <button @onclick="EnableEditMode" 
+                                    class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                            </button>
+                        }
+                        <button @onclick="CloseViewModal" class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <!-- Section 1: Basic Information -->
+                <div class="rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+                    <h3 class="text-lg font-bold text-blue-900 mb-4">Basic Information</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">School Name <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditSchoolName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditSchoolName</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">School Type</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditSchoolType" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditSchoolType ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Address</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditAddress" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditAddress ?? "N/A")</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Contact Person -->
+                <div class="rounded-lg border border-green-200 bg-green-50/30 p-4">
+                    <h3 class="text-lg font-bold text-green-900 mb-4">Contact Person</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">First Name <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactFirstName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContactFirstName</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Middle Name</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactMiddleName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditContactMiddleName ?? "N/A")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Last Name <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactLastName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContactLastName</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Suffix</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactSuffix" maxlength="10" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditContactSuffix ?? "N/A")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Role <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactRole" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContactRole</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Email <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="email" @bind="EditContactEmail" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContactEmail</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Phone <span class="text-red-500">*</span></label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContactPhone" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContactPhone</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Subscription & Contract -->
+                <div class="rounded-lg border border-purple-200 bg-purple-50/30 p-4">
+                    <h3 class="text-lg font-bold text-purple-900 mb-4">Subscription & Contract</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Subscription Plan</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditPlan" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditPlan ?? "Custom")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Monthly Fee (₱)</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" @bind="EditMonthlyFee" step="0.01" min="0" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">₱@EditMonthlyFee.ToString("N2")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Contract Start Date</label>
+                            @if (isEditMode)
+                            {
+                                <input type="date" @bind="EditContractStartDate" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContractStartDate.ToString("MMMM dd, yyyy")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Contract Duration (months)</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditContractDuration" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@EditContractDuration months</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Status</label>
+                            @if (isEditMode)
+                            {
+                                <select @bind="EditStatus" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200">
+                                    <option value="Active">Active</option>
+                                    <option value="Inactive">Inactive</option>
+                                    <option value="Suspended">Suspended</option>
+                                    <option value="Expired">Expired</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
+                                    <span class="inline-flex rounded-full px-3 py-1 text-xs font-medium @GetStatusClass(EditStatus)">@EditStatus</span>
+                                </div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Student Count</label>
+                            @if (isEditMode)
+                            {
+                                <input type="number" @bind="EditStudentCount" min="0" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditStudentCount?.ToString() ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Notes</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditNotes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(GetDisplayNotes(EditNotes) ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Database Connection String</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditDatabaseConnectionString" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs font-mono focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-mono text-gray-700 break-all">@(EditDatabaseConnectionString ?? "N/A")</div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3.5: Admin Account Credentials -->
+                <div class="rounded-lg border border-red-200 bg-red-50/30 p-4">
+                    <h3 class="text-lg font-bold text-red-900 mb-4">Admin Account Credentials</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Username/Email</label>
+                            <div class="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-mono text-red-700 font-semibold">
+                                @(EditAdminUsername ?? "Not yet generated")
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">This is the login email for the school's admin account</p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Default Password</label>
+                            <div class="w-full rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-mono text-red-700 font-semibold">
+                                @(EditAdminPassword ?? "Not yet generated")
+                            </div>
+                            <p class="mt-1 text-xs text-gray-500">Default password for initial login. Should be changed after first login.</p>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(EditAdminUsername))
+                        {
+                            <div class="md:col-span-2">
+                                <div class="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                                    <div class="flex items-start gap-2">
+                                        <svg class="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <div class="flex-1">
+                                            <p class="text-xs font-semibold text-yellow-800">Important Security Notice</p>
+                                            <p class="text-xs text-yellow-700 mt-1">These credentials are stored in the SuperAdmin database and can be retrieved from any device that connects to it. Please ensure proper access controls are in place.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Section 4: BIR Compliance -->
+                <div class="rounded-lg border border-amber-200 bg-amber-50/30 p-4">
+                    <h3 class="text-lg font-bold text-amber-900 mb-4">BIR Compliance</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">BIR TIN</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditBirTin" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditBirTin ?? "N/A")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">BIR Business Name</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditBirBusinessName" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditBirBusinessName ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">BIR Business Address</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditBirAddress" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditBirAddress ?? "N/A")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Registration Type</label>
+                            @if (isEditMode)
+                            {
+                                <select @bind="EditBirRegistrationType" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200">
+                                    <option value="">Select type</option>
+                                    <option value="VAT">VAT Registered</option>
+                                    <option value="Non-VAT">Non-VAT</option>
+                                </select>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditBirRegistrationType ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="flex items-center">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">VAT Registered</label>
+                            @if (isEditMode)
+                            {
+                                <input type="checkbox" @bind="EditIsVatRegistered" class="ml-2 h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500" />
+                            }
+                            else
+                            {
+                                <div class="ml-2">
+                                    @if (EditIsVatRegistered)
+                                    {
+                                        <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Yes</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-500">No</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        @if (EditIsVatRegistered)
+                        {
+                            <div>
+                                <label class="mb-1 block text-sm font-medium text-gray-700">VAT Rate (%)</label>
+                                @if (isEditMode)
+                                {
+                                    <input type="number" @bind="EditVatRate" step="0.01" min="0" max="100" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200" />
+                                }
+                                else
+                                {
+                                    <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditVatRate?.ToString("F2") ?? "N/A")%</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- Section 5: Contract Terms -->
+                <div class="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4">
+                    <h3 class="text-lg font-bold text-indigo-900 mb-4">Contract Terms & Services</h3>
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Warranty Period</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditWarrantyPeriod" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditWarrantyPeriod ?? "N/A")</div>
+                            }
+                        </div>
+                        <div>
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Maintenance Schedule</label>
+                            @if (isEditMode)
+                            {
+                                <input type="text" @bind="EditMaintenanceSchedule" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">@(EditMaintenanceSchedule ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Free Services</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditFreeServices" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditFreeServices ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Payment Terms</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditPaymentTerms" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditPaymentTerms ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Termination Clause</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditTerminationClause" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditTerminationClause ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">SLA Details</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditSlaDetails" rows="2" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditSlaDetails ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Contract Terms (Full Text)</label>
+                            @if (isEditMode)
+                            {
+                                <textarea @bind="EditContractTermsText" rows="4" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"></textarea>
+                            }
+                            else
+                            {
+                                <div class="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 whitespace-pre-wrap">@(EditContractTermsText ?? "N/A")</div>
+                            }
+                        </div>
+                        <div class="flex items-center">
+                            <label class="mb-1 block text-sm font-medium text-gray-700">Auto Renewal</label>
+                            @if (isEditMode)
+                            {
+                                <input type="checkbox" @bind="EditAutoRenewal" class="ml-2 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                            }
+                            else
+                            {
+                                <div class="ml-2">
+                                    @if (EditAutoRenewal)
+                                    {
+                                        <span class="inline-flex rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">Yes</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-500">No</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                </div>
+            </div>
+
+            <!-- Billing History Section -->
+            <div class="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4">
+                <h3 class="text-lg font-bold text-indigo-900 mb-4">Billing History</h3>
+                @if (customerBillingHistory != null && customerBillingHistory.Any())
+                {
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-indigo-100">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-indigo-900">Invoice #</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-indigo-900">Date</th>
+                                    <th class="px-3 py-2 text-left text-xs font-semibold text-indigo-900">Due Date</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-indigo-900">Amount</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-indigo-900">Paid</th>
+                                    <th class="px-3 py-2 text-right text-xs font-semibold text-indigo-900">Balance</th>
+                                    <th class="px-3 py-2 text-center text-xs font-semibold text-indigo-900">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-indigo-100">
+                                @foreach (var invoice in customerBillingHistory)
+                                {
+                                    <tr class="hover:bg-indigo-50">
+                                        <td class="px-3 py-2 font-medium text-gray-800">@invoice.InvoiceNumber</td>
+                                        <td class="px-3 py-2 text-gray-600">@invoice.InvoiceDate.ToString("MMM dd, yyyy")</td>
+                                        <td class="px-3 py-2 text-gray-600">@invoice.DueDate.ToString("MMM dd, yyyy")</td>
+                                        <td class="px-3 py-2 text-right font-medium text-gray-800">₱@invoice.TotalAmount.ToString("N2")</td>
+                                        <td class="px-3 py-2 text-right text-green-600">₱@invoice.AmountPaid.ToString("N2")</td>
+                                        <td class="px-3 py-2 text-right font-semibold @(invoice.Balance > 0 ? "text-red-600" : "text-gray-600")">₱@invoice.Balance.ToString("N2")</td>
+                                        <td class="px-3 py-2 text-center">
+                                            <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium @GetInvoiceStatusClass(invoice.Status)">
+                                                @invoice.Status
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    @if (invoice.Payments != null && invoice.Payments.Any())
+                                    {
+                                        @foreach (var payment in invoice.Payments.OrderByDescending(p => p.PaymentDate))
+                                        {
+                                            <tr class="bg-indigo-50/50 text-xs">
+                                                <td class="px-3 py-1 pl-8 text-gray-500">→ Payment</td>
+                                                <td class="px-3 py-1 text-gray-500">@payment.PaymentDate.ToString("MMM dd, yyyy")</td>
+                                                <td class="px-3 py-1 text-gray-500">@payment.PaymentMethod</td>
+                                                <td class="px-3 py-1 text-gray-500">@payment.PaymentReference</td>
+                                                <td class="px-3 py-1 text-right text-green-600 font-medium" colspan="3">₱@payment.Amount.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <p class="text-sm text-gray-500 text-center py-4">No billing history found for this customer.</p>
+                }
+            </div>
+        </div>
+
+            <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6 flex justify-end gap-3">
+                    @if (isEditMode)
+                    {
+                        <button @onclick="CancelEdit" 
+                                disabled="@IsSaving"
+                                class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Cancel
+                        </button>
+                        <button @onclick="SaveCustomerChanges" 
+                                disabled="@IsSaving"
+                                class="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            @if (IsSaving)
+                            {
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Changes</span>
+                            }
+                        </button>
+                    }
+                    else
+                    {
+                        <button @onclick="CloseViewModal" 
+                                class="rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                            Close
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string SelectedPlan { get; set; } = string.Empty;
+    private string SelectedStatus { get; set; } = string.Empty;
+    private string SelectedBillingPeriod { get; set; } = string.Empty;
+    private string SortBy { get; set; } = "name";
+    private string SearchTerm { get; set; } = string.Empty;
+
+    private List<Customer> CustomerList { get; set; } = new();
+    private List<Customer> FilteredCustomers { get; set; } = new();
+
+    private bool _dataLoaded = false;
+    private bool _isLoading = false;
+
+    protected override void OnInitialized()
+    {
+        CustomerList = new List<Customer>();
+        FilteredCustomers = new List<Customer>();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _dataLoaded || _isLoading) return;
+        _isLoading = true;
+
+        try
+        {
+            // Check if user is Super Admin (handle both "Super Admin" and "SuperAdmin")
+            var currentUser = AuthService?.CurrentUser;
+            var userRole = currentUser?.user_role;
+            var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                              (userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) ||
+                               userRole.Replace(" ", "").Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase));
+            
+            if (!isSuperAdmin)
+            {
+                Navigation.NavigateTo("/dashboard");
+                _isLoading = false;
+                return;
+            }
+
+            // Load data silently without loading screen
+            try
+            {
+                await LoadCustomers();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (InvalidOperationException ioEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Customers] InvalidOperationException: {ioEx.Message}");
+                CustomerList = new List<Customer>();
+                FilteredCustomers = new List<Customer>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Customers] Error loading customers: {ex.Message}");
+                CustomerList = new List<Customer>();
+                FilteredCustomers = new List<Customer>();
+                _dataLoaded = true;
+                StateHasChanged();
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[Customers] Critical error: {ex.Message}");
+            CustomerList = new List<Customer>();
+            FilteredCustomers = new List<Customer>();
+            _dataLoaded = true;
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadCustomers()
+    {
+        if (SuperAdminService == null)
+        {
+            CustomerList = new List<Customer>();
+            FilteredCustomers = new List<Customer>();
+            return;
+        }
+
+        CustomerList = await SuperAdminService.GetAllCustomersAsync();
+        FilteredCustomers = CustomerList;
+    }
+
+    private void FilterCustomers()
+    {
+        FilteredCustomers = CustomerList.Where(c =>
+        {
+            bool matchesPlan = string.IsNullOrEmpty(SelectedPlan) || (c.SubscriptionPlan ?? "") == SelectedPlan;
+            bool matchesStatus = string.IsNullOrEmpty(SelectedStatus) || c.Status == SelectedStatus;
+            bool matchesBillingPeriod = string.IsNullOrEmpty(SelectedBillingPeriod) || true; // Placeholder for billing period filter
+            bool matchesSearch = string.IsNullOrEmpty(SearchTerm) || c.SchoolName.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase);
+
+            return matchesPlan && matchesStatus && matchesBillingPeriod && matchesSearch;
+        }).ToList();
+
+        FilteredCustomers = SortBy switch
+        {
+            "date" => FilteredCustomers.OrderBy(c => c.ContractEndDate ?? DateTime.MaxValue).ToList(),
+            "revenue" => FilteredCustomers.OrderByDescending(c => c.MonthlyFee).ToList(),
+            _ => FilteredCustomers.OrderBy(c => c.SchoolName).ToList()
+        };
+    }
+
+    private int GetActiveCount() => FilteredCustomers.Count(c => c.Status == "Active");
+    private int GetExpiringSoonCount() => FilteredCustomers.Count(c => c.Status == "Active" && c.ContractEndDate.HasValue && (c.ContractEndDate.Value - DateTime.Now).TotalDays <= 30);
+    private decimal GetTotalRevenue() => FilteredCustomers.Where(c => c.Status == "Active").Sum(c => c.MonthlyFee);
+
+    private string GetPlanClass(string plan) => plan switch
+    {
+        "Basic" => "bg-gray-100 text-gray-800",
+        "Standard" => "bg-blue-100 text-blue-800",
+        "Premium" => "bg-purple-100 text-purple-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private string GetStatusClass(string status) => status switch
+    {
+        "Active" => "bg-green-100 text-green-800",
+        "Inactive" => "bg-gray-100 text-gray-800",
+        "Suspended" => "bg-orange-100 text-orange-800",
+        "Expired" => "bg-red-100 text-red-800",
+        _ => "bg-gray-100 text-gray-800"
+    };
+
+    private void ShowAddCustomerModal()
+    {
+        Navigation.NavigateTo("/system-admin/customers/add");
+    }
+
+    private async Task ViewCustomer(int customerId)
+    {
+        try
+        {
+            // Show modal immediately with loading state
+            showViewModal = true;
+            isEditMode = false;
+            currentCustomer = null; // Clear previous data
+            await InvokeAsync(StateHasChanged);
+            
+            // Load data in background without blocking UI
+            var customer = await SuperAdminService.GetCustomerByIdAsync(customerId).ConfigureAwait(false);
+            if (customer != null)
+            {
+                LoadCustomerIntoForm(customer);
+                await LoadBillingHistory(customerId);
+                await InvokeAsync(StateHasChanged);
+            }
+            else
+            {
+                // Show error message
+                showViewModal = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading customer: {ex.Message}");
+            showViewModal = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadBillingHistory(int customerId)
+    {
+        try
+        {
+            var invoiceDetails = await ARService.GetCustomerInvoiceDetailsAsync(customerId);
+            
+            // Load payments for each invoice
+            var invoiceIds = invoiceDetails.Select(i => i.InvoiceId).ToList();
+            var payments = await SuperAdminDbContext.CustomerPayments
+                .Where(p => invoiceIds.Contains(p.InvoiceId))
+                .OrderByDescending(p => p.PaymentDate)
+                .ToListAsync();
+
+            customerBillingHistory = invoiceDetails.Select(inv => new BillingHistoryItem
+            {
+                InvoiceId = inv.InvoiceId,
+                InvoiceNumber = inv.InvoiceNumber,
+                InvoiceDate = inv.InvoiceDate,
+                DueDate = inv.DueDate,
+                TotalAmount = inv.TotalAmount,
+                AmountPaid = inv.AmountPaid,
+                Balance = inv.Balance,
+                Status = inv.Status,
+                Payments = payments.Where(p => p.InvoiceId == inv.InvoiceId).Select(p => new PaymentHistoryItem
+                {
+                    PaymentDate = p.PaymentDate,
+                    Amount = p.Amount,
+                    PaymentMethod = p.PaymentMethod,
+                    PaymentReference = p.PaymentReference
+                }).ToList()
+            }).OrderByDescending(i => i.InvoiceDate).ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading billing history: {ex.Message}");
+            customerBillingHistory = new();
+        }
+    }
+
+    private string GetInvoiceStatusClass(string status)
+    {
+        return status switch
+        {
+            "Paid" => "bg-green-100 text-green-800",
+            "Partially Paid" => "bg-blue-100 text-blue-800",
+            "Pending" => "bg-yellow-100 text-yellow-800",
+            "Overdue" => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+    // View Models
+    private class BillingHistoryItem
+    {
+        public int InvoiceId { get; set; }
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public DateTime InvoiceDate { get; set; }
+        public DateTime DueDate { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal AmountPaid { get; set; }
+        public decimal Balance { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public List<PaymentHistoryItem> Payments { get; set; } = new();
+    }
+
+    private class PaymentHistoryItem
+    {
+        public DateTime PaymentDate { get; set; }
+        public decimal Amount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string PaymentReference { get; set; } = string.Empty;
+    }
+
+    private void ClearFilters()
+    {
+        SelectedPlan = string.Empty;
+        SelectedStatus = string.Empty;
+        SelectedBillingPeriod = string.Empty;
+        SortBy = "name";
+        SearchTerm = string.Empty;
+        FilterCustomers();
+    }
+
+    // View/Edit Modal Properties
+    private bool showViewModal = false;
+    private bool isEditMode = false;
+    private Customer? currentCustomer = null;
+    private List<BillingHistoryItem> customerBillingHistory = new();
+    
+    // Form fields for editing
+    private string EditSchoolName { get; set; } = string.Empty;
+    private string EditSchoolType { get; set; } = string.Empty;
+    private string EditAddress { get; set; } = string.Empty;
+    private string EditContactFirstName { get; set; } = string.Empty;
+    private string? EditContactMiddleName { get; set; }
+    private string EditContactLastName { get; set; } = string.Empty;
+    private string? EditContactSuffix { get; set; }
+    private string EditContactRole { get; set; } = "Admin";
+    private string EditContactEmail { get; set; } = string.Empty;
+    private string EditContactPhone { get; set; } = string.Empty;
+    private string EditPlan { get; set; } = string.Empty;
+    private decimal EditMonthlyFee { get; set; } = 0;
+    private DateTime EditContractStartDate { get; set; } = DateTime.Today;
+    private string EditContractDuration { get; set; } = string.Empty;
+    private int? EditStudentCount { get; set; }
+    private string EditStatus { get; set; } = "Active";
+    private string? EditNotes { get; set; }
+    private string? EditDatabaseConnectionString { get; set; }
+    private string? EditAdminUsername { get; set; }
+    private string? EditAdminPassword { get; set; }
+    private string? EditBirTin { get; set; }
+    private string? EditBirBusinessName { get; set; }
+    private string? EditBirAddress { get; set; }
+    private string? EditBirRegistrationType { get; set; }
+    private bool EditIsVatRegistered { get; set; }
+    private decimal? EditVatRate { get; set; }
+    private string? EditWarrantyPeriod { get; set; }
+    private string? EditMaintenanceSchedule { get; set; }
+    private string? EditFreeServices { get; set; }
+    private string? EditPaymentTerms { get; set; }
+    private string? EditTerminationClause { get; set; }
+    private string? EditSlaDetails { get; set; }
+    private string? EditContractTermsText { get; set; }
+    private bool EditAutoRenewal { get; set; }
+    private bool IsSaving { get; set; } = false;
+
+    private void LoadCustomerIntoForm(Customer customer)
+    {
+        currentCustomer = customer;
+        
+        // Basic Information
+        EditSchoolName = customer.SchoolName;
+        EditSchoolType = customer.SchoolType ?? string.Empty;
+        EditAddress = customer.Address ?? string.Empty;
+        
+        // Parse contact person name
+        var contactParts = ParseFullName(customer.ContactPerson);
+        EditContactFirstName = contactParts.firstName;
+        EditContactMiddleName = contactParts.middleName;
+        EditContactLastName = contactParts.lastName;
+        EditContactSuffix = contactParts.suffix;
+        EditContactRole = customer.ContactPosition ?? "Admin";
+        EditContactEmail = customer.ContactEmail ?? string.Empty;
+        EditContactPhone = customer.ContactPhone ?? string.Empty;
+        
+        // Subscription & Contract
+        EditPlan = customer.SubscriptionPlan ?? string.Empty;
+        EditMonthlyFee = customer.MonthlyFee;
+        EditContractStartDate = customer.ContractStartDate ?? DateTime.Today;
+        EditContractDuration = customer.ContractDurationMonths?.ToString() ?? "12";
+        EditStudentCount = customer.StudentCount;
+        EditStatus = customer.Status;
+        EditNotes = customer.Notes;
+        EditDatabaseConnectionString = customer.DatabaseConnectionString;
+        
+        // Admin Account Credentials
+        EditAdminUsername = customer.AdminUsername;
+        EditAdminPassword = customer.AdminPassword;
+        
+        // BIR Information
+        EditBirTin = customer.BirTin;
+        EditBirBusinessName = customer.BirBusinessName;
+        EditBirAddress = customer.BirAddress;
+        EditBirRegistrationType = customer.BirRegistrationType;
+        EditIsVatRegistered = customer.IsVatRegistered;
+        EditVatRate = customer.VatRate;
+        
+        // Contract Terms
+        EditWarrantyPeriod = customer.WarrantyPeriod;
+        EditMaintenanceSchedule = customer.MaintenanceSchedule;
+        EditFreeServices = customer.FreeServices;
+        EditPaymentTerms = customer.PaymentTerms;
+        EditTerminationClause = customer.TerminationClause;
+        EditSlaDetails = customer.SlaDetails;
+        EditContractTermsText = customer.ContractTermsText;
+        EditAutoRenewal = customer.AutoRenewal;
+    }
+
+    private (string firstName, string? middleName, string lastName, string? suffix) ParseFullName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return (string.Empty, null, string.Empty, null);
+
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (parts.Length == 1)
+            return (parts[0], null, string.Empty, null);
+        
+        if (parts.Length == 2)
+            return (parts[0], null, parts[1], null);
+        
+        // Check if last part is a suffix
+        var suffixes = new[] { "Jr", "Sr", "II", "III", "IV", "V" };
+        string? suffix = null;
+        string lastName;
+        
+        if (suffixes.Contains(parts[^1], StringComparer.OrdinalIgnoreCase))
+        {
+            suffix = parts[^1];
+            lastName = parts[^2];
+        }
+        else
+        {
+            lastName = parts[^1];
+        }
+        
+        var firstName = parts[0];
+        string? middleName = parts.Length > (suffix != null ? 3 : 2) 
+            ? string.Join(" ", parts.Skip(1).Take(parts.Length - (suffix != null ? 3 : 2))) 
+            : null;
+        
+        return (firstName, middleName, lastName, suffix);
+    }
+
+    private void CloseViewModal()
+    {
+        showViewModal = false;
+        isEditMode = false;
+        currentCustomer = null;
+        customerBillingHistory = new();
+        StateHasChanged();
+    }
+
+    private void EnableEditMode()
+    {
+        isEditMode = true;
+        StateHasChanged();
+    }
+
+    private void CancelEdit()
+    {
+        // Reload original customer data
+        if (currentCustomer != null)
+        {
+            LoadCustomerIntoForm(currentCustomer);
+        }
+        isEditMode = false;
+        StateHasChanged();
+    }
+
+    private async Task SaveCustomerChanges()
+    {
+        if (currentCustomer == null) return;
+
+        IsSaving = true;
+        StateHasChanged();
+        
+        try
+        {
+            // Update customer object with form values
+            currentCustomer.SchoolName = EditSchoolName;
+            currentCustomer.SchoolType = EditSchoolType;
+            currentCustomer.Address = EditAddress;
+            currentCustomer.ContactPerson = $"{EditContactFirstName} {(!string.IsNullOrWhiteSpace(EditContactMiddleName) ? EditContactMiddleName + " " : "")}{EditContactLastName}{(!string.IsNullOrWhiteSpace(EditContactSuffix) ? " " + EditContactSuffix : "")}".Trim();
+            currentCustomer.ContactPosition = EditContactRole;
+            currentCustomer.ContactEmail = EditContactEmail;
+            currentCustomer.ContactPhone = EditContactPhone;
+            currentCustomer.SubscriptionPlan = EditPlan;
+            currentCustomer.MonthlyFee = EditMonthlyFee;
+            currentCustomer.ContractStartDate = EditContractStartDate;
+            if (int.TryParse(EditContractDuration, out int duration))
+            {
+                currentCustomer.ContractDurationMonths = duration;
+                currentCustomer.ContractEndDate = EditContractStartDate.AddMonths(duration);
+            }
+            currentCustomer.StudentCount = EditStudentCount;
+            currentCustomer.Status = EditStatus;
+            currentCustomer.Notes = EditNotes;
+            currentCustomer.DatabaseConnectionString = EditDatabaseConnectionString;
+            
+            // BIR Information
+            currentCustomer.BirTin = EditBirTin;
+            currentCustomer.BirBusinessName = EditBirBusinessName;
+            currentCustomer.BirAddress = EditBirAddress;
+            currentCustomer.BirRegistrationType = EditBirRegistrationType;
+            currentCustomer.IsVatRegistered = EditIsVatRegistered;
+            currentCustomer.VatRate = EditVatRate;
+            
+            // Contract Terms
+            currentCustomer.WarrantyPeriod = EditWarrantyPeriod;
+            currentCustomer.MaintenanceSchedule = EditMaintenanceSchedule;
+            currentCustomer.FreeServices = EditFreeServices;
+            currentCustomer.PaymentTerms = EditPaymentTerms;
+            currentCustomer.TerminationClause = EditTerminationClause;
+            currentCustomer.SlaDetails = EditSlaDetails;
+            currentCustomer.ContractTermsText = EditContractTermsText;
+            currentCustomer.AutoRenewal = EditAutoRenewal;
+
+            await SuperAdminService.UpdateCustomerAsync(currentCustomer);
+            
+            // Exit edit mode after saving
+            isEditMode = false;
+            CloseViewModal();
+            
+            // Reload customers list in background without blocking
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await LoadCustomers().ConfigureAwait(false);
+                    await InvokeAsync(() =>
+                    {
+                        FilterCustomers();
+                        StateHasChanged();
+                    });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error reloading customers: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error saving customer: {ex.Message}");
+            // Show error message
+        }
+        finally
+        {
+            IsSaving = false;
+            StateHasChanged();
+        }
+    }
+
+    private string? GetDisplayNotes(string? notes)
+    {
+        if (string.IsNullOrWhiteSpace(notes))
+        {
+            return null;
+        }
+
+        // Check if notes contain auto-generated module information
+        // If the notes only contain module selection info, return null to hide it
+        if (notes.Contains("=== SELECTED MODULES ==="))
+        {
+            // Check if there's any user-entered content before the module section
+            var moduleSectionIndex = notes.IndexOf("=== SELECTED MODULES ===");
+            var contentBeforeModule = notes.Substring(0, moduleSectionIndex).Trim();
+            
+            // If there's no user content before the module section, hide the entire notes
+            if (string.IsNullOrWhiteSpace(contentBeforeModule))
+            {
+                return null;
+            }
+            
+            // Otherwise, return only the content before the module section
+            return contentBeforeModule;
+        }
+
+        // Return original notes if they don't contain auto-generated module content
+        return notes;
+    }
+
+}

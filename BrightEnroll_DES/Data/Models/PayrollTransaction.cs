@@ -3,9 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Tracks payroll payment transactions and history
-/// </summary>
+// Tracks payroll payment transactions
 [Table("tbl_payroll_transactions")]
 public class PayrollTransaction
 {

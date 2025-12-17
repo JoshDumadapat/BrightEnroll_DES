@@ -31,7 +31,7 @@ public class SyncResult
 public class DatabaseSyncService : IDatabaseSyncService
 {
     private readonly IDbContextFactory<AppDbContext> _contextFactory;
-    private readonly string _cloudConnectionString;
+    private readonly string? _cloudConnectionString;
     private readonly ILogger<DatabaseSyncService>? _logger;
 
     public DatabaseSyncService(
@@ -40,13 +40,23 @@ public class DatabaseSyncService : IDatabaseSyncService
         ILogger<DatabaseSyncService>? logger = null)
     {
         _contextFactory = contextFactory;
-        _cloudConnectionString = configuration.GetConnectionString("CloudConnection") 
-            ?? throw new InvalidOperationException("CloudConnection string not found in configuration");
+        _cloudConnectionString = configuration.GetConnectionString("CloudConnection");
         _logger = logger;
+        
+        if (string.IsNullOrWhiteSpace(_cloudConnectionString))
+        {
+            _logger?.LogWarning("CloudConnection string not found in configuration. Cloud sync features will be disabled.");
+        }
     }
 
     public async Task<bool> TestCloudConnectionAsync()
     {
+        if (string.IsNullOrWhiteSpace(_cloudConnectionString))
+        {
+            _logger?.LogWarning("CloudConnection string is not configured. Cannot test cloud connection.");
+            return false;
+        }
+        
         try
         {
             using var connection = new SqlConnection(_cloudConnectionString);
@@ -63,6 +73,14 @@ public class DatabaseSyncService : IDatabaseSyncService
     public async Task<SyncResult> SyncToCloudAsync()
     {
         var result = new SyncResult { Success = true };
+        
+        if (string.IsNullOrWhiteSpace(_cloudConnectionString))
+        {
+            result.Success = false;
+            result.Message = "CloudConnection string is not configured. Please configure CloudConnection in appsettings.json to enable cloud sync.";
+            result.Errors.Add("CloudConnection not configured");
+            return result;
+        }
         
         try
         {
@@ -160,6 +178,14 @@ public class DatabaseSyncService : IDatabaseSyncService
     public async Task<SyncResult> SyncFromCloudAsync()
     {
         var result = new SyncResult { Success = true };
+        
+        if (string.IsNullOrWhiteSpace(_cloudConnectionString))
+        {
+            result.Success = false;
+            result.Message = "CloudConnection string is not configured. Please configure CloudConnection in appsettings.json to enable cloud sync.";
+            result.Errors.Add("CloudConnection not configured");
+            return result;
+        }
         
         try
         {
@@ -294,6 +320,14 @@ public class DatabaseSyncService : IDatabaseSyncService
     {
         var result = new SyncResult { Success = true };
         since ??= DateTime.Now.AddDays(-7); // Default: last 7 days
+        
+        if (string.IsNullOrWhiteSpace(_cloudConnectionString))
+        {
+            result.Success = false;
+            result.Message = "CloudConnection string is not configured. Please configure CloudConnection in appsettings.json to enable cloud sync.";
+            result.Errors.Add("CloudConnection not configured");
+            return result;
+        }
         
         try
         {
@@ -863,7 +897,7 @@ public class DatabaseSyncService : IDatabaseSyncService
                 }
             }
             
-            // CRITICAL: Save all changes for non-identity primary keys (EF Core Add/Update operations)
+            // Save all changes for non-identity primary keys
             // Identity columns use raw SQL which executes immediately, but EF Core operations need SaveChanges
             if (recordsSynced > 0)
             {

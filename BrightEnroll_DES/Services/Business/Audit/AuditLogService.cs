@@ -6,10 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Business.Audit;
 
-/// <summary>
-/// Service for creating and managing audit log entries.
-/// Enhanced to support detailed student registration logging.
-/// </summary>
+// Service for creating and managing audit log entries
 public class AuditLogService
 {
     private readonly AppDbContext _context;
@@ -21,9 +18,7 @@ public class AuditLogService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Creates a general audit log entry.
-    /// </summary>
+    // Create general audit log entry
     public async Task CreateLogAsync(
         string action,
         string? module = null,
@@ -94,10 +89,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Creates a transaction audit log entry with entity tracking.
-    /// Supports old/new values for change tracking.
-    /// </summary>
+    // Create transaction audit log entry with entity tracking
     public async Task CreateTransactionLogAsync(
         string action,
         string? module = null,
@@ -175,10 +167,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Creates an enhanced audit log entry for student registration.
-    /// Includes: Student ID, Student Name, Grade, Status, and Registrar ID.
-    /// </summary>
+    // Create enhanced audit log entry for student registration
     public async Task CreateStudentRegistrationLogAsync(
         string studentId,
         string studentName,
@@ -245,10 +234,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Checks if a table exists in the database.
-    /// Uses a simple approach: try to query the table directly.
-    /// </summary>
+    // Check if table exists in database
     private async Task<bool> TableExistsAsync(string tableName)
     {
         try
@@ -270,9 +256,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Gets audit logs with optional filtering.
-    /// </summary>
+    // Get audit logs with optional filtering
     public async Task<List<AuditLog>> GetAuditLogsAsync(
         DateTime? startDate = null,
         DateTime? endDate = null,
@@ -343,9 +327,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Gets total count of audit logs.
-    /// </summary>
+    // Get total count of audit logs
     public async Task<int> GetTotalLogsCountAsync()
     {
         try
@@ -361,9 +343,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Gets count of failed audit logs.
-    /// </summary>
+    // Get count of failed audit logs
     public async Task<int> GetFailedLogsCountAsync()
     {
         try
@@ -381,9 +361,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Gets count of high severity audit logs.
-    /// </summary>
+    // Get count of high severity audit logs
     public async Task<int> GetHighSeverityLogsCountAsync()
     {
         try
@@ -401,9 +379,7 @@ public class AuditLogService
         }
     }
 
-    /// <summary>
-    /// Gets count of recent audit logs (last 7 days).
-    /// </summary>
+    // Get count of recent audit logs (last 7 days)
     public async Task<int> GetRecentLogsCountAsync()
     {
         try

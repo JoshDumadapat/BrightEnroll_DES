@@ -6,10 +6,7 @@ using BrightEnroll_DES.Services.Infrastructure;
 
 namespace BrightEnroll_DES.Services.Database.Sync;
 
-/// <summary>
-/// Background service that automatically syncs data at configured intervals.
-/// Only syncs when online and no sync is already in progress.
-/// </summary>
+// Background service that automatically syncs data at configured intervals
 public class AutoSyncScheduler : BackgroundService
 {
     private readonly IServiceScopeFactory _serviceScopeFactory;

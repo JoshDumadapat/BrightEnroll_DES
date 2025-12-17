@@ -3,11 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BrightEnroll_DES.Data.Models;
 
-/// <summary>
-/// Individual charges or discounts in a student ledger
-/// Positive amounts = charges (Tuition, Misc, Other)
-/// Negative amounts = discounts (Sibling, Early-bird, Scholarship, Manual)
-/// </summary>
+// Individual charges or discounts in student ledger
 [Table("tbl_LedgerCharges")]
 public class LedgerCharge
 {

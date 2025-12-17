@@ -78,6 +78,9 @@ public class AppDbContext : DbContext
     // Discount tables
     public DbSet<Discount> Discounts { get; set; }
 
+    // School Information
+    public DbSet<SchoolInformation> SchoolInformation { get; set; }
+
     // Inventory & Asset Management tables
     public DbSet<Asset> Assets { get; set; }
     public DbSet<InventoryItem> InventoryItems { get; set; }
