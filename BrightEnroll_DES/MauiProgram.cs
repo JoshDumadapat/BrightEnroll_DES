@@ -79,6 +79,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<FeeSetupSeeder>();
             builder.Services.AddScoped<DiscountSeeder>();
             builder.Services.AddScoped<PaymentSeeder>();
+            builder.Services.AddScoped<SuperAdminSeeder>();
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
             builder.Services.AddSingleton<AddressService>();
             builder.Services.AddScoped<SchoolYearService>();
@@ -371,6 +372,19 @@ namespace BrightEnroll_DES
                         catch (Exception ex)
                         {
                             logger?.LogWarning(ex, "Super Admin user seeding to SuperAdmin database failed: {Message}", ex.Message);
+                        }
+
+                        // Seed SuperAdmin data (customers, sales, BIR compliance, support tickets, subscriptions)
+                        try
+                        {
+                            var superAdminContext = scope.ServiceProvider.GetRequiredService<SuperAdminDbContext>();
+                            var superAdminSeeder = scope.ServiceProvider.GetRequiredService<SuperAdminSeeder>();
+                            await superAdminSeeder.SeedAllAsync();
+                            logger?.LogInformation("SuperAdmin data seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "SuperAdmin data seeding failed: {Message}", ex.Message);
                         }
 
                         try
