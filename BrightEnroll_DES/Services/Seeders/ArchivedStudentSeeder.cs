@@ -93,13 +93,13 @@ public class ArchivedStudentSeeder
             var schoolYear = $"{currentYear - 1}-{currentYear}"; // Previous school year for archived students
 
             // Get the highest student ID to continue from
-            var highestId = await _context.Students
-                .Where(s => s.StudentId.Length == 6 && int.TryParse(s.StudentId, out _))
+            var allStudentIds = await _context.Students
+                .Where(s => s.StudentId.Length == 6)
                 .Select(s => s.StudentId)
                 .ToListAsync();
 
             int maxId = 0;
-            foreach (var id in highestId)
+            foreach (var id in allStudentIds)
             {
                 if (int.TryParse(id, out int idValue) && idValue > maxId)
                 {

@@ -1,4 +1,4 @@
-﻿@page "/enrollment"
+@page "/enrollment"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentComponents
 @using BrightEnroll_DES.Components.Pages.Admin.Enrollment.EnrollmentCS
@@ -231,7 +231,8 @@
                           IsLoading="isLoading"
                           OnEditStudent="HandleForEnrollmentEdit"
                           SchoolYear="CurrentSchoolYear"
-                          IsViewOnly="@IsCashier" />
+                          IsViewOnly="@IsCashier"
+                          OnRefresh="HandleForEnrollmentRefresh" />
         }
         else if (SelectedTab == TabType.ReEnrollment)
         {
@@ -1622,6 +1623,14 @@
             ShowToast($"Error updating student: {ex.Message}", ToastType.Error);
             // Don't close modal on error - let user see the error and try again
         }
+    }
+
+    private async Task HandleForEnrollmentRefresh()
+    {
+        _hasLoadedForEnrollment = false;
+        await LoadForEnrollmentStudentsAsync();
+        _hasLoadedForEnrollment = true;
+        StateHasChanged();
     }
 
     private async Task LoadForEnrollmentStudentsAsync()

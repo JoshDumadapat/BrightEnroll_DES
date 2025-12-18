@@ -145,7 +145,7 @@ public class AccountingReportService
                 .Where(p => p.CreatedAt >= fromDate && 
                            p.CreatedAt <= toDate &&
                            p.PaymentMethod != null &&
-                           !p.PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+                           p.PaymentMethod.ToUpper() != "CREDIT")
                 .SumAsync(p => (decimal?)p.Amount) ?? 0m;
         }
 

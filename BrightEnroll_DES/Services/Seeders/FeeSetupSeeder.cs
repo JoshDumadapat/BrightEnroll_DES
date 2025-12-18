@@ -36,21 +36,40 @@ public class FeeSetupSeeder
             var currentYear = DateTime.Now.Year;
             var schoolYear = $"{currentYear}-{currentYear + 1}";
 
-            // Check if fees already exist for this school year
+            // Check which grade levels already have fees for this school year
+            // Load all existing fees ONCE before the loop to avoid concurrency issues
             var existingFees = await _context.Fees
-                .Where(f => f.SchoolYear == schoolYear)
+                .AsNoTracking()
+                .Where(f => f.SchoolYear == schoolYear || f.SchoolYear == null)
                 .ToListAsync();
 
-            if (existingFees.Any())
+            // Create a dictionary for quick lookup by GradeLevelId
+            var existingFeesByGradeLevel = existingFees
+                .GroupBy(f => f.GradeLevelId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var gradeLevelsWithFees = existingFees.Select(f => f.GradeLevelId).ToHashSet();
+            
+            // Check if ALL grade levels have fees
+            var allGradeLevelsHaveFees = gradeLevels.All(g => gradeLevelsWithFees.Contains(g.GradeLevelId));
+            
+            if (allGradeLevelsHaveFees && existingFees.Any())
             {
-                _logger?.LogInformation($"Fees for school year {schoolYear} already exist. Skipping.");
+                _logger?.LogInformation($"Fees for all grade levels in school year {schoolYear} already exist. Skipping.");
                 return;
             }
+            
+            if (existingFees.Any())
+            {
+                _logger?.LogInformation($"Some fees exist for school year {schoolYear}. Will create fees for missing grade levels.");
+            }
+
+            _context.ChangeTracker.Clear(); // Clear tracker before creating new entities
 
             var fees = new List<Fee>();
             var feeBreakdowns = new List<FeeBreakdown>();
 
-            // Fee structure per grade level
+            // Fee structure per grade level - Complete for all grade levels
             var feeStructure = new Dictionary<string, (decimal tuition, decimal misc, decimal other)>
             {
                 { "Pre-School", (15000m, 5000m, 2000m) },
@@ -63,36 +82,133 @@ public class FeeSetupSeeder
                 { "Grade 6", (24000m, 9000m, 4000m) }
             };
 
+            // Create fees for ALL grade levels in the database
             foreach (var gradeLevel in gradeLevels)
             {
-                if (feeStructure.TryGetValue(gradeLevel.GradeLevelName, out var feesForGrade))
+                // Check if fee already exists using in-memory dictionary (no database query in loop)
+                if (existingFeesByGradeLevel.ContainsKey(gradeLevel.GradeLevelId))
                 {
-                    var fee = new Fee
-                    {
-                        GradeLevelId = gradeLevel.GradeLevelId,
-                        TuitionFee = feesForGrade.tuition,
-                        MiscFee = feesForGrade.misc,
-                        OtherFee = feesForGrade.other,
-                        CreatedDate = DateTime.Now,
-                        UpdatedDate = null,
-                        CreatedBy = "System",
-                        UpdatedBy = null,
-                        IsActive = true,
-                        SchoolYear = schoolYear
-                    };
-
-                    fees.Add(fee);
+                    _logger?.LogInformation($"Fee already exists for {gradeLevel.GradeLevelName}, skipping.");
+                    continue;
                 }
+
+                // Get fee structure from dictionary, or use default based on grade level name
+                (decimal tuition, decimal misc, decimal other) feesForGrade;
+                
+                if (feeStructure.TryGetValue(gradeLevel.GradeLevelName, out feesForGrade))
+                {
+                    // Use predefined fee structure
+                }
+                else
+                {
+                    // Calculate default fees for grade levels not in dictionary
+                    // Base calculation: Higher grade = higher fees
+                    if (gradeLevel.GradeLevelName.Contains("Pre") || gradeLevel.GradeLevelName.Contains("Pre-School"))
+                    {
+                        feesForGrade = (15000m, 5000m, 2000m);
+                    }
+                    else if (gradeLevel.GradeLevelName.Contains("Kinder") || gradeLevel.GradeLevelName.Contains("Kindergarten"))
+                    {
+                        feesForGrade = (18000m, 6000m, 2500m);
+                    }
+                    else if (gradeLevel.GradeLevelName.Contains("Grade"))
+                    {
+                        // Extract grade number if possible
+                        var gradeMatch = System.Text.RegularExpressions.Regex.Match(gradeLevel.GradeLevelName, @"\d+");
+                        if (gradeMatch.Success && int.TryParse(gradeMatch.Value, out int gradeNum))
+                        {
+                            // Progressive fee structure: Grade 1-2: 20000, Grade 3-4: 22000, Grade 5-6: 24000
+                            if (gradeNum <= 2)
+                            {
+                                feesForGrade = (20000m, 7000m, 3000m);
+                            }
+                            else if (gradeNum <= 4)
+                            {
+                                feesForGrade = (22000m, 8000m, 3500m);
+                            }
+                            else
+                            {
+                                feesForGrade = (24000m, 9000m, 4000m);
+                            }
+                        }
+                        else
+                        {
+                            // Default for any grade level
+                            feesForGrade = (20000m, 7000m, 3000m);
+                        }
+                    }
+                    else
+                    {
+                        // Default fee structure
+                        feesForGrade = (20000m, 7000m, 3000m);
+                    }
+                    
+                    _logger?.LogInformation($"Using calculated fees for grade level '{gradeLevel.GradeLevelName}': Tuition={feesForGrade.tuition}, Misc={feesForGrade.misc}, Other={feesForGrade.other}");
+                }
+
+                var fee = new Fee
+                {
+                    GradeLevelId = gradeLevel.GradeLevelId,
+                    TuitionFee = feesForGrade.tuition,
+                    MiscFee = feesForGrade.misc,
+                    OtherFee = feesForGrade.other,
+                    CreatedDate = DateTime.Now,
+                    UpdatedDate = null,
+                    CreatedBy = "System",
+                    UpdatedBy = null,
+                    IsActive = true,
+                    SchoolYear = schoolYear
+                };
+
+                fees.Add(fee);
+                _logger?.LogInformation($"Created fee for {gradeLevel.GradeLevelName}: Tuition={feesForGrade.tuition}, Misc={feesForGrade.misc}, Other={feesForGrade.other}");
             }
 
-            _context.Fees.AddRange(fees);
-            await _context.SaveChangesAsync();
+            if (fees.Any())
+            {
+                _context.Fees.AddRange(fees);
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation($"Created {fees.Count} fee records.");
+            }
+            else
+            {
+                _logger?.LogInformation("No new fees to create. All grade levels already have fees.");
+            }
 
-            // Create fee breakdowns
-            foreach (var fee in fees)
+            // Clear change tracker before loading fees for breakdowns
+            _context.ChangeTracker.Clear();
+
+            // Get all fees (including newly created and existing) for breakdown creation
+            // Use AsNoTracking to avoid concurrency issues
+            var allFeesForBreakdown = await _context.Fees
+                .AsNoTracking()
+                .Where(f => f.SchoolYear == schoolYear || f.SchoolYear == null)
+                .Include(f => f.Breakdowns)
+                .ToListAsync();
+
+            // Create fee breakdowns for all fees that don't have breakdowns yet
+            foreach (var fee in allFeesForBreakdown)
             {
                 var gradeLevel = gradeLevels.First(g => g.GradeLevelId == fee.GradeLevelId);
-                var feesForGrade = feeStructure[gradeLevel.GradeLevelName];
+                
+                // Skip if breakdowns already exist
+                if (fee.Breakdowns != null && fee.Breakdowns.Any())
+                {
+                    _logger?.LogInformation($"Fee breakdowns already exist for {gradeLevel.GradeLevelName}, skipping.");
+                    continue;
+                }
+                
+                // Get fee structure (from dictionary or use existing fee amounts)
+                (decimal tuition, decimal misc, decimal other) feesForGrade;
+                if (feeStructure.TryGetValue(gradeLevel.GradeLevelName, out feesForGrade))
+                {
+                    // Use predefined
+                }
+                else
+                {
+                    // Use the fee amounts that were saved
+                    feesForGrade = (fee.TuitionFee, fee.MiscFee, fee.OtherFee);
+                }
 
                 // Tuition breakdown
                 var tuitionBreakdowns = new[]
@@ -184,11 +300,30 @@ public class FeeSetupSeeder
                 feeBreakdowns.AddRange(otherBreakdowns);
             }
 
-            _context.FeeBreakdowns.AddRange(feeBreakdowns);
-            await _context.SaveChangesAsync();
+            if (feeBreakdowns.Any())
+            {
+                _context.ChangeTracker.Clear(); // Clear before adding new entities
+                _context.FeeBreakdowns.AddRange(feeBreakdowns);
+                await _context.SaveChangesAsync();
+                _logger?.LogInformation($"Created {feeBreakdowns.Count} fee breakdown records.");
+            }
+            
             _context.ChangeTracker.Clear();
 
-            _logger?.LogInformation($"=== FEE SETUP SEEDING COMPLETED: {fees.Count} fees with breakdowns created ===");
+            // Use AsNoTracking for final count queries to avoid concurrency issues
+            var totalFees = await _context.Fees
+                .AsNoTracking()
+                .Where(f => f.SchoolYear == schoolYear || f.SchoolYear == null)
+                .CountAsync();
+            
+            var totalBreakdowns = await _context.FeeBreakdowns
+                .AsNoTracking()
+                .Where(fb => _context.Fees
+                    .AsNoTracking()
+                    .Any(f => f.FeeId == fb.FeeId && (f.SchoolYear == schoolYear || f.SchoolYear == null)))
+                .CountAsync();
+
+            _logger?.LogInformation($"=== FEE SETUP SEEDING COMPLETED: {totalFees} total fees with {totalBreakdowns} breakdowns for school year {schoolYear} ===");
         }
         catch (Exception ex)
         {

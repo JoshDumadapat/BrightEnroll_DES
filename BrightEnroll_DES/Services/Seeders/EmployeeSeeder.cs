@@ -36,10 +36,34 @@ public class EmployeeSeeder
 
             var employeesToCreate = count - existingCount;
             var random = new Random();
-            var firstNames = new[] { "Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Carmen", "Miguel", "Elena", "Antonio", "Isabel", "Francisco", "Lucia", "Manuel", "Patricia", "Luis", "Monica", "Fernando", "Andrea" };
-            var lastNames = new[] { "Dela Cruz", "Garcia", "Reyes", "Ramos", "Mendoza", "Santos", "Cruz", "Torres", "Fernandez", "Gonzalez", "Lopez", "Martinez", "Rodriguez", "Perez", "Sanchez", "Rivera", "Morales", "Ortiz", "Gutierrez", "Chavez" };
+            var firstNames = new[] { "Juan", "Maria", "Jose", "Ana", "Carlos", "Rosa", "Pedro", "Carmen", "Miguel", "Elena", "Antonio", "Isabel", "Francisco", "Lucia", "Manuel", "Patricia", "Luis", "Monica", "Fernando", "Andrea", "Roberto", "Cristina", "Eduardo", "Gabriela", "Ricardo", "Sofia", "Daniel", "Valentina", "Alejandro", "Camila" };
+            var lastNames = new[] { "Dela Cruz", "Garcia", "Reyes", "Ramos", "Mendoza", "Santos", "Cruz", "Torres", "Fernandez", "Gonzalez", "Lopez", "Martinez", "Rodriguez", "Perez", "Sanchez", "Rivera", "Morales", "Ortiz", "Gutierrez", "Chavez", "Villanueva", "Castillo", "Romero", "Diaz", "Moreno" };
             var genders = new[] { "Male", "Female" };
-            var roles = new[] { "Teacher", "Registrar", "Cashier", "HR" };
+            
+            // Role distribution: More teachers (80%), fewer other roles (20%)
+            // For 50 employees: ~40 teachers, ~3 registrars, ~3 cashiers, ~4 HR
+            var roleDistribution = new List<string>();
+            
+            // Calculate exact counts
+            int teacherCount = (int)(employeesToCreate * 0.80); // 80% teachers
+            int registrarCount = (int)(employeesToCreate * 0.06); // 6% registrars
+            int cashierCount = (int)(employeesToCreate * 0.06); // 6% cashiers
+            int hrCount = employeesToCreate - teacherCount - registrarCount - cashierCount; // Remaining for HR
+            
+            // Add roles to distribution list
+            for (int i = 0; i < teacherCount; i++)
+                roleDistribution.Add("Teacher");
+            for (int i = 0; i < registrarCount; i++)
+                roleDistribution.Add("Registrar");
+            for (int i = 0; i < cashierCount; i++)
+                roleDistribution.Add("Cashier");
+            for (int i = 0; i < hrCount; i++)
+                roleDistribution.Add("HR");
+            
+            // Shuffle the role distribution for randomness
+            roleDistribution = roleDistribution.OrderBy(x => random.Next()).ToList();
+            
+            _logger?.LogInformation($"Role distribution: {teacherCount} Teachers, {registrarCount} Registrars, {cashierCount} Cashiers, {hrCount} HR");
 
             var employees = new List<UserEntity>();
 
@@ -48,7 +72,7 @@ public class EmployeeSeeder
                 var firstName = firstNames[random.Next(firstNames.Length)];
                 var lastName = lastNames[random.Next(lastNames.Length)];
                 var gender = genders[random.Next(genders.Length)];
-                var role = roles[random.Next(roles.Length)];
+                var role = roleDistribution[i];
                 var birthdate = new DateTime(random.Next(1980, 2000), random.Next(1, 13), random.Next(1, 29));
                 var age = (byte)(DateTime.Today.Year - birthdate.Year);
                 if (birthdate.Date > DateTime.Today.AddYears(-age)) age--;

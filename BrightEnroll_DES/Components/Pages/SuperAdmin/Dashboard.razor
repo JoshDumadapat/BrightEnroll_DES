@@ -7,12 +7,14 @@
 @using System
 @using System.Threading
 @using Microsoft.JSInterop
+@using Microsoft.EntityFrameworkCore
 @implements IAsyncDisposable
 @inject IAuthService AuthService
 @inject ILoadingService LoadingService
 @inject NavigationManager Navigation
 @inject IServiceProvider ServiceProvider
 @inject BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService SuperAdminService
+@inject BrightEnroll_DES.Data.SuperAdminDbContext SuperAdminDbContext
 @inject IJSRuntime JSRuntime
 
 <PageTitle>Super Admin Dashboard</PageTitle>
@@ -407,14 +409,31 @@
             var expiringCustomers = await service.GetExpiringSubscriptionsAsync(30);
             if (expiringCustomers.Any())
             {
-                ExpiringSoon = expiringCustomers
-                    .Where(c => c.ContractEndDate.HasValue)
-                    .Select(c => new ExpiringSubscription
+                // Get subscription end dates from CustomerSubscriptions table
+                var customerIds = expiringCustomers.Select(c => c.CustomerId).ToList();
+                var subscriptions = await SuperAdminDbContext.CustomerSubscriptions
+                    .Where(s => customerIds.Contains(s.CustomerId) && 
+                               s.Status == "Active" && 
+                               s.EndDate.HasValue &&
+                               s.EndDate.Value >= DateTime.Now &&
+                               s.EndDate.Value <= DateTime.Now.AddDays(30))
+                    .ToListAsync();
+                
+                ExpiringSoon = expiringCustomers.Select(c =>
+                {
+                    // Try to get expiry date from CustomerSubscriptions first
+                    var subscription = subscriptions.FirstOrDefault(s => s.CustomerId == c.CustomerId);
+                    var expiryDate = subscription?.EndDate ?? c.ContractEndDate ?? DateTime.Now;
+                    
+                    return new ExpiringSubscription
                     {
                         SchoolName = c.SchoolName,
-                        ExpiryDate = c.ContractEndDate ?? DateTime.Now
-                    })
-                    .ToList();
+                        ExpiryDate = expiryDate
+                    };
+                })
+                .Where(e => e.ExpiryDate > DateTime.Now) // Only show future expirations
+                .OrderBy(e => e.ExpiryDate)
+                .ToList();
             }
         }
         catch (Exception ex)

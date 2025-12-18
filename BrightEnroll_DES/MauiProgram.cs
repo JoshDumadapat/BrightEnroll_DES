@@ -427,12 +427,12 @@ namespace BrightEnroll_DES
                             logger?.LogWarning(ex, "Curriculum seeding failed: {Message}", ex.Message);
                         }
 
-                        // Seed School Admin Users (50 records)
+                        // Seed School Admin User (1 record only)
                         try
                         {
                             var adminUserSeeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
-                            await adminUserSeeder.SeedAsync(50);
-                            logger?.LogInformation("School admin users seeded successfully.");
+                            await adminUserSeeder.SeedAsync(1);
+                            logger?.LogInformation("School admin user seeded successfully.");
                         }
                         catch (Exception ex)
                         {

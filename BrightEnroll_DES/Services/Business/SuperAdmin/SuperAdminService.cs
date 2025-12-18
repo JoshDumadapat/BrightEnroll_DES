@@ -1140,7 +1140,7 @@ public class SuperAdminService
                     .Where(p => p.PaymentDate >= currentMonthStart && 
                                 p.PaymentDate <= currentMonthEnd &&
                                 p.PaymentMethod != null &&
-                                !p.PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+                                p.PaymentMethod.ToUpper() != "CREDIT")
                     .SumAsync(p => (decimal?)p.Amount) ?? 0;
                 
                 // If no payments this month, fallback to sum of active customer monthly fees
@@ -1227,7 +1227,7 @@ public class SuperAdminService
                 .Where(p => p.PaymentDate >= startDate && 
                            p.PaymentDate <= endDate &&
                            p.PaymentMethod != null &&
-                           !p.PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+                           p.PaymentMethod.ToUpper() != "CREDIT")
                 .ToListAsync();
 
             // Group by month and sum amounts
@@ -1290,14 +1290,52 @@ public class SuperAdminService
         try
         {
             var expiryDate = DateTime.Now.AddDays(daysAhead);
+            var now = DateTime.Now;
             
-            return await _context.Customers
+            // First, try to get customers from CustomerSubscriptions table (new subscription system)
+            var expiringSubscriptionIds = await _context.CustomerSubscriptions
+                .Where(s => s.Status == "Active" &&
+                           s.EndDate.HasValue &&
+                           s.EndDate.Value >= now &&
+                           s.EndDate.Value <= expiryDate)
+                .Select(s => s.CustomerId)
+                .Distinct()
+                .ToListAsync();
+            
+            // Get customers with expiring subscriptions
+            var customersFromSubscriptions = await _context.Customers
+                .Where(c => expiringSubscriptionIds.Contains(c.CustomerId) && c.Status == "Active")
+                .ToListAsync();
+            
+            // Also check Customer.ContractEndDate for backward compatibility
+            var customersFromContracts = await _context.Customers
                 .Where(c => c.Status == "Active" && 
                            c.ContractEndDate.HasValue &&
-                           c.ContractEndDate.Value >= DateTime.Now && 
-                           c.ContractEndDate.Value <= expiryDate)
-                .OrderBy(c => c.ContractEndDate)
+                           c.ContractEndDate.Value >= now && 
+                           c.ContractEndDate.Value <= expiryDate &&
+                           !expiringSubscriptionIds.Contains(c.CustomerId)) // Exclude already found
                 .ToListAsync();
+            
+            // Combine and order by expiry date
+            var allExpiringCustomers = customersFromSubscriptions
+                .Concat(customersFromContracts)
+                .Distinct()
+                .OrderBy(c => 
+                {
+                    // Get the earliest expiry date from either ContractEndDate or CustomerSubscriptions
+                    var contractDate = c.ContractEndDate;
+                    var subscriptionDate = _context.CustomerSubscriptions
+                        .Where(s => s.CustomerId == c.CustomerId && s.Status == "Active" && s.EndDate.HasValue)
+                        .Select(s => s.EndDate)
+                        .FirstOrDefault();
+                    
+                    if (contractDate.HasValue && subscriptionDate.HasValue)
+                        return contractDate.Value < subscriptionDate.Value ? contractDate.Value : subscriptionDate.Value;
+                    return contractDate ?? subscriptionDate ?? DateTime.MaxValue;
+                })
+                .ToList();
+            
+            return allExpiringCustomers;
         }
         catch (Exception ex)
         {

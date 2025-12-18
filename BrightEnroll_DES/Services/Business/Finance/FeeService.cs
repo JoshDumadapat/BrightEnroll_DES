@@ -53,20 +53,15 @@ public class FeeService
     {
         try
         {
-            // Verify the grade level exists before querying fees
-            var gradeLevelExists = await _context.GradeLevels
-                .AnyAsync(g => g.GradeLevelId == gradeLevelId && g.IsActive);
-
-            if (!gradeLevelExists)
-            {
-                _logger?.LogWarning("GradeLevel with ID {GradeLevelId} does not exist or is inactive", gradeLevelId);
-                return null;
-            }
-
+            // Single query with navigation property filter to avoid multiple concurrent DbContext operations
             return await _context.Fees
                 .Include(f => f.GradeLevel)
                 .Include(f => f.Breakdowns)
-                .FirstOrDefaultAsync(f => f.GradeLevelId == gradeLevelId && f.IsActive);
+                .Where(f => f.GradeLevelId == gradeLevelId && 
+                           f.IsActive && 
+                           f.GradeLevel != null && 
+                           f.GradeLevel.IsActive)
+                .FirstOrDefaultAsync();
         }
         catch (Exception ex)
         {

@@ -1714,13 +1714,13 @@ else
 
         try
         {
-            DbContext.ChangeTracker.Clear();
+            SuperAdminDbContext.ChangeTracker.Clear();
             await Task.Delay(100);
 
             switch (activeReport)
             {
                 case "IncomeStatement":
-                    incomeStatement = await AccountingReportService.GetIncomeStatementAsync(fromDate, toDate);
+                    incomeStatement = await GetSuperAdminIncomeStatementAsync(fromDate, toDate);
                     break;
                 case "CashFlow":
                     cashFlowReport = await AccountingReportService.GetCashFlowReportAsync(fromDate, toDate);
@@ -1729,7 +1729,7 @@ else
                     balanceSheetReport = await AccountingReportService.GetBalanceSheetAsync(toDate);
                     break;
                 case "PaymentHistory":
-                    paymentHistory = await AccountingReportService.GetPaymentHistoryAsync(fromDate, toDate);
+                    paymentHistory = await GetSuperAdminPaymentHistoryAsync(fromDate, toDate);
                     break;
             }
 
@@ -1745,6 +1745,69 @@ else
             isLoading = false;
             StateHasChanged();
         }
+    }
+
+    private async Task<IncomeStatement> GetSuperAdminIncomeStatementAsync(DateTime fromDate, DateTime toDate)
+    {
+        // Get revenue from CustomerPayments (SuperAdmin database)
+        // Exclude credit payments - only count actual cash/bank/online payments
+        var revenue = await SuperAdminDbContext.CustomerPayments
+            .Where(p => p.PaymentDate >= fromDate && 
+                       p.PaymentDate <= toDate &&
+                       p.PaymentMethod != null &&
+                       p.PaymentMethod.ToUpper() != "CREDIT")
+            .SumAsync(p => (decimal?)p.Amount) ?? 0m;
+
+        // SuperAdmin doesn't track expenses (expenses are tracked per-school in their own databases)
+        // For SuperAdmin Income Statement, expenses are 0 or we could aggregate from all schools (complex)
+        decimal expenses = 0m;
+        var expensesByCategory = new List<ExpenseCategorySummary>();
+
+        var netIncome = revenue - expenses;
+
+        return new IncomeStatement
+        {
+            PeriodFrom = fromDate,
+            PeriodTo = toDate,
+            Revenue = revenue,
+            TotalExpenses = expenses,
+            ExpensesByCategory = expensesByCategory,
+            NetIncome = netIncome
+        };
+    }
+
+    private async Task<List<PaymentHistoryRecord>> GetSuperAdminPaymentHistoryAsync(DateTime? fromDate, DateTime? toDate, string? customerId = null)
+    {
+        var query = SuperAdminDbContext.CustomerPayments
+            .Include(p => p.Customer)
+            .Include(p => p.Invoice)
+            .AsQueryable();
+
+        if (fromDate.HasValue)
+            query = query.Where(p => p.PaymentDate >= fromDate.Value);
+
+        if (toDate.HasValue)
+            query = query.Where(p => p.PaymentDate <= toDate.Value);
+
+        if (!string.IsNullOrWhiteSpace(customerId))
+            query = query.Where(p => p.CustomerId.ToString() == customerId);
+
+        var payments = await query
+            .OrderByDescending(p => p.PaymentDate)
+            .ToListAsync();
+
+        return payments.Select(p => new PaymentHistoryRecord
+        {
+            PaymentId = p.PaymentId,
+            StudentId = p.CustomerId.ToString(), // Using CustomerId as identifier
+            StudentName = p.Customer?.SchoolName ?? "Unknown",
+            GradeLevel = "N/A", // Not applicable for SuperAdmin
+            Amount = p.Amount,
+            PaymentMethod = p.PaymentMethod ?? "N/A",
+            OrNumber = p.PaymentReference ?? "N/A",
+            ProcessedBy = "N/A", // SuperAdmin payments don't track processed by
+            PaymentDate = p.PaymentDate
+        }).ToList();
     }
 
     private void SetDatePreset(string preset)

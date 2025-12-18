@@ -17,7 +17,7 @@ public class AdminUserSeeder
         _logger = logger;
     }
 
-    public async Task SeedAsync(int count = 50)
+    public async Task SeedAsync(int count = 1)
     {
         try
         {
@@ -30,7 +30,7 @@ public class AdminUserSeeder
 
             if (existingCount >= count)
             {
-                _logger?.LogInformation($"School admins already seeded ({existingCount} exist). Skipping.");
+                _logger?.LogInformation($"School admin already seeded ({existingCount} exist). Skipping.");
                 return;
             }
 
@@ -88,7 +88,7 @@ public class AdminUserSeeder
             await _context.SaveChangesAsync();
             _context.ChangeTracker.Clear();
 
-            _logger?.LogInformation($"=== SCHOOL ADMIN SEEDING COMPLETED: {adminsToCreate} admins created ===");
+            _logger?.LogInformation($"=== SCHOOL ADMIN SEEDING COMPLETED: {adminsToCreate} admin created ===");
         }
         catch (Exception ex)
         {
