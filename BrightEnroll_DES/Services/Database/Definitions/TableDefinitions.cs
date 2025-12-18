@@ -1,30 +1,25 @@
 namespace BrightEnroll_DES.Services.Database.Definitions
 {
-    // Holds all table creation scripts - add new tables here when needed
+    // Table creation scripts
     public static class TableDefinitions
     {
-        // Returns all table definitions - add new table methods to this list
+        // Get all table definitions
         public static List<TableDefinition> GetAllTableDefinitions()
         {
             return new List<TableDefinition>
             {
                 GetUsersTableDefinition(),
-                // Student registration tables (order matters: guardians first, then sequence, then students, then requirements)
                 GetGuardiansTableDefinition(),
                 GetStudentIDSequenceTableDefinition(),
                 GetStudentsTableDefinition(),
                 GetStudentRequirementsTableDefinition(),
-                // Employee tables (order matters: users first, then employee tables)
                 GetEmployeeAddressTableDefinition(),
                 GetEmployeeEmergencyContactTableDefinition(),
                 GetSalaryInfoTableDefinition(),
-                // Finance tables (order matters: grade level first, then fees, then breakdown)
                 GetGradeLevelTableDefinition(),
                 GetFeesTableDefinition(),
                 GetFeeBreakdownTableDefinition(),
-                // User status logging table (must be after tbl_Users)
                 GetUserStatusLogsTableDefinition(),
-                // Curriculum tables (order matters: grade level first, then classrooms, then sections, then subjects, then linking tables)
                 GetBuildingsTableDefinition(),
                 GetClassroomsTableDefinition(),
                 GetSectionsTableDefinition(),
@@ -34,56 +29,41 @@ namespace BrightEnroll_DES.Services.Database.Definitions
                 GetTeacherSectionAssignmentTableDefinition(),
                 GetClassScheduleTableDefinition(),
                 GetStudentSectionEnrollmentTableDefinition(),
-                // Grades table (must be after tbl_Students, tbl_Subjects, tbl_Sections, tbl_Users)
                 GetGradesTableDefinition(),
                 GetGradeWeightsTableDefinition(),
                 GetGradeHistoryTableDefinition(),
-                // Payroll tables (standalone, no foreign keys)
                 GetRolesTableDefinition(),
                 GetDeductionsTableDefinition(),
                 GetSalaryChangeRequestsTableDefinition(),
                 GetPayrollTransactionsTableDefinition(),
-                // Time Records table (must be after tbl_Users)
                 GetTimeRecordsTableDefinition(),
-                // Finance - expenses
                 GetExpensesTableDefinition(),
                 GetExpenseAttachmentsTableDefinition(),
-                // Finance - student payments (must be after tbl_Students)
                 GetStudentPaymentsTableDefinition(),
-                // Finance - ledger system (must be after tbl_Students)
-                GetDiscountsTableDefinition(), // Must be before LedgerCharges (FK dependency)
+                GetDiscountsTableDefinition(),
                 GetStudentLedgersTableDefinition(),
                 GetLedgerChargesTableDefinition(),
                 GetLedgerPaymentsTableDefinition(),
-                // Chart of Accounts and Double-Entry Bookkeeping (must be after tbl_Users)
                 GetChartOfAccountsTableDefinition(),
                 GetJournalEntriesTableDefinition(),
                 GetJournalEntryLinesTableDefinition(),
                 GetAccountingPeriodsTableDefinition(),
-                // Notifications table (must be after tbl_Users)
                 GetNotificationsTableDefinition(),
-                // Inventory & Asset Management tables
                 GetAssetsTableDefinition(),
                 GetInventoryItemsTableDefinition(),
                 GetAssetAssignmentsTableDefinition(),
-                // Student status logging table (must be after tbl_Students)
                 GetStudentStatusLogsTableDefinition(),
-                // Audit logging table (must be after tbl_Users and tbl_Students)
                 GetAuditLogsTableDefinition(),
-                // Teacher-specific tables (must be after tbl_Users, tbl_Sections, tbl_Subjects, tbl_Students)
                 GetTeacherActivityLogsTableDefinition(),
                 GetAttendanceTableDefinition(),
-                // School Year Management (standalone, no dependencies)
                 GetSchoolYearTableDefinition(),
-                // Sync History and Logs (must be after tbl_SyncHistory for FK in tbl_SyncLogs)
                 GetSyncHistoryTableDefinition(),
                 GetSyncLogsTableDefinition(),
-                // School Information (standalone, no dependencies)
                 GetSchoolInformationTableDefinition(),
             };
         }
 
-        // Creates tbl_Users table
+        // Create users table
         public static TableDefinition GetUsersTableDefinition()
         {
             return new TableDefinition
@@ -120,11 +100,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // ============================================
-        // ADD NEW TABLE DEFINITIONS BELOW
-        // ============================================
-
-        // Creates tbl_Guardians table - must be created before tbl_Students (foreign key dependency)
+        // Create guardians table
         public static TableDefinition GetGuardiansTableDefinition()
         {
             return new TableDefinition
@@ -150,7 +126,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_StudentID_Sequence table - stores the last used student ID for auto-generation
+        // Create student ID sequence table
         public static TableDefinition GetStudentIDSequenceTableDefinition()
         {
             return new TableDefinition
@@ -168,7 +144,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Students table - must be created after tbl_Guardians and tbl_StudentID_Sequence (foreign key dependency)
+        // Create students table
         public static TableDefinition GetStudentsTableDefinition()
         {
             return new TableDefinition
@@ -242,7 +218,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_StudentRequirements table - must be created after tbl_Students (foreign key dependency)
+        // Create student requirements table
         public static TableDefinition GetStudentRequirementsTableDefinition()
         {
             return new TableDefinition
@@ -274,7 +250,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_employee_address table - must be created after tbl_Users (foreign key dependency)
+        // Create employee address table
         public static TableDefinition GetEmployeeAddressTableDefinition()
         {
             return new TableDefinition
@@ -303,7 +279,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_employee_emergency_contact table - must be created after tbl_Users (foreign key dependency)
+        // Create employee emergency contact table
         public static TableDefinition GetEmployeeEmergencyContactTableDefinition()
         {
             return new TableDefinition
@@ -332,7 +308,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_salary_info table - must be created after tbl_Users (foreign key dependency)
+        // Create salary info table
         public static TableDefinition GetSalaryInfoTableDefinition()
         {
             return new TableDefinition
@@ -362,7 +338,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
         
-        // Creates tbl_GradeLevel table - must be created before tbl_Fees (foreign key dependency)
+        // Create grade level table
         public static TableDefinition GetGradeLevelTableDefinition()
         {
             return new TableDefinition
@@ -384,7 +360,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Fees table - must be created after tbl_GradeLevel (foreign key dependency)
+        // Create fees table
         public static TableDefinition GetFeesTableDefinition()
         {
             return new TableDefinition
@@ -427,7 +403,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_FeeBreakdown table - must be created after tbl_Fees (foreign key dependency)
+        // Create fee breakdown table
         public static TableDefinition GetFeeBreakdownTableDefinition()
         {
             return new TableDefinition
@@ -458,7 +434,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_user_status_logs table - must be created after tbl_Users (foreign key dependency)
+        // Create user status logs table
         public static TableDefinition GetUserStatusLogsTableDefinition()
         {
             return new TableDefinition
@@ -492,7 +468,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Buildings table (optional but recommended)
+        // Create buildings table
         public static TableDefinition GetBuildingsTableDefinition()
         {
             return new TableDefinition
@@ -547,7 +523,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Sections table - must be created after tbl_GradeLevel and tbl_Classrooms (foreign key dependencies)
+        // Create sections table
         public static TableDefinition GetSectionsTableDefinition()
         {
             return new TableDefinition
@@ -587,7 +563,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Subjects table - must be created after tbl_GradeLevel (foreign key dependency)
+        // Create subjects table
         public static TableDefinition GetSubjectsTableDefinition()
         {
             return new TableDefinition
@@ -624,7 +600,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_SubjectSection table (many-to-many) - must be created after tbl_Sections and tbl_Subjects
+        // Create subject section table
         public static TableDefinition GetSubjectSectionTableDefinition()
         {
             return new TableDefinition
@@ -651,7 +627,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_SubjectSchedule table - must be created after tbl_Subjects and tbl_GradeLevel
+        // Create subject schedule table
         public static TableDefinition GetSubjectScheduleTableDefinition()
         {
             return new TableDefinition
@@ -690,7 +666,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_TeacherSectionAssignment table - must be created after tbl_Users, tbl_Sections, and tbl_Subjects
+        // Create teacher section assignment table
         public static TableDefinition GetTeacherSectionAssignmentTableDefinition()
         {
             return new TableDefinition
@@ -732,7 +708,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_ClassSchedule table - must be created after tbl_TeacherSectionAssignment and tbl_Classrooms
+        // Create class schedule table
         public static TableDefinition GetClassScheduleTableDefinition()
         {
             return new TableDefinition
@@ -770,7 +746,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_StudentSectionEnrollment table - links students to sections per school year
+        // Create student section enrollment table
         public static TableDefinition GetStudentSectionEnrollmentTableDefinition()
         {
             return new TableDefinition
@@ -807,7 +783,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Grades table - must be created after tbl_Students, tbl_Subjects, tbl_Sections, tbl_Users
+        // Create grades table
         public static TableDefinition GetGradesTableDefinition()
         {
             return new TableDefinition
@@ -858,7 +834,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_GradeWeights table - must be created after tbl_Subjects
+        // Create grade weights table
         public static TableDefinition GetGradeWeightsTableDefinition()
         {
             return new TableDefinition
@@ -885,7 +861,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_GradeHistory table - must be created after tbl_Grades, tbl_Users
+        // Create grade history table
         public static TableDefinition GetGradeHistoryTableDefinition()
         {
             return new TableDefinition
@@ -931,7 +907,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_roles table - standalone table for role salary configuration
+        // Create roles table
         public static TableDefinition GetRolesTableDefinition()
         {
             return new TableDefinition
@@ -961,7 +937,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_deductions table - standalone table for deduction configuration
+        // Create deductions table
         public static TableDefinition GetDeductionsTableDefinition()
         {
             return new TableDefinition
@@ -994,7 +970,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_salary_change_requests table - tracks salary change requests from HR that require Payroll/Admin approval
+        // Create salary change requests table
         // Must be created after tbl_Users (foreign key dependency)
         public static TableDefinition GetSalaryChangeRequestsTableDefinition()
         {
@@ -1049,7 +1025,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_payroll_transactions table - tracks payroll payment transactions and history
+        // Create payroll transactions table
         // Must be created after tbl_Users (foreign key dependency)
         public static TableDefinition GetPayrollTransactionsTableDefinition()
         {
@@ -1142,7 +1118,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_TimeRecords table - tracks employee attendance/time records
+        // Create time records table
         // Must be created after tbl_Users (foreign key dependency)
         public static TableDefinition GetTimeRecordsTableDefinition()
         {
@@ -1183,7 +1159,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Expenses table - standalone finance table for school expenses
+        // Create expenses table
         public static TableDefinition GetExpensesTableDefinition()
         {
             return new TableDefinition
@@ -1226,7 +1202,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_ExpenseAttachments table - stores uploaded receipts for expenses
+        // Create expense attachments table
         public static TableDefinition GetExpenseAttachmentsTableDefinition()
         {
             return new TableDefinition
@@ -1251,7 +1227,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_StudentPayments table - logs all student payments with OR numbers
+        // Create student payments table
         public static TableDefinition GetStudentPaymentsTableDefinition()
         {
             return new TableDefinition
@@ -1289,7 +1265,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_StudentLedgers table - ledger per student per school year
+        // Create student ledgers table
         public static TableDefinition GetStudentLedgersTableDefinition()
         {
             return new TableDefinition
@@ -1328,7 +1304,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_LedgerCharges table - individual charges and discounts in a ledger
+        // Create ledger charges table
         public static TableDefinition GetLedgerChargesTableDefinition()
         {
             return new TableDefinition
@@ -1360,7 +1336,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_discounts table - standalone table for discount configuration
+        // Create discounts table
         public static TableDefinition GetDiscountsTableDefinition()
         {
             return new TableDefinition
@@ -1393,7 +1369,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_LedgerPayments table - payment records linked to a ledger
+        // Create ledger payments table
         public static TableDefinition GetLedgerPaymentsTableDefinition()
         {
             return new TableDefinition
@@ -1426,7 +1402,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Assets table - asset master data
+        // Create assets table
         public static TableDefinition GetAssetsTableDefinition()
         {
             return new TableDefinition
@@ -1472,7 +1448,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_InventoryItems table - inventory item master data
+        // Create inventory items table
         public static TableDefinition GetInventoryItemsTableDefinition()
         {
             return new TableDefinition
@@ -1511,7 +1487,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_AssetAssignments table - asset assignment tracking
+        // Create asset assignments table
         public static TableDefinition GetAssetAssignmentsTableDefinition()
         {
             return new TableDefinition
@@ -1550,7 +1526,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_student_status_logs table - student status change audit trail
+        // Create student status logs table
         public static TableDefinition GetStudentStatusLogsTableDefinition()
         {
             return new TableDefinition
@@ -1581,7 +1557,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_audit_logs table - enhanced audit logging with student registration details
+        // Create audit logs table
         public static TableDefinition GetAuditLogsTableDefinition()
         {
             return new TableDefinition
@@ -1638,7 +1614,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_TeacherActivityLogs table - must be created after tbl_Users
+        // Create teacher activity logs table
         public static TableDefinition GetTeacherActivityLogsTableDefinition()
         {
             return new TableDefinition
@@ -1672,7 +1648,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_Attendance table - must be created after tbl_Users, tbl_Students, tbl_Sections, tbl_Subjects
+        // Create attendance table
         public static TableDefinition GetAttendanceTableDefinition()
         {
             return new TableDefinition
@@ -1726,7 +1702,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_SchoolYear table - manages school years with open/closed status
+        // Create school year table
         public static TableDefinition GetSchoolYearTableDefinition()
         {
             return new TableDefinition
@@ -1760,7 +1736,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_ChartOfAccounts table - Foundation of double-entry bookkeeping
+        // Create chart of accounts table
         public static TableDefinition GetChartOfAccountsTableDefinition()
         {
             return new TableDefinition
@@ -1802,7 +1778,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_JournalEntries table - Journal entry headers
+        // Create journal entries table
         public static TableDefinition GetJournalEntriesTableDefinition()
         {
             return new TableDefinition
@@ -1849,7 +1825,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_JournalEntryLines table - Individual debit/credit entries
+        // Create journal entry lines table
         public static TableDefinition GetJournalEntryLinesTableDefinition()
         {
             return new TableDefinition
@@ -1882,7 +1858,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_AccountingPeriods table - Period closing management
+        // Create accounting periods table
         public static TableDefinition GetAccountingPeriodsTableDefinition()
         {
             return new TableDefinition
@@ -2065,11 +2041,19 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             // GetContractsTableDefinition() removed - Contract information is stored in tbl_Customers table
             GetSystemUpdatesTableDefinition(),       // FK columns reference tbl_Users (within SuperAdmin DB)
             GetSuperAdminBIRInfoTableDefinition(),    // Standalone BIR configuration
-            GetSuperAdminBIRFilingsTableDefinition() // BIR filing/submission records
+            GetSuperAdminBIRFilingsTableDefinition(), // BIR filing/submission records
+            // Subscription and Module Management Tables
+            GetSubscriptionPlansTableDefinition(),   // Subscription plan definitions
+            GetPlanModulesTableDefinition(),         // Modules included in each plan
+            GetCustomerSubscriptionsTableDefinition(), // Customer subscription records
+            GetCustomerSubscriptionModulesTableDefinition(), // Custom modules for customer subscriptions
+            GetTenantModulesTableDefinition(),       // Materialized cache of active modules per customer
+            GetSuperAdminAuditLogsTableDefinition(), // SuperAdmin audit logging
+            GetSuperAdminNotificationsTableDefinition() // SuperAdmin notifications
         };
     }
 
-    // Creates tbl_Customers table for SuperAdmin database
+    // Create customers table
     public static TableDefinition GetCustomersTableDefinition()
     {
         return new TableDefinition
@@ -2138,7 +2122,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SalesLeads table for SuperAdmin database (assigned_to references tbl_Users in main DB, no FK constraint)
+    // Create sales leads table
     public static TableDefinition GetSalesLeadsTableDefinition()
     {
         return new TableDefinition
@@ -2183,7 +2167,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SupportTickets table for SuperAdmin database (assigned_to references tbl_Users in main DB, no FK constraint)
+    // Create support tickets table
     public static TableDefinition GetSupportTicketsTableDefinition()
     {
         return new TableDefinition
@@ -2227,7 +2211,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_Contracts table for SuperAdmin database (created_by references tbl_Users in main DB, no FK constraint)
+    // Create contracts table
     public static TableDefinition GetContractsTableDefinition()
     {
         return new TableDefinition
@@ -2274,7 +2258,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SystemUpdates table for SuperAdmin database (created_by references tbl_Users in main DB, no FK constraint)
+    // Create system updates table
     public static TableDefinition GetSystemUpdatesTableDefinition()
     {
         return new TableDefinition
@@ -2311,7 +2295,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SchoolInformation table for main database (school-specific information including BIR)
+    // Create school information table
     public static TableDefinition GetSchoolInformationTableDefinition()
     {
         return new TableDefinition
@@ -2352,7 +2336,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SuperAdminBIRInfo table for SuperAdmin database
+    // Create super admin BIR info table
     public static TableDefinition GetSuperAdminBIRInfoTableDefinition()
     {
         return new TableDefinition
@@ -2375,7 +2359,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_SuperAdminBIRFilings table for SuperAdmin database
+    // Create super admin BIR filings table
     public static TableDefinition GetSuperAdminBIRFilingsTableDefinition()
     {
         return new TableDefinition
@@ -2409,7 +2393,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_CustomerInvoices table for SuperAdmin database (must be before GetCustomerPaymentsTableDefinition)
+    // Create customer invoices table
     public static TableDefinition GetCustomerInvoicesTableDefinition()
     {
         return new TableDefinition
@@ -2459,7 +2443,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    // Creates tbl_CustomerPayments table for SuperAdmin database
+    // Create customer payments table
     public static TableDefinition GetCustomerPaymentsTableDefinition()
     {
         return new TableDefinition
@@ -2499,7 +2483,273 @@ namespace BrightEnroll_DES.Services.Database.Definitions
         };
     }
 
-    } // End of TableDefinitions static class
+        // ============================================
+        // SUBSCRIPTION AND MODULE MANAGEMENT TABLES
+        // ============================================
+
+        // Create subscription plans table
+        public static TableDefinition GetSubscriptionPlansTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SubscriptionPlans",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SubscriptionPlans](
+                        [plan_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [plan_code] VARCHAR(50) NOT NULL UNIQUE,
+                        [plan_name] VARCHAR(100) NOT NULL,
+                        [description] NVARCHAR(500) NULL,
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [updated_at] DATETIME NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SubscriptionPlans_PlanCode' AND object_id = OBJECT_ID('dbo.tbl_SubscriptionPlans'))
+                        CREATE UNIQUE INDEX IX_tbl_SubscriptionPlans_PlanCode ON [dbo].[tbl_SubscriptionPlans]([plan_code])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_SubscriptionPlans_IsActive' AND object_id = OBJECT_ID('dbo.tbl_SubscriptionPlans'))
+                        CREATE INDEX IX_tbl_SubscriptionPlans_IsActive ON [dbo].[tbl_SubscriptionPlans]([is_active])"
+                }
+            };
+        }
+
+        // Create plan modules table
+        public static TableDefinition GetPlanModulesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_PlanModules",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_PlanModules](
+                        [plan_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [plan_id] INT NOT NULL,
+                        [module_package_id] VARCHAR(50) NOT NULL,
+                        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_PlanModules_Plan FOREIGN KEY ([plan_id]) REFERENCES [dbo].[tbl_SubscriptionPlans]([plan_id]) ON DELETE CASCADE,
+                        CONSTRAINT UQ_PlanModules_Plan_Module UNIQUE ([plan_id], [module_package_id])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_PlanModules_PlanId' AND object_id = OBJECT_ID('dbo.tbl_PlanModules'))
+                        CREATE INDEX IX_tbl_PlanModules_PlanId ON [dbo].[tbl_PlanModules]([plan_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_PlanModules_ModulePackageId' AND object_id = OBJECT_ID('dbo.tbl_PlanModules'))
+                        CREATE INDEX IX_tbl_PlanModules_ModulePackageId ON [dbo].[tbl_PlanModules]([module_package_id])"
+                }
+            };
+        }
+
+        // Create customer subscriptions table
+        public static TableDefinition GetCustomerSubscriptionsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_CustomerSubscriptions",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_CustomerSubscriptions](
+                        [subscription_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [customer_id] INT NOT NULL,
+                        [plan_id] INT NULL,
+                        [subscription_type] VARCHAR(20) NOT NULL DEFAULT 'predefined',
+                        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+                        [start_date] DATE NOT NULL,
+                        [end_date] DATE NULL,
+                        [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        [auto_renewal] BIT NOT NULL DEFAULT 0,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [created_by] INT NULL,
+                        [updated_at] DATETIME NULL,
+                        [updated_by] INT NULL,
+                        CONSTRAINT FK_CustomerSubscriptions_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_CustomerSubscriptions_Plan FOREIGN KEY ([plan_id]) REFERENCES [dbo].[tbl_SubscriptionPlans]([plan_id]) ON DELETE SET NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptions_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptions'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptions_CustomerId ON [dbo].[tbl_CustomerSubscriptions]([customer_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptions_Status' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptions'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptions_Status ON [dbo].[tbl_CustomerSubscriptions]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptions_StartDate' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptions'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptions_StartDate ON [dbo].[tbl_CustomerSubscriptions]([start_date])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptions_PlanId' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptions'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptions_PlanId ON [dbo].[tbl_CustomerSubscriptions]([plan_id])"
+                }
+            };
+        }
+
+        // Create customer subscription modules table
+        public static TableDefinition GetCustomerSubscriptionModulesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_CustomerSubscriptionModules",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_CustomerSubscriptionModules](
+                        [customer_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [subscription_id] INT NOT NULL,
+                        [module_package_id] VARCHAR(50) NOT NULL,
+                        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [granted_by] INT NULL,
+                        [revoked_date] DATETIME NULL,
+                        [revoked_by] INT NULL,
+                        CONSTRAINT FK_CustomerSubscriptionModules_Subscription FOREIGN KEY ([subscription_id]) REFERENCES [dbo].[tbl_CustomerSubscriptions]([subscription_id]) ON DELETE CASCADE,
+                        CONSTRAINT UQ_CustomerSubscriptionModules_Subscription_Module UNIQUE ([subscription_id], [module_package_id])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptionModules_SubscriptionId' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptionModules'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptionModules_SubscriptionId ON [dbo].[tbl_CustomerSubscriptionModules]([subscription_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_CustomerSubscriptionModules_ModulePackageId' AND object_id = OBJECT_ID('dbo.tbl_CustomerSubscriptionModules'))
+                        CREATE INDEX IX_tbl_CustomerSubscriptionModules_ModulePackageId ON [dbo].[tbl_CustomerSubscriptionModules]([module_package_id])"
+                }
+            };
+        }
+
+        // Create tenant modules table
+        public static TableDefinition GetTenantModulesTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_TenantModules",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_TenantModules](
+                        [tenant_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [customer_id] INT NOT NULL,
+                        [module_package_id] VARCHAR(50) NOT NULL,
+                        [subscription_id] INT NOT NULL,
+                        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [is_active] BIT NOT NULL DEFAULT 1,
+                        [last_updated] DATETIME NOT NULL DEFAULT GETDATE(),
+                        CONSTRAINT FK_TenantModules_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]) ON DELETE CASCADE,
+                        CONSTRAINT FK_TenantModules_Subscription FOREIGN KEY ([subscription_id]) REFERENCES [dbo].[tbl_CustomerSubscriptions]([subscription_id]) ON DELETE CASCADE,
+                        CONSTRAINT UQ_TenantModules_Customer_Module UNIQUE ([customer_id], [module_package_id], [subscription_id])
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TenantModules_CustomerId' AND object_id = OBJECT_ID('dbo.tbl_TenantModules'))
+                        CREATE INDEX IX_tbl_TenantModules_CustomerId ON [dbo].[tbl_TenantModules]([customer_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TenantModules_ModulePackageId' AND object_id = OBJECT_ID('dbo.tbl_TenantModules'))
+                        CREATE INDEX IX_tbl_TenantModules_ModulePackageId ON [dbo].[tbl_TenantModules]([module_package_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_tbl_TenantModules_IsActive' AND object_id = OBJECT_ID('dbo.tbl_TenantModules'))
+                        CREATE INDEX IX_tbl_TenantModules_IsActive ON [dbo].[tbl_TenantModules]([is_active])"
+                }
+            };
+        }
+
+        // Create super admin audit logs table
+        public static TableDefinition GetSuperAdminAuditLogsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SuperAdminAuditLogs",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SuperAdminAuditLogs](
+                        [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [timestamp] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [user_name] VARCHAR(100) NULL,
+                        [user_role] VARCHAR(50) NULL,
+                        [user_id] INT NULL,
+                        [action] VARCHAR(100) NOT NULL,
+                        [module] VARCHAR(100) NULL,
+                        [description] NVARCHAR(MAX) NULL,
+                        [ip_address] VARCHAR(45) NULL,
+                        [status] VARCHAR(20) NULL,
+                        [severity] VARCHAR(20) NULL,
+                        [entity_type] VARCHAR(100) NULL,
+                        [entity_id] VARCHAR(50) NULL,
+                        [old_values] NVARCHAR(MAX) NULL,
+                        [new_values] NVARCHAR(MAX) NULL,
+                        [customer_code] VARCHAR(50) NULL,
+                        [customer_name] VARCHAR(200) NULL
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_Timestamp' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_Timestamp ON [dbo].[tbl_SuperAdminAuditLogs]([timestamp] DESC)",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_UserId' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_UserId ON [dbo].[tbl_SuperAdminAuditLogs]([user_id])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_Module' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_Module ON [dbo].[tbl_SuperAdminAuditLogs]([module])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_Action' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_Action ON [dbo].[tbl_SuperAdminAuditLogs]([action])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_Status' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_Status ON [dbo].[tbl_SuperAdminAuditLogs]([status])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminAuditLogs_Severity' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminAuditLogs'))
+                        CREATE INDEX IX_SuperAdminAuditLogs_Severity ON [dbo].[tbl_SuperAdminAuditLogs]([severity])"
+                }
+            };
+        }
+
+        // Create super admin notifications table
+        public static TableDefinition GetSuperAdminNotificationsTableDefinition()
+        {
+            return new TableDefinition
+            {
+                TableName = "tbl_SuperAdminNotifications",
+                SchemaName = "dbo",
+                CreateTableScript = @"
+                    CREATE TABLE [dbo].[tbl_SuperAdminNotifications](
+                        [notification_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                        [notification_type] VARCHAR(50) NOT NULL,
+                        [title] VARCHAR(100) NOT NULL,
+                        [message] NVARCHAR(500) NULL,
+                        [reference_type] VARCHAR(50) NOT NULL,
+                        [reference_id] INT NULL,
+                        [is_read] BIT NOT NULL DEFAULT 0,
+                        [read_at] DATETIME NULL,
+                        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+                        [action_url] VARCHAR(100) NULL,
+                        [priority] VARCHAR(50) NOT NULL DEFAULT 'Normal',
+                        [created_by] INT NULL,
+                        CONSTRAINT FK_tbl_SuperAdminNotifications_CreatedBy FOREIGN KEY ([created_by]) 
+                            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
+                        CONSTRAINT CK_tbl_SuperAdminNotifications_Priority CHECK ([priority] IN ('Low', 'Normal', 'High', 'Urgent'))
+                    )",
+                CreateIndexesScripts = new List<string>
+                {
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminNotifications_IsRead' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminNotifications'))
+                        CREATE INDEX IX_SuperAdminNotifications_IsRead ON [dbo].[tbl_SuperAdminNotifications]([is_read])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminNotifications_CreatedAt' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminNotifications'))
+                        CREATE INDEX IX_SuperAdminNotifications_CreatedAt ON [dbo].[tbl_SuperAdminNotifications]([created_at] DESC)",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminNotifications_NotificationType' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminNotifications'))
+                        CREATE INDEX IX_SuperAdminNotifications_NotificationType ON [dbo].[tbl_SuperAdminNotifications]([notification_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminNotifications_ReferenceType' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminNotifications'))
+                        CREATE INDEX IX_SuperAdminNotifications_ReferenceType ON [dbo].[tbl_SuperAdminNotifications]([reference_type])",
+                    @"
+                        IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_SuperAdminNotifications_ReferenceId' AND object_id = OBJECT_ID('dbo.tbl_SuperAdminNotifications'))
+                        CREATE INDEX IX_SuperAdminNotifications_ReferenceId ON [dbo].[tbl_SuperAdminNotifications]([reference_id])"
+                }
+            };
+        }
+    }
 
     // Holds table creation script and index definitions
     public class TableDefinition
@@ -2532,7 +2782,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates vw_EmployeeData view - combines all employee-related data
+        // Create employee data view
         public static ViewDefinition GetEmployeeViewDefinition()
         {
             return new ViewDefinition
@@ -2703,7 +2953,7 @@ namespace BrightEnroll_DES.Services.Database.Definitions
             };
         }
 
-        // Creates tbl_FinalClasses view - flattens section, teacher, subject, schedule, and room info
+        // Create final classes view
         public static ViewDefinition GetFinalClassesViewDefinition()
         {
             return new ViewDefinition

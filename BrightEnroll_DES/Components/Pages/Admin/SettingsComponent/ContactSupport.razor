@@ -2,12 +2,15 @@
 @layout Components.Layout.MainLayout
 @inject NavigationManager NavigationManager
 @inject BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService SuperAdminService
+@inject BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminBIRService SuperAdminBIRService
 @inject BrightEnroll_DES.Data.SuperAdminDbContext SuperAdminDbContext
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 @inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
+@inject BrightEnroll_DES.Services.Authentication.ILoginService LoginService
 @inject BrightEnroll_DES.Services.Infrastructure.ILoadingService LoadingService
 @using System.ComponentModel.DataAnnotations
 @using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components
 @using Microsoft.EntityFrameworkCore
 
 <PageTitle>Contact Support</PageTitle>
@@ -54,18 +57,59 @@
                 </a>
             </div>
 
-            <!-- Live Chat -->
+            <!-- BIR Compliance Information -->
             <div class="rounded-xl bg-white p-6 shadow-md">
-                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-                    <svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                <div class="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                    <svg class="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
-                <h3 class="mb-2 text-lg font-semibold text-gray-800">Live Chat</h3>
-                <p class="mb-3 text-sm text-gray-600">Chat with our support team in real-time</p>
-                <button @onclick="StartLiveChat" class="text-sm font-medium text-purple-600 hover:text-purple-700">
-                    Start Chat
-                </button>
+                <h3 class="mb-2 text-lg font-semibold text-gray-800">BIR Compliance</h3>
+                <p class="mb-3 text-sm text-gray-600">BrightEnroll Company Information</p>
+                @if (birInfo != null)
+                {
+                    <div class="space-y-2 text-xs text-gray-700">
+                        @if (!string.IsNullOrWhiteSpace(birInfo.BusinessName))
+                        {
+                            <div>
+                                <span class="font-semibold">Business Name:</span>
+                                <p class="mt-1">@birInfo.BusinessName</p>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(birInfo.TinNumber))
+                        {
+                            <div>
+                                <span class="font-semibold">TIN Number:</span>
+                                <p class="mt-1">@birInfo.TinNumber</p>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(birInfo.BusinessAddress))
+                        {
+                            <div>
+                                <span class="font-semibold">Business Address:</span>
+                                <p class="mt-1">@birInfo.BusinessAddress</p>
+                            </div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(birInfo.RegistrationType))
+                        {
+                            <div>
+                                <span class="font-semibold">Registration Type:</span>
+                                <p class="mt-1">@birInfo.RegistrationType</p>
+                            </div>
+                        }
+                        @if (birInfo.IsVatRegistered)
+                        {
+                            <div>
+                                <span class="font-semibold">VAT Rate:</span>
+                                <p class="mt-1">@(birInfo.VatRate.ToString("P2"))</p>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-xs text-gray-500 italic">BIR information not available</p>
+                }
             </div>
         </div>
 
@@ -281,6 +325,9 @@
     </div>
 </div>
 
+<!-- Toast Notification -->
+<ToastNotification Show="@showToast" Message="@toastMessage" Type="@toastType" OnClose="CloseToast" Duration="4000" />
+
 @code {
     // Form model for support ticket submission
     private class SupportTicketForm
@@ -309,17 +356,60 @@
     private bool isSubmitting = false;
     private bool showSuccessMessage = false;
     private int openFaqIndex = -1;
+    
+    // Toast notification state
+    private bool showToast = false;
+    private string toastMessage = "";
+    private ToastType toastType = ToastType.Success;
+    
+    // BIR Information
+    private SuperAdminBIRInfo? birInfo = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load BIR information from SuperAdmin
+        try
+        {
+            birInfo = await SuperAdminBIRService.GetBIRInfoAsync();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading BIR information: {ex.Message}");
+        }
+        
+        // Auto-fill user's name and email from current user
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser != null)
+        {
+            // Build full name from user's name parts
+            var nameParts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(currentUser.first_name))
+                nameParts.Add(currentUser.first_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.mid_name))
+                nameParts.Add(currentUser.mid_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.last_name))
+                nameParts.Add(currentUser.last_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.suffix))
+                nameParts.Add(currentUser.suffix);
+            
+            if (nameParts.Any())
+            {
+                supportTicket.FullName = string.Join(" ", nameParts);
+            }
+            
+            // Auto-fill email if available
+            if (!string.IsNullOrWhiteSpace(currentUser.email))
+            {
+                supportTicket.Email = currentUser.email;
+            }
+        }
+    }
 
     private void GoBack()
     {
         NavigationManager.NavigateTo("/settings");
     }
 
-    private void StartLiveChat()
-    {
-        // TODO: Implement live chat functionality
-        // This could open a chat widget or navigate to a chat page
-    }
 
     private async Task HandleSubmit()
     {
@@ -328,27 +418,58 @@
         
         try
         {
-            // Get current school's connection string from configuration
-            var currentConnectionString = Configuration["ConnectionStrings:DefaultConnection"];
-            
-            // Find CustomerId by matching connection string
+            // Find CustomerId by logged-in user's email (more reliable than connection string matching)
+            // This works across different devices as long as the user logs in with the same email
             int? customerId = null;
-            if (!string.IsNullOrWhiteSpace(currentConnectionString))
+            
+            if (AuthService?.IsAuthenticated == true && AuthService.CurrentUser != null)
             {
-                try
+                var userEmail = AuthService.CurrentUser.email;
+                if (!string.IsNullOrWhiteSpace(userEmail))
                 {
-                    var customer = await SuperAdminDbContext.Customers
-                        .Where(c => c.DatabaseConnectionString == currentConnectionString)
-                        .FirstOrDefaultAsync();
-                    
-                    if (customer != null)
+                    try
                     {
-                        customerId = customer.CustomerId;
+                        // Get customer by admin email (same method used in CloudManagement)
+                        var customer = await LoginService.GetCustomerByAdminEmailAsync(userEmail);
+                        if (customer != null)
+                        {
+                            customerId = customer.CustomerId;
+                            System.Diagnostics.Debug.WriteLine($"Found customer ID {customerId} for email {userEmail}");
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"No customer found for email {userEmail}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error finding customer by email: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
+            }
+            
+            // Fallback: Try connection string matching if email lookup failed
+            if (!customerId.HasValue)
+            {
+                var currentConnectionString = Configuration["ConnectionStrings:DefaultConnection"];
+                if (!string.IsNullOrWhiteSpace(currentConnectionString))
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error finding customer by connection string: {ex.Message}");
+                    try
+                    {
+                        var customer = await SuperAdminDbContext.Customers
+                            .Where(c => c.DatabaseConnectionString == currentConnectionString)
+                            .FirstOrDefaultAsync();
+                        
+                        if (customer != null)
+                        {
+                            customerId = customer.CustomerId;
+                            System.Diagnostics.Debug.WriteLine($"Found customer ID {customerId} by connection string");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error finding customer by connection string: {ex.Message}");
+                    }
                 }
             }
 
@@ -373,9 +494,14 @@ Description:
             // Submit to SuperAdmin
             var createdTicket = await SuperAdminService.CreateSupportTicketAsync(ticket);
             
-            showSuccessMessage = true;
             isSubmitting = false;
             LoadingService.HideLoading();
+            
+            // Show success toast notification
+            toastMessage = "Your support ticket has been submitted successfully! We'll get back to you soon.";
+            toastType = ToastType.Success;
+            showToast = true;
+            StateHasChanged();
             
             // Reset form after 3 seconds
             await Task.Delay(3000);
@@ -388,8 +514,11 @@ Description:
             isSubmitting = false;
             LoadingService.HideLoading();
             
-            // Show error message (you can enhance this with a proper error display)
-            await Task.Delay(1000);
+            // Show error toast notification
+            toastMessage = "Failed to submit support ticket. Please try again or contact support directly.";
+            toastType = ToastType.Error;
+            showToast = true;
+            StateHasChanged();
         }
     }
 
@@ -397,6 +526,40 @@ Description:
     {
         supportTicket = new SupportTicketForm();
         showSuccessMessage = false;
+        
+        // Re-populate name and email after reset
+        var currentUser = AuthService.CurrentUser;
+        if (currentUser != null)
+        {
+            // Build full name from user's name parts
+            var nameParts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(currentUser.first_name))
+                nameParts.Add(currentUser.first_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.mid_name))
+                nameParts.Add(currentUser.mid_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.last_name))
+                nameParts.Add(currentUser.last_name);
+            if (!string.IsNullOrWhiteSpace(currentUser.suffix))
+                nameParts.Add(currentUser.suffix);
+            
+            if (nameParts.Any())
+            {
+                supportTicket.FullName = string.Join(" ", nameParts);
+            }
+            
+            // Re-populate email if available
+            if (!string.IsNullOrWhiteSpace(currentUser.email))
+            {
+                supportTicket.Email = currentUser.email;
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private void CloseToast()
+    {
+        showToast = false;
         StateHasChanged();
     }
 

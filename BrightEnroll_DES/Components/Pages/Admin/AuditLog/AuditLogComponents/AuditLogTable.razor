@@ -118,10 +118,10 @@
                 var isHovered = HoveredLog?.Id == log.Id;
                 var isFirstLog = log == PaginatedLogs.First();
                 var showBlueIndicator = isHovered || (isSelected && ShowDetailModal) || (isFirstLog && !ShowDetailModal && HoveredLog == null);
-                <div @onclick="() => SelectLog(log)" 
+                <div @onclick="() => OpenDetailModal(log)" 
                      @onmouseenter="() => HoverLog(log)"
                      @onmouseleave="() => HoverLog(null)"
-                     class="group relative cursor-pointer px-4 py-4 transition-all duration-150 sm:px-6 @(isHovered ? "bg-gray-100" : "bg-white")">
+                     class="group relative cursor-pointer px-4 py-4 transition-all duration-150 sm:px-6 @(isHovered ? "bg-gray-100" : "bg-white") hover:bg-gray-50">
                     <div class="absolute left-0 top-0 h-full w-1 transition-colors duration-150 @(showBlueIndicator ? "bg-blue-500" : "bg-gray-300")"></div>
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <!-- Left Section: Module, Action, Description -->
@@ -192,18 +192,6 @@
                             </svg>
                             <span>@log.IpAddress</span>
                         </div>
-                    </div>
-
-                    <!-- Right Section: View Button -->
-                    <div class="flex items-center sm:ml-4">
-                        <button @onclick="() => OpenDetailModal(log)" @onclick:stopPropagation="true"
-                                class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                            <span class="hidden sm:inline">View</span>
-                        </button>
                     </div>
                 </div>
             </div>
@@ -784,7 +772,7 @@
     private void OpenDetailModal(AuditLogEntry log)
     {
         SelectedLog = log;
-        IsExplicitlySelected = true; // Explicit selection via view button
+        IsExplicitlySelected = true; // Explicit selection via row click
         ShowDetailModal = true;
         StateHasChanged();
     }

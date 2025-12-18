@@ -1647,7 +1647,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
-        // Initializes everything - creates database and all tables
+        // Initialize database and all tables
         public async Task<bool> InitializeDatabaseAsync()
         {
             try
@@ -1661,17 +1661,17 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 await AddSubjectColumnsIfNotExistAsync();
                 await AddSectionAdviserColumnIfNotExistsAsync();
                 await AddTeacherAssignmentArchiveColumnIfNotExistsAsync();
-                await AddThresholdPercentageColumnIfNotExistsAsync(); // Add missing column
-                await AddBatchTimestampColumnIfNotExistsAsync(); // Add batch_timestamp column for payroll
-                await AddPayrollAuditTrailAndCompanyContributionsAsync(); // Add audit trail and company contributions
-                await AddEffectiveDateColumnIfNotExistsAsync(); // Add effective_date column to salary change requests
-                await AddDiscountIdColumnIfNotExistsAsync(); // Add discount_id column to tbl_LedgerCharges and ensure tbl_discounts exists
+                await AddThresholdPercentageColumnIfNotExistsAsync();
+                await AddBatchTimestampColumnIfNotExistsAsync();
+                await AddPayrollAuditTrailAndCompanyContributionsAsync();
+                await AddEffectiveDateColumnIfNotExistsAsync();
+                await AddDiscountIdColumnIfNotExistsAsync();
                 await InitializeSequenceTableAsync();
                 await CreateViewsIfNotExistAsync();
                 await CreateStoredProceduresIfNotExistAsync();
                 await SeedGradeLevelsAsync();
                 
-                // Explicitly ensure audit logs table exists (for existing databases)
+                // Ensure audit logs table exists
                 await EnsureAuditLogsTableExistsAsync();
                 
                 return dbCreated || tablesCreated;
@@ -1682,8 +1682,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
-        // Initializes tables, views, procedures ONLY (for existing cloud databases)
-        // Skips database creation - assumes database already exists
+        // Initialize tables, views, and procedures only
         public static async Task<bool> InitializeTablesOnlyAsync(string connectionString)
         {
             try

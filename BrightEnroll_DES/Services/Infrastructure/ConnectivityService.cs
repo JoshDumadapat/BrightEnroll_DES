@@ -244,7 +244,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
         _pollingTimer = null;
     }
 
-    // Legacy method for backward compatibility - calls async version
+    // Legacy method for backward compatibility
     public void StartMonitoring()
     {
         _ = StartMonitoringAsync();
@@ -281,7 +281,7 @@ public class ConnectivityService : IConnectivityService, IDisposable
         }
     }
 
-    // Legacy method for backward compatibility - calls async version
+    // Legacy method for backward compatibility
     public void StopMonitoring()
     {
         _ = StopMonitoringAsync();

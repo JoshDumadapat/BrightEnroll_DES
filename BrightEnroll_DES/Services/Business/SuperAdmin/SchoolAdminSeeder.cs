@@ -19,21 +19,48 @@ public class SchoolAdminSeeder
     public async Task<SchoolAdminInfo> SeedAdminAccountAsync(
         string connectionString,
         Customer customer,
-        string defaultPassword = "Admin123456")
+        string defaultPassword = "Admin123456",
+        string? firstName = null,
+        string? middleName = null,
+        string? lastName = null,
+        string? suffix = null,
+        string? role = null)
     {
         try
         {
             _logger?.LogInformation($"Seeding admin account for school: {customer.SchoolName}");
 
-            // Parse contact person name
-            var (firstName, lastName) = ParseContactPersonName(customer.ContactPerson);
+            // Use provided names or parse from ContactPerson
+            string adminFirstName;
+            string? adminMiddleName = null;
+            string adminLastName;
+            string? adminSuffix = null;
+            
+            if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName))
+            {
+                // Use provided separate name fields
+                adminFirstName = firstName;
+                adminMiddleName = middleName;
+                adminLastName = lastName;
+                adminSuffix = suffix;
+            }
+            else
+            {
+                // Fallback: Parse contact person name
+                var (parsedFirstName, parsedLastName) = ParseContactPersonName(customer.ContactPerson);
+                adminFirstName = parsedFirstName;
+                adminLastName = parsedLastName;
+            }
+            
+            // Use provided role or default to "Admin"
+            string adminRole = !string.IsNullOrWhiteSpace(role) ? role : "Admin";
             
             // Generate system ID for the admin
             var systemId = await GenerateSystemIdAsync(connectionString, customer.CustomerCode);
             
             // Generate email if not provided
             var email = string.IsNullOrWhiteSpace(customer.ContactEmail) 
-                ? GenerateEmail(customer.SchoolName, firstName, lastName)
+                ? GenerateEmail(customer.SchoolName, adminFirstName, adminLastName)
                 : customer.ContactEmail;
 
             // Check if email already exists
@@ -47,19 +74,19 @@ public class SchoolAdminSeeder
             var age = (byte)(DateTime.Today.Year - birthdate.Year);
             if (birthdate.Date > DateTime.Today.AddYears(-age)) age--;
 
-            // Create admin user
+            // Create admin user with full personal information
             var adminUser = new UserEntity
             {
                 SystemId = systemId,
-                FirstName = firstName,
-                MidName = null,
-                LastName = lastName,
-                Suffix = null,
+                FirstName = adminFirstName,
+                MidName = adminMiddleName,
+                LastName = adminLastName,
+                Suffix = adminSuffix,
                 Birthdate = birthdate,
                 Age = age,
                 Gender = "male", // Default, can be updated later
                 ContactNum = customer.ContactPhone ?? "00000000000",
-                UserRole = "Admin", // School Admin role
+                UserRole = adminRole, // Use provided role
                 Email = email,
                 Password = hashedPassword,
                 DateHired = DateTime.Now,
@@ -76,8 +103,8 @@ public class SchoolAdminSeeder
                 SystemId = systemId,
                 Email = email,
                 Password = defaultPassword,
-                FirstName = firstName,
-                LastName = lastName,
+                FirstName = adminFirstName,
+                LastName = adminLastName,
                 Success = true
             };
         }

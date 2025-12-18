@@ -371,32 +371,62 @@ public class FinancialReportService
             }
             else
             {
-                // Build the query safely
-                var ledgersQuery = _context.StudentLedgers
-                    .Include(l => l.Charges)
-                    .Include(l => l.Payments)
-                    .Where(l => validStudentIds.Contains(l.StudentId));
-
-                // Apply school year filter if provided
-                if (!string.IsNullOrEmpty(schoolYear))
-                {
-                    ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
-                }
-
-                // Execute the query
-                ledgers = await ledgersQuery.ToListAsync();
-                
-                // Ensure result is not null
-                if (ledgers == null)
+                // Check if StudentLedgers DbSet is available
+                if (_context.StudentLedgers == null)
                 {
                     ledgers = new List<StudentLedger>();
                 }
+                else
+                {
+                    // Build the query safely
+                    // Check if navigation properties exist before including them
+                    try
+                    {
+                        var ledgersQuery = _context.StudentLedgers
+                            .Where(l => validStudentIds.Contains(l.StudentId));
+
+                        // Try to include navigation properties if they exist
+                        // If navigation properties don't exist, this will be handled by the catch block
+                        ledgersQuery = ledgersQuery
+                            .Include(l => l.Charges)
+                            .Include(l => l.Payments);
+
+                        // Apply school year filter if provided
+                        if (!string.IsNullOrEmpty(schoolYear))
+                        {
+                            ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
+                        }
+
+                        // Execute the query
+                        ledgers = await ledgersQuery.ToListAsync();
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // Navigation properties might not be configured - try without includes
+                        var ledgersQuery = _context.StudentLedgers
+                            .Where(l => validStudentIds.Contains(l.StudentId));
+
+                        if (!string.IsNullOrEmpty(schoolYear))
+                        {
+                            ledgersQuery = ledgersQuery.Where(l => l.SchoolYear == schoolYear);
+                        }
+
+                        ledgers = await ledgersQuery.ToListAsync();
+                    }
+                    
+                    // Ensure result is not null
+                    if (ledgers == null)
+                    {
+                        ledgers = new List<StudentLedger>();
+                    }
+                }
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // If query fails for any reason, return empty list to prevent crash
             // Allow report generation even if ledger query fails
+            System.Diagnostics.Debug.WriteLine($"Error querying StudentLedgers: {ex.Message}");
             ledgers = new List<StudentLedger>();
         }
 

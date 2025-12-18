@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Data.SqlClient;
 using System.Net;
 using System.Net.NetworkInformation;
+using BrightEnroll_DES.Data.Models.SuperAdmin;
 
 namespace BrightEnroll_DES.Services.Authentication
 {
@@ -222,6 +223,44 @@ namespace BrightEnroll_DES.Services.Authentication
                             _currentUser = schoolUser;
                             _isAuthenticated = true;
                             LogSuccessfulLogin(schoolUser);
+                            
+                            // Clear and preload customer modules into cache (non-blocking, background task)
+                            // This ensures module restrictions are enforced immediately with fresh data
+                            _ = Task.Run(async () =>
+                            {
+                                try
+                                {
+                                    if (_serviceScopeFactory != null && !string.IsNullOrWhiteSpace(schoolUser.email))
+                                    {
+                                        using var scope = _serviceScopeFactory.CreateScope();
+                                        var customerModuleService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.SuperAdmin.ICustomerModuleService>();
+                                        if (customerModuleService != null)
+                                        {
+                                            // First, try to get customer ID to clear cache by ID (more efficient)
+                                            var loginService = scope.ServiceProvider.GetService<ILoginService>();
+                                            if (loginService != null)
+                                            {
+                                                var customer = await loginService.GetCustomerByAdminEmailAsync(schoolUser.email);
+                                                if (customer != null)
+                                                {
+                                                    // Clear cache for this customer to ensure fresh data on login
+                                                    customerModuleService.ClearCache(customer.CustomerId);
+                                                    System.Diagnostics.Debug.WriteLine($"Cleared module cache for customer {customer.CustomerId} on login");
+                                                }
+                                            }
+                                            
+                                            // Preload modules to populate cache with fresh data
+                                            await customerModuleService.GetAvailableModulePackageIdsAsync(schoolUser.email);
+                                            System.Diagnostics.Debug.WriteLine($"Preloaded fresh modules for user: {schoolUser.email}");
+                                        }
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"Error clearing/preloading modules: {ex.Message}");
+                                }
+                            });
+                            
                             return true;
                         }
                     }
@@ -267,7 +306,8 @@ namespace BrightEnroll_DES.Services.Authentication
                 using var checkCommand = new SqlCommand(checkDbQuery, connection);
                 checkCommand.Parameters.AddWithValue("@DatabaseName", databaseName);
                 
-                var exists = (int)await checkCommand.ExecuteScalarAsync() > 0;
+                var result = await checkCommand.ExecuteScalarAsync();
+                var exists = result != null && result != DBNull.Value ? Convert.ToInt32(result) > 0 : false;
                 
                 if (!exists)
                 {
@@ -492,6 +532,44 @@ namespace BrightEnroll_DES.Services.Authentication
                 {
                     await Task.Delay(100);
                     
+                    // Check if user is SuperAdmin
+                    var isSuperAdmin = !string.IsNullOrWhiteSpace(user.user_role) && 
+                                     (user.user_role.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                                      user.user_role.Equals("Super Admin", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (isSuperAdmin && _serviceScopeFactory != null)
+                    {
+                        // Log to SuperAdmin audit log
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var superAdminAuditLogService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminAuditLogService>();
+                        
+                        if (superAdminAuditLogService != null)
+                        {
+                            var userName = $"{user.first_name} {user.last_name}".Trim();
+                            if (string.IsNullOrWhiteSpace(userName))
+                                userName = user.email ?? "SuperAdmin";
+                            
+                            var ipAddress = GetLocalIpAddress();
+                            var loginTime = DateTime.Now;
+                            
+                            await superAdminAuditLogService.CreateLogAsync(
+                                action: "SuperAdmin Login",
+                                module: "Authentication",
+                                description: $"SuperAdmin successfully logged into the system at {loginTime:yyyy-MM-dd HH:mm:ss}",
+                                userName: userName,
+                                userRole: user.user_role,
+                                userId: user.user_ID,
+                                ipAddress: ipAddress,
+                                status: "Success",
+                                severity: "Medium"
+                            );
+                            
+                            System.Diagnostics.Debug.WriteLine($"✓ SuperAdmin login audit log saved: {userName} logged in at {loginTime:yyyy-MM-dd HH:mm:ss}");
+                            return; // Exit early for SuperAdmin
+                        }
+                    }
+                    
+                    // Regular user logging (school admin)
                     if (_auditLogService != null && _serviceScopeFactory != null)
                     {
                         using var scope = _serviceScopeFactory.CreateScope();
@@ -548,13 +626,77 @@ namespace BrightEnroll_DES.Services.Authentication
 
         private void LogFailedLogin(string username, string? errorMessage = null)
         {
-            if (_auditLogService != null)
+            _ = Task.Run(async () =>
             {
-                _ = Task.Run(async () =>
+                try
                 {
-                    try
+                    // Check if this might be a SuperAdmin login attempt
+                    // We'll log to both SuperAdmin and regular audit logs to be safe
+                    var ipAddress = GetLocalIpAddress();
+                    
+                    if (_serviceScopeFactory != null)
                     {
-                        var ipAddress = GetLocalIpAddress();
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        
+                        // Try to determine if this is a SuperAdmin login attempt
+                        var superAdminAuditLogService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminAuditLogService>();
+                        var auditLogService = scope.ServiceProvider.GetService<AuditLogService>();
+                        
+                        // Check if username exists in SuperAdmin database
+                        if (_superAdminContext != null && superAdminAuditLogService != null)
+                        {
+                            try
+                            {
+                                var superAdminUser = await _superAdminContext.Users
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(u => 
+                                        u.Email != null && u.Email.Equals(username, StringComparison.OrdinalIgnoreCase));
+                                
+                                if (superAdminUser != null || username.Contains("admin", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    // Likely a SuperAdmin login attempt - log to SuperAdmin audit log
+                                    await superAdminAuditLogService.CreateLogAsync(
+                                        action: errorMessage == null ? "Failed SuperAdmin Login Attempt" : "SuperAdmin Login Error",
+                                        module: "Authentication",
+                                        description: errorMessage == null 
+                                            ? $"Failed SuperAdmin login attempt with username: {username}"
+                                            : $"SuperAdmin login error for username: {username}. Error: {errorMessage}",
+                                        userName: username,
+                                        userRole: "SuperAdmin",
+                                        userId: null,
+                                        ipAddress: ipAddress,
+                                        status: "Failed",
+                                        severity: errorMessage == null ? "High" : "Critical"
+                                    );
+                                }
+                            }
+                            catch
+                            {
+                                // If check fails, continue with regular logging
+                            }
+                        }
+                        
+                        // Also log to regular audit log for school admin attempts
+                        if (auditLogService != null)
+                        {
+                            await auditLogService.CreateLogAsync(
+                                action: errorMessage == null ? "Failed Login Attempt" : "Login Error",
+                                module: "Authentication",
+                                description: errorMessage == null 
+                                    ? $"Failed login attempt with username: {username}"
+                                    : $"Login error for username: {username}. Error: {errorMessage}",
+                                userName: null,
+                                userRole: null,
+                                userId: null,
+                                ipAddress: ipAddress,
+                                status: "Failed",
+                                severity: errorMessage == null ? "Medium" : "High"
+                            );
+                        }
+                    }
+                    else if (_auditLogService != null)
+                    {
+                        // Fallback to regular audit log
                         await _auditLogService.CreateLogAsync(
                             action: errorMessage == null ? "Failed Login Attempt" : "Login Error",
                             module: "Authentication",
@@ -569,12 +711,12 @@ namespace BrightEnroll_DES.Services.Authentication
                             severity: errorMessage == null ? "Medium" : "High"
                         );
                     }
-                    catch
-                    {
-                        // Don't break login if audit logging fails
-                    }
-                });
-            }
+                }
+                catch
+                {
+                    // Don't break login if audit logging fails
+                }
+            });
         }
 
         public void Logout()
@@ -583,12 +725,18 @@ namespace BrightEnroll_DES.Services.Authentication
             var userId = _currentUser?.user_ID;
             var userName = _currentUser != null ? $"{_currentUser.first_name} {_currentUser.last_name}".Trim() : null;
             var userRole = _currentUser?.user_role;
+            var userEmail = _currentUser?.email;
+            
+            // Check if user is SuperAdmin
+            var isSuperAdmin = !string.IsNullOrWhiteSpace(userRole) && 
+                             (userRole.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) ||
+                              userRole.Equals("Super Admin", StringComparison.OrdinalIgnoreCase));
             
             _isAuthenticated = false;
             _currentUser = null;
             
-            // Log logout to audit trail - fetch from database after logout
-            if (_auditLogService != null && userId.HasValue)
+            // Log logout to audit trail
+            if (userId.HasValue || isSuperAdmin)
             {
                 _ = Task.Run(async () =>
                 {
@@ -600,34 +748,70 @@ namespace BrightEnroll_DES.Services.Authentication
                         if (_serviceScopeFactory != null)
                         {
                             using var scope = _serviceScopeFactory.CreateScope();
-                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                             
-                            // Fetch user from database to ensure we have complete information
-                            var dbUser = await context.Users
-                                .AsNoTracking()
-                                .FirstOrDefaultAsync(u => u.UserId == userId.Value);
-                            
-                            if (dbUser != null)
+                            if (isSuperAdmin)
                             {
-                                var fullUserName = $"{dbUser.FirstName} {dbUser.LastName}".Trim();
-                                var ipAddress = GetLocalIpAddress();
-                                var logoutTime = DateTime.Now;
+                                // Log to SuperAdmin audit log
+                                var superAdminAuditLogService = scope.ServiceProvider.GetService<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminAuditLogService>();
                                 
-                                await _auditLogService.CreateLogAsync(
-                                    action: "User Logout",
-                                    module: "Authentication",
-                                    description: $"User logged out from the system at {logoutTime:yyyy-MM-dd HH:mm:ss}",
-                                    userName: fullUserName,
-                                    userRole: dbUser.UserRole,
-                                    userId: dbUser.UserId,
-                                    ipAddress: ipAddress,
-                                    status: "Success",
-                                    severity: "Low"
-                                );
-                                
-                                System.Diagnostics.Debug.WriteLine($"✓ Logout audit log saved: {fullUserName} ({dbUser.UserRole}) logged out at {logoutTime:yyyy-MM-dd HH:mm:ss} from {ipAddress}");
+                                if (superAdminAuditLogService != null)
+                                {
+                                    var fullUserName = userName ?? userEmail ?? "SuperAdmin";
+                                    var ipAddress = GetLocalIpAddress();
+                                    var logoutTime = DateTime.Now;
+                                    
+                                    await superAdminAuditLogService.CreateLogAsync(
+                                        action: "SuperAdmin Logout",
+                                        module: "Authentication",
+                                        description: $"SuperAdmin logged out from the system at {logoutTime:yyyy-MM-dd HH:mm:ss}",
+                                        userName: fullUserName,
+                                        userRole: userRole ?? "SuperAdmin",
+                                        userId: userId,
+                                        ipAddress: ipAddress,
+                                        status: "Success",
+                                        severity: "Low"
+                                    );
+                                    
+                                    System.Diagnostics.Debug.WriteLine($"✓ SuperAdmin logout audit log saved: {fullUserName} logged out at {logoutTime:yyyy-MM-dd HH:mm:ss}");
+                                    return; // Exit early for SuperAdmin
+                                }
                             }
-                            else if (userName != null)
+                            
+                            // Regular user logout logging
+                            if (_auditLogService != null)
+                            {
+                                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                                
+                                // Fetch user from database to ensure we have complete information
+                                if (userId.HasValue)
+                                {
+                                    var dbUser = await context.Users
+                                        .AsNoTracking()
+                                        .FirstOrDefaultAsync(u => u.UserId == userId.Value);
+                                    
+                                    if (dbUser != null)
+                                {
+                                    var fullUserName = $"{dbUser.FirstName} {dbUser.LastName}".Trim();
+                                    var ipAddress = GetLocalIpAddress();
+                                    var logoutTime = DateTime.Now;
+                                    
+                                    await _auditLogService.CreateLogAsync(
+                                        action: "User Logout",
+                                        module: "Authentication",
+                                        description: $"User logged out from the system at {logoutTime:yyyy-MM-dd HH:mm:ss}",
+                                        userName: fullUserName,
+                                        userRole: dbUser.UserRole,
+                                        userId: dbUser.UserId,
+                                        ipAddress: ipAddress,
+                                        status: "Success",
+                                        severity: "Low"
+                                    );
+                                    
+                                    System.Diagnostics.Debug.WriteLine($"✓ Logout audit log saved: {fullUserName} ({dbUser.UserRole}) logged out at {logoutTime:yyyy-MM-dd HH:mm:ss} from {ipAddress}");
+                                    }
+                                }
+                            }
+                            else if (userName != null && _auditLogService != null)
                             {
                                 // Fallback if user not found in database
                                 var ipAddress = GetLocalIpAddress();
@@ -646,7 +830,7 @@ namespace BrightEnroll_DES.Services.Authentication
                                 );
                             }
                         }
-                        else if (userName != null)
+                        else if (userName != null && _auditLogService != null)
                         {
                             // Fallback if service scope factory is not available
                             var ipAddress = GetLocalIpAddress();

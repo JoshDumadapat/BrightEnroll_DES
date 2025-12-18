@@ -415,7 +415,8 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                         AND name = '{updatedAtColumn}'";
                     
                     using var checkColumnCmd = new SqlCommand(checkColumnQuery, cloudConnection);
-                    canUseUpdatedAt = (int)await checkColumnCmd.ExecuteScalarAsync() > 0;
+                    var result = await checkColumnCmd.ExecuteScalarAsync();
+                    canUseUpdatedAt = result != null && result != DBNull.Value ? Convert.ToInt32(result) > 0 : false;
                 }
                 catch
                 {
@@ -435,7 +436,8 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                         AND name = '{createdAtColumn}'";
                     
                     using var checkColumnCmd = new SqlCommand(checkColumnQuery, cloudConnection);
-                    canUseCreatedAt = (int)await checkColumnCmd.ExecuteScalarAsync() > 0;
+                    var result = await checkColumnCmd.ExecuteScalarAsync();
+                    canUseCreatedAt = result != null && result != DBNull.Value ? Convert.ToInt32(result) > 0 : false;
                 }
                 catch
                 {
@@ -658,7 +660,8 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                                     AND name = '{updatedAtColumn}'";
                                 
                                 using var checkColumnCmd = new SqlCommand(checkColumnQuery, cloudConnection);
-                                var columnExists = (int)await checkColumnCmd.ExecuteScalarAsync() > 0;
+                                var result = await checkColumnCmd.ExecuteScalarAsync();
+                                var columnExists = result != null && result != DBNull.Value ? Convert.ToInt32(result) > 0 : false;
                                 
                                 if (columnExists)
                                 {

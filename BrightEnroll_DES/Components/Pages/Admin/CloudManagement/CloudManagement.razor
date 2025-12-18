@@ -6,6 +6,9 @@
 @inject ISyncStatusService SyncStatusService
 @inject IConfiguration Configuration
 @inject BrightEnroll_DES.Data.AppDbContext DbContext
+@inject BrightEnroll_DES.Services.Authentication.IAuthService AuthService
+@inject BrightEnroll_DES.Services.Authentication.ILoginService LoginService
+@inject BrightEnroll_DES.Data.SuperAdminDbContext SuperAdminDbContext
 @using Microsoft.Extensions.Configuration
 @using BrightEnroll_DES.Components
 @using BrightEnroll_DES.Services
@@ -511,6 +514,72 @@
         InvokeAsync(StateHasChanged);
     }
     
+    /// <summary>
+    /// Gets the current customer's cloud and local connection strings based on logged-in user.
+    /// Returns null if customer doesn't have a specific connection string (first/seeded admin),
+    /// which will cause the sync service to use the global connection string from appsettings.json.
+    /// </summary>
+    private async Task<(string? cloudConnectionString, string? localConnectionString)> GetCurrentCustomerConnectionStringsAsync()
+    {
+        try
+        {
+            if (AuthService?.IsAuthenticated != true || AuthService.CurrentUser == null)
+            {
+                // Not authenticated - return null to use global connection strings
+                return (null, null);
+            }
+
+            var userEmail = AuthService.CurrentUser.email;
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                // No email - return null to use global connection strings
+                return (null, null);
+            }
+
+            // Get customer by admin email
+            var customer = await LoginService.GetCustomerByAdminEmailAsync(userEmail);
+            if (customer == null)
+            {
+                // Customer not found - return null to use global connection strings (first/seeded admin)
+                return (null, null);
+            }
+
+            // Get customer-specific connection strings (prevents cross-contamination between accounts)
+            string? cloudConnString = null;
+            string? localConnString = null;
+            
+            if (!string.IsNullOrWhiteSpace(customer.CloudConnectionString))
+            {
+                // Customer has specific cloud connection string - use it to prevent syncing with other customers
+                cloudConnString = customer.CloudConnectionString;
+            }
+            
+            if (!string.IsNullOrWhiteSpace(customer.DatabaseConnectionString))
+            {
+                // Customer has specific local database connection string - use it to ensure account-separated sync
+                localConnString = customer.DatabaseConnectionString;
+            }
+
+            // If customer exists but has no specific connection strings, return null to use global (for first/seeded admin)
+            return (cloudConnString, localConnString);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error getting customer connection strings: {ex.Message}");
+            // On error, return null to fall back to global connection strings
+            return (null, null);
+        }
+    }
+    
+    /// <summary>
+    /// Gets the current customer's cloud connection string (backward compatibility).
+    /// </summary>
+    private async Task<string?> GetCurrentCustomerCloudConnectionStringAsync()
+    {
+        var (cloudConnString, _) = await GetCurrentCustomerConnectionStringsAsync();
+        return cloudConnString;
+    }
+
     private async Task TestConnection()
     {
         isTestingConnection = true;
@@ -519,7 +588,9 @@
         
         try
         {
-            var connected = await SyncService.TestCloudConnectionAsync();
+            // Get customer-specific cloud connection string
+            var customerCloudConnectionString = await GetCurrentCustomerCloudConnectionStringAsync();
+            var connected = await SyncService.TestCloudConnectionAsync(customerCloudConnectionString);
             isConnected = connected;
             connectionTestResult = connected 
                 ? "✓ Connection test successful! Cloud database is accessible." 
@@ -643,7 +714,9 @@
         
         try
         {
-            var result = await SyncService.FullSyncAsync();
+            // Get customer-specific cloud and local connection strings (account-separated sync)
+            var (cloudConnString, localConnString) = await GetCurrentCustomerConnectionStringsAsync();
+            var result = await SyncService.FullSyncAsync(cloudConnString, localConnString);
             resultDetails = result;
             var duration = (int)(DateTime.Now - startTime).TotalSeconds;
             
@@ -779,7 +852,9 @@
         
         try
         {
-            var result = await SyncService.SyncToCloudAsync();
+            // Get customer-specific cloud and local connection strings (account-separated sync)
+            var (cloudConnString, localConnString) = await GetCurrentCustomerConnectionStringsAsync();
+            var result = await SyncService.SyncToCloudAsync(cloudConnString, localConnString);
             resultDetails = result;
             var duration = (int)(DateTime.Now - startTime).TotalSeconds;
             
@@ -854,7 +929,9 @@
         
         try
         {
-            var result = await SyncService.SyncFromCloudAsync();
+            // Get customer-specific cloud and local connection strings (account-separated sync)
+            var (cloudConnString, localConnString) = await GetCurrentCustomerConnectionStringsAsync();
+            var result = await SyncService.SyncFromCloudAsync(cloudConnString, localConnString);
             resultDetails = result;
             var duration = (int)(DateTime.Now - startTime).TotalSeconds;
             
@@ -928,8 +1005,10 @@
         
         try
         {
+            // Get customer-specific cloud and local connection strings (account-separated sync)
+            var (cloudConnString, localConnString) = await GetCurrentCustomerConnectionStringsAsync();
             // Sync only reference tables (GradeLevel, Fees, etc.)
-            var result = await SyncService.SyncFromCloudAsync();
+            var result = await SyncService.SyncFromCloudAsync(cloudConnString, localConnString);
             var duration = (int)(DateTime.Now - startTime).TotalSeconds;
             
             // Save sync history to database

@@ -1,0 +1,73 @@
+@using Microsoft.AspNetCore.Components
+@inject NavigationManager Navigation
+
+<Microsoft.AspNetCore.Components.Web.ErrorBoundary @ref="errorBoundary">
+    <ChildContent>
+        @ChildContent
+    </ChildContent>
+    <ErrorContent>
+        <div class="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+            <div class="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
+                <div class="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                    <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-semibold text-gray-900 text-center mb-2">Something went wrong</h2>
+                <p class="text-sm text-gray-600 text-center mb-6">
+                    An unexpected error occurred. Please try again or contact support if the problem persists.
+                </p>
+                <div class="flex flex-col gap-2">
+                    <button @onclick="Retry" 
+                            class="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Retry
+                    </button>
+                    <button @onclick="GoToLogin" 
+                            class="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                        Back to Login
+                    </button>
+                </div>
+                @if (showDetails)
+                {
+                    <div class="mt-4 p-3 bg-gray-100 rounded text-xs text-gray-600 font-mono overflow-auto max-h-32">
+                        @errorDetails
+                    </div>
+                }
+                <button @onclick="ToggleDetails" 
+                        class="mt-2 text-xs text-gray-500 hover:text-gray-700">
+                    @(showDetails ? "Hide" : "Show") Details
+                </button>
+            </div>
+        </div>
+    </ErrorContent>
+</Microsoft.AspNetCore.Components.Web.ErrorBoundary>
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    
+    private Microsoft.AspNetCore.Components.Web.ErrorBoundary? errorBoundary;
+    private bool showDetails = false;
+    private string errorDetails = "";
+
+    private void Retry()
+    {
+        errorBoundary?.Recover();
+        Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
+    }
+
+    private void GoToLogin()
+    {
+        errorBoundary?.Recover();
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+
+    private void ToggleDetails()
+    {
+        showDetails = !showDetails;
+        if (showDetails && string.IsNullOrEmpty(errorDetails))
+        {
+            // Get error details from ErrorBoundary if available
+            errorDetails = "Error details would be shown here. Check browser console for more information.";
+        }
+    }
+}

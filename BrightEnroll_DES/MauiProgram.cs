@@ -69,13 +69,35 @@ namespace BrightEnroll_DES
             });
             builder.Services.AddScoped<DatabaseSeeder>();
             builder.Services.AddScoped<CurriculumSeeder>();
+            builder.Services.AddScoped<AdminUserSeeder>();
+            builder.Services.AddScoped<EmployeeSeeder>();
+            builder.Services.AddScoped<StudentForEnrollmentSeeder>();
+            builder.Services.AddScoped<EnrolledStudentSeeder>();
+            builder.Services.AddScoped<ArchivedStudentSeeder>();
+            builder.Services.AddScoped<ArchivedEmployeeSeeder>();
+            builder.Services.AddScoped<TeacherAssignmentSeeder>();
+            builder.Services.AddScoped<FeeSetupSeeder>();
+            builder.Services.AddScoped<DiscountSeeder>();
+            builder.Services.AddScoped<PaymentSeeder>();
             builder.Services.AddSingleton<ILoadingService, LoadingService>();
             builder.Services.AddSingleton<AddressService>();
             builder.Services.AddScoped<SchoolYearService>();
 
             // Role-based access control services
             builder.Services.AddSingleton<IRolePermissionService, RolePermissionService>();
-            builder.Services.AddSingleton<IAuthorizationService, AuthorizationService>();
+            
+            // Subscription and Module Management Services
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.ISubscriptionService, BrightEnroll_DES.Services.Business.SuperAdmin.SubscriptionService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.ICustomerModuleService, BrightEnroll_DES.Services.Business.SuperAdmin.CustomerModuleService>();
+            
+            // AuthorizationService with IServiceScopeFactory for accessing scoped CustomerModuleService
+            builder.Services.AddSingleton<IAuthorizationService>(sp =>
+            {
+                var authService = sp.GetRequiredService<IAuthService>();
+                var rolePermissionService = sp.GetRequiredService<IRolePermissionService>();
+                var serviceScopeFactory = sp.GetService<IServiceScopeFactory>();
+                return new AuthorizationService(authService, rolePermissionService, serviceScopeFactory);
+            });
 
             // --- CONFIGURATION SETUP ---
             IConfiguration? configuration = null;
@@ -207,6 +229,7 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<EnrollmentStatusService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Students.ReEnrollmentService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.Audit.AuditLogService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminAuditLogService>();
             builder.Services.AddScoped<EmployeeService>();
             builder.Services.AddScoped<SalaryChangeRequestService>();
             builder.Services.AddScoped<TimeRecordExcelService>();
@@ -271,6 +294,8 @@ namespace BrightEnroll_DES
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolDatabaseService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SchoolAdminSeeder>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminAuditLogService>();
+            builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminNotificationService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminBIRService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminBIRFilingService>();
             builder.Services.AddScoped<BrightEnroll_DES.Services.Business.SuperAdmin.AccountsReceivableService>();
@@ -386,6 +411,126 @@ namespace BrightEnroll_DES
                         catch (Exception ex)
                         {
                             logger?.LogWarning(ex, "Curriculum seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed School Admin Users (50 records)
+                        try
+                        {
+                            var adminUserSeeder = scope.ServiceProvider.GetRequiredService<AdminUserSeeder>();
+                            await adminUserSeeder.SeedAsync(50);
+                            logger?.LogInformation("School admin users seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "School admin seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Employees (50 records)
+                        try
+                        {
+                            var employeeSeeder = scope.ServiceProvider.GetRequiredService<EmployeeSeeder>();
+                            await employeeSeeder.SeedAsync(50);
+                            logger?.LogInformation("Employees seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Employee seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Students for Enrollment (50 records)
+                        try
+                        {
+                            var studentForEnrollmentSeeder = scope.ServiceProvider.GetRequiredService<StudentForEnrollmentSeeder>();
+                            await studentForEnrollmentSeeder.SeedAsync(50);
+                            logger?.LogInformation("Students for enrollment seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Student for enrollment seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Enrolled Students (50 records)
+                        try
+                        {
+                            var enrolledStudentSeeder = scope.ServiceProvider.GetRequiredService<EnrolledStudentSeeder>();
+                            await enrolledStudentSeeder.SeedAsync(50);
+                            logger?.LogInformation("Enrolled students seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Enrolled student seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Archived Students (50 records)
+                        try
+                        {
+                            var archivedStudentSeeder = scope.ServiceProvider.GetRequiredService<ArchivedStudentSeeder>();
+                            await archivedStudentSeeder.SeedAsync(50);
+                            logger?.LogInformation("Archived students seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Archived student seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Archived Employees (50 records)
+                        try
+                        {
+                            var archivedEmployeeSeeder = scope.ServiceProvider.GetRequiredService<ArchivedEmployeeSeeder>();
+                            await archivedEmployeeSeeder.SeedAsync(50);
+                            logger?.LogInformation("Archived employees seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Archived employee seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Teacher Assignments (30 records)
+                        try
+                        {
+                            var teacherAssignmentSeeder = scope.ServiceProvider.GetRequiredService<TeacherAssignmentSeeder>();
+                            await teacherAssignmentSeeder.SeedAsync(30);
+                            logger?.LogInformation("Teacher assignments seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Teacher assignment seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Fee Setup
+                        try
+                        {
+                            var feeSetupSeeder = scope.ServiceProvider.GetRequiredService<FeeSetupSeeder>();
+                            await feeSetupSeeder.SeedAsync();
+                            logger?.LogInformation("Fee setup seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Fee setup seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Discounts
+                        try
+                        {
+                            var discountSeeder = scope.ServiceProvider.GetRequiredService<DiscountSeeder>();
+                            await discountSeeder.SeedAsync();
+                            logger?.LogInformation("Discounts seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Discount seeding failed: {Message}", ex.Message);
+                        }
+
+                        // Seed Payments (for enrolled students)
+                        try
+                        {
+                            var paymentSeeder = scope.ServiceProvider.GetRequiredService<PaymentSeeder>();
+                            await paymentSeeder.SeedAsync();
+                            logger?.LogInformation("Payments seeded successfully.");
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogWarning(ex, "Payment seeding failed: {Message}", ex.Message);
                         }
 
                         // NOTE: User verification removed. Users are now created dynamically through the Add Customer feature.

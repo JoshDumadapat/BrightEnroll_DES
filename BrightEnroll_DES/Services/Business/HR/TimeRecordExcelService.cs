@@ -24,9 +24,7 @@ public class TimeRecordExcelService
         }
     }
 
-    /// <summary>
-    /// Generates an Excel template file for time record uploads with sample data from database employees
-    /// </summary>
+    // Generate Excel template for time record uploads
     public byte[] GenerateTemplate(List<EmployeeDisplayDto> employees)
     {
         try
@@ -68,19 +66,16 @@ public class TimeRecordExcelService
         worksheet.Column(8).Width = 18; // Total Days Absent
         worksheet.Column(9).Width = 18; // Total Days Duty
 
-        // Populate with employee data and random attendance values
+        // Populate with employee data
         int row = 2;
         if (employees != null && employees.Any())
         {
-            // Get current month's working days (typically 22-30 days, excluding weekends)
+            // Get current month's working days
             int monthlyDays = GetMonthlyWorkingDays(DateTime.Now);
-            
-            // Store monthly days in a hidden cell or use it in formula
-            // We'll use it directly in the formula calculation
             
             foreach (var employee in employees)
             {
-                // Generate random but realistic attendance data
+                // Generate sample attendance data
                 var attendanceData = GenerateRandomAttendanceData(monthlyDays);
 
                 worksheet.Cells[row, 1].Value = employee.Id;
@@ -92,9 +87,7 @@ public class TimeRecordExcelService
                 worksheet.Cells[row, 7].Value = attendanceData.LateMinutes;
                 worksheet.Cells[row, 8].Value = attendanceData.TotalDaysAbsent;
                 
-                // Calculate Total Days Duty = Monthly Days - Total Days Absent
-                // Monthly days is calculated in the background (not shown as column)
-                // Formula: Monthly Days (stored value) - Total Days Absent (column H)
+                // Calculate total days duty
                 worksheet.Cells[row, 9].Formula = $"={monthlyDays}-H{row}";
 
                 row++;
@@ -145,9 +138,7 @@ public class TimeRecordExcelService
         }
     }
 
-    /// <summary>
-    /// Gets the number of working days in a month (excluding weekends)
-    /// </summary>
+    // Get working days in month (excluding weekends)
     private int GetMonthlyWorkingDays(DateTime date)
     {
         int year = date.Year;
@@ -158,7 +149,7 @@ public class TimeRecordExcelService
         for (int day = 1; day <= daysInMonth; day++)
         {
             DateTime currentDate = new DateTime(year, month, day);
-            // Count only weekdays (Monday = 1, Sunday = 7)
+            // Count weekdays only
             if (currentDate.DayOfWeek != DayOfWeek.Saturday && currentDate.DayOfWeek != DayOfWeek.Sunday)
             {
                 workingDays++;
@@ -168,32 +159,30 @@ public class TimeRecordExcelService
         return workingDays;
     }
 
-    /// <summary>
-    /// Generates random but realistic attendance data for testing
-    /// </summary>
+    // Generate sample attendance data
     private AttendanceData GenerateRandomAttendanceData(int monthlyDays)
     {
         var data = new AttendanceData();
         
-        // Generate random absent days (0-3 days per month)
+        // Generate random absent days
         int absentDays = _random.Next(0, 4);
         data.TotalDaysAbsent = absentDays;
         
-        // 80% chance of normal attendance, 15% chance of late, 5% chance of leave
+        // Random attendance scenario
         var scenario = _random.Next(100);
         
-        if (scenario < 5) // 5% - On leave
+        if (scenario < 5) // On leave
         {
             data.TimeIn = "";
             data.TimeOut = "";
             data.RegularHours = 0;
             data.OvertimeHours = 0;
-            data.LeaveDays = _random.Next(1, 3) == 1 ? 1.0m : 0.5m; // Full day or half day
+            data.LeaveDays = _random.Next(1, 3) == 1 ? 1.0m : 0.5m;
             data.LateMinutes = 0;
         }
-        else if (scenario < 20) // 15% - Late arrival
+        else if (scenario < 20) // Late arrival
         {
-            // Late arrival: 5-30 minutes late (arriving at 8:05 to 8:30)
+            // 5-30 minutes late
             var lateMinutes = _random.Next(5, 31);
             var timeInHour = 8;
             var timeInMinute = lateMinutes;
@@ -205,9 +194,8 @@ public class TimeRecordExcelService
             data.LeaveDays = 0;
             data.LateMinutes = lateMinutes;
         }
-        else // 80% - Normal attendance
+        else // Normal attendance
         {
-            // Normal time in: 7:30 - 8:15
             var timeInHour = 7;
             var timeInMinute = _random.Next(30, 60);
             if (timeInMinute >= 60)
@@ -219,7 +207,7 @@ public class TimeRecordExcelService
             data.TimeIn = $"{timeInHour:D2}:{timeInMinute:D2}";
             data.TimeOut = $"{_random.Next(17, 18):D2}:{_random.Next(0, 60):D2}";
             data.RegularHours = 8.00m;
-            data.OvertimeHours = _random.Next(0, 4) == 0 ? Math.Round((decimal)_random.Next(0, 120) / 60.0m, 2) : 0; // 25% chance of overtime
+            data.OvertimeHours = _random.Next(0, 4) == 0 ? Math.Round((decimal)_random.Next(0, 120) / 60.0m, 2) : 0;
             data.LeaveDays = 0;
             data.LateMinutes = 0;
         }
@@ -227,9 +215,7 @@ public class TimeRecordExcelService
         return data;
     }
 
-    /// <summary>
-    /// Parses an uploaded Excel file and extracts time record data
-    /// </summary>
+    // Parse uploaded Excel file and extract time records
     public List<TimeRecordUploadDto> ParseUploadedFile(byte[] fileBytes)
     {
         try
@@ -251,11 +237,11 @@ public class TimeRecordExcelService
                 throw new Exception("Excel file does not contain any worksheets.");
             }
 
-            // Find the header row (row 1)
-            int startRow = 2; // Data starts from row 2 (row 1 is headers)
+            // Find data rows
+            int startRow = 2;
             int endRow = worksheet.Dimension?.End.Row ?? 0;
 
-            // Find instruction row to stop parsing
+            // Stop at instruction row
             for (int row = startRow; row <= endRow; row++)
             {
                 var firstCellValue = worksheet.Cells[row, 1].Text?.Trim();
@@ -279,14 +265,13 @@ public class TimeRecordExcelService
                     EmployeeId = employeeId,
                     Name = worksheet.Cells[row, 2].Text?.Trim() ?? "",
                     Role = worksheet.Cells[row, 3].Text?.Trim() ?? "",
-                    TimeIn = "", // Not used anymore, kept for backward compatibility
-                    TimeOut = "", // Not used anymore, kept for backward compatibility
+                    TimeIn = "",
+                    TimeOut = "",
                     RegularHours = ParseDecimal(worksheet.Cells[row, 4].Text),
                     OvertimeHours = ParseDecimal(worksheet.Cells[row, 5].Text),
                     LeaveDays = ParseDecimal(worksheet.Cells[row, 6].Text),
                     LateMinutes = ParseInt(worksheet.Cells[row, 7].Text),
                     TotalDaysAbsent = ParseInt(worksheet.Cells[row, 8].Text),
-                    // Total Days Duty is calculated, not parsed
                 };
 
                 records.Add(record);
@@ -334,9 +319,7 @@ public class TimeRecordExcelService
     }
 }
 
-/// <summary>
-/// DTO for time record data parsed from uploaded Excel file
-/// </summary>
+// DTO for time record upload data
 public class TimeRecordUploadDto
 {
     public string EmployeeId { get; set; } = string.Empty;

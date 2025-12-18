@@ -282,133 +282,54 @@
                         <div class="sm:col-span-2">
                             <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Monthly Fee Breakdown</label>
                             <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-1">
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-600">Subtotal:</span>
-                                    <span class="font-medium text-gray-900">₱@Subtotal.ToString("N2")</span>
-                                </div>
-                                @if (IsVatRegistered && VatRate.HasValue && VatRate.Value > 0)
+                                @if (!string.IsNullOrWhiteSpace(Plan))
                                 {
                                     <div class="flex justify-between text-sm">
-                                        <span class="text-gray-600">VAT (@VatRate%):</span>
-                                        <span class="font-medium text-gray-900">₱@VatAmount.ToString("N2")</span>
+                                        <span class="text-gray-600">Subtotal:</span>
+                                        <span class="font-medium text-gray-900">₱@Subtotal.ToString("N2")</span>
                                     </div>
-                                    <div class="flex justify-between text-xs text-amber-700 pt-1 border-t border-gray-200">
-                                        <span>VAT Registered</span>
-                                        <span>BIR Compliant</span>
-                                    </div>
-                                }
-                                <div class="flex justify-between text-sm font-semibold border-t border-gray-300 pt-1 mt-1">
-                                    <span class="text-gray-900">Total Monthly Fee:</span>
-                                    <span class="text-blue-600">₱@TotalWithVat.ToString("N2")</span>
-                                </div>
-                            </div>
-                            <p class="mt-1 text-xs text-gray-500">Fee calculated based on selected modules @(IsVatRegistered ? "with VAT (BIR compliant)" : "without VAT")</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Section 4.5: Payment Information -->
-            <div class="mb-6 overflow-hidden rounded-lg border border-teal-100 bg-gradient-to-br from-teal-50/30 via-white to-white shadow-sm sm:mb-6">
-                <div class="bg-teal-50 px-4 py-2 border-b border-teal-100">
-                    <div class="flex items-center gap-2">
-                        <svg class="h-4 w-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                        </svg>
-                        <h2 class="text-sm font-semibold text-teal-900">Payment Information</h2>
-                    </div>
-                </div>
-                <div class="px-4 py-4 bg-gradient-to-br from-teal-50/20 to-white">
-                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
-                        <!-- Payment Method -->
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
-                                Payment Method <span class="text-red-500">*</span>
-                            </label>
-                            <select @bind="DefaultPaymentMethod" @bind:after="OnPaymentMethodChanged" required
-                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base">
-                                <option value="Cash">Cash</option>
-                                <option value="Credit">Credit</option>
-                            </select>
-                            <p class="mt-1 text-xs text-gray-500">Payment method for this customer</p>
-                        </div>
-
-                        @if (DefaultPaymentMethod == "Credit")
-                        {
-                            <!-- Credit Terms Section -->
-                            <div class="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                                <h3 class="mb-3 text-sm font-semibold text-amber-900">Credit Terms</h3>
-                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                                    <div>
-                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Number of Months <span class="text-red-500">*</span></label>
-                                        <input type="number" @bind="CreditMonths" @bind:after="CalculateCustomerCreditInterest" min="1" max="60"
-                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base" />
-                                    </div>
-                                    <div>
-                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Interest Rate (%) <span class="text-red-500">*</span></label>
-                                        <input type="number" @bind="CreditInterestRate" @bind:after="CalculateCustomerCreditInterest" step="0.01" min="0" max="100"
-                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base" />
-                                    </div>
-                                    <div>
-                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Frequency</label>
-                                        <select @bind="CreditPaymentFrequency" @bind:after="CalculateCustomerCreditInterest"
-                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base">
-                                            <option value="Monthly">Monthly</option>
-                                            <option value="Quarterly">Quarterly</option>
-                                            <option value="Semi-Annual">Semi-Annual</option>
-                                            <option value="Annual">Annual</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                @if (CreditMonths > 0 && CreditInterestRate > 0 && TotalWithVat > 0)
-                                {
-                                    <div class="mt-3 rounded-lg border border-amber-300 bg-white p-3">
-                                        <h4 class="mb-2 text-xs font-semibold text-amber-900 sm:text-sm">Credit Calculation (ERP Standard - Simple Interest)</h4>
-                                        <div class="space-y-1 text-xs sm:text-sm">
-                                            <div class="flex justify-between">
-                                                <span class="text-gray-600">Principal Amount:</span>
-                                                <span class="font-medium text-gray-900">₱@TotalWithVat.ToString("N2")</span>
-                                            </div>
-                                            <div class="flex justify-between">
-                                                <span class="text-gray-600">Interest Rate:</span>
-                                                <span class="font-medium text-gray-900">@CreditInterestRate.ToString("F2")%</span>
-                                            </div>
-                                            <div class="flex justify-between">
-                                                <span class="text-gray-600">Term:</span>
-                                                <span class="font-medium text-gray-900">@CreditMonths months (@CreditPaymentFrequency)</span>
-                                            </div>
-                                            <div class="flex justify-between border-t border-gray-200 pt-1">
-                                                <span class="text-gray-600">Total Interest:</span>
-                                                <span class="font-semibold text-amber-700">₱@CustomerCreditTotalInterest.ToString("N2")</span>
-                                            </div>
-                                            <div class="flex justify-between border-t-2 border-amber-300 pt-1">
-                                                <span class="font-semibold text-gray-900">Total Amount Due:</span>
-                                                <span class="font-bold text-amber-900">₱@CustomerCreditTotalAmount.ToString("N2")</span>
-                                            </div>
-                                            <div class="flex justify-between pt-1">
-                                                <span class="text-gray-600">Monthly Payment:</span>
-                                                <span class="font-medium text-gray-900">₱@CustomerCreditMonthlyPayment.ToString("N2")</span>
-                                            </div>
+                                    @if (IsVatRegistered && VatRate.HasValue && VatRate.Value > 0)
+                                    {
+                                        <div class="flex justify-between text-sm">
+                                            <span class="text-gray-600">VAT (@VatRate%):</span>
+                                            <span class="font-medium text-gray-900">₱@VatAmount.ToString("N2")</span>
                                         </div>
+                                        <div class="flex justify-between text-xs text-amber-700 pt-1 border-t border-gray-200">
+                                            <span>VAT Registered</span>
+                                            <span>BIR Compliant</span>
+                                        </div>
+                                    }
+                                    <div class="flex justify-between text-sm font-semibold border-t border-gray-300 pt-1 mt-1">
+                                        <span class="text-gray-900">Total Monthly Fee:</span>
+                                        <span class="text-blue-600">₱@TotalWithVat.ToString("N2")</span>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="flex justify-between text-sm">
+                                        <span class="text-gray-600">Subtotal:</span>
+                                        <span class="font-medium text-gray-400">₱0.00</span>
+                                    </div>
+                                    <div class="flex justify-between text-sm font-semibold border-t border-gray-300 pt-1 mt-1">
+                                        <span class="text-gray-400">Total Monthly Fee:</span>
+                                        <span class="text-gray-400">₱0.00</span>
                                     </div>
                                 }
                             </div>
-                        }
-
-                        <!-- Payment Reference (Optional) -->
-                        <div>
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Reference</label>
-                            <input type="text" @bind="PaymentReference" maxlength="100"
-                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
-                                   placeholder="OR Number, Transaction ID, etc." />
-                        </div>
-
-                        <!-- Payment Notes -->
-                        <div class="sm:col-span-2">
-                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Notes</label>
-                            <textarea @bind="PaymentNotes" rows="2" maxlength="500"
-                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
-                                      placeholder="Additional payment information or instructions (optional)"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">
+                                @if (!string.IsNullOrWhiteSpace(Plan))
+                                {
+                                    <text>Fee calculated based on selected plan @(IsVatRegistered ? "with VAT (BIR compliant)" : "without VAT")</text>
+                                }
+                                else if (SelectedPackages.Any())
+                                {
+                                    <text>Fee calculated in Module Selection section below</text>
+                                }
+                                else
+                                {
+                                    <text>Select a plan or modules to see fee breakdown</text>
+                                }
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -549,6 +470,112 @@
                 </div>
             </div>
 
+            <!-- Section 4.5: Payment Information -->
+            <div class="mb-6 overflow-hidden rounded-lg border border-teal-100 bg-gradient-to-br from-teal-50/30 via-white to-white shadow-sm sm:mb-6">
+                <div class="bg-teal-50 px-4 py-2 border-b border-teal-100">
+                    <div class="flex items-center gap-2">
+                        <svg class="h-4 w-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                        <h2 class="text-sm font-semibold text-teal-900">Payment Information</h2>
+                    </div>
+                </div>
+                <div class="px-4 py-4 bg-gradient-to-br from-teal-50/20 to-white">
+                    <div class="mb-3 grid grid-cols-1 gap-3 sm:mb-4 sm:grid-cols-2 sm:gap-4">
+                        <!-- Payment Method -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">
+                                Payment Method <span class="text-red-500">*</span>
+                            </label>
+                            <select @bind="DefaultPaymentMethod" @bind:after="OnPaymentMethodChanged" required
+                                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base">
+                                <option value="Cash">Cash</option>
+                                <option value="Credit">Credit</option>
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Payment method for this customer</p>
+                        </div>
+
+                        @if (DefaultPaymentMethod == "Credit")
+                        {
+                            <!-- Credit Terms Section -->
+                            <div class="sm:col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                                <h3 class="mb-3 text-sm font-semibold text-amber-900">Credit Terms</h3>
+                                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Number of Months <span class="text-red-500">*</span></label>
+                                        <input type="number" @bind="CreditMonths" @bind:after="CalculateCustomerCreditInterest" min="1" max="60"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base" />
+                                    </div>
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Interest Rate (%) <span class="text-red-500">*</span></label>
+                                        <input type="number" @bind="CreditInterestRate" @bind:after="CalculateCustomerCreditInterest" step="0.01" min="0" max="100"
+                                               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base" />
+                                    </div>
+                                    <div>
+                                        <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Frequency</label>
+                                        <select @bind="CreditPaymentFrequency" @bind:after="CalculateCustomerCreditInterest"
+                                                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 sm:px-4 sm:py-2.5 sm:text-base">
+                                            <option value="Monthly">Monthly</option>
+                                            <option value="Quarterly">Quarterly</option>
+                                            <option value="Semi-Annual">Semi-Annual</option>
+                                            <option value="Annual">Annual</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                @if (CreditMonths > 0 && CreditInterestRate > 0 && TotalWithVat > 0)
+                                {
+                                    <div class="mt-3 rounded-lg border border-amber-300 bg-white p-3">
+                                        <h4 class="mb-2 text-xs font-semibold text-amber-900 sm:text-sm">Credit Calculation (ERP Standard - Simple Interest)</h4>
+                                        <div class="space-y-1 text-xs sm:text-sm">
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Principal Amount:</span>
+                                                <span class="font-medium text-gray-900">₱@TotalWithVat.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Interest Rate:</span>
+                                                <span class="font-medium text-gray-900">@CreditInterestRate.ToString("F2")%</span>
+                                            </div>
+                                            <div class="flex justify-between">
+                                                <span class="text-gray-600">Term:</span>
+                                                <span class="font-medium text-gray-900">@CreditMonths months (@CreditPaymentFrequency)</span>
+                                            </div>
+                                            <div class="flex justify-between border-t border-gray-200 pt-1">
+                                                <span class="text-gray-600">Total Interest:</span>
+                                                <span class="font-semibold text-amber-700">₱@CustomerCreditTotalInterest.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between border-t-2 border-amber-300 pt-1">
+                                                <span class="font-semibold text-gray-900">Total Amount Due:</span>
+                                                <span class="font-bold text-amber-900">₱@CustomerCreditTotalAmount.ToString("N2")</span>
+                                            </div>
+                                            <div class="flex justify-between pt-1">
+                                                <span class="text-gray-600">Monthly Payment:</span>
+                                                <span class="font-medium text-gray-900">₱@CustomerCreditMonthlyPayment.ToString("N2")</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        <!-- Payment Reference (Optional) -->
+                        <div>
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Reference</label>
+                            <input type="text" @bind="PaymentReference" maxlength="100"
+                                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
+                                   placeholder="OR Number, Transaction ID, etc." />
+                        </div>
+
+                        <!-- Payment Notes -->
+                        <div class="sm:col-span-2">
+                            <label class="mb-1 block text-xs font-medium text-gray-700 sm:mb-2 sm:text-sm">Payment Notes</label>
+                            <textarea @bind="PaymentNotes" rows="2" maxlength="500"
+                                      class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
+                                      placeholder="Additional payment information or instructions (optional)"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 6: Contract Details -->
             <div class="mb-6 overflow-hidden rounded-lg border border-indigo-100 bg-gradient-to-br from-indigo-50/30 via-white to-white shadow-sm sm:mb-6">
                 <div class="bg-indigo-50 px-4 py-2 border-b border-indigo-100">
@@ -647,6 +674,7 @@
                             <textarea @bind="FreeServices" rows="2" maxlength="500"
                                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
                                       placeholder="e.g., Training, Setup, Data Migration"></textarea>
+                            <p class="mt-1 text-xs text-gray-500">Auto-filled based on selected contract template</p>
                         </div>
 
                         <!-- Payment Terms -->
@@ -655,6 +683,7 @@
                             <input type="text" @bind="PaymentTerms" maxlength="200"
                                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-200 sm:px-4 sm:py-2.5 sm:text-base"
                                    placeholder="e.g., Monthly, Net 30" />
+                            <p class="mt-1 text-xs text-gray-500">Auto-filled based on selected contract template</p>
                         </div>
 
                         <!-- Auto Renewal -->
@@ -1239,14 +1268,17 @@
             return;
         }
         
-        UpdateMonthlyFee();
-        
-        // When plan is selected, disable module selection by clearing selections
+        // When plan is selected, disable module selection by clearing selections FIRST
+        // This ensures module prices don't interfere with plan pricing
         if (!string.IsNullOrWhiteSpace(Plan))
         {
             SelectedPackages.Clear();
             ErrorMessage = null; // Clear any previous errors
         }
+        
+        // Update monthly fee after clearing modules (if plan was selected)
+        // This ensures proper calculation: plan price OR module prices, never both
+        UpdateMonthlyFee();
         
         // Recalculate credit if applicable
         if (DefaultPaymentMethod == "Credit")
@@ -1283,6 +1315,8 @@
             TerminationClause = null;
             SlaDetails = null;
             ContractTermsText = null;
+            FreeServices = null;
+            PaymentTerms = null;
             StateHasChanged();
             return;
         }
@@ -1293,21 +1327,29 @@
                 TerminationClause = "Either party may terminate this Agreement by providing thirty (30) days written notice to the other party. Upon termination, the Customer shall pay all outstanding fees and return any proprietary materials. The Service Provider shall provide reasonable assistance for data export during the notice period.";
                 SlaDetails = "Service Level Agreement: The Service Provider guarantees 99.5% uptime availability. Support will be provided during business hours (Monday to Friday, 9:00 AM to 5:00 PM). Response time for critical issues: 4 hours. Response time for non-critical issues: 24 hours. Scheduled maintenance will be communicated at least 48 hours in advance.";
                 ContractTermsText = "This Agreement governs the provision of the BrightEnroll Enrollment Management System to the Customer. The Service Provider agrees to maintain the system, provide technical support, and ensure data security. The Customer agrees to pay monthly fees on time, use the system in accordance with applicable laws, and maintain confidentiality of login credentials. All intellectual property rights remain with the Service Provider. The Customer may not reverse engineer, copy, or distribute the software without written permission.";
+                FreeServices = "Training, Setup, Data Migration";
+                PaymentTerms = "Monthly, Net 30";
                 break;
             case "Premium":
                 TerminationClause = "Either party may terminate this Agreement by providing sixty (60) days written notice to the other party. Upon termination, the Customer shall pay all outstanding fees and return any proprietary materials. The Service Provider shall provide comprehensive data export and migration assistance during the notice period. Early termination fees may apply if termination occurs within the first 12 months of the contract.";
                 SlaDetails = "Service Level Agreement: The Service Provider guarantees 99.9% uptime availability. Support will be provided 24/7 with priority response. Response time for critical issues: 2 hours. Response time for non-critical issues: 8 hours. Dedicated account manager assigned. Scheduled maintenance will be communicated at least 72 hours in advance. Monthly performance reports will be provided.";
                 ContractTermsText = "This Premium Agreement governs the provision of the BrightEnroll Enrollment Management System with enhanced support and features to the Customer. The Service Provider agrees to maintain the system with premium uptime guarantees, provide 24/7 technical support, ensure enterprise-grade data security, and assign a dedicated account manager. The Customer agrees to pay monthly fees on time, use the system in accordance with applicable laws, and maintain confidentiality of login credentials. All intellectual property rights remain with the Service Provider. The Customer may not reverse engineer, copy, or distribute the software without written permission. Premium customers receive priority feature requests and custom module development options.";
+                FreeServices = "Training, Setup, Data Migration, Custom Module Configuration, Priority Support Setup";
+                PaymentTerms = "Monthly, Net 30, Quarterly Payment Option Available";
                 break;
             case "Custom":
                 TerminationClause = "Termination conditions and notice period shall be negotiated and specified in a separate addendum to this Agreement. Standard termination requires thirty (30) days written notice unless otherwise specified in the custom terms.";
                 SlaDetails = "Service Level Agreement details shall be customized based on specific requirements and documented in a separate Service Level Agreement addendum. Standard SLA includes 99.5% uptime guarantee and business hours support unless otherwise specified.";
                 ContractTermsText = "This Custom Agreement governs the provision of the BrightEnroll Enrollment Management System with customized terms and conditions. Specific terms, conditions, and service levels will be detailed in separate addendums attached to this Agreement. All standard terms apply unless explicitly modified in writing.";
+                FreeServices = "Training, Setup, Data Migration (Custom services to be negotiated)";
+                PaymentTerms = "To be negotiated and specified in contract addendum";
                 break;
             default:
                 TerminationClause = null;
                 SlaDetails = null;
                 ContractTermsText = null;
+                FreeServices = null;
+                PaymentTerms = null;
                 break;
         }
         
@@ -1371,11 +1413,17 @@
             SelectedPackages.Remove(packageId);
         }
         
-        // Recalculate fee if no plan is selected
+        // Recalculate fee ONLY if no plan is selected
+        // This ensures module prices are never added when a plan is active
         if (string.IsNullOrWhiteSpace(Plan))
         {
             Subtotal = CalculateCustomFee();
             CalculateVAT();
+        }
+        else
+        {
+            // If plan is selected, ensure we're using plan price, not module prices
+            UpdateMonthlyFee();
         }
         
         StateHasChanged();
@@ -1443,7 +1491,13 @@
 
     private decimal CalculateCustomFee()
     {
-        // Base fee for core package (always included)
+        // If no modules are selected, return 0
+        if (!SelectedPackages.Any())
+        {
+            return 0;
+        }
+        
+        // Base fee for core package (always included when modules are selected)
         decimal baseFee = 10000;
         
         // Add fees for each selected package
@@ -1697,7 +1751,17 @@
 
             System.Diagnostics.Debug.WriteLine($"[AddCustomer] Customer object created. CustomerCode will be auto-generated.");
 
-            var createdCustomer = await SuperAdminService.CreateCustomerAsync(customer, AuthService.CurrentUser?.user_ID);
+            // Pass admin personal information and module information to ensure it's stored properly
+            var createdCustomer = await SuperAdminService.CreateCustomerAsync(
+                customer, 
+                AuthService.CurrentUser?.user_ID,
+                adminFirstName: ContactFirstName,
+                adminMiddleName: ContactMiddleName,
+                adminLastName: ContactLastName,
+                adminSuffix: ContactSuffix,
+                adminRole: ContactRole,
+                planName: !string.IsNullOrWhiteSpace(Plan) ? Plan : null,
+                selectedModules: !string.IsNullOrWhiteSpace(Plan) ? null : SelectedPackages.Any() ? SelectedPackages.ToList() : null);
             
             System.Diagnostics.Debug.WriteLine($"[AddCustomer] Customer created successfully. CustomerId: {createdCustomer.CustomerId}, CustomerCode: {createdCustomer.CustomerCode}");
             

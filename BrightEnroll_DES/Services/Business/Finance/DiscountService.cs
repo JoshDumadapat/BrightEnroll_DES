@@ -27,7 +27,7 @@ public class DiscountService
         _authService = authService;
     }
 
-    // Gets all discounts
+    // Get all discounts
     public async Task<List<Discount>> GetAllDiscountsAsync()
     {
         try
@@ -47,7 +47,7 @@ public class DiscountService
         }
     }
 
-    // Gets only active discounts
+    // Get active discounts only
     public async Task<List<Discount>> GetActiveDiscountsAsync()
     {
         try
@@ -68,7 +68,7 @@ public class DiscountService
         }
     }
 
-    // Gets discount by ID
+    // Get discount by ID
     public async Task<Discount?> GetDiscountByIdAsync(int discountId)
     {
         try
@@ -83,7 +83,7 @@ public class DiscountService
         }
     }
 
-    // Gets discount by type
+    // Get discount by type
     public async Task<Discount?> GetDiscountByTypeAsync(string discountType)
     {
         try
@@ -98,12 +98,12 @@ public class DiscountService
         }
     }
 
-    // Creates a new discount
+    // Create new discount
     public async Task<Discount> CreateDiscountAsync(CreateDiscountRequest request)
     {
         try
         {
-            // Check if discount name already exists (case-insensitive)
+            // Check for duplicate discount name
             var existing = await _context.Discounts
                 .FirstOrDefaultAsync(d => d.DiscountName.ToLower() == request.DiscountName.Trim().ToLower());
 
@@ -131,7 +131,7 @@ public class DiscountService
             _logger?.LogInformation("Discount created successfully: {DiscountType} - {DiscountName}", 
                 discount.DiscountType, discount.DiscountName);
             
-            // Audit logging (non-blocking, background task)
+            // Log audit trail in background
             _ = Task.Run(async () =>
             {
                 try
@@ -178,7 +178,7 @@ public class DiscountService
         }
     }
 
-    // Updates an existing discount
+    // Update existing discount
     public async Task<Discount> UpdateDiscountAsync(int discountId, UpdateDiscountRequest request)
     {
         try
@@ -191,7 +191,7 @@ public class DiscountService
                 throw new Exception($"Discount with ID {discountId} not found.");
             }
 
-            // Check if discount name is being changed and if new name already exists (case-insensitive)
+            // Check for duplicate name if changed
             if (discount.DiscountName.ToLower() != request.DiscountName.Trim().ToLower())
             {
                 var existing = await _context.Discounts
@@ -213,7 +213,7 @@ public class DiscountService
             discount.IsActive = request.IsActive;
             discount.UpdatedDate = DateTime.Now;
 
-            // Capture old values for audit log
+            // Store old values for audit
             var oldType = discount.DiscountType;
             var oldName = discount.DiscountName;
             var oldRate = discount.RateOrValue;
@@ -224,7 +224,7 @@ public class DiscountService
 
             _logger?.LogInformation("Discount updated successfully: Discount ID {DiscountId}", discountId);
             
-            // Audit logging (non-blocking, background task)
+            // Log audit trail in background
             _ = Task.Run(async () =>
             {
                 try
@@ -271,7 +271,7 @@ public class DiscountService
         }
     }
 
-    // Deletes a discount (soft delete)
+    // Delete discount (soft delete if in use)
     public async Task<bool> DeleteDiscountAsync(int discountId)
     {
         try
@@ -284,11 +284,11 @@ public class DiscountService
                 throw new Exception($"Discount with ID {discountId} not found.");
             }
 
-            // Check if discount is being used in any ledger charges
+            // Check if discount is in use
             var isUsed = await _context.LedgerCharges
                 .AnyAsync(lc => lc.DiscountId == discountId);
 
-            // Capture discount info for audit log before deletion
+            // Store discount info for audit
             var discountType = discount.DiscountType;
             var discountName = discount.DiscountName;
             var wasActive = discount.IsActive;
@@ -296,14 +296,14 @@ public class DiscountService
 
             if (isUsed)
             {
-                // Soft delete - just deactivate
+                // Deactivate if in use
                 discount.IsActive = false;
                 discount.UpdatedDate = DateTime.Now;
                 _logger?.LogInformation("Discount {DiscountId} is in use, deactivating instead of deleting", discountId);
             }
             else
             {
-                // Hard delete if not in use
+                // Remove if not in use
                 isHardDelete = true;
                 _context.Discounts.Remove(discount);
                 _logger?.LogInformation("Discount {DiscountId} deleted permanently", discountId);
@@ -311,7 +311,7 @@ public class DiscountService
 
             await _context.SaveChangesAsync();
             
-            // Audit logging (non-blocking, background task)
+            // Log audit trail in background
             _ = Task.Run(async () =>
             {
                 try
@@ -358,7 +358,7 @@ public class DiscountService
         }
     }
 
-    // Calculates discount amount
+    // Calculate discount amount
     public decimal CalculateDiscountAmount(Discount discount, decimal baseAmount)
     {
         if (discount == null || !discount.IsActive)
@@ -377,7 +377,7 @@ public class DiscountService
             discountAmount = discount.RateOrValue;
         }
 
-        // Apply min/max constraints
+        // Apply min/max limits
         if (discount.MinAmount.HasValue && discountAmount < discount.MinAmount.Value)
         {
             discountAmount = discount.MinAmount.Value;
@@ -392,7 +392,7 @@ public class DiscountService
     }
 }
 
-// Request DTO for creating a discount
+// Request model for creating discount
 public class CreateDiscountRequest
 {
     public string DiscountType { get; set; } = string.Empty;
@@ -405,7 +405,7 @@ public class CreateDiscountRequest
     public bool IsActive { get; set; } = true;
 }
 
-// Request DTO for updating a discount
+// Request model for updating discount
 public class UpdateDiscountRequest
 {
     public string DiscountType { get; set; } = string.Empty;

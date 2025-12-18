@@ -10,6 +10,9 @@ using BrightEnroll_DES.Services.Business.Audit;
 using BrightEnroll_DES.Services.Authentication;
 using Microsoft.Extensions.DependencyInjection;
 using System.Threading;
+using System.Net;
+using System.Net.NetworkInformation;
+using BrightEnroll_DES.Services.Business.SuperAdmin;
 
 namespace BrightEnroll_DES.Services.Business.SuperAdmin;
 
@@ -36,8 +39,6 @@ public class SuperAdminService
         _adminSeeder = adminSeeder;
         _serviceScopeFactory = serviceScopeFactory;
         _authService = authService;
-        
-        // Database check is done lazily in each method
     }
 
     #region Customer Operations
@@ -51,7 +52,7 @@ public class SuperAdminService
 
         try
         {
-            // Check if table exists by trying to query it with timeout
+            // Check database connection with timeout
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -72,7 +73,7 @@ public class SuperAdminService
                 return new List<Customer>();
             }
 
-            // Try to query without Include first to check if table exists
+            // Check if table exists
             try
             {
                 var count = await _context.Customers.CountAsync();
@@ -116,7 +117,16 @@ public class SuperAdminService
             .FirstOrDefaultAsync(c => c.CustomerId == customerId);
     }
 
-    public async Task<Customer> CreateCustomerAsync(Customer customer, int? createdBy = null)
+    public async Task<Customer> CreateCustomerAsync(
+        Customer customer, 
+        int? createdBy = null,
+        string? adminFirstName = null,
+        string? adminMiddleName = null,
+        string? adminLastName = null,
+        string? adminSuffix = null,
+        string? adminRole = null,
+        string? planName = null,
+        List<string>? selectedModules = null)
     {
         try
         {
@@ -130,46 +140,62 @@ public class SuperAdminService
 
             _logger?.LogInformation("Creating customer: {SchoolName}, Code: {CustomerCode}", customer.SchoolName, customer.CustomerCode);
             
-            // Auto-generate initial invoice for the first month if contract start date is set
+            // Auto-generate initial invoice if needed
             if (customer.ContractStartDate.HasValue && customer.MonthlyFee > 0)
             {
                 try
                 {
-                    // This will be created after customer is saved (need CustomerId)
+                    // Invoice created after customer is saved
                 }
                 catch (Exception invoiceEx)
                 {
                     _logger?.LogWarning(invoiceEx, "Failed to create initial invoice for customer {CustomerCode}: {Message}", customer.CustomerCode, invoiceEx.Message);
-                    // Don't fail customer creation if invoice generation fails
                 }
             }
 
-            // Only initialize cloud database (local database will be created on first login)
-            // Cloud connection string is required for syncing
+            // Initialize cloud database (local DB created on first login)
             if (!string.IsNullOrWhiteSpace(customer.CloudConnectionString))
             {
                 try
                 {
                     _logger?.LogInformation("Validating cloud database connection for school: {SchoolName}", customer.SchoolName);
                     
-                    // Extract database name from cloud connection string
+                    // Extract database name from connection string
                     if (string.IsNullOrWhiteSpace(customer.DatabaseName))
                     {
                         var builder = new SqlConnectionStringBuilder(customer.CloudConnectionString);
                         customer.DatabaseName = builder.InitialCatalog ?? string.Empty;
                     }
 
-                    // Validate cloud connection (tables should already exist)
-                    // We don't initialize here - local DB will be created and synced on first login
+                    // Validate cloud connection
                     _logger?.LogInformation("Cloud database validated: {DatabaseName}", customer.DatabaseName);
 
-                    // Step 2: Seed school information in cloud database (including BIR details)
+                    // Seed school information
                     await SeedSchoolInformationAsync(customer, customer.CloudConnectionString);
 
-                    // Step 3: Seed admin account in the cloud database
-                    var adminInfo = await _adminSeeder.SeedAdminAccountAsync(
-                        customer.CloudConnectionString,
-                        customer);
+                    // Seed admin account
+                    SchoolAdminInfo adminInfo;
+                    if (_adminSeeder != null)
+                    {
+                        adminInfo = await _adminSeeder.SeedAdminAccountAsync(
+                            customer.CloudConnectionString,
+                            customer,
+                            defaultPassword: "Admin123456",
+                            firstName: adminFirstName,
+                            middleName: adminMiddleName,
+                            lastName: adminLastName,
+                            suffix: adminSuffix,
+                            role: adminRole ?? customer.ContactPosition ?? "Admin");
+                    }
+                    else
+                    {
+                        _logger?.LogWarning("AdminSeeder is not available. Cannot create admin account.");
+                        adminInfo = new SchoolAdminInfo
+                        {
+                            Success = false,
+                            ErrorMessage = "AdminSeeder service is not available"
+                        };
+                    }
 
                     if (adminInfo.Success)
                     {
@@ -255,6 +281,126 @@ public class SuperAdminService
             _logger?.LogInformation("Customer created successfully: {CustomerCode} - {SchoolName}, Rows affected: {Result}", 
                 customer.CustomerCode, customer.SchoolName, result);
 
+            // Create subscription with modules after customer is created
+            if (result > 0 && customer.CustomerId > 0)
+            {
+                try
+                {
+                    if (_serviceScopeFactory != null)
+                    {
+                        using var scope = _serviceScopeFactory.CreateScope();
+                        var subscriptionService = scope.ServiceProvider.GetService<ISubscriptionService>();
+                        
+                        if (subscriptionService != null)
+                        {
+                            int? planId = null;
+                            List<string>? modulesToAdd = null;
+                            
+                            // If a plan name is provided, find the plan ID
+                            if (!string.IsNullOrWhiteSpace(planName))
+                            {
+                                // Try exact match first
+                                var plan = await _context.SubscriptionPlans
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(p => p.PlanName == planName || p.PlanName == $"{planName} Plan");
+                                
+                                // If not found, try by plan code (Basic -> basic, Standard -> standard, etc.)
+                                if (plan == null)
+                                {
+                                    var planCode = planName.ToLower();
+                                    plan = await _context.SubscriptionPlans
+                                        .AsNoTracking()
+                                        .FirstOrDefaultAsync(p => p.PlanCode == planCode);
+                                }
+                                
+                                if (plan != null)
+                                {
+                                    planId = plan.PlanId;
+                                    _logger?.LogInformation("Found plan {PlanName} (ID: {PlanId}) for customer {CustomerCode}", 
+                                        plan.PlanName, planId, customer.CustomerCode);
+                                }
+                                else
+                                {
+                                    _logger?.LogWarning("Plan '{PlanName}' not found for customer {CustomerCode}. Creating custom subscription.", 
+                                        planName, customer.CustomerCode);
+                                }
+                            }
+                            
+                            // If no plan ID and modules are provided, use custom modules
+                            if (!planId.HasValue && selectedModules != null && selectedModules.Any())
+                            {
+                                modulesToAdd = new List<string>(selectedModules);
+                                // Ensure 'core' is always included
+                                if (!modulesToAdd.Contains("core", StringComparer.OrdinalIgnoreCase))
+                                {
+                                    modulesToAdd.Insert(0, "core");
+                                }
+                                _logger?.LogInformation("Creating custom subscription with modules: {Modules} for customer {CustomerCode}", 
+                                    string.Join(", ", modulesToAdd), customer.CustomerCode);
+                            }
+                            // If plan ID found, use predefined plan
+                            else if (planId.HasValue)
+                            {
+                                _logger?.LogInformation("Creating predefined plan subscription (PlanId: {PlanId}) for customer {CustomerCode}", 
+                                    planId, customer.CustomerCode);
+                            }
+                            // Default: create subscription with core module only
+                            else
+                            {
+                                modulesToAdd = new List<string> { "core" };
+                                _logger?.LogInformation("No plan or modules specified. Creating subscription with core module only for customer {CustomerCode}", 
+                                    customer.CustomerCode);
+                            }
+                            
+                            var startDate = customer.ContractStartDate ?? DateTime.Today;
+                            var endDate = customer.ContractEndDate;
+                            var monthlyFee = customer.MonthlyFee;
+                            var autoRenewal = customer.AutoRenewal;
+                            
+                            await subscriptionService.CreateSubscriptionAsync(
+                                customerId: customer.CustomerId,
+                                planId: planId,
+                                customModules: modulesToAdd,
+                                startDate: startDate,
+                                endDate: endDate,
+                                monthlyFee: monthlyFee,
+                                autoRenewal: autoRenewal,
+                                createdBy: createdBy);
+                            
+                            _logger?.LogInformation("Subscription created successfully for customer {CustomerCode}", customer.CustomerCode);
+                            
+                            // Verify modules were stored correctly
+                            try
+                            {
+                                var storedModules = await subscriptionService.GetCustomerModulesAsync(customer.CustomerId);
+                                _logger?.LogInformation("Verified modules stored for customer {CustomerCode} (CustomerId: {CustomerId}): {Modules}", 
+                                    customer.CustomerCode, customer.CustomerId, string.Join(", ", storedModules));
+                                
+                                if (!storedModules.Any() || (!storedModules.Contains("core", StringComparer.OrdinalIgnoreCase) && storedModules.Count == 0))
+                                {
+                                    _logger?.LogWarning("WARNING: No modules found for customer {CustomerCode} after subscription creation! Expected modules: {ExpectedModules}", 
+                                        customer.CustomerCode, 
+                                        planId.HasValue ? $"Plan modules (PlanId: {planId})" : string.Join(", ", modulesToAdd ?? new List<string>()));
+                                }
+                            }
+                            catch (Exception verifyEx)
+                            {
+                                _logger?.LogError(verifyEx, "Error verifying modules for customer {CustomerCode}: {Message}", customer.CustomerCode, verifyEx.Message);
+                            }
+                        }
+                        else
+                        {
+                            _logger?.LogWarning("SubscriptionService not available. Cannot create subscription for customer {CustomerCode}", customer.CustomerCode);
+                        }
+                    }
+                }
+                catch (Exception subEx)
+                {
+                    _logger?.LogError(subEx, "Failed to create subscription for customer {CustomerCode}: {Message}", customer.CustomerCode, subEx.Message);
+                    // Don't fail customer creation if subscription creation fails
+                }
+            }
+
             // Create initial invoice for the customer if contract start date is set
             if (result > 0 && customer.CustomerId > 0 && customer.ContractStartDate.HasValue && customer.MonthlyFee > 0)
             {
@@ -277,17 +423,20 @@ public class SuperAdminService
                     if (_serviceScopeFactory != null)
                     {
                         using var scope = _serviceScopeFactory.CreateScope();
-                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var superAdminAuditLogService = scope.ServiceProvider.GetRequiredService<SuperAdminAuditLogService>();
                         var authService = scope.ServiceProvider.GetService<IAuthService>();
                         
                         var currentUser = authService?.CurrentUser;
                         var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
-                        var userRole = currentUser?.user_role ?? "System";
+                        if (string.IsNullOrWhiteSpace(userName) && currentUser != null)
+                            userName = currentUser.email ?? "System";
+                        var userRole = currentUser?.user_role ?? "SuperAdmin";
                         var userId = currentUser?.user_ID;
+                        var ipAddress = GetLocalIpAddress();
                         
-                        await auditLogService.CreateTransactionLogAsync(
+                        await superAdminAuditLogService.CreateTransactionLogAsync(
                             action: "Create Customer",
-                            module: "Super Admin",
+                            module: "Customer Management",
                             description: $"Created customer: {customer.SchoolName} ({customer.CustomerCode}) - Plan: {customer.SubscriptionPlan}, Status: {customer.Status}",
                             userName: userName,
                             userRole: userRole,
@@ -296,14 +445,17 @@ public class SuperAdminService
                             entityId: customer.CustomerId.ToString(),
                             oldValues: null,
                             newValues: $"Code: {customer.CustomerCode}, School: {customer.SchoolName}, Plan: {customer.SubscriptionPlan}, Status: {customer.Status}, MonthlyFee: {customer.MonthlyFee}",
+                            ipAddress: ipAddress,
                             status: "Success",
-                            severity: "High"
+                            severity: "High",
+                            customerCode: customer.CustomerCode,
+                            customerName: customer.SchoolName
                         );
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to create audit log for customer creation: {Message}", ex.Message);
+                    _logger?.LogWarning(ex, "Failed to create SuperAdmin audit log for customer creation: {Message}", ex.Message);
                 }
             });
 
@@ -533,17 +685,20 @@ public class SuperAdminService
                 if (_serviceScopeFactory != null)
                 {
                     using var scope = _serviceScopeFactory.CreateScope();
-                    var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                    var superAdminAuditLogService = scope.ServiceProvider.GetRequiredService<SuperAdminAuditLogService>();
                     var authService = scope.ServiceProvider.GetService<IAuthService>();
                     
                     var currentUser = authService?.CurrentUser;
                     var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
-                    var userRole = currentUser?.user_role ?? "System";
+                    if (string.IsNullOrWhiteSpace(userName) && currentUser != null)
+                        userName = currentUser.email ?? "System";
+                    var userRole = currentUser?.user_role ?? "SuperAdmin";
                     var userId = currentUser?.user_ID;
+                    var ipAddress = GetLocalIpAddress();
                     
-                    await auditLogService.CreateTransactionLogAsync(
+                    await superAdminAuditLogService.CreateTransactionLogAsync(
                         action: "Update Customer",
-                        module: "Super Admin",
+                        module: "Customer Management",
                         description: $"Updated customer: {customer.SchoolName} ({customer.CustomerCode})",
                         userName: userName,
                         userRole: userRole,
@@ -552,14 +707,17 @@ public class SuperAdminService
                         entityId: customer.CustomerId.ToString(),
                         oldValues: oldValues,
                         newValues: $"Code: {customer.CustomerCode}, School: {customer.SchoolName}, Plan: {customer.SubscriptionPlan}, Status: {customer.Status}, MonthlyFee: {customer.MonthlyFee}",
+                        ipAddress: ipAddress,
                         status: "Success",
-                        severity: "High"
+                        severity: "High",
+                        customerCode: customer.CustomerCode,
+                        customerName: customer.SchoolName
                     );
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogWarning(ex, "Failed to create audit log for customer update: {Message}", ex.Message);
+                _logger?.LogWarning(ex, "Failed to create SuperAdmin audit log for customer update: {Message}", ex.Message);
             }
         });
 
@@ -668,17 +826,20 @@ public class SuperAdminService
                     if (_serviceScopeFactory != null)
                     {
                         using var scope = _serviceScopeFactory.CreateScope();
-                        var auditLogService = scope.ServiceProvider.GetRequiredService<AuditLogService>();
+                        var superAdminAuditLogService = scope.ServiceProvider.GetRequiredService<SuperAdminAuditLogService>();
                         var authService = scope.ServiceProvider.GetService<IAuthService>();
                         
                         var currentUser = authService?.CurrentUser;
                         var userName = currentUser != null ? $"{currentUser.first_name} {currentUser.last_name}".Trim() : "System";
-                        var userRole = currentUser?.user_role ?? "System";
+                        if (string.IsNullOrWhiteSpace(userName) && currentUser != null)
+                            userName = currentUser.email ?? "System";
+                        var userRole = currentUser?.user_role ?? "SuperAdmin";
                         var userId = currentUser?.user_ID;
+                        var ipAddress = GetLocalIpAddress();
                         
-                        await auditLogService.CreateTransactionLogAsync(
+                        await superAdminAuditLogService.CreateTransactionLogAsync(
                             action: "Delete Customer",
-                            module: "Super Admin",
+                            module: "Customer Management",
                             description: $"Deleted customer: {customer.SchoolName} ({customer.CustomerCode})",
                             userName: userName,
                             userRole: userRole,
@@ -687,14 +848,17 @@ public class SuperAdminService
                             entityId: customerId.ToString(),
                             oldValues: oldValues,
                             newValues: null,
+                            ipAddress: ipAddress,
                             status: "Success",
-                            severity: "Critical"
+                            severity: "Critical",
+                            customerCode: customer.CustomerCode,
+                            customerName: customer.SchoolName
                         );
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogWarning(ex, "Failed to create audit log for customer deletion: {Message}", ex.Message);
+                    _logger?.LogWarning(ex, "Failed to create SuperAdmin audit log for customer deletion: {Message}", ex.Message);
                 }
             });
 
@@ -1174,7 +1338,9 @@ public class SuperAdminService
     {
         try
         {
+            // Use AsNoTracking to ensure fresh data from database without caching
             return await _context.SupportTickets
+                .AsNoTracking()
                 .Include(t => t.Customer)
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync();
@@ -1190,6 +1356,7 @@ public class SuperAdminService
     {
         return await _context.SupportTickets
             .Include(t => t.Customer)
+            .Include(t => t.AssignedToUser)
             .FirstOrDefaultAsync(t => t.TicketId == ticketId);
     }
 
@@ -1312,6 +1479,76 @@ public class SuperAdminService
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Failed to create audit log for support ticket creation: {Message}", ex.Message);
+            }
+        });
+
+        // Create notification for SuperAdmin (non-blocking, background task)
+        var ticketId = ticket.TicketId;
+        var ticketNumber = ticket.TicketNumber;
+        var ticketSubject = ticket.Subject;
+        var ticketPriority = ticket.Priority;
+        var customerId = ticket.CustomerId;
+        
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (_serviceScopeFactory != null)
+                {
+                    using var scope = _serviceScopeFactory.CreateScope();
+                    var notificationService = scope.ServiceProvider.GetService<SuperAdminNotificationService>();
+                    var scopedContext = scope.ServiceProvider.GetService<SuperAdminDbContext>();
+                    
+                    if (notificationService != null)
+                    {
+                        // Determine priority based on ticket priority
+                        string notificationPriority = ticketPriority switch
+                        {
+                            "Critical" => "Urgent",
+                            "High" => "High",
+                            "Medium" => "Normal",
+                            "Low" => "Low",
+                            _ => "Normal"
+                        };
+
+                        // Get customer name if available
+                        string customerName = "Unknown Customer";
+                        if (customerId.HasValue && scopedContext != null)
+                        {
+                            try
+                            {
+                                var customer = await scopedContext.Customers
+                                    .AsNoTracking()
+                                    .FirstOrDefaultAsync(c => c.CustomerId == customerId.Value);
+                                if (customer != null)
+                                {
+                                    customerName = customer.SchoolName;
+                                }
+                            }
+                            catch
+                            {
+                                // Ignore errors getting customer name
+                            }
+                        }
+
+                        await notificationService.CreateNotificationAsync(
+                            notificationType: "SupportTicket",
+                            title: $"New Support Ticket: {ticketNumber}",
+                            message: $"New support ticket from {customerName}: {ticketSubject}",
+                            referenceType: "SupportTicket",
+                            referenceId: ticketId,
+                            actionUrl: "/system-admin/support",
+                            priority: notificationPriority,
+                            createdBy: null
+                        );
+                        
+                        _logger?.LogInformation("Notification created for support ticket: {TicketNumber}", ticketNumber);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to create notification for support ticket creation: {Message}", ex.Message);
             }
         });
 
@@ -1534,6 +1771,32 @@ public class SuperAdminService
             _logger?.LogError(ex, "Error syncing admin to cloud: {Message}", ex.Message);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Gets the local machine's IP address for audit logging
+    /// </summary>
+    private string GetLocalIpAddress()
+    {
+        try
+        {
+            // Try to get the first non-loopback IPv4 address
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    return ip.ToString();
+                }
+            }
+        }
+        catch
+        {
+            // Fallback if DNS lookup fails
+        }
+
+        // Fallback to localhost
+        return "127.0.0.1";
     }
 
     #endregion

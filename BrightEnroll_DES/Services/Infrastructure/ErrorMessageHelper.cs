@@ -1,9 +1,9 @@
 namespace BrightEnroll_DES.Services.Infrastructure;
 
-// Helper class to convert technical error messages to human-readable messages
+// Convert technical errors to user-friendly messages
 public static class ErrorMessageHelper
 {
-    // Converts technical error messages to user-friendly, human-readable messages
+    // Convert error message to readable format
     public static string ToHumanReadable(string errorMessage)
     {
         if (string.IsNullOrWhiteSpace(errorMessage))
@@ -11,7 +11,7 @@ public static class ErrorMessageHelper
 
         var message = errorMessage.Trim();
 
-        // Database connection errors - be more specific
+        // Database connection errors
         if (message.Contains("A network-related", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("server was not found", StringComparison.OrdinalIgnoreCase) ||
             message.Contains("provider: Named Pipes Provider", StringComparison.OrdinalIgnoreCase) ||
@@ -103,7 +103,7 @@ public static class ErrorMessageHelper
             }
         }
 
-        // Generic "Failed to" messages - make them more friendly
+        // Generic "Failed to" messages
         if (message.StartsWith("Failed to", StringComparison.OrdinalIgnoreCase))
         {
             if (message.Contains("add", StringComparison.OrdinalIgnoreCase) ||
@@ -137,21 +137,20 @@ public static class ErrorMessageHelper
             return "We couldn't process your submission. Please check all fields and try again.";
         }
 
-        // Generic error patterns - clean up common technical terms
+        // Clean up technical terms
         message = message.Replace("Exception:", "", StringComparison.OrdinalIgnoreCase);
         message = message.Replace("Error:", "", StringComparison.OrdinalIgnoreCase);
         message = message.Replace("System.", "", StringComparison.OrdinalIgnoreCase);
         message = message.Replace("Microsoft.", "", StringComparison.OrdinalIgnoreCase);
         message = message.Replace("EntityFrameworkCore.", "", StringComparison.OrdinalIgnoreCase);
 
-        // If the message is still very technical, provide a generic friendly message
+        // Handle technical stack traces
         if (message.Contains(".") && message.Split('.').Length > 3)
         {
-            // Likely a stack trace or technical error
             return "An unexpected error occurred. Please try again. If the problem persists, contact support.";
         }
 
-        // Capitalize first letter and ensure it ends with proper punctuation
+        // Format message capitalization and punctuation
         if (message.Length > 0)
         {
             message = char.ToUpper(message[0]) + message.Substring(1);

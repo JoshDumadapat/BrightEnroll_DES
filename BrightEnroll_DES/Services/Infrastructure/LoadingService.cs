@@ -58,7 +58,7 @@ public class LoadingService : ILoadingService
         _hideLoadingCancellation?.Dispose();
         _hideLoadingCancellation = null;
         
-        // Prevent rapid state changes (debounce) - prevents stuttering
+        // Prevent rapid state changes
         var now = DateTime.Now;
         if (_lastStateChange.HasValue && (now - _lastStateChange.Value).TotalMilliseconds < 100)
         {

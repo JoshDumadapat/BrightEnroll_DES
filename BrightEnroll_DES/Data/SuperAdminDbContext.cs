@@ -27,6 +27,19 @@ public class SuperAdminDbContext : DbContext
     // Accounts Receivable
     public DbSet<CustomerInvoice> CustomerInvoices { get; set; }
     public DbSet<CustomerPayment> CustomerPayments { get; set; }
+    
+    // Subscription Management
+    public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+    public DbSet<CustomerSubscription> CustomerSubscriptions { get; set; }
+    public DbSet<CustomerSubscriptionModule> CustomerSubscriptionModules { get; set; }
+    public DbSet<PlanModule> PlanModules { get; set; }
+    public DbSet<TenantModule> TenantModules { get; set; }
+
+    // SuperAdmin Audit Logs
+    public DbSet<SuperAdminAuditLog> SuperAdminAuditLogs { get; set; }
+    
+    // SuperAdmin Notifications
+    public DbSet<SuperAdminNotification> SuperAdminNotifications { get; set; }
 
     public SuperAdminDbContext(DbContextOptions<SuperAdminDbContext> options) : base(options)
     {
@@ -152,6 +165,113 @@ public class SuperAdminDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(p => p.CustomerId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure SubscriptionPlan entity
+        modelBuilder.Entity<SubscriptionPlan>(entity =>
+        {
+            entity.HasKey(e => e.PlanId);
+            entity.ToTable("tbl_SubscriptionPlans");
+            entity.HasIndex(e => e.PlanCode).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        // Configure CustomerSubscription entity
+        modelBuilder.Entity<CustomerSubscription>(entity =>
+        {
+            entity.HasKey(e => e.SubscriptionId);
+            entity.ToTable("tbl_CustomerSubscriptions");
+            entity.HasIndex(e => e.CustomerId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.StartDate);
+            
+            entity.HasOne(cs => cs.Customer)
+                  .WithMany()
+                  .HasForeignKey(cs => cs.CustomerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            
+            entity.HasOne(cs => cs.Plan)
+                  .WithMany(p => p.CustomerSubscriptions)
+                  .HasForeignKey(cs => cs.PlanId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure CustomerSubscriptionModule entity
+        modelBuilder.Entity<CustomerSubscriptionModule>(entity =>
+        {
+            entity.HasKey(e => e.CustomerModuleId);
+            entity.ToTable("tbl_CustomerSubscriptionModules");
+            entity.HasIndex(e => e.SubscriptionId);
+            entity.HasIndex(e => e.ModulePackageId);
+            
+            entity.HasOne(csm => csm.Subscription)
+                  .WithMany(cs => cs.CustomerSubscriptionModules)
+                  .HasForeignKey(csm => csm.SubscriptionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Configure PlanModule entity
+        modelBuilder.Entity<PlanModule>(entity =>
+        {
+            entity.HasKey(e => e.PlanModuleId);
+            entity.ToTable("tbl_PlanModules");
+            entity.HasIndex(e => e.PlanId);
+            entity.HasIndex(e => e.ModulePackageId);
+            
+            entity.HasOne(pm => pm.Plan)
+                  .WithMany(p => p.PlanModules)
+                  .HasForeignKey(pm => pm.PlanId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure TenantModule entity
+        modelBuilder.Entity<TenantModule>(entity =>
+        {
+            entity.HasKey(e => e.TenantModuleId);
+            entity.ToTable("tbl_TenantModules");
+            entity.HasIndex(e => e.CustomerId);
+            entity.HasIndex(e => e.ModulePackageId);
+            entity.HasIndex(e => e.IsActive);
+            
+            entity.HasOne(tm => tm.Customer)
+                  .WithMany()
+                  .HasForeignKey(tm => tm.CustomerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            
+            entity.HasOne(tm => tm.Subscription)
+                  .WithMany()
+                  .HasForeignKey(tm => tm.SubscriptionId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Configure SuperAdminAuditLog entity
+        modelBuilder.Entity<SuperAdminAuditLog>(entity =>
+        {
+            entity.HasKey(e => e.LogId);
+            entity.ToTable("tbl_SuperAdminAuditLogs");
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Module);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.Severity);
+        });
+
+        // Configure SuperAdminNotification entity
+        modelBuilder.Entity<SuperAdminNotification>(entity =>
+        {
+            entity.HasKey(e => e.NotificationId);
+            entity.ToTable("tbl_SuperAdminNotifications");
+            entity.HasIndex(e => e.IsRead);
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.NotificationType);
+            entity.HasIndex(e => e.ReferenceType);
+            entity.HasIndex(e => e.ReferenceId);
+            
+            entity.HasOne(n => n.CreatedByUser)
+                  .WithMany()
+                  .HasForeignKey(n => n.CreatedBy)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

@@ -10,6 +10,7 @@
 @inject BrightEnroll_DES.Services.Database.Sync.ISyncStatusService SyncStatusService
 @inject BrightEnroll_DES.Services.Business.Notifications.ApprovalNotificationService ApprovalNotificationService
 @inject BrightEnroll_DES.Services.Business.Notifications.NotificationService NotificationService
+@inject BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminNotificationService SuperAdminNotificationService
 @inject BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService UserNotificationReadService
 @inject IServiceScopeFactory ServiceScopeFactory
 @inject IJSRuntime JSRuntime
@@ -71,10 +72,20 @@
                                 <span class="tooltip-delay">View notifications</span>
                                 
                                 <!-- Notification Dropdown -->
+                                @if (IsSuperAdmin)
+                                {
+                                    <SuperAdminNotificationDropdown isOpen="@isNotificationDropdownOpen" 
+                                                                  isOpenChanged="@((bool value) => isNotificationDropdownOpen = value)"
+                                                                  unreadCount="@notificationCount"
+                                                                  OnNotificationRead="@RefreshNotificationCount" />
+                                }
+                                else
+                                {
                                 <NotificationDropdown isOpen="@isNotificationDropdownOpen" 
                                                       isOpenChanged="@((bool value) => isNotificationDropdownOpen = value)"
                                                       unreadCount="@notificationCount"
                                                       OnNotificationRead="@RefreshNotificationCount" />
+                                }
                             </div>
 
                             <!-- Partition -->
@@ -208,18 +219,30 @@
                     {
                         if (!_isDisposed)
                         {
-                            // Use IServiceScopeFactory to create new scope for background operation
-                            // This prevents concurrency errors by using a separate DbContext instance
-                            using var scope = ServiceScopeFactory.CreateScope();
-                            var notificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
-                            
                             try
                             {
-                                // Get all notifications and calculate unread count based on per-user read status
+                                // Check if user is SuperAdmin
+                                var currentUser = AuthService?.CurrentUser;
+                                var isSuperAdmin = currentUser != null && 
+                                    (currentUser.user_role?.ToLower().Trim().Replace(" ", "") == "superadmin");
+                                
+                                if (isSuperAdmin)
+                                {
+                                    // Use SuperAdmin notification service
+                                    using var scope = ServiceScopeFactory.CreateScope();
+                                    var superAdminNotificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.SuperAdmin.SuperAdminNotificationService>();
+                                    notificationCount = await superAdminNotificationService.GetUnreadCountAsync();
+                                }
+                                else
+                                {
+                                    // Use regular notification service
+                            using var scope = ServiceScopeFactory.CreateScope();
+                            var notificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
                                 var allNotifications = await notificationService.GetAllNotificationsAsync();
                                 var userNotificationReadService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService>();
                                 userNotificationReadService.UpdateNotificationReadStatus(allNotifications);
                                 notificationCount = userNotificationReadService.GetUnreadCountForCurrentUser(allNotifications);
+                                }
                                 StateHasChanged();
                             }
                             catch (Exception)
@@ -270,12 +293,33 @@
         }
     }
 
+    private bool IsSuperAdmin
+    {
+        get
+        {
+            var user = AuthService?.CurrentUser;
+            if (user == null) return false;
+            var roleLower = user.user_role?.ToLower().Trim().Replace(" ", "") ?? "";
+            return roleLower == "superadmin";
+        }
+    }
+
     private async Task LoadNotificationCount()
     {
         if (_isDisposed)
             return;
             
         try
+        {
+            if (IsSuperAdmin)
+            {
+                // Use SuperAdmin notification service for SuperAdmin users
+                if (SuperAdminNotificationService != null)
+                {
+                    notificationCount = await SuperAdminNotificationService.GetUnreadCountAsync();
+                }
+            }
+            else
         {
             // Get all notifications and calculate unread count based on per-user read status
             if (NotificationService != null)
@@ -289,6 +333,7 @@
             else
             {
                 notificationCount = await ApprovalNotificationService.GetPendingApprovalsCountAsync();
+                }
             }
         }
         catch (Exception)

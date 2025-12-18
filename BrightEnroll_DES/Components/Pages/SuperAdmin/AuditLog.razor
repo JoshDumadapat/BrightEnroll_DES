@@ -1,87 +1,83 @@
 @page "/system-admin/audit-log"
 @layout Components.Layout.MainLayout
-@using BrightEnroll_DES.Components.Pages.Admin.AuditLog.AuditLogComponents
-@using BrightEnroll_DES.Components.Pages.Admin.AuditLog.AuditLogCS
-@using BrightEnroll_DES.Services.Business.Audit
-@using BrightEnroll_DES.Data.Models
+@using BrightEnroll_DES.Components.Pages.SuperAdmin.AuditLogComponents
+@using BrightEnroll_DES.Components.Pages.SuperAdmin.AuditLogCS
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using BrightEnroll_DES.Data.Models.SuperAdmin
 @using BrightEnroll_DES.Services.Authentication
-@using System
-@inject AuditLogService AuditLogService
+@using Microsoft.Extensions.Logging
+@inject SuperAdminAuditLogService SuperAdminAuditLogService
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject ILogger<AuditLog> Logger
 
 <PageTitle>Audit Log</PageTitle>
 
 <div class="text-gray-800">
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900">Audit Log</h1>
-            <p class="mt-1 text-sm text-gray-600">System activity and transaction logs</p>
-        </div>
-    </div>
+    <h1 class="mb-6 text-xl font-bold text-gray-900">Audit Log</h1>
     
     <!-- Summary Cards -->
     <div class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <!-- Total Logs Card -->
         <div @onclick="FilterByTotal" 
-             class="group cursor-pointer rounded-xl border border-blue-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-blue-300 hover:shadow-md @(ActiveCardFilter == "total" ? "ring-2 ring-blue-500" : "")">
+             class="group cursor-pointer rounded-lg border border-gray-200 bg-white py-2.5 px-3 shadow-sm transition-all duration-200 hover:shadow-md @(ActiveCardFilter == "total" ? "ring-2 ring-blue-500" : "")">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-50">
-                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                    <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                 </div>
                 <div class="flex-1">
-                    <p class="text-xs font-semibold text-gray-700">Total Logs</p>
-                    <p class="text-2xl font-bold text-gray-900">@TotalLogsCount</p>
+                    <p class="text-xs font-medium text-gray-600">Total Logs</p>
+                    <p class="text-xl font-bold text-gray-900">@TotalLogsCount</p>
                 </div>
             </div>
         </div>
 
         <!-- Important Logs Card -->
         <div @onclick="FilterByImportant" 
-             class="group cursor-pointer rounded-xl border border-red-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-red-300 hover:shadow-md @(ActiveCardFilter == "important" ? "ring-2 ring-red-500" : "")">
+             class="group cursor-pointer rounded-lg border border-gray-200 bg-white py-2.5 px-3 shadow-sm transition-all duration-200 hover:shadow-md @(ActiveCardFilter == "important" ? "ring-2 ring-red-500" : "")">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-red-50">
-                    <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100">
+                    <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                 </div>
                 <div class="flex-1">
-                    <p class="text-xs font-semibold text-gray-700">Failed Logs</p>
-                    <p class="text-2xl font-bold text-gray-900">@ImportantLogsCount</p>
+                    <p class="text-xs font-medium text-gray-600">Failed Logs</p>
+                    <p class="text-xl font-bold text-gray-900">@ImportantLogsCount</p>
                 </div>
             </div>
         </div>
 
         <!-- High Severity Card -->
         <div @onclick="FilterByHighSeverity" 
-             class="group cursor-pointer rounded-xl border border-orange-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-orange-300 hover:shadow-md @(ActiveCardFilter == "highSeverity" ? "ring-2 ring-orange-500" : "")">
+             class="group cursor-pointer rounded-lg border border-gray-200 bg-white py-2.5 px-3 shadow-sm transition-all duration-200 hover:shadow-md @(ActiveCardFilter == "highSeverity" ? "ring-2 ring-orange-500" : "")">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-50">
-                    <svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                    <svg class="h-5 w-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                 </div>
                 <div class="flex-1">
-                    <p class="text-xs font-semibold text-gray-700">High Severity</p>
-                    <p class="text-2xl font-bold text-gray-900">@HighSeverityCount</p>
+                    <p class="text-xs font-medium text-gray-600">High Severity</p>
+                    <p class="text-xl font-bold text-gray-900">@HighSeverityCount</p>
                 </div>
             </div>
         </div>
 
         <!-- Recent (7 days) Card -->
         <div @onclick="FilterByRecent" 
-             class="group cursor-pointer rounded-xl border border-green-200 bg-white p-4 shadow-sm transition-all duration-300 hover:border-green-300 hover:shadow-md @(ActiveCardFilter == "recent" ? "ring-2 ring-green-500" : "")">
+             class="group cursor-pointer rounded-lg border border-gray-200 bg-white py-2.5 px-3 shadow-sm transition-all duration-200 hover:shadow-md @(ActiveCardFilter == "recent" ? "ring-2 ring-green-500" : "")">
             <div class="flex items-center gap-3">
-                <div class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-50">
-                    <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                    <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
                 <div class="flex-1">
-                    <p class="text-xs font-semibold text-gray-700">Recent (7 days)</p>
-                    <p class="text-2xl font-bold text-gray-900">@RecentLogsCount</p>
+                    <p class="text-xs font-medium text-gray-600">Recent (7 days)</p>
+                    <p class="text-xl font-bold text-gray-900">@RecentLogsCount</p>
                 </div>
             </div>
         </div>
@@ -132,7 +128,7 @@
         
         if (!isSuperAdmin)
         {
-            Navigation.NavigateTo("/dashboard");
+            Navigation.NavigateTo("/dashboard", forceLoad: true);
             return;
         }
     }
@@ -147,16 +143,20 @@
     {
         try
         {
+            // Only show loading if we don't have data yet
+            if (AuditLogs.Count == 0)
+        {
             isLoading = true;
             StateHasChanged();
+            }
 
-            // Fetch all audit logs from database
-            var logs = await AuditLogService.GetAuditLogsAsync();
+            // Fetch all SuperAdmin audit logs from database
+            var logs = await SuperAdminAuditLogService.GetAuditLogsAsync();
             
-            // Convert AuditLog models to AuditLogEntry for display
+            // Convert SuperAdminAuditLog models to AuditLogEntry for display
             var newLogs = logs.Select(log => new AuditLogEntry
             {
-                Id = $"LOG-{log.LogId:D5}",
+                Id = $"SA-LOG-{log.LogId:D5}",
                 Timestamp = log.Timestamp,
                 User = log.UserName ?? "Unknown",
                 Role = log.UserRole ?? "Unknown",
@@ -169,23 +169,30 @@
                 EntityType = log.EntityType,
                 EntityId = log.EntityId,
                 OldValues = log.OldValues,
-                NewValues = log.NewValues
+                NewValues = log.NewValues,
+                CustomerCode = log.CustomerCode,
+                CustomerName = log.CustomerName
             }).ToList();
 
             // Update data atomically to prevent UI flicker
             AuditLogs = newLogs;
 
             // Calculate counts from database (more accurate)
-            TotalLogsCount = await AuditLogService.GetTotalLogsCountAsync();
-            ImportantLogsCount = await AuditLogService.GetFailedLogsCountAsync();
-            HighSeverityCount = await AuditLogService.GetHighSeverityLogsCountAsync();
-            RecentLogsCount = await AuditLogService.GetRecentLogsCountAsync();
+            TotalLogsCount = await SuperAdminAuditLogService.GetTotalLogsCountAsync();
+            ImportantLogsCount = await SuperAdminAuditLogService.GetFailedLogsCountAsync();
+            HighSeverityCount = await SuperAdminAuditLogService.GetHighSeverityLogsCountAsync();
+            RecentLogsCount = await SuperAdminAuditLogService.GetRecentLogsCountAsync();
+            
+            Logger.LogInformation("Loaded {Count} SuperAdmin audit logs from database", AuditLogs.Count);
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error loading audit logs: {ex.Message}");
+            // Log error for debugging
+            Logger.LogError(ex, "Error loading SuperAdmin audit logs: {Message}", ex.Message);
+            System.Diagnostics.Debug.WriteLine($"Error loading SuperAdmin audit logs: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             
-            // If table doesn't exist or error occurs, set empty data
+            // If table doesn't exist or error occurs, only clear if we have no data
             if (AuditLogs.Count == 0)
             {
                 AuditLogs = new List<AuditLogEntry>();

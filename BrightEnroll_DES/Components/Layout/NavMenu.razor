@@ -1,12 +1,30 @@
 @using BrightEnroll_DES.Services.RoleBase
 @using BrightEnroll_DES.Services.Authentication
 @using Microsoft.AspNetCore.Components
+@using Microsoft.AspNetCore.Components.Routing
+@implements IDisposable
 @inject IAuthorizationService AuthorizationService
 @inject NavigationManager Navigation
 
 @code {
     [Parameter] public EventCallback OnNavigate { get; set; }
     [Parameter] public EventCallback OnLogout { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        // Force re-render when location changes to update active state
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
 
     private async Task HandleNavigate()
     {
@@ -70,8 +88,14 @@
     // Helper to check if menu item should be shown
     private bool ShouldShowMenuItem(string permission)
     {
-        // Admin, System Admin, and Super Admin see everything - no permission checks needed
-        // EXCEPT for Teacher-only modules (Gradebook)
+        // SuperAdmin sees everything
+        if (IsSuperAdmin())
+        {
+            return true;
+        }
+        
+        // Admin users: Check module-based permissions (restriction based on purchased modules)
+        // This ensures customers can only see menu items for modules they've purchased
         if (IsAdmin())
         {
             // Gradebook is Teacher-only, even for Admins
@@ -79,9 +103,13 @@
             {
                 return false;
             }
-            return true;
+            
+            // For Admin users, check if they have the permission from their purchased modules
+            // AuthorizationService.HasPermission() now checks module access for Admin users
+            return AuthorizationService.HasPermission(permission);
         }
-        // Other roles need permission
+        
+        // Other roles need permission (role-based)
         return AuthorizationService.HasPermission(permission);
     }
 
@@ -96,6 +124,25 @@
         return string.Equals(userRole, "Teacher", StringComparison.OrdinalIgnoreCase);
     }
 
+    // Check if current route is Settings-related (including sub-pages)
+    private bool IsSettingsRoute()
+    {
+        var uri = new Uri(Navigation.Uri);
+        var path = uri.AbsolutePath.ToLower();
+        return path == "/settings" || 
+               path.StartsWith("/settings/") ||
+               path == "/contact-support" ||
+               path == "/documentation" ||
+               path == "/system-admin/settings" ||
+               path.StartsWith("/system-admin/settings/");
+    }
+
+    // Get the class string for Settings nav link
+    private string GetSettingsNavLinkClass()
+    {
+        return $"nav-link relative block {(IsSettingsRoute() ? "active" : "")}";
+    }
+
     // Check if user is Cashier
     private bool IsCashier()
     {
@@ -108,13 +155,13 @@
     }
 }
 
-<div class="flex h-full w-full min-w-[200px] flex-col bg-white">
-    <div class="m-0 flex items-center justify-center px-0 py-0">
+<div class="flex h-full w-full min-w-[200px] flex-col overflow-hidden">
+    <div class="m-0 flex items-center justify-center px-0 py-0 flex-shrink-0">
         <img src="/images/lightlogo.png" alt="BrightEnroll Logo" class="h-auto max-w-[60%] object-contain" />
         <hr>
     </div>
 
-    <nav class="m-0 flex flex-1 flex-col gap-1 pl-2">
+    <nav class="m-0 flex flex-1 flex-col gap-1 pl-2 pr-2 overflow-y-auto overflow-x-hidden" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;">
         @* SUPERADMIN MENU - Show only SuperAdmin-specific menu items *@
         @if (IsSuperAdmin())
         {
@@ -204,6 +251,21 @@
                 <div class="nav-indicator"></div>
             </NavLink>
 
+            @* Support Tickets *@
+            <NavLink href="/system-admin/support" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
+                    <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <svg class="nav-icon-active mr-3 hidden h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#0040B6" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="nav-text-default font-sans text-sm font-semibold tracking-wide text-[#3E3E3E]">Support Tickets</span>
+                    <span class="nav-text-active hidden font-sans text-sm font-semibold tracking-wide text-[#0040B6]">Support Tickets</span>
+                </div>
+                <div class="nav-indicator"></div>
+            </NavLink>
+
             @* Cloud Management *@
             <NavLink href="/system-admin/cloud-management" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
@@ -235,7 +297,7 @@
             </NavLink>
 
             @* Settings *@
-            <NavLink href="/system-admin/settings" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+            <NavLink href="/system-admin/settings" Match="NavLinkMatch.Prefix" class="@GetSettingsNavLinkClass()" @onclick="HandleNavigate">
                 <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                     <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -511,7 +573,7 @@
 
             @if (ShouldShowMenuItem(Permissions.ViewSettings))
             {
-                <NavLink href="/settings" Match="NavLinkMatch.Prefix" class="nav-link relative block" @onclick="HandleNavigate">
+                <NavLink href="/settings" Match="NavLinkMatch.Prefix" class="@GetSettingsNavLinkClass()" @onclick="HandleNavigate">
                     <div class="nav-item-wrapper flex h-[40px] items-center bg-white pl-[11px] pr-4 text-[#3E3E3E] transition-all">
                         <svg class="nav-icon-default mr-3 h-[20px] w-[20px] flex-shrink-0" fill="none" stroke="#3E3E3E" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>

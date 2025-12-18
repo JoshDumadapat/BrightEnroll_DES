@@ -17,6 +17,7 @@ namespace BrightEnroll_DES.Services.Authentication
         Task<User?> ValidateSuperAdminFromCloudAsync(string email, string password);
         Task<User?> ValidateSuperAdminFromSuperAdminDatabaseAsync(string email, string password);
         Task<Customer?> GetCustomerByAdminEmailAsync(string email);
+        Task<bool> ResetPasswordAsync(string email, string newPassword);
     }
 
     public class LoginService : ILoginService
@@ -214,6 +215,35 @@ namespace BrightEnroll_DES.Services.Authentication
             {
                 System.Diagnostics.Debug.WriteLine($"Error validating SuperAdmin from SuperAdmin database: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Resets a user's password
+        /// </summary>
+        public async Task<bool> ResetPasswordAsync(string email, string newPassword)
+        {
+            try
+            {
+                var user = await _userRepository.GetByEmailAsync(email);
+                if (user == null)
+                {
+                    return false;
+                }
+
+                // Hash the new password
+                var hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+                
+                // Update the password
+                user.password = hashedPassword;
+                var result = await _userRepository.UpdateAsync(user);
+                
+                return result > 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error resetting password for {email}: {ex.Message}");
+                return false;
             }
         }
     }

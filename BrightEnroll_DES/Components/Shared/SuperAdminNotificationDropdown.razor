@@ -1,0 +1,387 @@
+@namespace BrightEnroll_DES.Components.Shared
+@using BrightEnroll_DES.Data.Models.SuperAdmin
+@using BrightEnroll_DES.Services.Business.SuperAdmin
+@using System.Linq
+@using Microsoft.Extensions.DependencyInjection
+@implements IDisposable
+@inject SuperAdminNotificationService SuperAdminNotificationService
+@inject IServiceScopeFactory ServiceScopeFactory
+@inject NavigationManager Navigation
+
+<div class="relative">
+    @if (isOpen)
+    {
+        <div class="z-[98] fixed inset-0" @onclick="CloseDropdown"></div>
+    }
+    
+    <div class="relative">
+        @if (isOpen)
+        {
+            <div class="z-[100] absolute right-0 top-full mt-2 w-96 rounded-lg border border-gray-300 bg-white shadow-xl" @onclick:stopPropagation="true">
+                <!-- Header -->
+                <div class="flex items-center justify-between rounded-t-lg border-b border-gray-200 bg-gray-50 px-4 py-3">
+                    <h3 class="text-sm font-semibold text-gray-800">Notifications</h3>
+                    <div class="flex items-center gap-2">
+                        @if (unreadCount > 0 && hasDataLoaded && !isLoading)
+                        {
+                            <button @onclick="MarkAllAsRead" 
+                                    class="text-xs font-medium text-blue-600 hover:text-blue-800">
+                                Mark all read
+                            </button>
+                        }
+                        <button @onclick="CloseDropdown" class="text-gray-400 hover:text-gray-600">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Notifications List -->
+                <div class="max-h-96 overflow-y-auto">
+                    @if (isLoading || !hasDataLoaded)
+                    {
+                        <div class="px-4 py-8 text-center">
+                            <svg class="mx-auto mb-2 h-8 w-8 animate-spin text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="text-sm text-gray-500">Loading notifications...</p>
+                        </div>
+                    }
+                    else if (hasDataLoaded && !isLoading)
+                    {
+                        @if (HasNotifications)
+                        {
+                            @foreach (var notification in notifications)
+                            {
+                                string bgColor = notification.IsRead ? "bg-white" : 
+                                    notification.NotificationType == "SupportTicket" ? "bg-orange-50" : "bg-blue-50";
+                                
+                                string indicatorColor = notification.IsRead ? "" : 
+                                    notification.NotificationType == "SupportTicket" ? "bg-orange-500" : "bg-blue-600";
+                                
+                                <div class="border-b border-gray-100 transition-colors hover:bg-gray-50 @bgColor">
+                                    <button @onclick="() => HandleNotificationClick(notification)" 
+                                            class="w-full text-left px-4 py-3">
+                                        <div class="flex items-start gap-3">
+                                            <div class="mt-0.5 flex-shrink-0">
+                                                @if (!string.IsNullOrEmpty(indicatorColor))
+                                                {
+                                                    <div class="h-2 w-2 rounded-full @indicatorColor"></div>
+                                                }
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="text-sm font-medium text-gray-900 @(notification.IsRead ? "" : "font-semibold")">
+                                                    @notification.Title
+                                                </p>
+                                                @if (!string.IsNullOrWhiteSpace(notification.Message))
+                                                {
+                                                    <p class="mt-1 line-clamp-2 text-xs text-gray-600">
+                                                        @notification.Message
+                                                    </p>
+                                                }
+                                                <p class="mt-1 text-xs text-gray-400">
+                                                    @GetTimeAgo(notification.CreatedAt)
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="px-4 py-8 text-center">
+                                <svg class="mx-auto mb-2 h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                </svg>
+                                <p class="text-sm text-gray-500">No notifications</p>
+                            </div>
+                        }
+                    }
+                </div>
+
+                <!-- Footer -->
+                @if (hasDataLoaded && !isLoading && HasNotifications)
+                {
+                    <div class="rounded-b-lg border-t border-gray-200 bg-gray-50 px-4 py-2">
+                        <button @onclick="ViewAllNotifications" 
+                                class="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-800">
+                            View All Notifications
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool isOpen { get; set; }
+    [Parameter] public EventCallback<bool> isOpenChanged { get; set; }
+    [Parameter] public int unreadCount { get; set; }
+    [Parameter] public EventCallback OnNotificationRead { get; set; }
+
+    private List<SuperAdminNotification> notifications = new();
+    private bool isLoading = true;
+    private bool hasDataLoaded = false;
+    
+    private bool HasNotifications => notifications != null && notifications.Count > 0;
+    private bool _wasOpen = false;
+    private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+    private bool _isDisposed = false;
+    private readonly SemaphoreSlim _loadSemaphore = new SemaphoreSlim(1, 1);
+    private bool _isLoadingInProgress = false;
+
+    protected override Task OnInitializedAsync()
+    {
+        _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+        
+        _ = Task.Run(async () =>
+        {
+            while (!_cancellationTokenSource.Token.IsCancellationRequested && !_isDisposed)
+            {
+                await Task.Delay(3000, _cancellationTokenSource.Token);
+                
+                if (isOpen && hasDataLoaded && !isLoading && !_isLoadingInProgress && !_isDisposed)
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        if (!_isDisposed && isOpen && hasDataLoaded && !isLoading && !_isLoadingInProgress)
+                        {
+                            await LoadNotificationsInternalWithScope(silent: true);
+                        }
+                    });
+                }
+            }
+        }, _cancellationTokenSource.Token);
+        
+        return Task.CompletedTask;
+    }
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (isOpen && !_wasOpen)
+        {
+            _wasOpen = true;
+            ResetAndLoad();
+        }
+        else if (!isOpen && _wasOpen)
+        {
+            _wasOpen = false;
+            isLoading = true;
+            hasDataLoaded = false;
+            notifications.Clear();
+        }
+        else if (isOpen && (!isLoading || !hasDataLoaded))
+        {
+            ResetAndLoad();
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    private void ResetAndLoad()
+    {
+        isLoading = true;
+        hasDataLoaded = false;
+        notifications.Clear();
+        
+        StateHasChanged();
+        
+        _ = Task.Run(async () =>
+        {
+            await Task.Yield();
+            await InvokeAsync(async () =>
+            {
+                if (!_isDisposed && isOpen)
+                {
+                    await LoadNotificationsInternal(silent: false);
+                }
+            });
+        });
+    }
+
+    public void Dispose()
+    {
+        _isDisposed = true;
+        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource?.Dispose();
+        
+        try
+        {
+            _loadSemaphore?.Dispose();
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task LoadNotificationsInternal(bool silent = false)
+    {
+        await LoadNotificationsInternalWithScope(silent, useInjectedService: true);
+    }
+
+    private async Task LoadNotificationsInternalWithScope(bool silent = false, bool useInjectedService = false)
+    {
+        if (_isDisposed || _isLoadingInProgress)
+            return;
+
+        if (!await _loadSemaphore.WaitAsync(0))
+            return;
+
+        _isLoadingInProgress = true;
+        bool acquired = true;
+
+        try
+        {
+            if (_isDisposed)
+                return;
+
+            if (!silent)
+            {
+                isLoading = true;
+                hasDataLoaded = false;
+                notifications.Clear();
+                await InvokeAsync(StateHasChanged);
+            }
+
+            List<SuperAdminNotification> allNotifications;
+            if (useInjectedService)
+            {
+                allNotifications = await SuperAdminNotificationService.GetAllNotificationsAsync(limit: 5);
+            }
+            else
+            {
+                using var scope = ServiceScopeFactory.CreateScope();
+                var notificationService = scope.ServiceProvider.GetRequiredService<SuperAdminNotificationService>();
+                allNotifications = await notificationService.GetAllNotificationsAsync(limit: 5);
+            }
+            
+            if (!_isDisposed)
+            {
+                var notificationList = allNotifications?.ToList() ?? new List<SuperAdminNotification>();
+                
+                notifications = notificationList;
+                hasDataLoaded = true;
+                isLoading = false;
+                
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception)
+        {
+            if (!_isDisposed)
+            {
+                notifications = new List<SuperAdminNotification>();
+                hasDataLoaded = true;
+                isLoading = false;
+                
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        finally
+        {
+            _isLoadingInProgress = false;
+            
+            if (acquired)
+            {
+                try
+                {
+                    if (_loadSemaphore != null && !_isDisposed)
+                    {
+                        _loadSemaphore.Release();
+                    }
+                }
+                catch (ObjectDisposedException) { }
+            }
+        }
+    }
+
+    private async Task HandleNotificationClick(SuperAdminNotification notification)
+    {
+        if (!notification.IsRead)
+        {
+            await SuperAdminNotificationService.MarkAsReadAsync(notification.NotificationId);
+            notification.IsRead = true;
+            unreadCount = Math.Max(0, unreadCount - 1);
+            
+            if (OnNotificationRead.HasDelegate)
+            {
+                await OnNotificationRead.InvokeAsync();
+            }
+        }
+
+        var actionUrl = !string.IsNullOrWhiteSpace(notification.ActionUrl) 
+            ? notification.ActionUrl 
+            : "/system-admin/support";
+
+        // Handle specific notification types
+        if (notification.NotificationType == "SupportTicket")
+        {
+            actionUrl = "/system-admin/support";
+        }
+        else if (notification.NotificationType == "Customer")
+        {
+            actionUrl = "/system-admin/customers";
+        }
+        else if (notification.NotificationType == "Subscription")
+        {
+            actionUrl = "/system-admin/subscription";
+        }
+
+        await CloseDropdown();
+        Navigation.NavigateTo(actionUrl, forceLoad: true);
+    }
+
+    private async Task MarkAllAsRead()
+    {
+        await SuperAdminNotificationService.MarkAllAsReadAsync();
+        
+        foreach (var notification in notifications)
+        {
+            notification.IsRead = true;
+        }
+        
+        unreadCount = 0;
+        
+        if (OnNotificationRead.HasDelegate)
+        {
+            await OnNotificationRead.InvokeAsync();
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ViewAllNotifications()
+    {
+        await CloseDropdown();
+        Navigation.NavigateTo("/system-admin/notifications");
+    }
+
+    private async Task CloseDropdown()
+    {
+        isOpen = false;
+        await isOpenChanged.InvokeAsync(false);
+        
+        if (OnNotificationRead.HasDelegate)
+        {
+            await OnNotificationRead.InvokeAsync();
+        }
+    }
+
+    private string GetTimeAgo(DateTime dateTime)
+    {
+        var timeSpan = DateTime.Now - dateTime;
+        
+        if (timeSpan.TotalMinutes < 1)
+            return "Just now";
+        if (timeSpan.TotalMinutes < 60)
+            return $"{(int)timeSpan.TotalMinutes} minute{(timeSpan.TotalMinutes >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalHours < 24)
+            return $"{(int)timeSpan.TotalHours} hour{(timeSpan.TotalHours >= 2 ? "s" : "")} ago";
+        if (timeSpan.TotalDays < 7)
+            return $"{(int)timeSpan.TotalDays} day{(timeSpan.TotalDays >= 2 ? "s" : "")} ago";
+        
+        return dateTime.ToString("MMM dd, yyyy");
+    }
+}

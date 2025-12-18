@@ -38,7 +38,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
                 checkCommand.Parameters.AddWithValue("@DatabaseName", _databaseName);
                 
                 var result = await checkCommand.ExecuteScalarAsync();
-                var exists = result != null ? (int)result : 0;
+                var exists = result != null && result != DBNull.Value ? Convert.ToInt32(result) : 0;
                 
                 if (exists == 0)
                 {
@@ -150,7 +150,7 @@ namespace BrightEnroll_DES.Services.Database.Initialization
             }
         }
 
-        // Initializes everything - creates SuperAdmin database and all SuperAdmin tables
+        // Initialize SuperAdmin database and tables
         public async Task<bool> InitializeDatabaseAsync()
         {
             try

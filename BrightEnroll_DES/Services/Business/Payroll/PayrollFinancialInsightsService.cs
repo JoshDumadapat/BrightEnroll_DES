@@ -78,10 +78,10 @@ namespace BrightEnroll_DES.Services.Business.Payroll
         {
             var insights = new List<string>();
 
-            // Total Expense - Most important
+            // Total expense
             insights.Add($"Total company expense: ₱{metrics.TotalCompanyExpense:N2} (Payroll: ₱{metrics.TotalGrossPay:N2} + Contributions: ₱{metrics.TotalCompanyContributions:N2})");
 
-            // Company Contribution percentage - only if significant
+            // Company contribution percentage
             if (metrics.CompanyContributionPercentage > 0)
             {
                 insights.Add($"Company contributions: {metrics.CompanyContributionPercentage:F1}% of gross payroll (₱{metrics.TotalCompanyContributions:N2})");
@@ -94,7 +94,7 @@ namespace BrightEnroll_DES.Services.Business.Payroll
         {
             var insights = new List<string>();
 
-            // Only show if there's significant data
+            // Show if data exists
             if (metrics.TotalGrossPay > 0 && metrics.EmployeeCount > 0)
             {
                 insights.Add($"Average salary: ₱{metrics.AverageGrossPay:N2} gross, ₱{metrics.AverageNetPay:N2} net per employee");
@@ -107,11 +107,11 @@ namespace BrightEnroll_DES.Services.Business.Payroll
         {
             var insights = new List<string>();
 
-            // Only show most significant trend - Company Expense
+            // Show company expense trend
             if (previous.TotalCompanyExpense > 0)
             {
                 var expenseChange = ((current.TotalCompanyExpense - previous.TotalCompanyExpense) / previous.TotalCompanyExpense) * 100;
-                if (Math.Abs(expenseChange) > 5m) // Only show if change is significant (>5%)
+                if (Math.Abs(expenseChange) > 5m)
                 {
                     var direction = expenseChange > 0 ? "increased" : "decreased";
                     insights.Add($"Total expense {direction} by {Math.Abs(expenseChange):F1}% vs previous period");
@@ -125,30 +125,30 @@ namespace BrightEnroll_DES.Services.Business.Payroll
         {
             var recommendations = new List<string>();
 
-            // High Company Contribution - only if significant
+            // High company contribution
             if (metrics.CompanyContributionPercentage > 15)
             {
                 recommendations.Add($"Review benefit packages - contributions are {metrics.CompanyContributionPercentage:F1}% of payroll");
             }
 
-            // High Total Expense - only if significant
+            // High total expense
             if (metrics.TotalCompanyExpense > 1000000)
             {
                 recommendations.Add($"Monitor cash flow - total expense exceeds ₱1M");
             }
 
-            // Cancellation Impact - only if there are cancellations
+            // Cancellation impact
             if (metrics.CancelledCount > 0)
             {
                 recommendations.Add($"Review {metrics.CancelledCount} cancelled transaction(s) to prevent future issues");
             }
 
-            // Limit to maximum 3 recommendations
+            // Limit to 3 recommendations
             return recommendations.Take(3).ToList();
         }
     }
 
-    // Data transfer object for insights service
+    // Payroll data item DTO
     public class PayrollDataItem
     {
         public int TransactionId { get; set; }

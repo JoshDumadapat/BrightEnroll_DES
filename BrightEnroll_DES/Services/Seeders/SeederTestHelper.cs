@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BrightEnroll_DES.Services.Seeders;
 
-// Helper class to test and run database seeding
+// Test and run database seeding
 public class SeederTestHelper
 {
     private readonly DatabaseSeeder _seeder;
@@ -25,7 +25,7 @@ public class SeederTestHelper
         _logger = logger;
     }
 
-    // Manually run seeder and return detailed results
+    // Run seeder and return results
     public async Task<SeederTestResult> RunSeederManuallyAsync()
     {
         var result = new SeederTestResult();
@@ -64,17 +64,15 @@ public class SeederTestHelper
                 System.Diagnostics.Debug.WriteLine($"ERROR seeding roles: {ex.Message}");
             }
             
-            // NOTE: Static user seeders have been removed. Users are now created dynamically through the Add Customer feature.
-            // The SchoolAdminSeeder handles creating admin users for each school's database when a customer is added.
-            
-            result.AdminSeeded = false; // Not applicable - users created dynamically
-            result.HRSeeded = false; // Not applicable - users created dynamically
-            result.AdminUserExists = false; // Will be created when customer is added
+            // Users are created dynamically when customer is added
+            result.AdminSeeded = false;
+            result.HRSeeded = false;
+            result.AdminUserExists = false;
             
             System.Diagnostics.Debug.WriteLine("NOTE: User seeding is now handled dynamically through the Add Customer feature.");
             System.Diagnostics.Debug.WriteLine("Users will be created in each school's database when a customer is added.");
             
-            result.Success = result.RolesSeeded; // Success if roles were seeded
+            result.Success = result.RolesSeeded;
             
             System.Diagnostics.Debug.WriteLine("=== MANUAL SEEDER TEST COMPLETED ===");
         }
@@ -108,7 +106,7 @@ public class SeederTestHelper
     {
         try
         {
-            // Check if tbl_Users exists by trying to query it
+            // Check if users table exists
             var userCount = await _context.Users.CountAsync();
             System.Diagnostics.Debug.WriteLine($"Users table exists. Current user count: {userCount}");
             return true;

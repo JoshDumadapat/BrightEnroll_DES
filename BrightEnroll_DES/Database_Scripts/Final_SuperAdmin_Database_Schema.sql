@@ -289,6 +289,263 @@ BEGIN
 END
 GO
 
+-- =============================================
+-- TABLE 8: tbl_SuperAdminBIRFilings
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SuperAdminBIRFilings' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SuperAdminBIRFilings](
+        [filing_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [filing_type] VARCHAR(50) NOT NULL,
+        [period] VARCHAR(20) NOT NULL,
+        [filing_date] DATETIME NOT NULL,
+        [due_date] DATETIME NOT NULL,
+        [status] VARCHAR(20) NOT NULL DEFAULT 'Pending',
+        [amount] DECIMAL(18,2) NULL,
+        [reference_number] VARCHAR(100) NULL,
+        [notes] NVARCHAR(1000) NULL,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        [created_by] INT NULL,
+        [updated_at] DATETIME NULL,
+        [updated_by] INT NULL
+    );
+    
+    CREATE INDEX IX_SuperAdminBIRFilings_FilingType ON [dbo].[tbl_SuperAdminBIRFilings]([filing_type]);
+    CREATE INDEX IX_SuperAdminBIRFilings_Period ON [dbo].[tbl_SuperAdminBIRFilings]([period]);
+    CREATE INDEX IX_SuperAdminBIRFilings_Status ON [dbo].[tbl_SuperAdminBIRFilings]([status]);
+    CREATE INDEX IX_SuperAdminBIRFilings_DueDate ON [dbo].[tbl_SuperAdminBIRFilings]([due_date]);
+    CREATE INDEX IX_SuperAdminBIRFilings_FilingDate ON [dbo].[tbl_SuperAdminBIRFilings]([filing_date]);
+    
+    PRINT 'Table tbl_SuperAdminBIRFilings created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_SuperAdminBIRFilings already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 9: tbl_SubscriptionPlans
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SubscriptionPlans' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SubscriptionPlans](
+        [plan_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [plan_code] VARCHAR(50) NOT NULL UNIQUE,
+        [plan_name] VARCHAR(100) NOT NULL,
+        [description] NVARCHAR(500) NULL,
+        [is_active] BIT NOT NULL DEFAULT 1,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        [updated_at] DATETIME NULL
+    );
+    
+    CREATE UNIQUE INDEX IX_tbl_SubscriptionPlans_PlanCode ON [dbo].[tbl_SubscriptionPlans]([plan_code]);
+    CREATE INDEX IX_tbl_SubscriptionPlans_IsActive ON [dbo].[tbl_SubscriptionPlans]([is_active]);
+    
+    PRINT 'Table tbl_SubscriptionPlans created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_SubscriptionPlans already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 10: tbl_PlanModules
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_PlanModules' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_PlanModules](
+        [plan_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [plan_id] INT NOT NULL,
+        [module_package_id] VARCHAR(50) NOT NULL,
+        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_PlanModules_Plan FOREIGN KEY ([plan_id]) REFERENCES [dbo].[tbl_SubscriptionPlans]([plan_id]) ON DELETE CASCADE,
+        CONSTRAINT UQ_PlanModules_Plan_Module UNIQUE ([plan_id], [module_package_id])
+    );
+    
+    CREATE INDEX IX_tbl_PlanModules_PlanId ON [dbo].[tbl_PlanModules]([plan_id]);
+    CREATE INDEX IX_tbl_PlanModules_ModulePackageId ON [dbo].[tbl_PlanModules]([module_package_id]);
+    
+    PRINT 'Table tbl_PlanModules created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_PlanModules already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 11: tbl_CustomerSubscriptions
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_CustomerSubscriptions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_CustomerSubscriptions](
+        [subscription_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [customer_id] INT NOT NULL,
+        [plan_id] INT NULL,
+        [subscription_type] VARCHAR(20) NOT NULL DEFAULT 'predefined',
+        [status] VARCHAR(20) NOT NULL DEFAULT 'Active',
+        [start_date] DATE NOT NULL,
+        [end_date] DATE NULL,
+        [monthly_fee] DECIMAL(18,2) NOT NULL DEFAULT 0,
+        [auto_renewal] BIT NOT NULL DEFAULT 0,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        [created_by] INT NULL,
+        [updated_at] DATETIME NULL,
+        [updated_by] INT NULL,
+        CONSTRAINT FK_CustomerSubscriptions_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]) ON DELETE CASCADE,
+        CONSTRAINT FK_CustomerSubscriptions_Plan FOREIGN KEY ([plan_id]) REFERENCES [dbo].[tbl_SubscriptionPlans]([plan_id]) ON DELETE SET NULL
+    );
+    
+    CREATE INDEX IX_tbl_CustomerSubscriptions_CustomerId ON [dbo].[tbl_CustomerSubscriptions]([customer_id]);
+    CREATE INDEX IX_tbl_CustomerSubscriptions_Status ON [dbo].[tbl_CustomerSubscriptions]([status]);
+    CREATE INDEX IX_tbl_CustomerSubscriptions_StartDate ON [dbo].[tbl_CustomerSubscriptions]([start_date]);
+    CREATE INDEX IX_tbl_CustomerSubscriptions_PlanId ON [dbo].[tbl_CustomerSubscriptions]([plan_id]);
+    
+    PRINT 'Table tbl_CustomerSubscriptions created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_CustomerSubscriptions already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 12: tbl_CustomerSubscriptionModules
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_CustomerSubscriptionModules' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_CustomerSubscriptionModules](
+        [customer_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [subscription_id] INT NOT NULL,
+        [module_package_id] VARCHAR(50) NOT NULL,
+        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+        [granted_by] INT NULL,
+        [revoked_date] DATETIME NULL,
+        [revoked_by] INT NULL,
+        CONSTRAINT FK_CustomerSubscriptionModules_Subscription FOREIGN KEY ([subscription_id]) REFERENCES [dbo].[tbl_CustomerSubscriptions]([subscription_id]) ON DELETE CASCADE,
+        CONSTRAINT UQ_CustomerSubscriptionModules_Subscription_Module UNIQUE ([subscription_id], [module_package_id])
+    );
+    
+    CREATE INDEX IX_tbl_CustomerSubscriptionModules_SubscriptionId ON [dbo].[tbl_CustomerSubscriptionModules]([subscription_id]);
+    CREATE INDEX IX_tbl_CustomerSubscriptionModules_ModulePackageId ON [dbo].[tbl_CustomerSubscriptionModules]([module_package_id]);
+    
+    PRINT 'Table tbl_CustomerSubscriptionModules created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_CustomerSubscriptionModules already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 13: tbl_TenantModules
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_TenantModules' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_TenantModules](
+        [tenant_module_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [customer_id] INT NOT NULL,
+        [module_package_id] VARCHAR(50) NOT NULL,
+        [subscription_id] INT NOT NULL,
+        [granted_date] DATETIME NOT NULL DEFAULT GETDATE(),
+        [is_active] BIT NOT NULL DEFAULT 1,
+        [last_updated] DATETIME NOT NULL DEFAULT GETDATE(),
+        CONSTRAINT FK_TenantModules_Customer FOREIGN KEY ([customer_id]) REFERENCES [dbo].[tbl_Customers]([customer_id]) ON DELETE CASCADE,
+        CONSTRAINT FK_TenantModules_Subscription FOREIGN KEY ([subscription_id]) REFERENCES [dbo].[tbl_CustomerSubscriptions]([subscription_id]) ON DELETE CASCADE,
+        CONSTRAINT UQ_TenantModules_Customer_Module UNIQUE ([customer_id], [module_package_id], [subscription_id])
+    );
+    
+    CREATE INDEX IX_tbl_TenantModules_CustomerId ON [dbo].[tbl_TenantModules]([customer_id]);
+    CREATE INDEX IX_tbl_TenantModules_ModulePackageId ON [dbo].[tbl_TenantModules]([module_package_id]);
+    CREATE INDEX IX_tbl_TenantModules_IsActive ON [dbo].[tbl_TenantModules]([is_active]);
+    
+    PRINT 'Table tbl_TenantModules created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_TenantModules already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 14: tbl_SuperAdminAuditLogs
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SuperAdminAuditLogs' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SuperAdminAuditLogs](
+        [log_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [timestamp] DATETIME NOT NULL DEFAULT GETDATE(),
+        [user_name] VARCHAR(100) NULL,
+        [user_role] VARCHAR(50) NULL,
+        [user_id] INT NULL,
+        [action] VARCHAR(100) NOT NULL,
+        [module] VARCHAR(100) NULL,
+        [description] NVARCHAR(MAX) NULL,
+        [ip_address] VARCHAR(45) NULL,
+        [status] VARCHAR(20) NULL,
+        [severity] VARCHAR(20) NULL,
+        [entity_type] VARCHAR(100) NULL,
+        [entity_id] VARCHAR(50) NULL,
+        [old_values] NVARCHAR(MAX) NULL,
+        [new_values] NVARCHAR(MAX) NULL,
+        [customer_code] VARCHAR(50) NULL,
+        [customer_name] VARCHAR(200) NULL
+    );
+    
+    CREATE INDEX IX_SuperAdminAuditLogs_Timestamp ON [dbo].[tbl_SuperAdminAuditLogs]([timestamp] DESC);
+    CREATE INDEX IX_SuperAdminAuditLogs_UserId ON [dbo].[tbl_SuperAdminAuditLogs]([user_id]);
+    CREATE INDEX IX_SuperAdminAuditLogs_Module ON [dbo].[tbl_SuperAdminAuditLogs]([module]);
+    CREATE INDEX IX_SuperAdminAuditLogs_Action ON [dbo].[tbl_SuperAdminAuditLogs]([action]);
+    CREATE INDEX IX_SuperAdminAuditLogs_Status ON [dbo].[tbl_SuperAdminAuditLogs]([status]);
+    CREATE INDEX IX_SuperAdminAuditLogs_Severity ON [dbo].[tbl_SuperAdminAuditLogs]([severity]);
+    
+    PRINT 'Table tbl_SuperAdminAuditLogs created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_SuperAdminAuditLogs already exists.';
+END
+GO
+
+-- =============================================
+-- TABLE 15: tbl_SuperAdminNotifications
+-- =============================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tbl_SuperAdminNotifications' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[tbl_SuperAdminNotifications](
+        [notification_id] INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+        [notification_type] VARCHAR(50) NOT NULL,
+        [title] VARCHAR(100) NOT NULL,
+        [message] NVARCHAR(500) NULL,
+        [reference_type] VARCHAR(50) NOT NULL,
+        [reference_id] INT NULL,
+        [is_read] BIT NOT NULL DEFAULT 0,
+        [read_at] DATETIME NULL,
+        [created_at] DATETIME NOT NULL DEFAULT GETDATE(),
+        [action_url] VARCHAR(100) NULL,
+        [priority] VARCHAR(50) NOT NULL DEFAULT 'Normal',
+        [created_by] INT NULL,
+        CONSTRAINT FK_tbl_SuperAdminNotifications_CreatedBy FOREIGN KEY ([created_by]) 
+            REFERENCES [dbo].[tbl_Users]([user_ID]) ON DELETE SET NULL,
+        CONSTRAINT CK_tbl_SuperAdminNotifications_Priority CHECK ([priority] IN ('Low', 'Normal', 'High', 'Urgent'))
+    );
+    
+    CREATE INDEX IX_SuperAdminNotifications_IsRead ON [dbo].[tbl_SuperAdminNotifications]([is_read]);
+    CREATE INDEX IX_SuperAdminNotifications_CreatedAt ON [dbo].[tbl_SuperAdminNotifications]([created_at] DESC);
+    CREATE INDEX IX_SuperAdminNotifications_NotificationType ON [dbo].[tbl_SuperAdminNotifications]([notification_type]);
+    CREATE INDEX IX_SuperAdminNotifications_ReferenceType ON [dbo].[tbl_SuperAdminNotifications]([reference_type]);
+    CREATE INDEX IX_SuperAdminNotifications_ReferenceId ON [dbo].[tbl_SuperAdminNotifications]([reference_id]);
+    
+    PRINT 'Table tbl_SuperAdminNotifications created.';
+END
+ELSE
+BEGIN
+    PRINT 'Table tbl_SuperAdminNotifications already exists.';
+END
+GO
+
 PRINT '';
 PRINT '=============================================';
 PRINT 'SUPERADMIN DATABASE SCHEMA FINALIZED';
@@ -301,6 +558,14 @@ PRINT '  4. tbl_CustomerInvoices';
 PRINT '  5. tbl_CustomerPayments';
 PRINT '  6. tbl_SystemUpdates';
 PRINT '  7. tbl_SuperAdminBIRInfo';
+PRINT '  8. tbl_SuperAdminBIRFilings';
+PRINT '  9. tbl_SubscriptionPlans';
+PRINT '  10. tbl_PlanModules';
+PRINT '  11. tbl_CustomerSubscriptions';
+PRINT '  12. tbl_CustomerSubscriptionModules';
+PRINT '  13. tbl_TenantModules';
+PRINT '  14. tbl_SuperAdminAuditLogs';
+PRINT '  15. tbl_SuperAdminNotifications';
 PRINT '';
 PRINT 'NOT Created (by design):';
 PRINT '  - tbl_Contracts (contract info stored in tbl_Customers)';
