@@ -452,6 +452,47 @@ public class EmployeeService
         }
     }
 
+    /// <summary>
+    /// Gets all employees, optionally excluding a specific user (e.g., the currently logged-in user)
+    /// </summary>
+    /// <param name="excludedUserId">Optional user ID to exclude from the results</param>
+    /// <returns>List of employee display DTOs excluding the specified user</returns>
+    public async Task<List<EmployeeDisplayDto>> GetAllEmployeesAsync(int? excludedUserId = null)
+    {
+        try
+        {
+            var query = from employeeView in _context.EmployeeDataViews
+                        select employeeView;
+
+            // Exclude the specified user if provided
+            if (excludedUserId.HasValue)
+            {
+                query = query.Where(e => e.UserId != excludedUserId.Value);
+            }
+
+            var employees = await query
+                .OrderBy(e => e.SystemId)
+                .ToListAsync();
+
+            return employees.Select(e => new EmployeeDisplayDto
+            {
+                UserId = e.UserId,
+                Id = e.SystemId ?? "N/A",
+                Name = e.FullName ?? "N/A",
+                Email = e.Email ?? "N/A",
+                Contact = e.ContactNumber ?? "N/A",
+                Role = e.Role ?? "N/A",
+                Status = e.Status ?? "N/A",
+                Address = e.FormattedAddress ?? "N/A"
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error getting all employees: {Message}", ex.Message);
+            throw new Exception($"Failed to retrieve employees: {ex.Message}", ex);
+        }
+    }
+
     public async Task<EmployeeDataView?> GetEmployeeByIdAsync(int userId)
     {
         try

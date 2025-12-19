@@ -55,30 +55,33 @@
 
                         <!-- Right Side: Notification + Profile (Always Right-Aligned) -->
                         <div class="flex items-center justify-end gap-0 ml-auto">
-                            <!-- Notification Icon with Badge -->
-                            <div class="group relative">
-                                <button type="button" @onclick="ToggleNotificationDropdown" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
-                                    </svg>
-                                    @if (notificationCount > 0)
-                                    {
-                                        <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                                            @(notificationCount > 9 ? "9+" : notificationCount.ToString())
-                                        </span>
-                                    }
-                                </button>
-                                <span class="tooltip-delay">View notifications</span>
-                                
-                                <!-- Notification Dropdown -->
-                                <NotificationDropdown isOpen="@isNotificationDropdownOpen" 
-                                                      isOpenChanged="@((bool value) => isNotificationDropdownOpen = value)"
-                                                      unreadCount="@notificationCount"
-                                                      OnNotificationRead="@RefreshNotificationCount" />
-                            </div>
+                            @if (!IsTeacherOrRegistrar())
+                            {
+                                <!-- Notification Icon with Badge -->
+                                <div class="group relative">
+                                    <button type="button" @onclick="ToggleNotificationDropdown" class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                        </svg>
+                                        @if (notificationCount > 0)
+                                        {
+                                            <span class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                                @(notificationCount > 9 ? "9+" : notificationCount.ToString())
+                                            </span>
+                                        }
+                                    </button>
+                                    <span class="tooltip-delay">View notifications</span>
+                                    
+                                    <!-- Notification Dropdown -->
+                                    <NotificationDropdown isOpen="@isNotificationDropdownOpen" 
+                                                          isOpenChanged="@((bool value) => isNotificationDropdownOpen = value)"
+                                                          unreadCount="@notificationCount"
+                                                          OnNotificationRead="@RefreshNotificationCount" />
+                                </div>
 
-                            <!-- Partition -->
-                            <div class="h-8 w-px bg-gray-300 mx-2"></div>
+                                <!-- Partition -->
+                                <div class="h-8 w-px bg-gray-300 mx-2"></div>
+                            }
 
                             <!-- User Profile with Dropdown -->
                             <div class="relative flex items-center gap-3 md:gap-4 px-3 md:px-4">
@@ -191,50 +194,54 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadNotificationCount();
-        
-        // Set up periodic refresh (every 3 seconds for real-time updates) with proper cancellation
-        _notificationRefreshTokenSource = new System.Threading.CancellationTokenSource();
-        
-        _ = Task.Run(async () =>
+        // Only load notifications if user is not Teacher or Registrar
+        if (!IsTeacherOrRegistrar())
         {
-            while (!_notificationRefreshTokenSource.Token.IsCancellationRequested && !_isDisposed)
+            await LoadNotificationCount();
+            
+            // Set up periodic refresh (every 3 seconds for real-time updates) with proper cancellation
+            _notificationRefreshTokenSource = new System.Threading.CancellationTokenSource();
+            
+            _ = Task.Run(async () =>
             {
-                await Task.Delay(3000, _notificationRefreshTokenSource.Token);
-                
-                if (!_isDisposed)
+                while (!_notificationRefreshTokenSource.Token.IsCancellationRequested && !_isDisposed)
                 {
-                    await InvokeAsync(async () =>
+                    await Task.Delay(3000, _notificationRefreshTokenSource.Token);
+                    
+                    if (!_isDisposed)
                     {
-                        if (!_isDisposed)
+                        await InvokeAsync(async () =>
                         {
-                            // Use IServiceScopeFactory to create new scope for background operation
-                            // This prevents concurrency errors by using a separate DbContext instance
-                            using var scope = ServiceScopeFactory.CreateScope();
-                            var notificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
-                            
-                            try
+                            if (!_isDisposed && !IsTeacherOrRegistrar())
                             {
-                                // Get all notifications and calculate unread count based on per-user read status
-                                var allNotifications = await notificationService.GetAllNotificationsAsync();
-                                var userNotificationReadService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService>();
-                                userNotificationReadService.UpdateNotificationReadStatus(allNotifications);
-                                notificationCount = userNotificationReadService.GetUnreadCountForCurrentUser(allNotifications);
-                                StateHasChanged();
-                            }
-                            catch (Exception)
-                            {
-                                // Silently fail - don't break the layout
-                                if (!_isDisposed)
+                                // Use IServiceScopeFactory to create new scope for background operation
+                                // This prevents concurrency errors by using a separate DbContext instance
+                                using var scope = ServiceScopeFactory.CreateScope();
+                                var notificationService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.NotificationService>();
+                                
+                                try
                                 {
-                                    notificationCount = 0;
+                                    // Get all notifications and calculate unread count based on per-user read status
+                                    var allNotifications = await notificationService.GetAllNotificationsAsync();
+                                    var userNotificationReadService = scope.ServiceProvider.GetRequiredService<BrightEnroll_DES.Services.Business.Notifications.UserNotificationReadService>();
+                                    userNotificationReadService.UpdateNotificationReadStatus(allNotifications);
+                                    notificationCount = userNotificationReadService.GetUnreadCountForCurrentUser(allNotifications);
+                                    StateHasChanged();
+                                }
+                                catch (Exception)
+                                {
+                                    // Silently fail - don't break the layout
+                                    if (!_isDisposed)
+                                    {
+                                        notificationCount = 0;
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
-            }
-        }, _notificationRefreshTokenSource.Token);
+            }, _notificationRefreshTokenSource.Token);
+        }
         
         // Subscribe to connectivity changes (only show toast on connection changes, not on initial load)
         ConnectivityService.ConnectivityChanged += OnConnectivityChanged;
@@ -272,7 +279,7 @@
 
     private async Task LoadNotificationCount()
     {
-        if (_isDisposed)
+        if (_isDisposed || IsTeacherOrRegistrar())
             return;
             
         try
@@ -506,5 +513,15 @@
             }
         }
         return "/profile";
+    }
+
+    private bool IsTeacherOrRegistrar()
+    {
+        var user = AuthService.CurrentUser;
+        if (user == null || string.IsNullOrWhiteSpace(user.user_role))
+            return false;
+        
+        var roleLower = user.user_role.ToLower().Trim();
+        return roleLower == "teacher" || roleLower == "registrar";
     }
 }

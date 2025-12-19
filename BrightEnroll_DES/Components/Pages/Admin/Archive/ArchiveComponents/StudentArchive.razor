@@ -23,6 +23,7 @@
                 <option value="Rejected by School">Rejected by School</option>
                 <option value="Application Withdrawn">Application Withdrawn</option>
                 <option value="Withdrawn">Withdrawn</option>
+                <option value="Drop">Drop</option>
                 <option value="Graduated">Graduated</option>
                 <option value="Transferred">Transferred</option>
             </select>
@@ -100,6 +101,10 @@
                             {
                                 <span class="rounded-md bg-orange-100 px-2.5 py-1 text-[11px] font-medium text-orange-700 whitespace-nowrap">@student.Status</span>
                             }
+                            else if (student.Status == "Drop")
+                            {
+                                <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700 whitespace-nowrap">@student.Status</span>
+                            }
                             else if (student.Status == "Rejected by School")
                             {
                                 <span class="rounded-md bg-red-100 px-2.5 py-1 text-[11px] font-medium text-red-700 whitespace-nowrap">@student.Status</span>
@@ -111,14 +116,20 @@
                         </td>
                         <td class="px-4 py-3 text-gray-600 truncate" title="@student.ArchivedDate">@student.ArchivedDate</td>
                         <td class="px-4 py-3">
-                            <div class="flex items-center justify-center">
+                            <div class="flex items-center justify-center gap-2">
                                 <!-- View Button -->
                                 <button @onclick="() => ViewStudent(student)" class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100 whitespace-nowrap">
-                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M5 1a2 2 0 0 0-2 2v2.256c.318-.112.653-.19 1-.229V3a1 1 0 0 1 1-1h3v2.5A1.5 1.5 0 0 0 9.5 6H12v7a1 1 0 0 1-1 1h-.085c.114.323.114.677 0 1H11a2 2 0 0 0 2-2V5.414a1.5 1.5 0 0 0-.44-1.06L9.647 1.439A1.5 1.5 0 0 0 8.586 1H5Zm6.793 4H9.5a.5.5 0 0 1-.5-.5V2.207L11.793 5Zm-5.197 7.303a3.5 3.5 0 1 1 .707-.707l2.55 2.55a.5.5 0 0 1-.707.708l-2.55-2.55ZM7 9.5a2.5 2.5 0 1 0-5 0a2.5 2.5 0 0 0 5 0Z"/>
                                     </svg>
                                     <span class="hidden sm:inline">View</span>
+                                </button>
+                                <!-- Restore Button -->
+                                <button @onclick="() => HandleRestoreClick(student)" class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-600 transition-colors hover:bg-green-100 whitespace-nowrap">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    <span class="hidden sm:inline">Restore</span>
                                 </button>
                             </div>
                         </td>
@@ -210,6 +221,10 @@
                                 {
                                     <span class="inline-flex items-center rounded-md bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">@SelectedStudent.Status</span>
                                 }
+                                else if (SelectedStudent.Status == "Drop")
+                                {
+                                    <span class="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">@SelectedStudent.Status</span>
+                                }
                                 else if (SelectedStudent.Status == "Rejected by School")
                                 {
                                     <span class="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">@SelectedStudent.Status</span>
@@ -254,12 +269,114 @@
     </div>
 }
 
+<!-- Restore Confirmation Modal -->
+@if (ShowRestoreModal && StudentToRestore != null)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" @onclick="HandleRestoreBackdropClick">
+        <div id="restore-student-modal" class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between rounded-t-2xl bg-green-600 px-6 py-4">
+                <h3 class="text-lg font-semibold text-white">Restore Student</h3>
+                <button @onclick="CloseRestoreModal" class="text-white hover:text-gray-200 transition-colors">
+                    <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="px-6 py-6">
+                <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="mt-0.5 h-6 w-6 flex-shrink-0 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-green-800 mb-1">Restore Confirmation</p>
+                            <p class="text-sm text-green-700">
+                                Are you sure you want to restore <strong>@StudentToRestore.Name</strong>?
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <p class="mb-2 text-xs font-medium text-gray-600 uppercase tracking-wide">Current Status</p>
+                        @if (StudentToRestore.Status == "Graduated")
+                        {
+                            <span class="inline-flex items-center rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700">@StudentToRestore.Status</span>
+                        }
+                        else if (StudentToRestore.Status == "Transferred")
+                        {
+                            <span class="inline-flex items-center rounded-md bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">@StudentToRestore.Status</span>
+                        }
+                        else if (StudentToRestore.Status == "Withdrawn" || StudentToRestore.Status == "Application Withdrawn")
+                        {
+                            <span class="inline-flex items-center rounded-md bg-orange-100 px-2.5 py-1 text-xs font-medium text-orange-700">@StudentToRestore.Status</span>
+                        }
+                        else if (StudentToRestore.Status == "Drop")
+                        {
+                            <span class="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">@StudentToRestore.Status</span>
+                        }
+                        else if (StudentToRestore.Status == "Rejected by School")
+                        {
+                            <span class="inline-flex items-center rounded-md bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">@StudentToRestore.Status</span>
+                        }
+                        else
+                        {
+                            <span class="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">@StudentToRestore.Status</span>
+                        }
+                    </div>
+
+                    <div class="flex items-center justify-center">
+                        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                    </div>
+
+                    <div class="rounded-lg border border-green-200 bg-green-50 p-3">
+                        <p class="mb-2 text-xs font-medium text-green-700 uppercase tracking-wide">New Status</p>
+                        <span class="inline-flex items-center rounded-md bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800 ring-1 ring-green-600/20">For Payment</span>
+                    </div>
+                </div>
+
+                <div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <div class="flex items-start gap-2">
+                        <svg class="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p class="text-xs text-blue-700">
+                            This student will be restored and moved back to the active student list with "For Payment" status. They can continue with the enrollment process.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 rounded-b-2xl">
+                <button @onclick="CloseRestoreModal" 
+                        class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmRestoreStudent" 
+                        class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700">
+                    Restore Student
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Parameter]
     public List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent>? Students { get; set; }
 
     [Parameter]
     public int RowsPerPage { get; set; } = 5;
+
+    [Parameter]
+    public EventCallback<string> OnRestoreStudent { get; set; }
 
     // Filter properties
     private string SearchText { get; set; } = "";
@@ -271,6 +388,10 @@
     // View modal state
     private bool ShowViewModal { get; set; } = false;
     private ArchivedStudent? SelectedStudent { get; set; }
+
+    // Restore modal state
+    private bool ShowRestoreModal { get; set; } = false;
+    private ArchivedStudent? StudentToRestore { get; set; }
 
     // Computed property for filtered students
     private List<BrightEnroll_DES.Components.Pages.Admin.Archive.ArchivedStudent> FilteredStudents
@@ -358,6 +479,51 @@
     private void HandleViewBackdropClick()
     {
         CloseViewModal();
+    }
+
+    private void HandleRestoreClick(ArchivedStudent student)
+    {
+        StudentToRestore = student;
+        ShowRestoreModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseRestoreModal()
+    {
+        ShowRestoreModal = false;
+        StudentToRestore = null;
+        StateHasChanged();
+    }
+
+    private void HandleRestoreBackdropClick()
+    {
+        CloseRestoreModal();
+    }
+
+    private async Task ConfirmRestoreStudent()
+    {
+        if (StudentToRestore == null)
+        {
+            CloseRestoreModal();
+            return;
+        }
+
+        try
+        {
+            // Call the OnRestoreStudent event callback to notify the parent component
+            if (OnRestoreStudent.HasDelegate)
+            {
+                await OnRestoreStudent.InvokeAsync(StudentToRestore.Id);
+            }
+
+            CloseRestoreModal();
+        }
+        catch (Exception ex)
+        {
+            // Log error (in a real app, you might want to show an error message to the user)
+            System.Diagnostics.Debug.WriteLine($"Error restoring student: {ex.Message}");
+            CloseRestoreModal();
+        }
     }
 }
 

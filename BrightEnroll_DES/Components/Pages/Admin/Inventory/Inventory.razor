@@ -1,80 +1,92 @@
 @page "/inventory"
 @layout Components.Layout.MainLayout
 @using BrightEnroll_DES.Services.RoleBase
+@using BrightEnroll_DES.Components.Pages.Admin.Inventory.InventoryComponents
 @inject IAuthorizationService AuthorizationService
 
 <PageTitle>Inventory</PageTitle>
 
 <RoleAuthorizeView RequiredPermission="@Permissions.ViewInventory">
 
-<div class="flex min-h-[70vh] items-center justify-center px-4 py-10 bg-gradient-to-b from-slate-50 to-slate-100">
-    <div class="w-full max-w-xl text-center">
-        <!-- Lock Icon -->
-        <div class="mb-4 flex justify-center">
-            <div class="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm border border-slate-200">
-                <svg class="h-7 w-7 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-            </div>
-        </div>
+    <div class="min-h-screen bg-gray-100 py-6 px-4">
+        <div class="mx-auto max-w-7xl space-y-6">
 
-        <!-- Title -->
-        <h1 class="mb-2 text-2xl font-semibold text-slate-900 tracking-tight">Feature Not Available</h1>
-        
-        <!-- Description -->
-        <p class="mb-6 text-sm text-slate-600 max-w-xl mx-auto">
-            The Inventory &amp; Asset Management feature is not available in your current plan.
-        </p>
-
-        <!-- Upgrade Card -->
-        <div class="mx-auto max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-md">
-            <div class="bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 px-5 py-3">
-                <h2 class="text-base font-semibold text-white tracking-wide">Upgrade to Enable</h2>
-            </div>
-            
-            <div class="px-5 py-5">
-                <p class="mb-4 text-sm text-slate-700">
-                    Unlock the full Inventory &amp; Asset Management system with features including:
-                </p>
-                
-                <ul class="mb-5 space-y-2.5 text-left text-slate-600 text-sm">
-                    <li class="flex items-start">
-                        <svg class="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>Asset tracking and management</span>
-                    </li>
-                    <li class="flex items-start">
-                        <svg class="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>Inventory item management</span>
-                    </li>
-                    <li class="flex items-start">
-                        <svg class="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>Asset assignment tracking</span>
-                    </li>
-                    <li class="flex items-start">
-                        <svg class="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span>Maintenance records</span>
-                    </li>
-                </ul>
-
-                <button class="w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-md">
-                    Upgrade Plan – Boost Your Operations
-                </button>
-                
-                <p class="mt-3 text-xs text-slate-500">
-                    Talk to your administrator to enable Inventory &amp; Asset Management for your school.
+            <!-- HEADER SECTION -->
+            <div class="rounded-lg bg-white border border-gray-200 px-6 py-5">
+                <h1 class="text-2xl font-semibold text-gray-800">
+                    Inventory & Asset Management
+                </h1>
+                <p class="mt-1 text-sm text-gray-600">
+                    Manage assets, inventory items, assignments, and maintenance records
                 </p>
             </div>
+
+            <!-- TABS SECTION -->
+            <div class="rounded-lg bg-white border border-gray-200 px-6">
+                <nav class="flex space-x-6">
+                    <button @onclick="() => activeTab = InventoryTab.Assets"
+                            class="@GetTabClass(InventoryTab.Assets)">
+                        Asset Management
+                    </button>
+
+                    <button @onclick="() => activeTab = InventoryTab.Items"
+                            class="@GetTabClass(InventoryTab.Items)">
+                        Item Management
+                    </button>
+
+                    <button @onclick="() => activeTab = InventoryTab.Assignments"
+                            class="@GetTabClass(InventoryTab.Assignments)">
+                        Asset Assignments
+                    </button>
+
+                    <button @onclick="() => activeTab = InventoryTab.Maintenance"
+                            class="@GetTabClass(InventoryTab.Maintenance)">
+                        Maintenance Records
+                    </button>
+                </nav>
+            </div>
+
+            <!-- CONTENT SECTION -->
+            <div class="rounded-lg bg-white border border-gray-200 p-6">
+                @switch (activeTab)
+                {
+                    case InventoryTab.Assets:
+                        <AssetManagement />
+                        break;
+
+                    case InventoryTab.Items:
+                        <ItemManagement />
+                        break;
+
+                    case InventoryTab.Assignments:
+                        <AssetAssignments />
+                        break;
+
+                    case InventoryTab.Maintenance:
+                        <MaintenanceRecords />
+                        break;
+                }
+            </div>
+
         </div>
     </div>
-</div>
 
 </RoleAuthorizeView>
 
+@code {
+    private enum InventoryTab
+    {
+        Assets,
+        Items,
+        Assignments,
+        Maintenance
+    }
+
+    private InventoryTab activeTab = InventoryTab.Assets;
+
+    private string GetTabClass(InventoryTab tab) =>
+        $"whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium transition " +
+        (activeTab == tab
+            ? "border-blue-500 text-blue-600"
+            : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700");
+}

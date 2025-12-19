@@ -4,105 +4,132 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject InventoryService InventoryService
 
-<div class="p-6">
-    <div class="mb-6 flex justify-end">
-        <button @onclick="ShowAddModal" 
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-            + Add Item
-        </button>
-    </div>
-
-    <!-- Filters -->
-    <div class="mb-6 border-b border-gray-200 px-3 py-4 sm:px-6">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div class="relative flex w-full items-center sm:w-auto sm:min-w-[200px]">
-                <span class="absolute left-4 flex items-center justify-center">
+<div class="space-y-6">
+    <!-- Search and Filter Section -->
+    <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <!-- Search Bar -->
+            <div class="relative flex-1 max-w-md">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center">
                     <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
                 </span>
                 <input type="text" @bind="searchTerm" @bind:event="oninput" @onkeypress="HandleSearchKeyPress"
-                       placeholder="Search items..."
-                       class="w-full rounded-lg border border-gray-300 py-2 pl-11 pr-4 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400" />
+                       placeholder="Search items by name, code, or category..."
+                       class="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-400" />
             </div>
-            <select @bind="selectedCategory" @bind:event="onchange"
-                    class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 outline-none focus:border-gray-300 focus:ring-2 focus:ring-blue-400 sm:w-auto">
-                <option value="">All Categories</option>
-                @foreach (var category in categories)
-                {
-                    <option value="@category">@category</option>
-                }
-            </select>
-            <button @onclick="LoadItems" 
-                    class="rounded-lg bg-gray-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-gray-600 hover:shadow-lg">
-                Filter
-            </button>
+
+            <!-- Filters Row -->
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <select @bind="selectedCategory" @bind:after="LoadItems"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none transition-all focus:border-blue-400 focus:ring-2 focus:ring-blue-400 sm:w-auto sm:min-w-[160px]">
+                    <option value="">All Categories</option>
+                    @foreach (var category in categories)
+                    {
+                        <option value="@category">@category</option>
+                    }
+                </select>
+                <button @onclick="ShowAddModal" 
+                        class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg sm:w-auto">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Item
+                </button>
+            </div>
         </div>
     </div>
 
-    @if (isLoading)
-    {
-        <div class="py-12 text-center">
-            <p class="text-gray-500">Loading items...</p>
-        </div>
-    }
-    else if (items.Count == 0)
-    {
-        <div class="py-12 text-center">
-            <p class="text-gray-500">No items found.</p>
-        </div>
-    }
-    else
-    {
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-100 font-semibold text-gray-600">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Item Code</th>
-                        <th class="px-4 py-3 text-left">Item Name</th>
-                        <th class="px-4 py-3 text-left">Category</th>
-                        <th class="px-4 py-3 text-center">Quantity</th>
-                        <th class="px-4 py-3 text-center">Unit</th>
-                        <th class="px-4 py-3 text-right">Unit Price</th>
-                        <th class="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                    @foreach (var item in items)
-                    {
-                        <tr class="transition hover:bg-gray-50">
-                            <td class="px-4 py-3">@item.ItemCode</td>
-                            <td class="px-4 py-3">@item.ItemName</td>
-                            <td class="px-4 py-3">@item.Category</td>
-                            <td class="px-4 py-3 text-center">
-                                @if (item.Quantity <= item.ReorderLevel)
-                                {
-                                    <span class="font-semibold text-red-600">@item.Quantity</span>
-                                }
-                                else
-                                {
-                                    <span>@item.Quantity</span>
-                                }
-                            </td>
-                            <td class="px-4 py-3 text-center">@item.Unit</td>
-                            <td class="px-4 py-3 text-right">₱@item.UnitPrice.ToString("N2")</td>
-                            <td class="flex items-center justify-center gap-2 px-4 py-3">
-                                <button @onclick="() => EditItem(item)" 
-                                        class="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-400 transition-colors hover:bg-blue-100">
-                                    Edit
-                                </button>
-                                <button @onclick="() => DeleteItem(item.ItemId)" 
-                                        class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-100">
-                                    Delete
-                                </button>
-                            </td>
+    <!-- Table Section -->
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        @if (isLoading)
+        {
+            <div class="py-16 text-center">
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                <p class="mt-4 text-sm text-gray-500">Loading items...</p>
+            </div>
+        }
+        else if (items.Count == 0)
+        {
+            <div class="py-16 text-center">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <p class="mt-4 text-sm font-medium text-gray-900">No items found</p>
+                <p class="mt-1 text-sm text-gray-500">Get started by adding a new item.</p>
+            </div>
+        }
+        else
+        {
+            <!-- Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Item Code</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Item Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Category</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700">Quantity</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700">Unit</th>
+                            <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-700">Unit Price</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700">Actions</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        @foreach (var item in items)
+                        {
+                            <tr class="transition-colors hover:bg-gray-50">
+                                <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">@item.ItemCode</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@item.ItemName</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@item.Category</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-center text-sm">
+                                    @if (item.Quantity <= item.ReorderLevel)
+                                    {
+                                        <span class="font-semibold text-red-600">@item.Quantity</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-gray-900">@item.Quantity</span>
+                                    }
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-700">@item.Unit</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium text-gray-900">₱@item.UnitPrice.ToString("N2")</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-center text-sm">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button @onclick="() => EditItem(item)" 
+                                                class="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                            Edit
+                                        </button>
+                                        <button @onclick="() => ShowDeleteConfirmation(item)" 
+                                                class="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100">
+                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Delete
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-200 bg-gray-50 px-6 py-3">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">@items.Count</span> item@(items.Count != 1 ? "s" : "")
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
 </div>
 
 <!-- Add/Edit Item Modal -->
@@ -194,6 +221,35 @@
                     {
                         <span>Save</span>
                     }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Confirmation Modal -->
+@if (showDeleteModal && itemToDelete != null)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseDeleteModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-red-500">Delete Item</h3>
+                <button @onclick="CloseDeleteModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to delete <strong>@itemToDelete.ItemName</strong> (@itemToDelete.ItemCode)?</p>
+                <p class="mt-2 text-xs text-gray-500">This action cannot be undone.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseDeleteModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmDeleteItem" class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700">
+                    Delete
                 </button>
             </div>
         </div>
@@ -321,12 +377,30 @@
         }
     }
 
-    private async Task DeleteItem(int itemId)
+    private bool showDeleteModal = false;
+    private InventoryItem? itemToDelete = null;
+
+    private void ShowDeleteConfirmation(InventoryItem item)
     {
+        itemToDelete = item;
+        showDeleteModal = true;
+    }
+
+    private void CloseDeleteModal()
+    {
+        showDeleteModal = false;
+        itemToDelete = null;
+    }
+
+    private async Task ConfirmDeleteItem()
+    {
+        if (itemToDelete == null) return;
+
         try
         {
-            await InventoryService.DeleteItemAsync(itemId);
+            await InventoryService.DeleteItemAsync(itemToDelete.ItemId);
             await LoadItems();
+            CloseDeleteModal();
         }
         catch (Exception ex)
         {

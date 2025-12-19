@@ -31,7 +31,7 @@
     <div class="overflow-hidden rounded-xl bg-white shadow">
         @if (SelectedTab == TabType.StudentArchive)
         {
-            <StudentArchive Students="ArchivedStudents" RowsPerPage="RowsPerPage" />
+            <StudentArchive Students="ArchivedStudents" RowsPerPage="RowsPerPage" OnRestoreStudent="HandleStudentRestored" />
         }
         else if (SelectedTab == TabType.EmployeeArchive)
         {
@@ -137,6 +137,24 @@
         // Reload archived employees after reactivation
         await LoadArchivedEmployeesAsync();
         StateHasChanged();
+    }
+
+    private async Task HandleStudentRestored(string studentId)
+    {
+        try
+        {
+            // Call the ArchiveService to restore the student
+            await ArchiveService.RestoreStudentAsync(studentId, restoredBy: null); // TODO: Get current user name
+            
+            // Reload archived students list after restoration
+            await LoadArchivedStudentsAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            // Log error (in a real app, show error notification to user)
+            System.Diagnostics.Debug.WriteLine($"Error restoring student: {ex.Message}");
+        }
     }
 
     // Simple query-string parser (key=value&key2=value2)

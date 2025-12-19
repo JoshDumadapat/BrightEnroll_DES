@@ -28,7 +28,7 @@ public class ArchiveService
         {
             // Get students with archived statuses
             // Include both "Application Withdrawn" and "Application Withdraw" (truncated version) for compatibility
-            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Drop", "Graduated", "Transferred" };
             
             // Clear change tracker to ensure fresh data
             _context.ChangeTracker.Clear();
@@ -164,7 +164,7 @@ public class ArchiveService
         try
         {
             // Include both "Application Withdrawn" and "Application Withdraw" (truncated version) for compatibility
-            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Graduated", "Transferred" };
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Drop", "Graduated", "Transferred" };
             return await _context.Students
                 .AnyAsync(s => s.StudentId == studentId && archivedStatuses.Contains(s.Status ?? ""));
         }
@@ -215,6 +215,7 @@ public class ArchiveService
                 "Application Withdrawn", 
                 "Application Withdraw", 
                 "Withdrawn", 
+                "Drop",
                 "Graduated", 
                 "Transferred" 
             };
@@ -400,6 +401,90 @@ public class ArchiveService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error updating archive for student {StudentId}: {Message}", studentId, ex.Message);
+            throw;
+        }
+    }
+
+    // Restores an archived student by changing their status back to active
+    public async Task RestoreStudentAsync(string studentId, string? restoredBy = null)
+    {
+        try
+        {
+            var student = await _context.Students
+                .FirstOrDefaultAsync(s => s.StudentId == studentId);
+
+            if (student == null)
+            {
+                _logger?.LogWarning("Student {StudentId} not found for restoration", studentId);
+                throw new InvalidOperationException($"Student {studentId} not found");
+            }
+
+            // Check if student is actually archived
+            var archivedStatuses = new[] { "Rejected by School", "Application Withdrawn", "Application Withdraw", "Withdrawn", "Drop", "Graduated", "Transferred" };
+            var currentStatus = (student.Status ?? "").Trim();
+            
+            if (!archivedStatuses.Contains(currentStatus))
+            {
+                _logger?.LogWarning("Student {StudentId} is not archived (current status: {Status}), cannot restore", studentId, currentStatus);
+                throw new InvalidOperationException($"Student {studentId} is not archived");
+            }
+
+            // Store old status for audit log
+            var oldStatus = student.Status;
+            var oldArchiveReason = student.ArchiveReason;
+
+            // Restore student to "For Payment" status (default restored status)
+            // This allows the student to continue the enrollment process
+            student.Status = "For Payment";
+            
+            // Clear archive reason
+            student.ArchiveReason = $"Restored from {oldStatus} status";
+            
+            // Update timestamp
+            student.UpdatedAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+            _logger?.LogInformation("Student {StudentId} restored from status '{OldStatus}' to 'For Payment'", studentId, oldStatus);
+
+            // Log student restore to audit trail (non-blocking)
+            if (_auditLogService != null)
+            {
+                try
+                {
+                    var studentName = $"{student.FirstName} {student.LastName}".Trim();
+                    await _auditLogService.CreateTransactionLogAsync(
+                        action: "Restore Student",
+                        module: "Archive",
+                        description: $"Restored student: {studentName} (ID: {studentId}) - From: {oldStatus}, To: For Payment, Previous Reason: {oldArchiveReason ?? "N/A"}",
+                        userName: restoredBy,
+                        userRole: null,
+                        userId: null,
+                        entityType: "Student",
+                        entityId: studentId,
+                        oldValues: $"Status: {oldStatus}, ArchiveReason: {oldArchiveReason}",
+                        newValues: $"Status: For Payment, ArchiveReason: Restored from {oldStatus} status",
+                        status: "Success",
+                        severity: "High"
+                    );
+                }
+                catch (Exception auditEx)
+                {
+                    _logger?.LogWarning(auditEx, "Failed to create audit log for student restoration: {Message}", auditEx.Message);
+                    // Don't throw - audit logging failure shouldn't break restoration
+                }
+            }
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException dbEx)
+        {
+            var innerEx = dbEx.InnerException;
+            var sqlEx = innerEx as Microsoft.Data.SqlClient.SqlException;
+            
+            _logger?.LogError(dbEx, "Database error restoring student {StudentId}: {Message}", studentId, dbEx.Message);
+            throw new Exception($"Failed to restore student: {dbEx.Message}", dbEx);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error restoring student {StudentId}: {Message}", studentId, ex.Message);
             throw;
         }
     }

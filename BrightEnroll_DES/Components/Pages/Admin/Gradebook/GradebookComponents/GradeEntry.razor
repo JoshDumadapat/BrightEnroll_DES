@@ -114,7 +114,7 @@
                                        value="@(student.Q1?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q1", e))"
                                        disabled="@(!isSchoolYearOpen)"
-                                       min="0" max="100" step="0.01"
+                                       min="0" max="100" step="1"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
@@ -122,7 +122,7 @@
                                        value="@(student.Q2?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q2", e))"
                                        disabled="@(!isSchoolYearOpen)"
-                                       min="0" max="100" step="0.01"
+                                       min="0" max="100" step="1"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
@@ -130,7 +130,7 @@
                                        value="@(student.Q3?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q3", e))"
                                        disabled="@(!isSchoolYearOpen)"
-                                       min="0" max="100" step="0.01"
+                                       min="0" max="100" step="1"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3">
@@ -138,7 +138,7 @@
                                        value="@(student.Q4?.ToString() ?? "")"
                                        @onchange="@((ChangeEventArgs e) => OnGradeChanged(student, "Q4", e))"
                                        disabled="@(!isSchoolYearOpen)"
-                                       min="0" max="100" step="0.01"
+                                       min="0" max="100" step="1"
                                        class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-center text-xs outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:text-gray-500" />
                             </td>
                             <td class="px-4 py-3 text-center font-semibold text-blue-600">
@@ -215,10 +215,10 @@
         public string Name { get; set; } = "";
         public int SubjectId { get; set; }
         public string SubjectName { get; set; } = "";
-        public decimal? Q1 { get; set; }
-        public decimal? Q2 { get; set; }
-        public decimal? Q3 { get; set; }
-        public decimal? Q4 { get; set; }
+        public int? Q1 { get; set; }
+        public int? Q2 { get; set; }
+        public int? Q3 { get; set; }
+        public int? Q4 { get; set; }
         
         // General Average = Average of Q1, Q2, Q3, Q4 (only if all 4 quarters are complete)
         public decimal GeneralAverage
@@ -499,10 +499,10 @@
                         Name = student.Name,
                         SubjectId = subject.SubjectId,
                         SubjectName = subject.SubjectName,
-                        Q1 = q1Grade?.FinalGrade,
-                        Q2 = q2Grade?.FinalGrade,
-                        Q3 = q3Grade?.FinalGrade,
-                        Q4 = q4Grade?.FinalGrade
+                        Q1 = q1Grade?.FinalGrade != null ? (int?)Math.Round(q1Grade.FinalGrade.Value) : null,
+                        Q2 = q2Grade?.FinalGrade != null ? (int?)Math.Round(q2Grade.FinalGrade.Value) : null,
+                        Q3 = q3Grade?.FinalGrade != null ? (int?)Math.Round(q3Grade.FinalGrade.Value) : null,
+                        Q4 = q4Grade?.FinalGrade != null ? (int?)Math.Round(q4Grade.FinalGrade.Value) : null
                     };
 
                     // Calculate remarks based on general average
@@ -542,9 +542,9 @@
     private void OnGradeChanged(GradeStudent student, string quarter, ChangeEventArgs e)
     {
         var value = e.Value?.ToString();
-        decimal? parsedValue = null;
+        int? parsedValue = null;
         
-        if (!string.IsNullOrWhiteSpace(value) && decimal.TryParse(value, out var num))
+        if (!string.IsNullOrWhiteSpace(value) && int.TryParse(value, out var num))
         {
             parsedValue = num;
             // Validate range

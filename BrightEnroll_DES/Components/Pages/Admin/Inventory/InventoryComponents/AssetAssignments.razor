@@ -4,75 +4,97 @@
 @inject AssetAssignmentService AssignmentService
 @inject AssetService AssetService
 
-<div class="p-6">
-    <div class="mb-6 flex justify-end">
+<div class="space-y-6">
+    <!-- Action Bar -->
+    <div class="flex justify-end">
         <button @onclick="ShowAssignModal" 
-                class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
-            + Assign Asset
+                class="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all duration-300 hover:bg-blue-700 hover:shadow-lg">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            Assign Asset
         </button>
     </div>
 
-    @if (isLoading)
-    {
-        <div class="py-12 text-center">
-            <p class="text-gray-500">Loading assignments...</p>
-        </div>
-    }
-    else if (assignments.Count == 0)
-    {
-        <div class="py-12 text-center">
-            <p class="text-gray-500">No asset assignments found.</p>
-        </div>
-    }
-    else
-    {
-        <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-                <thead class="bg-gray-100 font-semibold text-gray-600">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Asset ID</th>
-                        <th class="px-4 py-3 text-left">Asset Name</th>
-                        <th class="px-4 py-3 text-left">Assigned To</th>
-                        <th class="px-4 py-3 text-left">Type</th>
-                        <th class="px-4 py-3 text-left">Assigned Date</th>
-                        <th class="px-4 py-3 text-left">Status</th>
-                        <th class="px-4 py-3 text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y">
-                    @foreach (var assignment in assignments)
-                    {
-                        <tr class="transition hover:bg-gray-50">
-                            <td class="px-4 py-3">@assignment.AssetId</td>
-                            <td class="px-4 py-3">@(assignment.Asset?.AssetName ?? "N/A")</td>
-                            <td class="px-4 py-3">@(assignment.AssignedToName ?? "N/A")</td>
-                            <td class="px-4 py-3">@assignment.AssignedToType</td>
-                            <td class="px-4 py-3">@assignment.AssignedDate.ToString("MMM dd, yyyy")</td>
-                            <td class="px-4 py-3">
-                                @if (assignment.Status == "Active")
-                                {
-                                    <span class="rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-medium text-green-700">Active</span>
-                                }
-                                else
-                                {
-                                    <span class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-700">Returned</span>
-                                }
-                            </td>
-                            <td class="flex items-center justify-center gap-2 px-4 py-3">
-                                @if (assignment.Status == "Active")
-                                {
-                                    <button @onclick="() => ReturnAsset(assignment.AssignmentId)" 
-                                            class="flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-600 transition-colors hover:bg-orange-100">
-                                        Return
-                                    </button>
-                                }
-                            </td>
+    <!-- Table Section -->
+    <div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        @if (isLoading)
+        {
+            <div class="py-16 text-center">
+                <div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+                <p class="mt-4 text-sm text-gray-500">Loading assignments...</p>
+            </div>
+        }
+        else if (assignments.Count == 0)
+        {
+            <div class="py-16 text-center">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                <p class="mt-4 text-sm font-medium text-gray-900">No asset assignments found</p>
+                <p class="mt-1 text-sm text-gray-500">Get started by assigning an asset.</p>
+            </div>
+        }
+        else
+        {
+            <!-- Table -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Asset ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Asset Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Assigned To</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Assigned Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-700">Status</th>
+                            <th class="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-700">Actions</th>
                         </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-    }
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        @foreach (var assignment in assignments)
+                        {
+                            <tr class="transition-colors hover:bg-gray-50">
+                                <td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">@assignment.AssetId</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@(assignment.Asset?.AssetName ?? "N/A")</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@(assignment.AssignedToName ?? "N/A")</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@assignment.AssignedToType</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">@assignment.AssignedDate.ToString("MMM dd, yyyy")</td>
+                                <td class="whitespace-nowrap px-6 py-4 text-sm">
+                                    @if (assignment.Status == "Active")
+                                    {
+                                        <span class="inline-flex rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-800">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800">Returned</span>
+                                    }
+                                </td>
+                                <td class="whitespace-nowrap px-6 py-4 text-center text-sm">
+                                    @if (assignment.Status == "Active")
+                                    {
+                                        <button @onclick="() => ShowReturnConfirmation(assignment)" 
+                                                class="inline-flex items-center gap-1.5 rounded-lg bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-100">
+                                            Return
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-gray-200 bg-gray-50 px-6 py-3">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">@assignments.Count</span> assignment@(assignments.Count != 1 ? "s" : "")
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
 </div>
 
 <!-- Assign Asset Modal -->
@@ -228,18 +250,65 @@
         }
     }
 
-    private async Task ReturnAsset(int assignmentId)
+    private bool showReturnModal = false;
+    private AssetAssignment? assignmentToReturn = null;
+
+    private void ShowReturnConfirmation(AssetAssignment assignment)
     {
+        assignmentToReturn = assignment;
+        showReturnModal = true;
+    }
+
+    private void CloseReturnModal()
+    {
+        showReturnModal = false;
+        assignmentToReturn = null;
+    }
+
+    private async Task ConfirmReturnAsset()
+    {
+        if (assignmentToReturn == null) return;
+
         try
         {
-            await AssignmentService.ReturnAssetAsync(assignmentId);
+            await AssignmentService.ReturnAssetAsync(assignmentToReturn.AssignmentId);
             await LoadAssignments();
             await LoadAvailableAssets(); // Refresh to update asset statuses
+            CloseReturnModal();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error returning asset: {ex.Message}");
         }
     }
+}
+
+<!-- Return Confirmation Modal -->
+@if (showReturnModal && assignmentToReturn != null)
+{
+    <div class="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50" @onclick="CloseReturnModal">
+        <div class="w-full max-w-md rounded-2xl bg-white shadow-xl" @onclick:stopPropagation="true">
+            <div class="flex items-center justify-between rounded-t-2xl bg-white px-6 py-2.5 border-b border-gray-200">
+                <h3 class="text-base font-semibold text-orange-500">Return Asset</h3>
+                <button @onclick="CloseReturnModal" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-700">Are you sure you want to return <strong>@(assignmentToReturn.Asset?.AssetName ?? assignmentToReturn.AssetId)</strong>?</p>
+                <p class="mt-2 text-xs text-gray-500">This will mark the asset as available again.</p>
+            </div>
+            <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-3">
+                <button @onclick="CloseReturnModal" class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmReturnAsset" class="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-700">
+                    Return
+                </button>
+            </div>
+        </div>
+    </div>
 }
 
