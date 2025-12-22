@@ -9,13 +9,10 @@ namespace BrightEnroll_DES.WinUI
         {
             try
             {
-                // Initialize COM wrappers for WinRT interop
                 global::WinRT.ComWrappersSupport.InitializeComWrappers();
 
-                // Fully qualify Microsoft.UI.Xaml.Application
                 var app = new Microsoft.UI.Xaml.Application();
 
-                // Run the app (starts the WinUI message loop)
                 app.Run();
             }
             catch (System.Runtime.InteropServices.SEHException sehEx)
