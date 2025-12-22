@@ -109,13 +109,11 @@ public class CurriculumService
         var classroom = await _context.Classrooms.FindAsync(roomId);
         if (classroom == null) return false;
 
-        // Check if classroom is used in sections or schedules
         var isUsedInSections = await _context.Sections.AnyAsync(s => s.ClassroomId == roomId);
         var isUsedInSchedules = await _context.ClassSchedules.AnyAsync(s => s.RoomId == roomId);
 
         if (isUsedInSections || isUsedInSchedules)
         {
-            // Instead of deleting, mark as inactive
             classroom.Status = "Inactive";
             classroom.UpdatedAt = DateTime.Now;
             await _context.SaveChangesAsync();
@@ -234,10 +232,6 @@ public class CurriculumService
 
     #endregion
 
-    /// <summary>
-    /// Automatically assigns all active subjects for the section's grade level
-    /// to the given section using the SubjectSection linking table.
-    /// </summary>
     public async Task AssignDefaultSubjectsToSectionAsync(int sectionId)
     {
         var section = await _context.Sections.AsNoTracking().FirstOrDefaultAsync(s => s.SectionId == sectionId);
@@ -534,9 +528,6 @@ public class CurriculumService
         }
     }
 
-    /// <summary>
-    /// Gets all subject schedules for multiple subjects at once to avoid concurrent DbContext operations
-    /// </summary>
     public async Task<Dictionary<int, List<SubjectSchedule>>> GetSubjectSchedulesBySubjectIdsAsync(IEnumerable<int> subjectIds)
     {
         try
@@ -903,10 +894,6 @@ public class CurriculumService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Returns the number of students currently enrolled in the given section for a specific school year.
-    /// Used by the enrollment module to compute available slots per section.
-    /// </summary>
     public async Task<int> GetSectionEnrollmentCountAsync(int sectionId, string schoolYear)
     {
         if (string.IsNullOrWhiteSpace(schoolYear))
@@ -932,9 +919,6 @@ public class CurriculumService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Gets section names that have enrollments in the specified school year
-    /// </summary>
     public async Task<List<string>> GetSectionNamesWithEnrollmentsAsync(string schoolYear)
     {
         try
@@ -979,8 +963,6 @@ public class CurriculumService
         catch (Exception ex)
         {
             _logger?.LogWarning(ex, "Error loading final classes from view (view may not exist yet): {ErrorMessage}", ex.Message);
-            // Return empty list instead of throwing to prevent breaking the entire page
-            // The view will be created when the database script is run
             return new List<FinalClassView>();
         }
     }

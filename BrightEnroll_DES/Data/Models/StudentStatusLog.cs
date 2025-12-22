@@ -28,7 +28,7 @@ public class StudentStatusLog
     public string NewStatus { get; set; } = string.Empty;
 
     [Column("changed_by")]
-    public int? ChangedBy { get; set; } // UserEntity.UserId
+    public int? ChangedBy { get; set; } 
 
     [Column("changed_by_name")]
     [MaxLength(100)]

@@ -72,9 +72,6 @@ public class LoadingService : ILoadingService
         OnLoadingStateChanged?.Invoke();
     }
 
-    /// <summary>
-    /// Loads data with smart loading - only shows loading screen if data takes longer than threshold
-    /// </summary>
     public async Task<T> LoadWithSmartLoadingAsync<T>(Func<Task<T>> loadAction, string? message = null, int delayThresholdMs = 250)
     {
         var startTime = DateTime.Now;
@@ -140,10 +137,6 @@ public class LoadingService : ILoadingService
             }
         }
     }
-
-    /// <summary>
-    /// Loads data with smart loading - only shows loading screen if data takes longer than threshold
-    /// </summary>
     public async Task LoadWithSmartLoadingAsync(Func<Task> loadAction, string? message = null, int delayThresholdMs = 250)
     {
         var startTime = DateTime.Now;

@@ -15,7 +15,7 @@ public class JournalEntry
     [Required]
     [MaxLength(50)]
     [Column("entry_number")]
-    public string EntryNumber { get; set; } = string.Empty; // e.g., "JE-2025-001"
+    public string EntryNumber { get; set; } = string.Empty; 
 
     [Required]
     [Column("entry_date", TypeName = "date")]
@@ -28,15 +28,15 @@ public class JournalEntry
     [Required]
     [MaxLength(50)]
     [Column("reference_type")]
-    public string ReferenceType { get; set; } = string.Empty; // Payment, Expense, Payroll, Manual
+    public string ReferenceType { get; set; } = string.Empty; 
 
     [Column("reference_id")]
-    public int? ReferenceId { get; set; } // Links to source transaction (PaymentId, ExpenseId, etc.)
+    public int? ReferenceId { get; set; } 
 
     [Required]
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Posted"; // Draft, Posted, Reversed
+    public string Status { get; set; } = "Posted"; 
 
     [Column("created_by")]
     public int? CreatedBy { get; set; }

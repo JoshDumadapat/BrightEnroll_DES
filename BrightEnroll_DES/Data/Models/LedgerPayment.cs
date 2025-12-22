@@ -28,7 +28,7 @@ public class LedgerPayment
     [Required]
     [MaxLength(50)]
     [Column("payment_method")]
-    public string PaymentMethod { get; set; } = "Cash"; // "Cash", "Bank", "GCash", etc.
+    public string PaymentMethod { get; set; } = "Cash"; 
 
     [MaxLength(100)]
     [Column("processed_by")]

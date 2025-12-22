@@ -27,15 +27,13 @@ public class FeeService
     {
         try
         {
-            // Use AsNoTracking for read-only query to avoid concurrency issues
-            // Combine queries into a single operation to avoid multiple concurrent DbContext operations
             var fees = await _context.Fees
                 .AsNoTracking()
                 .Include(f => f.GradeLevel)
                 .Include(f => f.Breakdowns)
                 .Where(f => f.IsActive && 
                            f.GradeLevel != null && 
-                           f.GradeLevel.IsActive) // Filter directly in query instead of separate call
+                           f.GradeLevel.IsActive)
                 .OrderBy(f => f.GradeLevelId)
                 .ToListAsync();
 
@@ -354,8 +352,6 @@ public class FeeService
         if (string.IsNullOrWhiteSpace(gradeLevelName))
             return 0;
 
-        // Load grade level - use EF Core translatable case-insensitive comparison
-        // Convert both to uppercase for case-insensitive comparison (EF Core can translate this)
         var gradeLevelNameUpper = gradeLevelName.ToUpper();
         var gradeLevel = await _context.GradeLevels
             .AsNoTracking()

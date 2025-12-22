@@ -24,7 +24,7 @@ public class PayrollTransaction
     [Required]
     [MaxLength(20)]
     [Column("pay_period")]
-    public string PayPeriod { get; set; } = string.Empty; // e.g., "2025-01" for January 2025
+    public string PayPeriod { get; set; } = string.Empty; 
 
     [Required]
     [Column("base_salary", TypeName = "decimal(12,2)")]
@@ -65,22 +65,22 @@ public class PayrollTransaction
     [Required]
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Pending"; // Pending, Paid, Cancelled
+    public string Status { get; set; } = "Pending"; 
 
     [Column("payment_date", TypeName = "date")]
     public DateTime? PaymentDate { get; set; }
 
     [MaxLength(50)]
     [Column("payment_method")]
-    public string? PaymentMethod { get; set; } // Cash, Bank Transfer, Check
+    public string? PaymentMethod { get; set; } 
 
     [MaxLength(100)]
     [Column("reference_number")]
-    public string? ReferenceNumber { get; set; } // Check number, transaction ID, etc.
+    public string? ReferenceNumber { get; set; } 
 
     [Required]
     [Column("processed_by")]
-    public int ProcessedBy { get; set; } // Admin/Payroll user who processed the payment
+    public int ProcessedBy { get; set; } 
 
     [Required]
     [Column("created_at", TypeName = "datetime")]
@@ -90,7 +90,7 @@ public class PayrollTransaction
     public DateTime? UpdatedAt { get; set; }
 
     [Column("batch_timestamp", TypeName = "datetime")]
-    public DateTime? BatchTimestamp { get; set; } // Same timestamp for batch processing, NULL for individual
+    public DateTime? BatchTimestamp { get; set; }
 
     [MaxLength(500)]
     [Column("notes", TypeName = "nvarchar(500)")]
@@ -111,16 +111,16 @@ public class PayrollTransaction
 
     // Audit Trail
     [Column("created_by")]
-    public int CreatedBy { get; set; } // User who created the transaction
+    public int CreatedBy { get; set; } 
 
     [Column("approved_by")]
-    public int? ApprovedBy { get; set; } // User who approved/processed the payment
+    public int? ApprovedBy { get; set; }
 
     [Column("approved_at", TypeName = "datetime")]
     public DateTime? ApprovedAt { get; set; }
 
     [Column("cancelled_by")]
-    public int? CancelledBy { get; set; } // User who cancelled the transaction
+    public int? CancelledBy { get; set; } 
 
     [Column("cancelled_at", TypeName = "datetime")]
     public DateTime? CancelledAt { get; set; }

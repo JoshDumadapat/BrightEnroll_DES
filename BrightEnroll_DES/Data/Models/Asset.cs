@@ -38,7 +38,7 @@ public class Asset
 
     [MaxLength(50)]
     [Column("status")]
-    public string Status { get; set; } = "Available"; // Available, In Use, Maintenance, Damaged, Disposed
+    public string Status { get; set; } = "Available";
 
     [Column("purchase_date", TypeName = "date")]
     public DateTime? PurchaseDate { get; set; }

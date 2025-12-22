@@ -19,10 +19,10 @@ public class TeacherActivityLog
     [Required]
     [MaxLength(100)]
     [Column("action")]
-    public string Action { get; set; } = string.Empty; // e.g., "Recorded Attendance", "Entered Grades", "Viewed Class"
+    public string Action { get; set; } = string.Empty; 
 
     [Column("details", TypeName = "nvarchar(max)")]
-    public string? Details { get; set; } // Additional details about the action
+    public string? Details { get; set; } 
 
     [Required]
     [Column("created_at", TypeName = "datetime")]

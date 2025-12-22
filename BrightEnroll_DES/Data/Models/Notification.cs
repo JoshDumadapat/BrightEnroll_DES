@@ -15,7 +15,7 @@ public class Notification
     [Required]
     [MaxLength(50)]
     [Column("notification_type")]
-    public string NotificationType { get; set; } = string.Empty; // Expense, Payroll, JournalEntry
+    public string NotificationType { get; set; } = string.Empty; 
 
     [Required]
     [MaxLength(100)]
@@ -29,10 +29,10 @@ public class Notification
     [Required]
     [Column("reference_type")]
     [MaxLength(50)]
-    public string ReferenceType { get; set; } = string.Empty; // Expense, Payroll, JournalEntry
+    public string ReferenceType { get; set; } = string.Empty; 
 
     [Column("reference_id")]
-    public int? ReferenceId { get; set; } // ID of the related entity (ExpenseId, TransactionId, etc.)
+    public int? ReferenceId { get; set; } 
 
     [Required]
     [Column("is_read")]
@@ -47,14 +47,14 @@ public class Notification
 
     [MaxLength(100)]
     [Column("action_url")]
-    public string? ActionUrl { get; set; } // URL to navigate when notification is clicked
+    public string? ActionUrl { get; set; } 
 
     [MaxLength(50)]
     [Column("priority")]
-    public string Priority { get; set; } = "Normal"; // Low, Normal, High, Urgent
+    public string Priority { get; set; } = "Normal"; 
 
     [Column("created_by")]
-    public int? CreatedBy { get; set; } // User who created the notification (usually the requester)
+    public int? CreatedBy { get; set; } 
 
     // Navigation properties
     [ForeignKey("CreatedBy")]

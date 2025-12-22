@@ -495,8 +495,6 @@ public class ExpenseService
 
     public async Task<List<Expense>> GetExpensesAsync(DateTime? from = null, DateTime? to = null)
     {
-        // Use a new DbContext scope to avoid concurrency issues when this method
-        // is called concurrently or while other operations are using the shared _context
         if (_serviceScopeFactory != null)
         {
             using var scope = _serviceScopeFactory.CreateScope();
@@ -504,9 +502,6 @@ public class ExpenseService
             
             try
             {
-                // Use AsNoTracking() for read-only queries to avoid DbContext concurrency issues
-                // and improve performance since we don't need change tracking
-                // Note: AsNoTracking() must be applied to the base query before Include()
                 var query = context.Expenses
                     .AsNoTracking()
                     .Include(e => e.Attachments)
@@ -538,8 +533,6 @@ public class ExpenseService
         }
         else
         {
-            // Fallback to shared context if service scope factory is not available
-            // This should not happen in production, but provides backward compatibility
             try
             {
                 var query = _context.Expenses

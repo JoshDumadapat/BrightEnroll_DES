@@ -29,11 +29,11 @@ public class SupportTicket
 
     [MaxLength(50)]
     [Column("priority")]
-    public string Priority { get; set; } = "Medium"; // Low, Medium, High, Critical
+    public string Priority { get; set; } = "Medium";
 
     [MaxLength(50)]
     [Column("status")]
-    public string Status { get; set; } = "Open"; // Open, In Progress, Resolved, Closed
+    public string Status { get; set; } = "Open"; 
 
     [MaxLength(50)]
     [Column("category")]

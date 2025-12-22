@@ -127,14 +127,6 @@ public class PaymentService
                 throw new Exception($"Could not retrieve a payable ledger for student {studentId}.");
             }
 
-            // FIXED: Removed payment amount > balance validation
-            // The UI now handles overpayment (POS-style) and calculates amountToApply
-            // This service receives the amount to apply (already validated in UI)
-            // Overpayment is handled at UI level - we only apply what's needed to the ledger
-            // If paymentAmount > balance, we cap it at balance in the ledger calculation
-            // This allows POS-style payments where student can pay more than balance (change is returned)
-            
-            // Ensure we don't apply more than the balance to the ledger
             decimal amountToApplyToLedger = paymentAmount;
             if (amountToApplyToLedger > currentInfo.Balance)
             {

@@ -18,7 +18,7 @@ public class FeeBreakdown
     [Required]
     [MaxLength(20)]
     [Column("breakdown_type")]
-    public string BreakdownType { get; set; } = string.Empty; // "Tuition", "Misc", "Other"
+    public string BreakdownType { get; set; } = string.Empty; 
 
     [Required]
     [MaxLength(200)]

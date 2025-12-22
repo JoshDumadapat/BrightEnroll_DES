@@ -24,8 +24,7 @@ public class StudentPayment
     [Required]
     [MaxLength(50)]
     [Column("payment_method")]
-    public string PaymentMethod { get; set; } = string.Empty; // cash, bank, gcash, etc.
-
+    public string PaymentMethod { get; set; } = string.Empty; 
     [Required]
     [MaxLength(50)]
     [Column("or_number")]
@@ -37,7 +36,7 @@ public class StudentPayment
 
     [MaxLength(20)]
     [Column("school_year")]
-    public string? SchoolYear { get; set; } // Links payment to school year enrollment
+    public string? SchoolYear { get; set; } 
 
     [Required]
     [Column("created_at", TypeName = "datetime")]

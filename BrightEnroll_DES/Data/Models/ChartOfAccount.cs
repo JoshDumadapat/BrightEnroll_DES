@@ -15,12 +15,12 @@ public class ChartOfAccount
     [Required]
     [MaxLength(20)]
     [Column("account_code")]
-    public string AccountCode { get; set; } = string.Empty; // e.g., "1000", "4000", "5000"
+    public string AccountCode { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(200)]
     [Column("account_name")]
-    public string AccountName { get; set; } = string.Empty; // e.g., "Cash", "Tuition Revenue"
+    public string AccountName { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(50)]

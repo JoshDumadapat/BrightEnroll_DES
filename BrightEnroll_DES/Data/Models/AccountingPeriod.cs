@@ -23,7 +23,7 @@ public class AccountingPeriod
     [Required]
     [Column("period_name")]
     [MaxLength(50)]
-    public string PeriodName { get; set; } = string.Empty; // e.g., "January 2025"
+    public string PeriodName { get; set; } = string.Empty; 
 
     [Required]
     [Column("start_date", TypeName = "date")]

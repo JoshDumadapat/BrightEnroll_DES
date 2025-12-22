@@ -3,19 +3,13 @@ using BrightEnroll_DES.Data.Models;
 using BrightEnroll_DES.Data.Models.SuperAdmin;
 
 namespace BrightEnroll_DES.Data;
-
-// EF Core database context for SuperAdmin database - handles SuperAdmin management tables only
 public class SuperAdminDbContext : DbContext
 {
-    // SuperAdmin users table (for local development/testing - production uses cloud)
     public DbSet<UserEntity> Users { get; set; }
     
     // SuperAdmin management tables
     public DbSet<Customer> Customers { get; set; }
-    // SalesLeads removed - Sales Lead functionality not needed
     public DbSet<SupportTicket> SupportTickets { get; set; }
-    // Contracts removed - Contract information is stored in tbl_Customers table
-    // (ContractStartDate, ContractEndDate, ContractDurationMonths, ContractTermsText, etc.)
     public DbSet<SystemUpdate> SystemUpdates { get; set; }
     
     // SuperAdmin BIR Information
@@ -55,10 +49,7 @@ public class SuperAdminDbContext : DbContext
             entity.HasIndex(e => e.Status);
             entity.HasIndex(e => e.ContractEndDate);
             
-            // CreatedBy column exists but references tbl_Users in main database, no FK constraint here
         });
-
-        // SalesLead entity removed - Sales Lead functionality not needed
 
         // Configure SupportTicket entity
         modelBuilder.Entity<SupportTicket>(entity =>
@@ -76,11 +67,7 @@ public class SuperAdminDbContext : DbContext
                   .HasForeignKey(t => t.CustomerId)
                   .OnDelete(DeleteBehavior.Restrict);
             
-            // AssignedTo column exists but references tbl_Users in main database, no FK constraint here
         });
-
-        // Contracts entity removed - Contract information is stored in tbl_Customers table
-        // (ContractStartDate, ContractEndDate, ContractDurationMonths, ContractTermsText, etc.)
 
         // Configure SystemUpdate entity
         modelBuilder.Entity<SystemUpdate>(entity =>

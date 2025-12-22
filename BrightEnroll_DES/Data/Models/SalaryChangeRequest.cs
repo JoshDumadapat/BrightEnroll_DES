@@ -39,7 +39,7 @@ public class SalaryChangeRequest
     [Required]
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Pending"; // Pending, Approved, Rejected
+    public string Status { get; set; } = "Pending"; 
 
     [MaxLength(500)]
     [Column("rejection_reason", TypeName = "nvarchar(500)")]
@@ -47,10 +47,10 @@ public class SalaryChangeRequest
 
     [Required]
     [Column("requested_by")]
-    public int RequestedBy { get; set; } // HR user who created the request
+    public int RequestedBy { get; set; } 
 
     [Column("approved_by")]
-    public int? ApprovedBy { get; set; } // Admin/Payroll user who approved/rejected
+    public int? ApprovedBy { get; set; } 
 
     [Required]
     [Column("requested_at", TypeName = "datetime")]
@@ -60,7 +60,7 @@ public class SalaryChangeRequest
     public DateTime? ApprovedAt { get; set; }
 
     [Column("effective_date", TypeName = "date")]
-    public DateTime? EffectiveDate { get; set; } // Date when the approved salary change takes effect
+    public DateTime? EffectiveDate { get; set; } 
 
     [Required]
     [MaxLength(20)]
@@ -68,7 +68,7 @@ public class SalaryChangeRequest
     public string SchoolYear { get; set; } = string.Empty;
 
     [Column("is_initial_registration")]
-    public bool IsInitialRegistration { get; set; } = false; // True if from Add Employee, False if from Edit
+    public bool IsInitialRegistration { get; set; } = false;
 
     // Navigation properties
     [ForeignKey("UserId")]

@@ -97,9 +97,7 @@ namespace BrightEnroll_DES.Services.Authentication
             }
         }
 
-        /// <summary>
         /// Validates SuperAdmin credentials from cloud database (for security - SuperAdmin should NOT be in local DB)
-        /// </summary>
         public async Task<User?> ValidateSuperAdminFromCloudAsync(string email, string password)
         {
             try
@@ -151,9 +149,7 @@ namespace BrightEnroll_DES.Services.Authentication
             }
         }
 
-        /// <summary>
-        /// Gets customer information by admin email (to retrieve school-specific connection strings)
-        /// </summary>
+        /// Gets customer information by admin email
         public async Task<Customer?> GetCustomerByAdminEmailAsync(string email)
         {
             try
@@ -162,7 +158,6 @@ namespace BrightEnroll_DES.Services.Authentication
                 
                 if (string.IsNullOrWhiteSpace(email)) return null;
                 
-                // Case-insensitive email comparison (SQL Server default collation is case-insensitive, but using ToLower for safety)
                 var emailLower = email.Trim().ToLowerInvariant();
                 return await _superAdminContext.Customers
                     .FirstOrDefaultAsync(c => c.AdminUsername != null && 
@@ -175,9 +170,7 @@ namespace BrightEnroll_DES.Services.Authentication
             }
         }
 
-        /// <summary>
         /// Validates SuperAdmin credentials from SuperAdmin database (for local development/testing)
-        /// </summary>
         public async Task<User?> ValidateSuperAdminFromSuperAdminDatabaseAsync(string email, string password)
         {
             try
@@ -193,7 +186,6 @@ namespace BrightEnroll_DES.Services.Authentication
                     return null;
                 }
 
-                // Verify password using BCrypt
                 if (BCrypt.Net.BCrypt.Verify(password, user.Password))
                 {
                     return new User

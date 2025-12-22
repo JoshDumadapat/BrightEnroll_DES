@@ -34,7 +34,7 @@ public class Classroom
     [Required]
     [MaxLength(20)]
     [Column("Status")]
-    public string Status { get; set; } = "Active"; // Active / Inactive
+    public string Status { get; set; } = "Active"; 
 
     [MaxLength(500)]
     [Column("Notes")]

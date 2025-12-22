@@ -18,7 +18,7 @@ public class ClassSchedule
     [Required]
     [MaxLength(10)]
     [Column("DayOfWeek")]
-    public string DayOfWeek { get; set; } = string.Empty; // M, T, W, TH, F, Sat, Sun
+    public string DayOfWeek { get; set; } = string.Empty;
 
     [Required]
     [Column("StartTime", TypeName = "time")]

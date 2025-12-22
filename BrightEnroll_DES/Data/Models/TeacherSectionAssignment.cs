@@ -20,12 +20,12 @@ public class TeacherSectionAssignment
     public int SectionId { get; set; }
 
     [Column("SubjectID")]
-    public int? SubjectId { get; set; } // NULL if adviser
+    public int? SubjectId { get; set; } 
 
     [Required]
     [MaxLength(50)]
     [Column("Role")]
-    public string Role { get; set; } = string.Empty; // "adviser" or "subject_teacher"
+    public string Role { get; set; } = string.Empty;
 
     [Column("IsArchived")]
     public bool IsArchived { get; set; } = false;

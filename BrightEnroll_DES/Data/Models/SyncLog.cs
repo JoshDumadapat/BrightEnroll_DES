@@ -13,12 +13,12 @@ public class SyncLog
     public int LogId { get; set; }
 
     [Column("sync_id")]
-    public int? SyncId { get; set; } // Foreign key to SyncHistory (optional)
+    public int? SyncId { get; set; } 
 
     [Required]
     [MaxLength(50)]
     [Column("log_type")]
-    public string LogType { get; set; } = string.Empty; // "Full Sync", "Push to Cloud", "Error", etc.
+    public string LogType { get; set; } = string.Empty; 
 
     [Required]
     [Column("log_message", TypeName = "nvarchar(max)")]
@@ -30,7 +30,7 @@ public class SyncLog
 
     [MaxLength(20)]
     [Column("severity")]
-    public string? Severity { get; set; } // "Info", "Warning", "Error"
+    public string? Severity { get; set; } 
 
     [Column("created_at", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

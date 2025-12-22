@@ -209,9 +209,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
         return result;
     }
 
-    /// <summary>
-    /// Optimized sync to cloud - only syncs new or updated records using timestamps
-    /// </summary>
     private async Task<int> SyncTableToCloudOptimizedAsync<T>(
         SqlConnection cloudConnection, 
         string tableName, 
@@ -237,8 +234,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                 return 0;
             }
 
-            // Build query to get only new/updated records
-            // Load all records first, then filter in memory to avoid LINQ translation issues with reflection
             var allLocalRecords = await _context.Set<T>().ToListAsync();
             List<T> localRecords;
             
@@ -372,9 +367,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
         return recordsSynced;
     }
 
-    /// <summary>
-    /// Optimized sync from cloud - only syncs new or updated records using timestamps
-    /// </summary>
     private async Task<int> SyncTableFromCloudOptimizedAsync<T>(
         SqlConnection cloudConnection, 
         string tableName, 
@@ -396,14 +388,11 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
             
             if (pkProperty == null) return 0;
 
-            // Build query to get only new/updated records from cloud
-            // First check if columns exist before using them in WHERE clause
             var cloudQuery = new StringBuilder($"SELECT * FROM [{tableName}]");
             var hasWhere = false;
             var canUseUpdatedAt = false;
             var canUseCreatedAt = false;
 
-            // Check if updated_at column exists in cloud database
             if (!string.IsNullOrEmpty(updatedAtColumn))
             {
                 try
@@ -423,7 +412,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                 }
             }
 
-            // Check if created_at column exists in cloud database
             if (!string.IsNullOrEmpty(createdAtColumn))
             {
                 try
@@ -454,8 +442,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
                 hasWhere = true;
             }
 
-            // Get local PKs to check what exists - load all records and extract PKs in memory
-            // This avoids LINQ translation issues with reflection
             var allLocalEntities = await _context.Set<T>().ToListAsync();
             var localPkSet = new HashSet<object>();
             
@@ -504,13 +490,11 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
             _logger?.LogInformation("Syncing {Table}: Found {New} new and {Existing} existing cloud records", 
                 tableName, newRecords.Count, existingRecords.Count);
 
-            // Bulk insert new records
             if (newRecords.Any())
             {
                 recordsSynced += await BulkInsertFromCloudAsync<T>(newRecords, properties, pkProperty, entityType);
             }
 
-            // Bulk update existing records (with conflict resolution)
             if (existingRecords.Any())
             {
                 recordsSynced += await BulkUpdateFromCloudAsync<T>(existingRecords, properties, pkProperty, updatedAtColumn);
@@ -541,7 +525,6 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
         int inserted = 0;
         var isIdentity = pkProperty.ValueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd;
 
-        // Process in batches of 100 for better performance
         const int batchSize = 100;
         for (int i = 0; i < records.Count; i += batchSize)
         {
@@ -605,7 +588,7 @@ public class SuperAdminDatabaseSyncService : ISuperAdminDatabaseSyncService
             catch (Exception ex)
             {
                 _logger?.LogWarning(ex, "Error in bulk insert batch for {Table}", tableName);
-                // Continue with next batch
+
             }
         }
 

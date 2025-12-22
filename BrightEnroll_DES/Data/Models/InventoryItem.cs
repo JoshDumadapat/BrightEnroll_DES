@@ -27,7 +27,7 @@ public class InventoryItem
 
     [MaxLength(50)]
     [Column("unit")]
-    public string Unit { get; set; } = "Piece"; // Piece, Box, Ream, etc.
+    public string Unit { get; set; } = "Piece"; 
 
     [Column("quantity")]
     public int Quantity { get; set; } = 0;

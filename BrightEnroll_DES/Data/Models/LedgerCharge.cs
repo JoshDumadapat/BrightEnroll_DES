@@ -19,7 +19,7 @@ public class LedgerCharge
     [Required]
     [MaxLength(50)]
     [Column("charge_type")]
-    public string ChargeType { get; set; } = string.Empty; // "Tuition", "Misc", "Other", "Discount", "Adjustment"
+    public string ChargeType { get; set; } = string.Empty; 
 
     [MaxLength(500)]
     [Column("description")]
@@ -27,7 +27,7 @@ public class LedgerCharge
 
     [Required]
     [Column("amount", TypeName = "decimal(18,2)")]
-    public decimal Amount { get; set; } = 0; // Positive for charges, NEGATIVE for discounts
+    public decimal Amount { get; set; } = 0; 
 
     [Required]
     [Column("created_at", TypeName = "datetime")]
@@ -37,7 +37,7 @@ public class LedgerCharge
     public DateTime? UpdatedAt { get; set; }
 
     [Column("discount_id")]
-    public int? DiscountId { get; set; } // Optional FK to discount configuration
+    public int? DiscountId { get; set; } 
 
     // Navigation properties
     [ForeignKey("LedgerId")]

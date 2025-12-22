@@ -39,7 +39,7 @@ public class SalesLead
 
     [MaxLength(50)]
     [Column("stage")]
-    public string Stage { get; set; } = "New Lead"; // New Lead, Qualified, Proposal Sent, Closing, Converted, Lost
+    public string Stage { get; set; } = "New Lead"; 
 
     [MaxLength(50)]
     [Column("interested_plan")]

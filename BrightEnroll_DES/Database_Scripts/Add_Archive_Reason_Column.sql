@@ -1,6 +1,3 @@
--- Add archive_reason column to tbl_Students table
--- This column stores the reason for archiving a student (e.g., rejection reason, withdrawal reason)
-
 IF NOT EXISTS (
     SELECT * FROM sys.columns 
     WHERE object_id = OBJECT_ID(N'[dbo].[tbl_Students]') 

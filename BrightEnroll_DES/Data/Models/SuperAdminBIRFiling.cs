@@ -14,12 +14,12 @@ public class SuperAdminBIRFiling
     [Required]
     [MaxLength(50)]
     [Column("filing_type")]
-    public string FilingType { get; set; } = string.Empty; // "Quarterly VAT", "Annual ITR", "Monthly VAT", etc.
+    public string FilingType { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(20)]
     [Column("period")]
-    public string Period { get; set; } = string.Empty; // "Q1 2024", "2024", "Jan 2024", etc.
+    public string Period { get; set; } = string.Empty;
 
     [Required]
     [Column("filing_date", TypeName = "datetime")]
@@ -32,14 +32,14 @@ public class SuperAdminBIRFiling
     [Required]
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Pending"; // "Pending", "Filed", "Overdue", "Late Filed"
+    public string Status { get; set; } = "Pending";
 
     [Column("amount", TypeName = "decimal(18,2)")]
     public decimal? Amount { get; set; }
 
     [MaxLength(100)]
     [Column("reference_number")]
-    public string? ReferenceNumber { get; set; } // BIR confirmation number, receipt number, etc.
+    public string? ReferenceNumber { get; set; } 
 
     [Column("notes", TypeName = "nvarchar(1000)")]
     public string? Notes { get; set; }

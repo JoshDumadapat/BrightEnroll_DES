@@ -22,7 +22,7 @@ public class SubjectSchedule
     [Required]
     [MaxLength(10)]
     [Column("DayOfWeek")]
-    public string DayOfWeek { get; set; } = string.Empty; // M, T, W, TH, F, Sat, Sun
+    public string DayOfWeek { get; set; } = string.Empty; 
 
     [Required]
     [Column("StartTime", TypeName = "time")]
@@ -34,7 +34,7 @@ public class SubjectSchedule
 
     [Required]
     [Column("IsDefault")]
-    public bool IsDefault { get; set; } = true; // Indicates this is the grade-level default schedule
+    public bool IsDefault { get; set; } = true; 
 
     [Column("CreatedAt", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

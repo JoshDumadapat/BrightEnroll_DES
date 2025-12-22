@@ -18,11 +18,10 @@ public class SchoolYear
 
     [Required]
     [Column("is_active")]
-    public bool IsActive { get; set; } = false; // Currently active school year
-
+    public bool IsActive { get; set; } = false; 
     [Required]
     [Column("is_open")]
-    public bool IsOpen { get; set; } = false; // Can enroll students
+    public bool IsOpen { get; set; } = false; 
 
     [Column("start_date", TypeName = "date")]
     public DateTime? StartDate { get; set; }

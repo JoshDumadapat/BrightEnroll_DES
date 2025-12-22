@@ -282,7 +282,6 @@ public class TeacherService
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Error logging activity for teacher {TeacherId}", teacherId);
-            // Don't throw - activity logging should not break the main flow
         }
     }
 
@@ -502,7 +501,6 @@ public class TeacherService
                 .Include(a => a.Subject)
                 .ToListAsync();
 
-            // Get adviser - first from section.AdviserId, then from assignments
             var adviser = section.Adviser;
             if (adviser == null)
             {
@@ -602,7 +600,6 @@ public class TeacherService
             if (student == null)
                 return null;
 
-            // Get enrollment info - try exact match first, then fallback to latest enrollment
             var enrollment = await _context.StudentSectionEnrollments
                 .Include(e => e.Section!)
                     .ThenInclude(s => s.GradeLevel)
@@ -610,7 +607,6 @@ public class TeacherService
                                         e.SectionId == sectionId &&
                                         e.SchoolYear == schoolYear);
 
-            // Fallback: if no exact match, get latest enrollment for this student
             if (enrollment == null)
             {
                 enrollment = await _context.StudentSectionEnrollments
@@ -621,14 +617,12 @@ public class TeacherService
                     .FirstOrDefaultAsync();
             }
 
-            // Add null safety check for enrollment
             if (enrollment?.Section == null)
             {
                 _logger?.LogWarning("No enrollment found for student {StudentId}, section {SectionId}, school year {SchoolYear}", 
                     studentId, sectionId, schoolYear);
             }
 
-            // Build address strings with null safety
             var currentAddress = BuildAddressString(
                 student.HseNo, student.Street, student.Brngy, 
                 student.City, student.Province, student.Country, student.ZipCode);
@@ -637,9 +631,8 @@ public class TeacherService
                 student.PhseNo, student.Pstreet, student.Pbrngy,
                 student.Pcity, student.Pprovince, student.Pcountry, student.PzipCode);
 
-            var guardianAddress = ""; // Guardian doesn't have address in current model
+            var guardianAddress = ""; 
 
-            // Log for debugging
             _logger?.LogInformation("Student found: {StudentId}, Name: {FirstName} {LastName}, Guardian: {GuardianId}", 
                 student.StudentId, student.FirstName, student.LastName, student.GuardianId);
             
@@ -655,7 +648,7 @@ public class TeacherService
                 _logger?.LogWarning("Guardian is null for student {StudentId}", student.StudentId);
             }
 
-            // Get contact number from guardian if available
+ 
             var contactNumber = student.Guardian?.ContactNum ?? "";
 
             // Build guardian name safely

@@ -33,7 +33,7 @@ public class Grade
     [Required]
     [MaxLength(10)]
     [Column("grading_period")]
-    public string GradingPeriod { get; set; } = string.Empty; // Q1, Q2, Q3, Q4
+    public string GradingPeriod { get; set; } = string.Empty; 
 
     [Column("written_work", TypeName = "decimal(5,2)")]
     public decimal? WrittenWork { get; set; }

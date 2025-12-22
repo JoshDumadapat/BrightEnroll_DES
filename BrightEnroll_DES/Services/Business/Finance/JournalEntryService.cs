@@ -7,10 +7,6 @@ using BrightEnroll_DES.Services.Business.Audit;
 using BrightEnroll_DES.Services.Authentication;
 
 namespace BrightEnroll_DES.Services.Business.Finance;
-
-/// <summary>
-/// Service for creating and managing journal entries (double-entry bookkeeping)
-/// </summary>
 public class JournalEntryService
 {
     private readonly AppDbContext _context;
@@ -29,10 +25,6 @@ public class JournalEntryService
         _serviceScopeFactory = serviceScopeFactory;
         _authService = authService;
     }
-
-    /// <summary>
-    /// Creates a journal entry for a student payment
-    /// </summary>
     public async Task<int> CreatePaymentJournalEntryAsync(StudentPayment payment, int? createdBy = null)
     {
         try
@@ -150,10 +142,6 @@ public class JournalEntryService
             throw;
         }
     }
-
-    /// <summary>
-    /// Creates a journal entry for an approved expense
-    /// </summary>
     public async Task<int> CreateExpenseJournalEntryAsync(Expense expense, int? createdBy = null, int? approvedBy = null)
     {
         try
@@ -172,8 +160,6 @@ public class JournalEntryService
                 throw new InvalidOperationException("Cash account (1000) not found in Chart of Accounts.");
             }
 
-            // Map expense category to expense account
-            // Default to "5100" (Other Expenses) if category doesn't match
             var expenseAccountCode = MapExpenseCategoryToAccount(expense.Category);
             var expenseAccount = await _context.ChartOfAccounts
                 .FirstOrDefaultAsync(a => a.AccountCode == expenseAccountCode && a.IsActive);
@@ -258,10 +244,6 @@ public class JournalEntryService
             throw;
         }
     }
-
-    /// <summary>
-    /// Creates a journal entry for payroll transaction
-    /// </summary>
     public async Task<int> CreatePayrollJournalEntryAsync(PayrollTransaction payroll, int? createdBy = null, int? approvedBy = null)
     {
         try
@@ -299,9 +281,6 @@ public class JournalEntryService
             // Generate entry number
             var entryNumber = await GenerateEntryNumberAsync();
 
-            // Create journal entry
-            // Use PaymentDate if available (date approved), otherwise use CreatedAt
-            // Always use .Date to ensure date-only comparison in reports
             var entryDate = payroll.PaymentDate.HasValue 
                 ? payroll.PaymentDate.Value.Date 
                 : payroll.CreatedAt.Date;
@@ -326,8 +305,6 @@ public class JournalEntryService
             var lines = new List<JournalEntryLine>();
             int lineNumber = 1;
 
-            // Debit: Salaries Expense (Gross Salary - the full cost to company)
-            // This includes both what employee receives (Net Pay) and what company owes (deductions + contributions)
             var totalSalaryExpense = payroll.GrossSalary + payroll.TotalCompanyContribution;
             lines.Add(new JournalEntryLine
             {
@@ -350,8 +327,6 @@ public class JournalEntryService
                 Description = $"Net pay payment"
             });
 
-            // Credit: Accrued Payroll Taxes (Company Contributions + Employee Deductions)
-            // This represents the liability - money owed to government agencies
             if (payroll.TotalCompanyContribution > 0 || payroll.TotalDeductions > 0)
             {
                 var totalAccrued = payroll.TotalCompanyContribution + payroll.TotalDeductions;
@@ -380,9 +355,6 @@ public class JournalEntryService
         }
     }
 
-    /// <summary>
-    /// Creates a single combined journal entry for a batch of payroll transactions
-    /// </summary>
     public async Task<int> CreateBatchPayrollJournalEntryAsync(List<PayrollTransaction> payrollTransactions, int? createdBy = null, int? approvedBy = null)
     {
         try
@@ -421,8 +393,6 @@ public class JournalEntryService
                 // Extract transaction IDs first (client-side evaluation)
                 var transactionIds = payrollTransactions.Select(pt => pt.TransactionId).ToList();
                 
-                // Check if a journal entry already exists for any transaction in this batch
-                // Use Contains which can be translated to SQL
                 var existingEntry = await _context.JournalEntries
                     .FirstOrDefaultAsync(e => e.ReferenceType == "Payroll" && 
                         e.ReferenceId.HasValue &&
@@ -446,9 +416,6 @@ public class JournalEntryService
             // Generate entry number
             var entryNumber = await GenerateEntryNumberAsync();
 
-            // Create journal entry
-            // Use PaymentDate if available (date approved), otherwise use CreatedAt
-            // Always use .Date to ensure date-only comparison in reports
             var entryDate = firstTransaction.PaymentDate.HasValue 
                 ? firstTransaction.PaymentDate.Value.Date 
                 : firstTransaction.CreatedAt.Date;
@@ -459,7 +426,7 @@ public class JournalEntryService
                 EntryDate = entryDate,
                 Description = $"Batch Payroll for {employeeCount} employee(s) - Pay Period: {payPeriod}",
                 ReferenceType = "Payroll",
-                ReferenceId = firstTransaction.TransactionId, // Use first transaction ID as reference
+                ReferenceId = firstTransaction.TransactionId,
                 Status = "Posted",
                 CreatedBy = createdBy,
                 ApprovedBy = approvedBy ?? firstTransaction.ApprovedBy,
@@ -469,7 +436,6 @@ public class JournalEntryService
             _context.JournalEntries.Add(journalEntry);
             await _context.SaveChangesAsync();
 
-            // Create journal entry lines with aggregated amounts
             var lines = new List<JournalEntryLine>();
             int lineNumber = 1;
 
@@ -509,7 +475,6 @@ public class JournalEntryService
                 Description = $"Batch net pay payment for {employeeCount} employee(s)"
             });
 
-            // Credit: Accrued Payroll Taxes (Total Company Contributions + Total Deductions)
             if (totalCompanyContribution > 0 || totalDeductions > 0)
             {
                 var totalAccrued = totalCompanyContribution + totalDeductions;
@@ -538,9 +503,6 @@ public class JournalEntryService
         }
     }
 
-    /// <summary>
-    /// Generates a unique journal entry number (e.g., JE-2025-001)
-    /// </summary>
     private async Task<string> GenerateEntryNumberAsync()
     {
         var year = DateTime.Now.Year;
@@ -564,9 +526,6 @@ public class JournalEntryService
         return $"{prefix}{nextNumber:D3}";
     }
 
-    /// <summary>
-    /// Creates a manual journal entry (requires approval)
-    /// </summary>
     public async Task<int> CreateManualJournalEntryAsync(
         DateTime entryDate,
         string description,
@@ -652,10 +611,6 @@ public class JournalEntryService
             throw;
         }
     }
-
-    /// <summary>
-    /// Approves a draft journal entry
-    /// </summary>
     public async Task ApproveJournalEntryAsync(int journalEntryId, int approvedBy, string? approvalNotes = null)
     {
         try
@@ -745,10 +700,6 @@ public class JournalEntryService
             throw;
         }
     }
-
-    /// <summary>
-    /// Rejects a draft journal entry
-    /// </summary>
     public async Task RejectJournalEntryAsync(int journalEntryId, int rejectedBy, string rejectionReason)
     {
         try
@@ -783,9 +734,6 @@ public class JournalEntryService
         }
     }
 
-    /// <summary>
-    /// Gets all pending journal entries (Draft status) for approval
-    /// </summary>
     public async Task<List<PendingJournalEntry>> GetPendingJournalEntriesAsync()
     {
         var entries = await _context.JournalEntries
@@ -820,26 +768,21 @@ public class JournalEntryService
         }).ToList();
     }
 
-    /// <summary>
-    /// Maps expense category to appropriate account code
-    /// </summary>
     private string MapExpenseCategoryToAccount(string category)
     {
         // Map common expense categories to account codes
         return category.ToLower() switch
         {
-            var c when c.Contains("salary") || c.Contains("wage") || c.Contains("payroll") => "5000", // Salaries Expense
-            var c when c.Contains("utility") || c.Contains("electric") || c.Contains("water") => "5200", // Utilities Expense
-            var c when c.Contains("supply") || c.Contains("material") => "5300", // Supplies Expense
-            var c when c.Contains("rent") || c.Contains("lease") => "5400", // Rent Expense
-            var c when c.Contains("maintenance") || c.Contains("repair") => "5500", // Maintenance Expense
-            var c when c.Contains("office") => "5600", // Office Expense
-            _ => "5100" // Other Expenses (default)
+            var c when c.Contains("salary") || c.Contains("wage") || c.Contains("payroll") => "5000", 
+            var c when c.Contains("utility") || c.Contains("electric") || c.Contains("water") => "5200",
+            var c when c.Contains("supply") || c.Contains("material") => "5300", 
+            var c when c.Contains("rent") || c.Contains("lease") => "5400", 
+            var c when c.Contains("maintenance") || c.Contains("repair") => "5500", 
+            var c when c.Contains("office") => "5600", 
+            _ => "5100" 
         };
     }
 }
-
-// Helper classes for manual journal entries
 public class ManualJournalEntryLine
 {
     public int AccountId { get; set; }

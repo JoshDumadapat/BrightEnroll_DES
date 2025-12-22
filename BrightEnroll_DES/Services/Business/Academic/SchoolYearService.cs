@@ -103,8 +103,6 @@ public class SchoolYearService
                 return sy.IsOpen;
             }
             
-            // If school year doesn't exist, check if it's the active school year
-            // This handles cases where the school year might be calculated but not yet in DB
             var activeSchoolYear = await GetActiveSchoolYearAsync();
             if (activeSchoolYear != null && activeSchoolYear.SchoolYearName == schoolYear)
             {
@@ -216,11 +214,10 @@ public class SchoolYearService
             {
                 if (year.SchoolYearId != sy.SchoolYearId)
                 {
-                    // FIXED: Check if was previously open BEFORE setting IsOpen to false
                     bool wasOpen = year.IsOpen;
                     year.IsActive = false;
                     year.IsOpen = false;
-                    if (wasOpen) // Was previously open - set closed timestamp
+                    if (wasOpen) 
                     {
                         year.ClosedAt = DateTime.Now;
                     }
@@ -275,7 +272,6 @@ public class SchoolYearService
         }
     }
 
-    // Gets the current school year based on date calculation (fallback method)
     public string GetCurrentSchoolYear()
     {
         var currentYear = DateTime.Now.Year;
@@ -290,11 +286,6 @@ public class SchoolYearService
             return $"{currentYear - 1}-{currentYear}";
         }
     }
-
-
-    // Removes finished school years that have ended
-    // FIXED: Only removes school years that have been closed for at least 30 days
-    // This prevents recently closed school years from being deleted immediately when opening a new school year
     public async Task RemoveFinishedSchoolYearsAsync()
     {
         try
@@ -311,8 +302,6 @@ public class SchoolYearService
                 currentEndYear = currentYear;
             }
 
-            // Minimum days after closing before a school year can be auto-deleted
-            // This prevents recently closed school years from being deleted immediately
             const int MIN_DAYS_SINCE_CLOSING = 30;
 
             // Get all school years
@@ -334,34 +323,27 @@ public class SchoolYearService
 
                 if (int.TryParse(parts[1], out int endYear))
                 {
-                    // Must be a past school year (end year is before current end year)
                     if (endYear >= currentEndYear)
                         return false;
 
-                    // FIXED: Only delete if it has been closed for at least MIN_DAYS_SINCE_CLOSING days
-                    // This prevents recently closed school years from being deleted immediately
                     if (sy.ClosedAt.HasValue)
                     {
                         var daysSinceClosed = (DateTime.Now - sy.ClosedAt.Value).Days;
                         if (daysSinceClosed < MIN_DAYS_SINCE_CLOSING)
                         {
-                            // Too recently closed - don't delete yet
                             return false;
                         }
                     }
                     else if (sy.EndDate.HasValue)
                     {
-                        // If no ClosedAt date, use EndDate + buffer period
                         var daysSinceEndDate = (DateTime.Now - sy.EndDate.Value).Days;
                         if (daysSinceEndDate < MIN_DAYS_SINCE_CLOSING)
                         {
-                            // Too recent - don't delete yet
                             return false;
                         }
                     }
                     else
                     {
-                        // No closing date or end date - be conservative and don't delete
                         return false;
                     }
 

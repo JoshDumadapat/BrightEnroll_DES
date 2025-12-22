@@ -19,15 +19,15 @@ public class TimeRecord
     [Required]
     [MaxLength(20)]
     [Column("period")]
-    public string Period { get; set; } = string.Empty; // e.g., "2025-01" for January 2025
+    public string Period { get; set; } = string.Empty; 
 
     [MaxLength(10)]
     [Column("time_in")]
-    public string? TimeIn { get; set; } // HH:mm format
+    public string? TimeIn { get; set; } 
 
     [MaxLength(10)]
     [Column("time_out")]
-    public string? TimeOut { get; set; } // HH:mm format
+    public string? TimeOut { get; set; }
 
     [Required]
     [Column("regular_hours", TypeName = "decimal(5,2)")]

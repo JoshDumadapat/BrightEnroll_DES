@@ -192,8 +192,6 @@ public class OfflineQueueService : IOfflineQueueService
 
     private async Task SaveQueuedOperationAsync(QueuedOperation operation)
     {
-        // In a real implementation, save to database table
-        // For now, this is a placeholder
         await Task.CompletedTask;
     }
 }

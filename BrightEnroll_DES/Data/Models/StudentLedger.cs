@@ -29,7 +29,7 @@ public class StudentLedger
     [Required]
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Unpaid"; // "Unpaid", "Partially Paid", "Fully Paid"
+    public string Status { get; set; } = "Unpaid";
 
     [Required]
     [Column("total_charges", TypeName = "decimal(18,2)")]

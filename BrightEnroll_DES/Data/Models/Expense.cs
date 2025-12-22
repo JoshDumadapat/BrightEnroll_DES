@@ -11,7 +11,6 @@ public class Expense
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int ExpenseId { get; set; }
 
-    // Human‑readable ID shown in the UI, e.g. "EXP-20251126123456"
     [Required]
     [MaxLength(40)]
     [Column("expense_code")]
@@ -60,7 +59,7 @@ public class Expense
 
     [MaxLength(20)]
     [Column("school_year")]
-    public string? SchoolYear { get; set; } // Optional: for school-year specific expenses
+    public string? SchoolYear { get; set; }
 
     [Required]
     [Column("created_at")]

@@ -22,7 +22,7 @@ public class Attendance
     public int SectionId { get; set; }
 
     [Column("SubjectID")]
-    public int? SubjectId { get; set; } // NULL for homeroom attendance
+    public int? SubjectId { get; set; } 
 
     [Required]
     [Column("AttendanceDate", TypeName = "date")]
@@ -31,10 +31,10 @@ public class Attendance
     [Required]
     [MaxLength(20)]
     [Column("Status")]
-    public string Status { get; set; } = string.Empty; // "Present", "Absent", "Late", "Excused", "Tardy"
+    public string Status { get; set; } = string.Empty;
 
     [Column("TimeIn", TypeName = "time")]
-    public TimeSpan? TimeIn { get; set; } // For late tracking
+    public TimeSpan? TimeIn { get; set; } 
 
     [Column("TimeOut", TypeName = "time")]
     public TimeSpan? TimeOut { get; set; }

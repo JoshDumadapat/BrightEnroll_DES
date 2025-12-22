@@ -111,8 +111,6 @@ public class AutoSyncScheduler : BackgroundService
             _logger.LogInformation("Starting automatic sync");
             _syncStatusService.SetSyncing(true);
 
-            // Create new scope for sync operation to prevent concurrency errors
-            // BackgroundService is Singleton, so we must create new scope for each operation
             using var scope = _serviceScopeFactory.CreateScope();
             var syncService = scope.ServiceProvider.GetRequiredService<IDatabaseSyncService>();
 

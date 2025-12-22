@@ -26,14 +26,14 @@ public class SystemUpdate
 
     [MaxLength(50)]
     [Column("update_type")]
-    public string UpdateType { get; set; } = "Feature"; // Feature, Bug Fix, Security, Enhancement
+    public string UpdateType { get; set; } = "Feature";
 
     [Column("release_date", TypeName = "date")]
     public DateTime ReleaseDate { get; set; }
 
     [MaxLength(20)]
     [Column("status")]
-    public string Status { get; set; } = "Released"; // Planned, In Development, Testing, Released
+    public string Status { get; set; } = "Released"; 
 
     [Column("is_major_update")]
     public bool IsMajorUpdate { get; set; } = false;

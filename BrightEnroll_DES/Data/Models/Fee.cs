@@ -52,7 +52,7 @@ public class Fee
 
     [MaxLength(20)]
     [Column("school_year")]
-    public string? SchoolYear { get; set; } // Fee structure per school year
+    public string? SchoolYear { get; set; } 
 
     // Navigation properties
     [ForeignKey("GradeLevelId")]

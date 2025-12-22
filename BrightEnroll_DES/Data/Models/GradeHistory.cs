@@ -55,7 +55,7 @@ public class GradeHistory
 
     [Required]
     [Column("changed_by")]
-    public int ChangedBy { get; set; } // User ID who made the change
+    public int ChangedBy { get; set; }
 
     [MaxLength(500)]
     [Column("change_reason")]

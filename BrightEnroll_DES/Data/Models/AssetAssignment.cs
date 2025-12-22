@@ -18,7 +18,7 @@ public class AssetAssignment
 
     [MaxLength(50)]
     [Column("assigned_to_type")]
-    public string AssignedToType { get; set; } = string.Empty; // Employee, Section, Classroom
+    public string AssignedToType { get; set; } = string.Empty;
 
     [MaxLength(50)]
     [Column("assigned_to_id")]
@@ -40,7 +40,7 @@ public class AssetAssignment
 
     [MaxLength(50)]
     [Column("status")]
-    public string Status { get; set; } = "Active"; // Active, Returned
+    public string Status { get; set; } = "Active"; 
 
     [Column("created_date", TypeName = "datetime")]
     public DateTime CreatedDate { get; set; } = DateTime.Now;

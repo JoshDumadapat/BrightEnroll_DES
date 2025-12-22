@@ -49,10 +49,6 @@ namespace BrightEnroll_DES.Services.Authentication
 
         public bool IsAuthenticated => _isAuthenticated;
         public User? CurrentUser => _currentUser;
-
-        /// <summary>
-        /// Gets the local machine's IP address for audit logging
-        /// </summary>
         private string GetLocalIpAddress()
         {
             try
@@ -80,21 +76,17 @@ namespace BrightEnroll_DES.Services.Authentication
         {
             try
             {
-                // STEP 1: Try local database first
                 var user = await _loginService.ValidateUserCredentialsAsync(username, password);
                 
                 if (user != null)
                 {
-                    // Check if SuperAdmin (should NOT be in local DB for security)
                     var isSuperAdmin = user.user_role?.Equals("SuperAdmin", StringComparison.OrdinalIgnoreCase) == true 
                                     || user.user_role?.Equals("Super Admin", StringComparison.OrdinalIgnoreCase) == true;
                     
                     if (isSuperAdmin)
                     {
-                        // SuperAdmin found in local school DB - reject for security, try SuperAdmin DB or cloud instead
                         System.Diagnostics.Debug.WriteLine("WARNING: SuperAdmin found in local school DB. Authenticating from SuperAdmin DB or cloud instead.");
                         
-                        // Try SuperAdmin database first (local dev/testing - most common scenario)
                         var superAdminDbUserFromDb = await _loginService.ValidateSuperAdminFromSuperAdminDatabaseAsync(username, password);
                         if (superAdminDbUserFromDb != null)
                         {
@@ -105,7 +97,6 @@ namespace BrightEnroll_DES.Services.Authentication
                             return true;
                         }
                         
-                        // Try cloud (production)
                         var cloudUserFromCloud = await _loginService.ValidateSuperAdminFromCloudAsync(username, password);
                         if (cloudUserFromCloud != null)
                         {
@@ -123,15 +114,12 @@ namespace BrightEnroll_DES.Services.Authentication
                         return false;
                     }
                     
-                    // School admin found in local DB - proceed
                     _currentUser = user;
                     _isAuthenticated = true;
                     LogSuccessfulLogin(user);
                     return true;
                 }
-                
-                // STEP 2: Not found in local - try SuperAdmin database first (for local dev/testing)
-                // This allows SuperAdmin to login from SuperAdmin database even if not in cloud
+
                 var superAdminDbUser = await _loginService.ValidateSuperAdminFromSuperAdminDatabaseAsync(username, password);
                 if (superAdminDbUser != null)
                 {
@@ -142,7 +130,6 @@ namespace BrightEnroll_DES.Services.Authentication
                     return true;
                 }
                 
-                // STEP 2.5: Try cloud for SuperAdmin (production)
                 var cloudUser = await _loginService.ValidateSuperAdminFromCloudAsync(username, password);
                 if (cloudUser != null)
                 {
@@ -153,13 +140,11 @@ namespace BrightEnroll_DES.Services.Authentication
                     return true;
                 }
                 
-                // STEP 3: Not found anywhere - check if school admin (query SuperAdmin DB)
                 if (_superAdminContext != null)
                 {
                     var customer = await _loginService.GetCustomerByAdminEmailAsync(username);
                     if (customer != null && !string.IsNullOrWhiteSpace(customer.DatabaseConnectionString))
                     {
-                        // FIRST: Validate credentials against SuperAdmin Customer table (source of truth)
                         if (string.IsNullOrWhiteSpace(customer.AdminPassword))
                         {
                             System.Diagnostics.Debug.WriteLine($"Customer {customer.SchoolName} has no AdminPassword stored.");
@@ -169,7 +154,7 @@ namespace BrightEnroll_DES.Services.Authentication
                             return false;
                         }
                         
-                        // Validate password from SuperAdmin Customer table (case-sensitive comparison, trim whitespace)
+                        // Validate password from SuperAdmin Customer table
                         var storedPassword = customer.AdminPassword?.Trim() ?? string.Empty;
                         var providedPassword = password?.Trim() ?? string.Empty;
                         
@@ -207,10 +192,8 @@ namespace BrightEnroll_DES.Services.Authentication
                             await SyncFromCloudForSchoolAsync(customer.CloudConnectionString, localConnectionString);
                         }
                         
-                        // Try to get user from school's database (or create if doesn't exist)
                         var schoolUser = await ValidateUserInSchoolDatabaseAsync(localConnectionString, username, password ?? string.Empty);
                         
-                        // If user doesn't exist in school's database, create it from Customer table data
                         if (schoolUser == null)
                         {
                             System.Diagnostics.Debug.WriteLine($"User not found in school database. Creating from Customer table...");
@@ -292,7 +275,6 @@ namespace BrightEnroll_DES.Services.Authentication
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error ensuring local database exists: {ex.Message}");
-                // Don't throw - let the rest of the flow continue
             }
         }
 
@@ -312,7 +294,7 @@ namespace BrightEnroll_DES.Services.Authentication
             }
             catch
             {
-                return true; // Assume empty if can't check
+                return true;
             }
         }
 
@@ -361,7 +343,6 @@ namespace BrightEnroll_DES.Services.Authentication
 
         private async Task SyncFromCloudForSchoolAsync(string cloudConnectionString, string localConnectionString)
         {
-            // Simplified sync - just sync users table for now
             try
             {
                 using var cloudConnection = new SqlConnection(cloudConnectionString);
@@ -409,7 +390,6 @@ namespace BrightEnroll_DES.Services.Authentication
                 using var connection = new SqlConnection(connectionString);
                 await connection.OpenAsync();
                 
-                // Parse contact person name to get first/last name
                 var nameParts = customer.ContactPerson?.Split(' ', StringSplitOptions.RemoveEmptyEntries) ?? new[] { "Admin", "User" };
                 var firstName = nameParts.Length > 0 ? nameParts[0] : "Admin";
                 var lastName = nameParts.Length > 1 ? string.Join(" ", nameParts.Skip(1)) : "User";
@@ -468,7 +448,7 @@ namespace BrightEnroll_DES.Services.Authentication
                 // Return user object
                 return new User
                 {
-                    user_ID = 1, // Will be set correctly when retrieved
+                    user_ID = 1, 
                     system_ID = systemId,
                     first_name = firstName,
                     last_name = lastName,

@@ -37,7 +37,7 @@ public class Contract
 
     [MaxLength(50)]
     [Column("status")]
-    public string Status { get; set; } = "Active"; // Active, Expired, Renewed, Cancelled
+    public string Status { get; set; } = "Active";
 
     [Column("auto_renew")]
     public bool AutoRenew { get; set; } = false;

@@ -15,7 +15,7 @@ public class Discount
     [Required]
     [MaxLength(50)]
     [Column("discount_type")]
-    public string DiscountType { get; set; } = string.Empty; // "Sibling", "Early-bird", "Scholarship", "Manual", etc.
+    public string DiscountType { get; set; } = string.Empty; 
 
     [Required]
     [MaxLength(100)]

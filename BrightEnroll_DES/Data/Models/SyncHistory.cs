@@ -15,7 +15,7 @@ public class SyncHistory
     [Required]
     [MaxLength(50)]
     [Column("sync_type")]
-    public string SyncType { get; set; } = string.Empty; // "Full", "Push", "Pull", "Reference"
+    public string SyncType { get; set; } = string.Empty;
 
     [Required]
     [Column("sync_time", TypeName = "datetime")]
@@ -23,7 +23,7 @@ public class SyncHistory
 
     [Required]
     [Column("status", TypeName = "varchar(20)")]
-    public string Status { get; set; } = "Success"; // "Success", "Error", "Warning"
+    public string Status { get; set; } = "Success"; 
 
     [Column("records_pushed")]
     public int RecordsPushed { get; set; } = 0;
@@ -42,7 +42,7 @@ public class SyncHistory
 
     [MaxLength(100)]
     [Column("initiated_by")]
-    public string? InitiatedBy { get; set; } // User who initiated the sync
+    public string? InitiatedBy { get; set; } 
 
     [Column("created_at", TypeName = "datetime")]
     public DateTime CreatedAt { get; set; } = DateTime.Now;

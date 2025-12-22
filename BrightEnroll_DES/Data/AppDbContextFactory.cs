@@ -3,11 +3,6 @@ using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
 
 namespace BrightEnroll_DES.Data;
-
-/// <summary>
-/// Design-time factory for Entity Framework Core migrations.
-/// This allows EF Core tools to create migrations without running the application.
-/// </summary>
 public class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
