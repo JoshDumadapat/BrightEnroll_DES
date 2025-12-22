@@ -20,9 +20,6 @@ namespace BrightEnroll_DES.Services.Seeders
             _context = context ?? throw new ArgumentNullException(nameof(context));
         }
 
-        // NOTE: Static user seeders have been removed. Users are now created dynamically through the Add Customer feature.
-        // The SchoolAdminSeeder handles creating admin users for each school's database when a customer is added.
-
         public async Task SeedAdminRoleAsync()
         {
             try
@@ -36,8 +33,6 @@ namespace BrightEnroll_DES.Services.Seeders
                     System.Diagnostics.Debug.WriteLine("Admin role already exists.");
                     return;
                 }
-
-                // Create Admin role with salary configuration matching the admin user
                 var adminRole = new Role
                 {
                     RoleName = "Admin",
@@ -51,19 +46,16 @@ namespace BrightEnroll_DES.Services.Seeders
                 await _context.SaveChangesAsync();
                 System.Diagnostics.Debug.WriteLine("Admin role created successfully.");
             }
-            catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
+            catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) 
             {
                 System.Diagnostics.Debug.WriteLine("WARNING: tbl_roles table does not exist. Skipping role seeding.");
-                // Don't throw - allow user creation to continue
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"WARNING: Error seeding admin role: {ex.Message}. Continuing without role...");
-                // Don't throw - allow user creation to continue
             }
         }
 
-        // Seeds all required roles
         public async Task SeedAllRolesAsync()
         {
             try
@@ -110,15 +102,15 @@ namespace BrightEnroll_DES.Services.Seeders
                 await _context.SaveChangesAsync();
                 System.Diagnostics.Debug.WriteLine("All roles seeded successfully.");
             }
-            catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) // Invalid object name
+            catch (Microsoft.Data.SqlClient.SqlException sqlEx) when (sqlEx.Number == 208) 
             {
                 System.Diagnostics.Debug.WriteLine("WARNING: tbl_roles table does not exist. Skipping role seeding.");
-                // Don't throw - allow user seeding to continue
+                
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"WARNING: Error seeding all roles: {ex.Message}. This is non-critical.");
-                // Don't throw - allow user seeding to continue
+               
             }
         }
 
@@ -452,21 +444,6 @@ namespace BrightEnroll_DES.Services.Seeders
                 throw new Exception($"Failed to seed Chart of Accounts: {ex.Message}", ex);
             }
         }
-
-        // NOTE: SeedSuperAdminUserAsync() is DISABLED for security
-        // SuperAdmin should NOT be seeded to school databases (AppDbContext)
-        // SuperAdmin should ONLY be in:
-        //   1. SuperAdmin database (DB_BrightEnroll_SuperAdmin) - for local dev/testing
-        //   2. Cloud database - for production
-        // Use SeedSuperAdminUserToSuperAdminDatabaseAsync() instead
-        // 
-        // The old SeedSuperAdminUserAsync() method has been removed to prevent
-        // SuperAdmin from being created in school databases
-
-        /// <summary>
-        /// Seeds SuperAdmin user to SuperAdmin database (for local development/testing)
-        /// NOTE: In production, SuperAdmin should be in cloud database only
-        /// </summary>
         public async Task SeedSuperAdminUserToSuperAdminDatabaseAsync(SuperAdminDbContext superAdminContext)
         {
             try
@@ -536,7 +513,7 @@ namespace BrightEnroll_DES.Services.Seeders
                 System.Diagnostics.Debug.WriteLine("=== SEEDING ADMIN USER ===");
 
                 const string adminEmail = "admin@brightenroll.com";
-                const string adminPassword = "Admin123456";
+                const string adminPassword = "Admin123456!";
                 const string adminSystemId = "ADMIN001";
 
                 // Check if admin user already exists
@@ -549,7 +526,6 @@ namespace BrightEnroll_DES.Services.Seeders
                     return;
                 }
 
-                // Calculate age from birthdate (default to 30 years old)
                 var birthdate = new DateTime(DateTime.Now.Year - 30, 1, 1);
                 var age = (byte)(DateTime.Today.Year - birthdate.Year);
                 if (birthdate.Date > DateTime.Today.AddYears(-age)) age--;
